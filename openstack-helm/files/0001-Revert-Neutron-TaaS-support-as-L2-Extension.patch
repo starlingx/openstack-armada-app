@@ -1,0 +1,334 @@
+From c225120329e2d4c69e5ff1b150c88575258de1c8 Mon Sep 17 00:00:00 2001
+From: Gerry Kopec <gerry.kopec@windriver.com>
+Date: Tue, 2 Oct 2018 03:03:33 +0000
+Subject: [PATCH 1/3] Revert "Neutron TaaS support as L2 Extension"
+
+This reverts commit 2f5a1c0c7751ba340d493f3c6f08a23454a7cc38.
+
+To allow per host overrides to work we need to temporarily revert this
+commit.  This should be put back once upstream has fixed the issue:
+https://storyboard.openstack.org/#!/story/2003873
+---
+ neutron/templates/bin/_db-sync.sh.tpl              |  5 +---
+ .../bin/_neutron-openvswitch-agent.sh.tpl          |  5 +---
+ neutron/templates/bin/_neutron-server.sh.tpl       |  5 +---
+ neutron/templates/bin/_neutron-sriov-agent.sh.tpl  |  5 +---
+ neutron/templates/configmap-etc.yaml               |  2 --
+ neutron/templates/daemonset-ovs-agent.yaml         | 20 ----------------
+ neutron/templates/daemonset-sriov-agent.yaml       | 20 ----------------
+ neutron/templates/deployment-server.yaml           |  6 -----
+ neutron/values.yaml                                | 28 ----------------------
+ 9 files changed, 4 insertions(+), 92 deletions(-)
+
+diff --git a/neutron/templates/bin/_db-sync.sh.tpl b/neutron/templates/bin/_db-sync.sh.tpl
+index f8704c0..5bd137b 100644
+--- a/neutron/templates/bin/_db-sync.sh.tpl
++++ b/neutron/templates/bin/_db-sync.sh.tpl
+@@ -1,7 +1,7 @@
+ #!/bin/bash
+ 
+ {{/*
+-Copyright 2017 The Openstack-Helm Authors.
++Copyright 2017-2018 OpenStack Foundation.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -21,7 +21,4 @@ set -ex
+ neutron-db-manage \
+   --config-file /etc/neutron/neutron.conf \
+   --config-file /etc/neutron/plugins/ml2/ml2_conf.ini \
+-{{- if .Values.conf.plugins.taas.taas.enabled }}
+-  --subproject tap-as-a-service \
+-{{- end }}
+   upgrade head
+diff --git a/neutron/templates/bin/_neutron-openvswitch-agent.sh.tpl b/neutron/templates/bin/_neutron-openvswitch-agent.sh.tpl
+index a9b90d4..a91c929 100644
+--- a/neutron/templates/bin/_neutron-openvswitch-agent.sh.tpl
++++ b/neutron/templates/bin/_neutron-openvswitch-agent.sh.tpl
+@@ -1,7 +1,7 @@
+ #!/bin/bash
+ 
+ {{/*
+-Copyright 2017 The Openstack-Helm Authors.
++Copyright 2017-2018 OpenStack Foundation.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -23,6 +23,3 @@ exec neutron-openvswitch-agent \
+   --config-file /etc/neutron/plugins/ml2/ml2_conf.ini \
+   --config-file /tmp/pod-shared/ml2-local-ip.ini \
+   --config-file /etc/neutron/plugins/ml2/openvswitch_agent.ini
+-{{- if .Values.conf.plugins.taas.taas.enabled }} \
+-  --config-file /etc/neutron/plugins/ml2/taas.ini
+-{{- end }}
+diff --git a/neutron/templates/bin/_neutron-server.sh.tpl b/neutron/templates/bin/_neutron-server.sh.tpl
+index a4de32d..cd24dd3 100644
+--- a/neutron/templates/bin/_neutron-server.sh.tpl
++++ b/neutron/templates/bin/_neutron-server.sh.tpl
+@@ -1,7 +1,7 @@
+ #!/bin/bash
+ 
+ {{/*
+-Copyright 2017 The Openstack-Helm Authors.
++Copyright 2017-2018 OpenStack Foundation.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -23,9 +23,6 @@ function start () {
+   exec neutron-server \
+         --config-file /etc/neutron/neutron.conf \
+         --config-file /etc/neutron/plugins/ml2/ml2_conf.ini
+-{{- if .Values.conf.plugins.taas.taas.enabled }} \
+-        --config-file /etc/neutron/taas_plugin.ini
+-{{- end }}
+ {{- if ( has "sriov" .Values.network.backend ) }} \
+         --config-file /etc/neutron/plugins/ml2/sriov_agent.ini
+ {{- end }}
+diff --git a/neutron/templates/bin/_neutron-sriov-agent.sh.tpl b/neutron/templates/bin/_neutron-sriov-agent.sh.tpl
+index 98bf5e9..bf158d2 100644
+--- a/neutron/templates/bin/_neutron-sriov-agent.sh.tpl
++++ b/neutron/templates/bin/_neutron-sriov-agent.sh.tpl
+@@ -1,7 +1,7 @@
+ #!/bin/bash
+ 
+ {{/*
+-Copyright 2017 The Openstack-Helm Authors.
++Copyright 2017-2018 OpenStack Foundation.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -22,6 +22,3 @@ exec neutron-sriov-nic-agent \
+   --config-file /etc/neutron/neutron.conf \
+   --config-file /etc/neutron/plugins/ml2/ml2_conf.ini \
+   --config-file /etc/neutron/plugins/ml2/sriov_agent.ini
+-{{- if .Values.conf.plugins.taas.taas.enabled }} \
+-  --config-file /etc/neutron/plugins/ml2/taas.ini
+-{{- end }}
+diff --git a/neutron/templates/configmap-etc.yaml b/neutron/templates/configmap-etc.yaml
+index 027602b..7293df0 100644
+--- a/neutron/templates/configmap-etc.yaml
++++ b/neutron/templates/configmap-etc.yaml
+@@ -185,10 +185,8 @@ data:
+   l3_agent.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.l3_agent | b64enc }}
+   metadata_agent.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.metadata_agent | b64enc }}
+   metering_agent.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.metering_agent | b64enc }}
+-  taas_plugin.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.taas_plugin | b64enc }}
+   ml2_conf.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.plugins.ml2_conf | b64enc }}
+   ml2_conf_sriov.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.plugins.ml2_conf_sriov | b64enc }}
+-  taas.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.plugins.taas | b64enc }}
+   macvtap_agent.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.plugins.macvtap_agent | b64enc }}
+   linuxbridge_agent.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.plugins.linuxbridge_agent | b64enc }}
+   openvswitch_agent.ini: {{ include "helm-toolkit.utils.to_oslo_conf" $envAll.Values.conf.plugins.openvswitch_agent | b64enc }}
+diff --git a/neutron/templates/daemonset-ovs-agent.yaml b/neutron/templates/daemonset-ovs-agent.yaml
+index 34aba25..3ca1ca3 100644
+--- a/neutron/templates/daemonset-ovs-agent.yaml
++++ b/neutron/templates/daemonset-ovs-agent.yaml
+@@ -102,12 +102,6 @@ spec:
+               mountPath: /etc/neutron/plugins/ml2/openvswitch_agent.ini
+               subPath: openvswitch_agent.ini
+               readOnly: true
+-            {{- if .Values.conf.plugins.taas.taas.enabled }}
+-            - name: neutron-etc
+-              mountPath: /etc/neutron/plugins/ml2/taas.ini
+-              subPath: taas.ini
+-              readOnly: true
+-            {{- end }}
+             - name: neutron-etc
+               # NOTE (Portdirect): We mount here to override Kollas
+               # custom sudoers file when using Kolla images, this
+@@ -121,9 +115,6 @@ spec:
+               readOnly: true
+             {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
+             {{- if ( has "ovs_agent" $value.pods ) }}
+-            {{- if and ( eq "taas" $key ) (not $envAll.Values.conf.plugins.taas.taas.enabled) }}
+-                ## if taas is not enabled, do not include taas.filters
+-            {{- else }}
+             {{- $filePrefix := replace "_" "-"  $key }}
+             {{- $rootwrapFile := printf "/etc/neutron/rootwrap.d/%s.filters" $filePrefix }}
+             - name: neutron-etc
+@@ -132,7 +123,6 @@ spec:
+               readOnly: true
+             {{- end }}
+             {{- end }}
+-            {{- end }}
+             - name: run
+               mountPath: /run
+ {{ if $mounts_neutron_ovs_agent.volumeMounts }}{{ toYaml $mounts_neutron_ovs_agent.volumeMounts | indent 12 }}{{ end }}
+@@ -176,12 +166,6 @@ spec:
+               mountPath: /etc/neutron/plugins/ml2/openvswitch_agent.ini
+               subPath: openvswitch_agent.ini
+               readOnly: true
+-            {{- if .Values.conf.plugins.taas.taas.enabled }}
+-            - name: neutron-etc
+-              mountPath: /etc/neutron/plugins/ml2/taas.ini
+-              subPath: taas.ini
+-              readOnly: true
+-            {{- end }}
+             - name: neutron-etc
+               # NOTE (Portdirect): We mount here to override Kollas
+               # custom sudoers file when using Kolla images, this
+@@ -195,9 +179,6 @@ spec:
+               readOnly: true
+             {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
+             {{- if ( has "ovs_agent" $value.pods ) }}
+-            {{- if and ( eq "taas" $key ) (not $envAll.Values.conf.plugins.taas.taas.enabled) }}
+-                ## if taas is not enabled, do not include taas.filters
+-            {{- else }}
+             {{- $filePrefix := replace "_" "-"  $key }}
+             {{- $rootwrapFile := printf "/etc/neutron/rootwrap.d/%s.filters" $filePrefix }}
+             - name: neutron-etc
+@@ -206,7 +187,6 @@ spec:
+               readOnly: true
+             {{- end }}
+             {{- end }}
+-            {{- end }}
+             - name: run
+               mountPath: /run
+ {{ if $mounts_neutron_ovs_agent.volumeMounts }}{{ toYaml $mounts_neutron_ovs_agent.volumeMounts | indent 12 }}{{ end }}
+diff --git a/neutron/templates/daemonset-sriov-agent.yaml b/neutron/templates/daemonset-sriov-agent.yaml
+index 4b8b6e1..6130817 100644
+--- a/neutron/templates/daemonset-sriov-agent.yaml
++++ b/neutron/templates/daemonset-sriov-agent.yaml
+@@ -85,12 +85,6 @@ spec:
+               mountPath: /etc/neutron/plugins/ml2/sriov_agent.ini
+               subPath: sriov_agent.ini
+               readOnly: true
+-            {{- if .Values.conf.plugins.taas.taas.enabled }}
+-            - name: neutron-etc
+-              mountPath: /etc/neutron/plugins/ml2/taas.ini
+-              subPath: taas.ini
+-              readOnly: true
+-            {{- end }}
+             - name: neutron-etc
+               # NOTE (Portdirect): We mount here to override Kollas
+               # custom sudoers file when using Kolla images, this
+@@ -104,9 +98,6 @@ spec:
+               readOnly: true
+             {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
+             {{- if ( has "sriov_agent" $value.pods ) }}
+-            {{- if and ( eq "taas" $key ) (not $envAll.Values.conf.plugins.taas.taas.enabled) }}
+-                ## if taas is not enabled, do not include taas.filters
+-            {{- else }}
+             {{- $filePrefix := replace "_" "-"  $key }}
+             {{- $rootwrapFile := printf "/etc/neutron/rootwrap.d/%s.filters" $filePrefix }}
+             - name: neutron-etc
+@@ -115,7 +106,6 @@ spec:
+               readOnly: true
+             {{- end }}
+             {{- end }}
+-            {{- end }}
+             - name: run
+               mountPath: /run
+ {{ if $mounts_neutron_sriov_agent.volumeMounts }}{{ toYaml $mounts_neutron_sriov_agent.volumeMounts | indent 12 }}{{ end }}
+@@ -151,12 +141,6 @@ spec:
+               mountPath: /etc/neutron/plugins/ml2/sriov_agent.ini
+               subPath: sriov_agent.ini
+               readOnly: true
+-            {{- if .Values.conf.plugins.taas.taas.enabled }}
+-            - name: neutron-etc
+-              mountPath: /etc/neutron/plugins/ml2/taas.ini
+-              subPath: taas.ini
+-              readOnly: true
+-            {{- end }}
+             - name: neutron-etc
+               # NOTE (Portdirect): We mount here to override Kollas
+               # custom sudoers file when using Kolla images, this
+@@ -170,9 +154,6 @@ spec:
+               readOnly: true
+             {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
+             {{- if ( has "sriov_agent" $value.pods ) }}
+-            {{- if and ( eq "taas" $key ) (not $envAll.Values.conf.plugins.taas.taas.enabled) }}
+-                ## if taas is not enabled, do not include taas.filters
+-            {{- else }}
+             {{- $filePrefix := replace "_" "-"  $key }}
+             {{- $rootwrapFile := printf "/etc/neutron/rootwrap.d/%s.filters" $filePrefix }}
+             - name: neutron-etc
+@@ -181,7 +162,6 @@ spec:
+               readOnly: true
+             {{- end }}
+             {{- end }}
+-            {{- end }}
+             - name: run
+               mountPath: /run
+ {{ if $mounts_neutron_sriov_agent.volumeMounts }}{{ toYaml $mounts_neutron_sriov_agent.volumeMounts | indent 12 }}{{ end }}
+diff --git a/neutron/templates/deployment-server.yaml b/neutron/templates/deployment-server.yaml
+index b66467f..31dec3d 100644
+--- a/neutron/templates/deployment-server.yaml
++++ b/neutron/templates/deployment-server.yaml
+@@ -100,12 +100,6 @@ spec:
+               subPath: sriov_agent.ini
+               readOnly: true
+             {{ end }}
+-            {{- if .Values.conf.plugins.taas.taas.enabled }}
+-            - name: neutron-etc
+-              mountPath: /etc/neutron/taas_plugin.ini
+-              subPath: taas_plugin.ini
+-              readOnly: true
+-            {{ end }}
+             - name: neutron-etc
+               mountPath: /etc/neutron/api-paste.ini
+               subPath: api-paste.ini
+diff --git a/neutron/values.yaml b/neutron/values.yaml
+index 64201be..e5bb6d8 100644
+--- a/neutron/values.yaml
++++ b/neutron/values.yaml
+@@ -1433,23 +1433,6 @@ conf:
+           # NOTE: A second `--config-file` arg can also be added above. Since
+           # many neutron components are installed like that (eg: by devstack).
+           # Adjust to suit local requirements.
+-    taas:
+-      pods:
+-        - ovs_agent
+-        - sriov_agent
+-      content: |
+-        # neutron-rootwrap command filters for nodes on which neutron
+-        # tap-as-a-service(taas) is eanbled.  Taas uses this command
+-        # as part of its flow control.
+-
+-        # format seems to be
+-        # cmd-name: filter-name, raw-command, user, args
+-
+-        [Filters]
+-
+-        # This is needed to allow taas to insert/remove vlan id to the
+-        # target vf under /sys/class/net/[device-name]/device/sriov/[vf-index]/[mirror]
+-        i40e_sysfs_command: RegExpFilter, /opt/i40e_sysfs_command, root, /opt/i40e_sysfs_command, \w+, .+, .+
+   neutron:
+     DEFAULT:
+       log_config_append: /etc/neutron/logging.conf
+@@ -1495,7 +1478,6 @@ conf:
+       keys:
+         - root
+         - neutron
+-        - neutron_taas
+     handlers:
+       keys:
+         - stdout
+@@ -1513,11 +1495,6 @@ conf:
+       handlers:
+         - stdout
+       qualname: neutron
+-    logger_neutron_taas:
+-      level: INFO
+-      handlers:
+-        - stdout
+-      qualname: neutron_taas
+     logger_amqp:
+       level: WARNING
+       handlers: stderr
+@@ -1573,12 +1550,7 @@ conf:
+       # using ml2_type_vlan.network_vlan_ranges:
+       # ml2_type_vlan:
+       #   network_vlan_ranges: "external:1100:1110"
+-      agent:
+-        extensions: ""
+     ml2_conf_sriov: null
+-    taas:
+-      taas:
+-        enabled: False
+     openvswitch_agent:
+       agent:
+         tunnel_types: vxlan
+-- 
+1.8.3.1
+

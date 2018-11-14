@@ -1,4 +1,4 @@
-%global sha 5ec85a5d70fab468160d2fdafed1a2a7a5151405
+%global sha 5d356f9265b337b75f605dee839faa8cd0ed3ab2
 %global helm_folder  /usr/lib/helm
 
 Summary: Openstack-Helm-Infra charts
@@ -15,8 +15,6 @@ Source0: %{name}-%{sha}.tar.gz
 BuildArch:     noarch
 
 Patch01: 0001-gnocchi-remove-gnocchi-upgrade-option-and-set-coordi.patch
-Patch02: 0002-Revert-Helm-Toolkit-Move-sensitive-config-data-to-se.patch
-Patch03: 0003-Revert-gnocchi-use-of-k8s-secret-to-store-config.patch
 
 BuildRequires: helm
 
@@ -26,8 +24,6 @@ Openstack Helm Infra charts
 %prep
 %setup -n openstack-helm-infra
 %patch01 -p1
-%patch02 -p1
-%patch03 -p1
 
 %build
 # initialize helm and build the toolkit

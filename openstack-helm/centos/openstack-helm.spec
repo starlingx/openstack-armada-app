@@ -1,4 +1,4 @@
-%global sha add7a9bc1175f6fafa8ea2918bc1d62209aaf243
+%global sha 9d72fe1a501bc609a875eebf7b6274e18600ed70
 %global helm_folder  /usr/lib/helm
 %global toolkit_version 0.1.0
 %global helmchart_version 0.1.0
@@ -16,11 +16,9 @@ Source0: %{name}-%{sha}.tar.gz
 
 BuildArch:     noarch
 
-Patch01: 0001-Revert-Neutron-TaaS-support-as-L2-Extension.patch
-Patch02: 0002-Revert-Openstack-Use-k8s-secret-to-store-config.patch
-Patch03: 0003-ceilometer-chart-updates.patch
-Patch04: 0004-Add-Aodh-Chart.patch
-Patch05: 0005-Add-Panko-Chart.patch
+Patch01: 0001-ceilometer-chart-updates.patch
+Patch02: 0002-Add-Aodh-Chart.patch
+Patch03: 0003-Add-Panko-Chart.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -34,8 +32,6 @@ Openstack Helm charts
 %patch01 -p1
 %patch02 -p1
 %patch03 -p1
-%patch04 -p1
-%patch05 -p1
 
 %build
 # initialize helm and stage the toolkit

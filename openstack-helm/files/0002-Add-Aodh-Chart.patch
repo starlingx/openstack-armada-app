@@ -1,7 +1,7 @@
-From aeed59c1ca49950c7ba667a5f9b44ec552b63f5f Mon Sep 17 00:00:00 2001
+From 8615d16af10e1d14dedeb9a026e59491142c0dbf Mon Sep 17 00:00:00 2001
 From: Angie Wang <angie.wang@windriver.com>
 Date: Wed, 14 Nov 2018 11:39:55 -0500
-Subject: [PATCH 1/1] Add Aodh Chart
+Subject: [PATCH 2/3] Add Aodh Chart
 
 This commit adds a helm chart to deloy Aodh.
 
@@ -82,7 +82,7 @@ https://review.openstack.org/#/c/468530/
 
 diff --git a/aodh/Chart.yaml b/aodh/Chart.yaml
 new file mode 100644
-index 0000000..6f666f0
+index 00000000..6f666f0e
 --- /dev/null
 +++ b/aodh/Chart.yaml
 @@ -0,0 +1,24 @@
@@ -112,7 +112,7 @@ index 0000000..6f666f0
 +  - name: OpenStack-Helm Authors
 diff --git a/aodh/requirements.yaml b/aodh/requirements.yaml
 new file mode 100644
-index 0000000..53782e6
+index 00000000..53782e69
 --- /dev/null
 +++ b/aodh/requirements.yaml
 @@ -0,0 +1,18 @@
@@ -136,7 +136,7 @@ index 0000000..53782e6
 +    version: 0.1.0
 diff --git a/aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl b/aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl
 new file mode 100644
-index 0000000..8ca0e7c
+index 00000000..8ca0e7c5
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl
 @@ -0,0 +1,21 @@
@@ -163,7 +163,7 @@ index 0000000..8ca0e7c
 +aodh-expirer
 diff --git a/aodh/templates/bin/_aodh-api.sh.tpl b/aodh/templates/bin/_aodh-api.sh.tpl
 new file mode 100644
-index 0000000..708b327
+index 00000000..708b3272
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-api.sh.tpl
 @@ -0,0 +1,39 @@
@@ -208,7 +208,7 @@ index 0000000..708b327
 +$COMMAND
 diff --git a/aodh/templates/bin/_aodh-evaluator.sh.tpl b/aodh/templates/bin/_aodh-evaluator.sh.tpl
 new file mode 100644
-index 0000000..7c7b07b
+index 00000000..7c7b07b0
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-evaluator.sh.tpl
 @@ -0,0 +1,21 @@
@@ -235,7 +235,7 @@ index 0000000..7c7b07b
 +exec aodh-evaluator --config-file=/etc/aodh/aodh.conf
 diff --git a/aodh/templates/bin/_aodh-listener.sh.tpl b/aodh/templates/bin/_aodh-listener.sh.tpl
 new file mode 100644
-index 0000000..0abeba4
+index 00000000..0abeba43
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-listener.sh.tpl
 @@ -0,0 +1,21 @@
@@ -262,7 +262,7 @@ index 0000000..0abeba4
 +exec aodh-listener --config-file=/etc/aodh/aodh.conf
 diff --git a/aodh/templates/bin/_aodh-notifier.sh.tpl b/aodh/templates/bin/_aodh-notifier.sh.tpl
 new file mode 100644
-index 0000000..b1b4f94
+index 00000000..b1b4f947
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-notifier.sh.tpl
 @@ -0,0 +1,21 @@
@@ -289,7 +289,7 @@ index 0000000..b1b4f94
 +exec aodh-notifier --config-file=/etc/aodh/aodh.conf
 diff --git a/aodh/templates/bin/_aodh-test.sh.tpl b/aodh/templates/bin/_aodh-test.sh.tpl
 new file mode 100644
-index 0000000..fc95b06
+index 00000000..fc95b06c
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-test.sh.tpl
 @@ -0,0 +1,54 @@
@@ -349,7 +349,7 @@ index 0000000..fc95b06
 +
 diff --git a/aodh/templates/bin/_bootstrap.sh.tpl b/aodh/templates/bin/_bootstrap.sh.tpl
 new file mode 100644
-index 0000000..533c0a5
+index 00000000..533c0a5a
 --- /dev/null
 +++ b/aodh/templates/bin/_bootstrap.sh.tpl
 @@ -0,0 +1,20 @@
@@ -375,7 +375,7 @@ index 0000000..533c0a5
 +{{ .Values.bootstrap.script | default "echo 'Not Enabled'" }}
 diff --git a/aodh/templates/bin/_db-sync.sh.tpl b/aodh/templates/bin/_db-sync.sh.tpl
 new file mode 100644
-index 0000000..7eb7bd3
+index 00000000..7eb7bd3f
 --- /dev/null
 +++ b/aodh/templates/bin/_db-sync.sh.tpl
 @@ -0,0 +1,21 @@
@@ -402,7 +402,7 @@ index 0000000..7eb7bd3
 +aodh-dbsync
 diff --git a/aodh/templates/configmap-bin.yaml b/aodh/templates/configmap-bin.yaml
 new file mode 100644
-index 0000000..3ee32e7
+index 00000000..3ee32e79
 --- /dev/null
 +++ b/aodh/templates/configmap-bin.yaml
 @@ -0,0 +1,60 @@
@@ -468,7 +468,7 @@ index 0000000..3ee32e7
 +{{- end }}
 diff --git a/aodh/templates/configmap-etc.yaml b/aodh/templates/configmap-etc.yaml
 new file mode 100644
-index 0000000..81f4e1f
+index 00000000..81f4e1fb
 --- /dev/null
 +++ b/aodh/templates/configmap-etc.yaml
 @@ -0,0 +1,123 @@
@@ -598,7 +598,7 @@ index 0000000..81f4e1f
 \ No newline at end of file
 diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
 new file mode 100644
-index 0000000..6862c5f
+index 00000000..6862c5f3
 --- /dev/null
 +++ b/aodh/templates/cron-job-alarms-cleaner.yaml
 @@ -0,0 +1,84 @@
@@ -688,7 +688,7 @@ index 0000000..6862c5f
 +{{- end }}
 diff --git a/aodh/templates/deployment-api.yaml b/aodh/templates/deployment-api.yaml
 new file mode 100644
-index 0000000..6190261
+index 00000000..61902610
 --- /dev/null
 +++ b/aodh/templates/deployment-api.yaml
 @@ -0,0 +1,121 @@
@@ -816,7 +816,7 @@ index 0000000..6190261
 \ No newline at end of file
 diff --git a/aodh/templates/deployment-evaluator.yaml b/aodh/templates/deployment-evaluator.yaml
 new file mode 100644
-index 0000000..175f142
+index 00000000..175f1421
 --- /dev/null
 +++ b/aodh/templates/deployment-evaluator.yaml
 @@ -0,0 +1,101 @@
@@ -923,7 +923,7 @@ index 0000000..175f142
 +{{- end }}
 diff --git a/aodh/templates/deployment-listener.yaml b/aodh/templates/deployment-listener.yaml
 new file mode 100644
-index 0000000..ca1dc19
+index 00000000..ca1dc191
 --- /dev/null
 +++ b/aodh/templates/deployment-listener.yaml
 @@ -0,0 +1,102 @@
@@ -1031,7 +1031,7 @@ index 0000000..ca1dc19
 +
 diff --git a/aodh/templates/deployment-notifier.yaml b/aodh/templates/deployment-notifier.yaml
 new file mode 100644
-index 0000000..068d83a
+index 00000000..068d83a9
 --- /dev/null
 +++ b/aodh/templates/deployment-notifier.yaml
 @@ -0,0 +1,103 @@
@@ -1140,7 +1140,7 @@ index 0000000..068d83a
 +
 diff --git a/aodh/templates/ingress-api.yaml b/aodh/templates/ingress-api.yaml
 new file mode 100644
-index 0000000..fe3f31c
+index 00000000..fe3f31c4
 --- /dev/null
 +++ b/aodh/templates/ingress-api.yaml
 @@ -0,0 +1,20 @@
@@ -1166,7 +1166,7 @@ index 0000000..fe3f31c
 +{{- end }}
 diff --git a/aodh/templates/job-bootstrap.yaml b/aodh/templates/job-bootstrap.yaml
 new file mode 100644
-index 0000000..17cea12
+index 00000000..17cea12b
 --- /dev/null
 +++ b/aodh/templates/job-bootstrap.yaml
 @@ -0,0 +1,20 @@
@@ -1192,7 +1192,7 @@ index 0000000..17cea12
 +{{- end }}
 diff --git a/aodh/templates/job-db-drop.yaml b/aodh/templates/job-db-drop.yaml
 new file mode 100644
-index 0000000..8c2d80c
+index 00000000..8c2d80c3
 --- /dev/null
 +++ b/aodh/templates/job-db-drop.yaml
 @@ -0,0 +1,20 @@
@@ -1219,7 +1219,7 @@ index 0000000..8c2d80c
 \ No newline at end of file
 diff --git a/aodh/templates/job-db-init.yaml b/aodh/templates/job-db-init.yaml
 new file mode 100644
-index 0000000..5d14fb7
+index 00000000..5d14fb75
 --- /dev/null
 +++ b/aodh/templates/job-db-init.yaml
 @@ -0,0 +1,20 @@
@@ -1245,7 +1245,7 @@ index 0000000..5d14fb7
 +{{- end }}
 diff --git a/aodh/templates/job-db-sync.yaml b/aodh/templates/job-db-sync.yaml
 new file mode 100644
-index 0000000..2428c7f
+index 00000000..2428c7f2
 --- /dev/null
 +++ b/aodh/templates/job-db-sync.yaml
 @@ -0,0 +1,20 @@
@@ -1271,7 +1271,7 @@ index 0000000..2428c7f
 +{{- end }}
 diff --git a/aodh/templates/job-image-repo-sync.yaml b/aodh/templates/job-image-repo-sync.yaml
 new file mode 100644
-index 0000000..0eeef1e
+index 00000000..0eeef1ed
 --- /dev/null
 +++ b/aodh/templates/job-image-repo-sync.yaml
 @@ -0,0 +1,20 @@
@@ -1297,7 +1297,7 @@ index 0000000..0eeef1e
 +{{- end }}
 diff --git a/aodh/templates/job-ks-endpoints.yaml b/aodh/templates/job-ks-endpoints.yaml
 new file mode 100644
-index 0000000..7fc30c2
+index 00000000..7fc30c2b
 --- /dev/null
 +++ b/aodh/templates/job-ks-endpoints.yaml
 @@ -0,0 +1,20 @@
@@ -1323,7 +1323,7 @@ index 0000000..7fc30c2
 +{{- end }}
 diff --git a/aodh/templates/job-ks-service.yaml b/aodh/templates/job-ks-service.yaml
 new file mode 100644
-index 0000000..b4120b3
+index 00000000..b4120b3c
 --- /dev/null
 +++ b/aodh/templates/job-ks-service.yaml
 @@ -0,0 +1,20 @@
@@ -1349,7 +1349,7 @@ index 0000000..b4120b3
 +{{- end }}
 diff --git a/aodh/templates/job-ks-user.yaml b/aodh/templates/job-ks-user.yaml
 new file mode 100644
-index 0000000..9618931
+index 00000000..96189310
 --- /dev/null
 +++ b/aodh/templates/job-ks-user.yaml
 @@ -0,0 +1,20 @@
@@ -1375,7 +1375,7 @@ index 0000000..9618931
 +{{- end }}
 diff --git a/aodh/templates/job-rabbit-init.yaml b/aodh/templates/job-rabbit-init.yaml
 new file mode 100644
-index 0000000..06cc5a7
+index 00000000..06cc5a71
 --- /dev/null
 +++ b/aodh/templates/job-rabbit-init.yaml
 @@ -0,0 +1,20 @@
@@ -1401,7 +1401,7 @@ index 0000000..06cc5a7
 +{{- end }}
 diff --git a/aodh/templates/pdb-api.yaml b/aodh/templates/pdb-api.yaml
 new file mode 100644
-index 0000000..1892708
+index 00000000..1892708e
 --- /dev/null
 +++ b/aodh/templates/pdb-api.yaml
 @@ -0,0 +1,29 @@
@@ -1436,7 +1436,7 @@ index 0000000..1892708
 +{{- end }}
 diff --git a/aodh/templates/pod-aodh-test.yaml b/aodh/templates/pod-aodh-test.yaml
 new file mode 100644
-index 0000000..9254c92
+index 00000000..9254c922
 --- /dev/null
 +++ b/aodh/templates/pod-aodh-test.yaml
 @@ -0,0 +1,72 @@
@@ -1514,7 +1514,7 @@ index 0000000..9254c92
 +{{- end }}
 diff --git a/aodh/templates/secret-db.yaml b/aodh/templates/secret-db.yaml
 new file mode 100644
-index 0000000..85568c1
+index 00000000..85568c1a
 --- /dev/null
 +++ b/aodh/templates/secret-db.yaml
 @@ -0,0 +1,30 @@
@@ -1551,7 +1551,7 @@ index 0000000..85568c1
 \ No newline at end of file
 diff --git a/aodh/templates/secret-keystone.yaml b/aodh/templates/secret-keystone.yaml
 new file mode 100644
-index 0000000..aef25b2
+index 00000000..aef25b2e
 --- /dev/null
 +++ b/aodh/templates/secret-keystone.yaml
 @@ -0,0 +1,30 @@
@@ -1587,7 +1587,7 @@ index 0000000..aef25b2
 +{{- end }}
 diff --git a/aodh/templates/secret-rabbitmq.yaml b/aodh/templates/secret-rabbitmq.yaml
 new file mode 100644
-index 0000000..ad65ae3
+index 00000000..ad65ae34
 --- /dev/null
 +++ b/aodh/templates/secret-rabbitmq.yaml
 @@ -0,0 +1,30 @@
@@ -1623,7 +1623,7 @@ index 0000000..ad65ae3
 +{{- end }}
 diff --git a/aodh/templates/service-api.yaml b/aodh/templates/service-api.yaml
 new file mode 100644
-index 0000000..bb9083e
+index 00000000..bb9083ef
 --- /dev/null
 +++ b/aodh/templates/service-api.yaml
 @@ -0,0 +1,39 @@
@@ -1668,7 +1668,7 @@ index 0000000..bb9083e
 +{{- end }}
 diff --git a/aodh/templates/service-ingress-api.yaml b/aodh/templates/service-ingress-api.yaml
 new file mode 100644
-index 0000000..c1b9658
+index 00000000..c1b96584
 --- /dev/null
 +++ b/aodh/templates/service-ingress-api.yaml
 @@ -0,0 +1,20 @@
@@ -1694,7 +1694,7 @@ index 0000000..c1b9658
 +{{- end }}
 diff --git a/aodh/values.yaml b/aodh/values.yaml
 new file mode 100644
-index 0000000..bd7a736
+index 00000000..bd7a736f
 --- /dev/null
 +++ b/aodh/values.yaml
 @@ -0,0 +1,671 @@
@@ -2370,5 +2370,5 @@ index 0000000..bd7a736
 +  service_ingress_api: true
 +
 -- 
-1.8.3.1
+2.16.5
 

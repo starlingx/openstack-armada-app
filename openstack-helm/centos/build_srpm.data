@@ -1,8 +1,8 @@
 TAR_NAME=openstack-helm
-SHA=add7a9bc1175f6fafa8ea2918bc1d62209aaf243
+SHA=9d72fe1a501bc609a875eebf7b6274e18600ed70
 VERSION=1.0.0
 TAR="$TAR_NAME-$SHA.tar.gz"
 
 COPY_LIST="${CGCS_BASE}/downloads/$TAR $PKG_BASE/files/* "
 
-TIS_PATCH_VER=3
+TIS_PATCH_VER=4

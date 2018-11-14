@@ -1,7 +1,7 @@
-From 37fd9663c087532e35d3e514d91b29994022abfa Mon Sep 17 00:00:00 2001
+From e52f311273dd9674cde764cf8f1c3bc02e8d0e00 Mon Sep 17 00:00:00 2001
 From: Angie Wang <angie.wang@windriver.com>
 Date: Wed, 14 Nov 2018 11:58:17 -0500
-Subject: [PATCH 1/1] Add Panko Chart
+Subject: [PATCH 3/3] Add Panko Chart
 
 This commit adds a helm chart to deploy Panko.
 
@@ -66,7 +66,7 @@ https://review.openstack.org/#/c/469180/
 
 diff --git a/panko/Chart.yaml b/panko/Chart.yaml
 new file mode 100755
-index 0000000..7c5842a
+index 00000000..7c5842ac
 --- /dev/null
 +++ b/panko/Chart.yaml
 @@ -0,0 +1,24 @@
@@ -96,7 +96,7 @@ index 0000000..7c5842a
 +  - name: OpenStack-Helm Authors
 diff --git a/panko/requirements.yaml b/panko/requirements.yaml
 new file mode 100755
-index 0000000..53782e6
+index 00000000..53782e69
 --- /dev/null
 +++ b/panko/requirements.yaml
 @@ -0,0 +1,18 @@
@@ -120,7 +120,7 @@ index 0000000..53782e6
 +    version: 0.1.0
 diff --git a/panko/templates/bin/_bootstrap.sh.tpl b/panko/templates/bin/_bootstrap.sh.tpl
 new file mode 100755
-index 0000000..81a93b4
+index 00000000..81a93b42
 --- /dev/null
 +++ b/panko/templates/bin/_bootstrap.sh.tpl
 @@ -0,0 +1,20 @@
@@ -147,7 +147,7 @@ index 0000000..81a93b4
 \ No newline at end of file
 diff --git a/panko/templates/bin/_db-sync.sh.tpl b/panko/templates/bin/_db-sync.sh.tpl
 new file mode 100755
-index 0000000..8ca583a
+index 00000000..8ca583a9
 --- /dev/null
 +++ b/panko/templates/bin/_db-sync.sh.tpl
 @@ -0,0 +1,21 @@
@@ -174,7 +174,7 @@ index 0000000..8ca583a
 +exec panko-dbsync
 diff --git a/panko/templates/bin/_panko-api.sh.tpl b/panko/templates/bin/_panko-api.sh.tpl
 new file mode 100755
-index 0000000..bd08a43
+index 00000000..bd08a438
 --- /dev/null
 +++ b/panko/templates/bin/_panko-api.sh.tpl
 @@ -0,0 +1,40 @@
@@ -220,7 +220,7 @@ index 0000000..bd08a43
 +
 diff --git a/panko/templates/bin/_panko-events-cleaner.sh.tpl b/panko/templates/bin/_panko-events-cleaner.sh.tpl
 new file mode 100755
-index 0000000..10f3a86
+index 00000000..10f3a863
 --- /dev/null
 +++ b/panko/templates/bin/_panko-events-cleaner.sh.tpl
 @@ -0,0 +1,21 @@
@@ -247,7 +247,7 @@ index 0000000..10f3a86
 +panko-expirer
 diff --git a/panko/templates/bin/_panko-test.sh.tpl b/panko/templates/bin/_panko-test.sh.tpl
 new file mode 100755
-index 0000000..28273f9
+index 00000000..28273f9f
 --- /dev/null
 +++ b/panko/templates/bin/_panko-test.sh.tpl
 @@ -0,0 +1,29 @@
@@ -282,7 +282,7 @@ index 0000000..28273f9
 +exit 0
 diff --git a/panko/templates/configmap-bin.yaml b/panko/templates/configmap-bin.yaml
 new file mode 100755
-index 0000000..2eb73f4
+index 00000000..2eb73f48
 --- /dev/null
 +++ b/panko/templates/configmap-bin.yaml
 @@ -0,0 +1,51 @@
@@ -339,7 +339,7 @@ index 0000000..2eb73f4
 +{{- end }}
 diff --git a/panko/templates/configmap-etc.yaml b/panko/templates/configmap-etc.yaml
 new file mode 100755
-index 0000000..f2d02c8
+index 00000000..f2d02c8c
 --- /dev/null
 +++ b/panko/templates/configmap-etc.yaml
 @@ -0,0 +1,91 @@
@@ -436,7 +436,7 @@ index 0000000..f2d02c8
 +{{- end }}
 diff --git a/panko/templates/cron-job-events-cleaner.yaml b/panko/templates/cron-job-events-cleaner.yaml
 new file mode 100755
-index 0000000..b0794b5
+index 00000000..b0794b50
 --- /dev/null
 +++ b/panko/templates/cron-job-events-cleaner.yaml
 @@ -0,0 +1,84 @@
@@ -526,7 +526,7 @@ index 0000000..b0794b5
 +{{- end }}
 diff --git a/panko/templates/deployment-api.yaml b/panko/templates/deployment-api.yaml
 new file mode 100755
-index 0000000..93c3ada
+index 00000000..93c3ada2
 --- /dev/null
 +++ b/panko/templates/deployment-api.yaml
 @@ -0,0 +1,121 @@
@@ -653,7 +653,7 @@ index 0000000..93c3ada
 +{{- end }}
 diff --git a/panko/templates/ingress-api.yaml b/panko/templates/ingress-api.yaml
 new file mode 100755
-index 0000000..d6d0e88
+index 00000000..d6d0e88a
 --- /dev/null
 +++ b/panko/templates/ingress-api.yaml
 @@ -0,0 +1,20 @@
@@ -679,7 +679,7 @@ index 0000000..d6d0e88
 +{{- end }}
 diff --git a/panko/templates/job-bootstrap.yaml b/panko/templates/job-bootstrap.yaml
 new file mode 100755
-index 0000000..7321d4b
+index 00000000..7321d4ba
 --- /dev/null
 +++ b/panko/templates/job-bootstrap.yaml
 @@ -0,0 +1,20 @@
@@ -705,7 +705,7 @@ index 0000000..7321d4b
 +{{- end }}
 diff --git a/panko/templates/job-db-drop.yaml b/panko/templates/job-db-drop.yaml
 new file mode 100755
-index 0000000..7e50dbe
+index 00000000..7e50dbe0
 --- /dev/null
 +++ b/panko/templates/job-db-drop.yaml
 @@ -0,0 +1,20 @@
@@ -732,7 +732,7 @@ index 0000000..7e50dbe
 \ No newline at end of file
 diff --git a/panko/templates/job-db-init.yaml b/panko/templates/job-db-init.yaml
 new file mode 100755
-index 0000000..22f4ddb
+index 00000000..22f4ddb6
 --- /dev/null
 +++ b/panko/templates/job-db-init.yaml
 @@ -0,0 +1,20 @@
@@ -759,7 +759,7 @@ index 0000000..22f4ddb
 \ No newline at end of file
 diff --git a/panko/templates/job-db-sync.yaml b/panko/templates/job-db-sync.yaml
 new file mode 100755
-index 0000000..4b2fe73
+index 00000000..4b2fe735
 --- /dev/null
 +++ b/panko/templates/job-db-sync.yaml
 @@ -0,0 +1,20 @@
@@ -786,7 +786,7 @@ index 0000000..4b2fe73
 \ No newline at end of file
 diff --git a/panko/templates/job-image-repo-sync.yaml b/panko/templates/job-image-repo-sync.yaml
 new file mode 100755
-index 0000000..8faed5b
+index 00000000..8faed5ba
 --- /dev/null
 +++ b/panko/templates/job-image-repo-sync.yaml
 @@ -0,0 +1,20 @@
@@ -813,7 +813,7 @@ index 0000000..8faed5b
 \ No newline at end of file
 diff --git a/panko/templates/job-ks-endpoints.yaml b/panko/templates/job-ks-endpoints.yaml
 new file mode 100755
-index 0000000..77457ba
+index 00000000..77457ba6
 --- /dev/null
 +++ b/panko/templates/job-ks-endpoints.yaml
 @@ -0,0 +1,20 @@
@@ -840,7 +840,7 @@ index 0000000..77457ba
 \ No newline at end of file
 diff --git a/panko/templates/job-ks-service.yaml b/panko/templates/job-ks-service.yaml
 new file mode 100755
-index 0000000..1531564
+index 00000000..15315648
 --- /dev/null
 +++ b/panko/templates/job-ks-service.yaml
 @@ -0,0 +1,20 @@
@@ -867,7 +867,7 @@ index 0000000..1531564
 \ No newline at end of file
 diff --git a/panko/templates/job-ks-user.yaml b/panko/templates/job-ks-user.yaml
 new file mode 100755
-index 0000000..bff96ed
+index 00000000..bff96ed6
 --- /dev/null
 +++ b/panko/templates/job-ks-user.yaml
 @@ -0,0 +1,20 @@
@@ -894,7 +894,7 @@ index 0000000..bff96ed
 \ No newline at end of file
 diff --git a/panko/templates/pdb-api.yaml b/panko/templates/pdb-api.yaml
 new file mode 100755
-index 0000000..fc6fcd0
+index 00000000..fc6fcd0e
 --- /dev/null
 +++ b/panko/templates/pdb-api.yaml
 @@ -0,0 +1,29 @@
@@ -929,7 +929,7 @@ index 0000000..fc6fcd0
 +{{- end }}
 diff --git a/panko/templates/pod-panko-test.yaml b/panko/templates/pod-panko-test.yaml
 new file mode 100755
-index 0000000..2acc43a
+index 00000000..2acc43a2
 --- /dev/null
 +++ b/panko/templates/pod-panko-test.yaml
 @@ -0,0 +1,72 @@
@@ -1007,7 +1007,7 @@ index 0000000..2acc43a
 +{{- end }}
 diff --git a/panko/templates/secret-db.yaml b/panko/templates/secret-db.yaml
 new file mode 100755
-index 0000000..58edac4
+index 00000000..58edac4c
 --- /dev/null
 +++ b/panko/templates/secret-db.yaml
 @@ -0,0 +1,30 @@
@@ -1044,7 +1044,7 @@ index 0000000..58edac4
 \ No newline at end of file
 diff --git a/panko/templates/secret-keystone.yaml b/panko/templates/secret-keystone.yaml
 new file mode 100755
-index 0000000..9b44ceb
+index 00000000..9b44ceb2
 --- /dev/null
 +++ b/panko/templates/secret-keystone.yaml
 @@ -0,0 +1,30 @@
@@ -1080,7 +1080,7 @@ index 0000000..9b44ceb
 +{{- end }}
 diff --git a/panko/templates/service-api.yaml b/panko/templates/service-api.yaml
 new file mode 100755
-index 0000000..893d9e3
+index 00000000..893d9e3d
 --- /dev/null
 +++ b/panko/templates/service-api.yaml
 @@ -0,0 +1,39 @@
@@ -1125,7 +1125,7 @@ index 0000000..893d9e3
 +{{- end }}
 diff --git a/panko/templates/service-ingress-api.yaml b/panko/templates/service-ingress-api.yaml
 new file mode 100755
-index 0000000..422e74d
+index 00000000..422e74dd
 --- /dev/null
 +++ b/panko/templates/service-ingress-api.yaml
 @@ -0,0 +1,20 @@
@@ -1152,7 +1152,7 @@ index 0000000..422e74d
 \ No newline at end of file
 diff --git a/panko/values.yaml b/panko/values.yaml
 new file mode 100755
-index 0000000..a206a31
+index 00000000..a206a31b
 --- /dev/null
 +++ b/panko/values.yaml
 @@ -0,0 +1,535 @@
@@ -1692,5 +1692,5 @@ index 0000000..a206a31
 +  service_ingress_api: true
 +
 -- 
-1.8.3.1
+2.16.5
 

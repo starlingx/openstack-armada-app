@@ -19,6 +19,8 @@ BuildArch:     noarch
 Patch01: 0001-Revert-Neutron-TaaS-support-as-L2-Extension.patch
 Patch02: 0002-Revert-Openstack-Use-k8s-secret-to-store-config.patch
 Patch03: 0003-ceilometer-chart-updates.patch
+Patch04: 0004-Add-Aodh-Chart.patch
+Patch05: 0005-Add-Panko-Chart.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -32,6 +34,8 @@ Openstack Helm charts
 %patch01 -p1
 %patch02 -p1
 %patch03 -p1
+%patch04 -p1
+%patch05 -p1
 
 %build
 # initialize helm and stage the toolkit
@@ -43,6 +47,7 @@ helm repo rm local
 helm repo add local http://localhost:8879/charts
 
 # Make the charts. These produce a tgz file
+make aodh
 make barbican
 make ceilometer
 make cinder
@@ -54,6 +59,7 @@ make keystone
 make magnum
 make neutron
 make nova
+make panko
 
 # Remove the helm-toolkit tarball
 rm  helm-toolkit-%{toolkit_version}.tgz

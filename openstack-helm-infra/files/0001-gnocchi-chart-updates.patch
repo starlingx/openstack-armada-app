@@ -1,0 +1,255 @@
+From da5bfc668bf5ccfa384bb91f9b933526f33c3492 Mon Sep 17 00:00:00 2001
+From: Angie Wang <angie.wang@windriver.com>
+Date: Wed, 26 Sep 2018 17:01:28 +0000
+Subject: [PATCH 1/1] gnocchi chart updates
+
+ - Remove the gnocchi upgrade option "--create-legacy-resource-types" as
+   it is deprecated since gnocchi 4.0.0
+ - Set the default coordination driver of gnocchi to memcached
+ - Add the cron job for purging the deleted openstack resources
+---
+ gnocchi/templates/bin/_db-sync.sh.tpl              |  2 +-
+ .../bin/_gnocchi-resources-cleaner.sh.tpl          | 14 ++++
+ gnocchi/templates/configmap-bin.yaml               |  2 +
+ gnocchi/templates/configmap-etc.yaml               |  6 ++
+ gnocchi/templates/cron-job-resources-cleaner.yaml  | 86 ++++++++++++++++++++++
+ gnocchi/values.yaml                                | 34 +++++++++
+ 6 files changed, 143 insertions(+), 1 deletion(-)
+ create mode 100755 gnocchi/templates/bin/_gnocchi-resources-cleaner.sh.tpl
+ create mode 100755 gnocchi/templates/cron-job-resources-cleaner.yaml
+
+diff --git a/gnocchi/templates/bin/_db-sync.sh.tpl b/gnocchi/templates/bin/_db-sync.sh.tpl
+index a32db4e..0693ee2 100644
+--- a/gnocchi/templates/bin/_db-sync.sh.tpl
++++ b/gnocchi/templates/bin/_db-sync.sh.tpl
+@@ -18,4 +18,4 @@ limitations under the License.
+ 
+ set -ex
+ 
+-exec gnocchi-upgrade --create-legacy-resource-types
++exec gnocchi-upgrade
+diff --git a/gnocchi/templates/bin/_gnocchi-resources-cleaner.sh.tpl b/gnocchi/templates/bin/_gnocchi-resources-cleaner.sh.tpl
+new file mode 100755
+index 0000000..5ef2fba
+--- /dev/null
++++ b/gnocchi/templates/bin/_gnocchi-resources-cleaner.sh.tpl
+@@ -0,0 +1,14 @@
++#!/bin/bash
++
++{{/*
++Copyright (c) 2018 Wind River Systems, Inc.
++
++SPDX-License-Identifier: Apache-2.0
++*/}}
++
++set -ex
++
++echo "Purging the deleted resources with its associated metrics which have lived more than ${DELETED_RESOURCES_TTL}"
++gnocchi resource batch delete "ended_at < '-${DELETED_RESOURCES_TTL}'"
++
++exit 0
+diff --git a/gnocchi/templates/configmap-bin.yaml b/gnocchi/templates/configmap-bin.yaml
+index 0ea4646..dc1a85f 100644
+--- a/gnocchi/templates/configmap-bin.yaml
++++ b/gnocchi/templates/configmap-bin.yaml
+@@ -46,6 +46,8 @@ data:
+ {{ tuple "bin/_gnocchi-metricd.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   gnocchi-statsd.sh: |
+ {{ tuple "bin/_gnocchi-statsd.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  gnocchi-resources-cleaner.sh: |
++{{ tuple "bin/_gnocchi-resources-cleaner.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   ks-service.sh: |
+ {{- include "helm-toolkit.scripts.keystone_service" . | indent 4 }}
+   ks-endpoints.sh: |
+diff --git a/gnocchi/templates/configmap-etc.yaml b/gnocchi/templates/configmap-etc.yaml
+index 83d3f14..bdf6acc 100644
+--- a/gnocchi/templates/configmap-etc.yaml
++++ b/gnocchi/templates/configmap-etc.yaml
+@@ -50,6 +50,12 @@ limitations under the License.
+ {{- $_ := set .Values.conf.gnocchi.keystone_authtoken "password" .Values.endpoints.identity.auth.gnocchi.password -}}
+ {{- end -}}
+ 
++{{- if empty .Values.conf.gnocchi.DEFAULT.coordination_url -}}
++{{- $endpointUrl := tuple "oslo_cache" "internal" "memcache" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" }}
++{{- $driver := .Values.endpoints.oslo_cache.hosts.default -}}
++{{- $_ := printf "%s://%s" $driver $endpointUrl | set .Values.conf.gnocchi.DEFAULT "coordination_url" -}}
++{{- end -}}
++
+ {{- if empty .Values.conf.gnocchi.database.connection -}}
+ {{- $_ := tuple "oslo_db" "internal" "gnocchi" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.gnocchi.database "connection" -}}
+ {{- end -}}
+diff --git a/gnocchi/templates/cron-job-resources-cleaner.yaml b/gnocchi/templates/cron-job-resources-cleaner.yaml
+new file mode 100755
+index 0000000..0235454
+--- /dev/null
++++ b/gnocchi/templates/cron-job-resources-cleaner.yaml
+@@ -0,0 +1,86 @@
++{{/*
++Copyright (c) 2018 Wind River Systems, Inc.
++
++SPDX-License-Identifier: Apache-2.0
++*/}}
++
++{{- if .Values.manifests.cron_job_resources_cleaner }}
++{{- $envAll := . }}
++
++{{- $mounts_gnocchi_resources_cleaner := .Values.pod.mounts.gnocchi_resources_cleaner.gnocchi_resources_cleaner }}
++{{- $mounts_gnocchi_resources_cleaner_init := .Values.pod.mounts.gnocchi_resources_cleaner.init_container }}
++
++{{- $serviceAccountName := "gnocchi-resources-cleaner" }}
++{{ tuple $envAll "resources_cleaner" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: batch/v1beta1
++kind: CronJob
++metadata:
++  name: gnocchi-resources-cleaner
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++spec:
++  schedule: {{ .Values.jobs.resources_cleaner.cron | quote }}
++  successfulJobsHistoryLimit: {{ .Values.jobs.resources_cleaner.history.success }}
++  failedJobsHistoryLimit: {{ .Values.jobs.resources_cleaner.history.failed }}
++  concurrencyPolicy: Forbid
++  jobTemplate:
++    metadata:
++      labels:
++{{ tuple $envAll "gnocchi" "resources-cleaner" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++    spec:
++      template:
++        spec:
++          serviceAccountName: {{ $serviceAccountName }}
++          restartPolicy: OnFailure
++          nodeSelector:
++            {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
++          initContainers:
++{{ tuple $envAll "resources_cleaner" $mounts_gnocchi_resources_cleaner_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 12 }}
++          containers:
++            - name: gnocchi-resources-cleaner
++{{ tuple $envAll "gnocchi_resources_cleaner" | include "helm-toolkit.snippets.image" | indent 14 }}
++{{ tuple $envAll $envAll.Values.pod.resources.jobs.resources_cleaner | include "helm-toolkit.snippets.kubernetes_resources" | indent 14 }}
++              env:
++{{- with $env := dict "ksUserSecret" .Values.secrets.identity.admin }}
++{{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 16 }}
++{{- end }}
++                - name: OS_AUTH_TYPE
++                  valueFrom:
++                    secretKeyRef:
++                      name: {{ $.Values.secrets.identity.admin }}
++                      key: OS_AUTH_TYPE
++                - name: OS_TENANT_NAME
++                  valueFrom:
++                    secretKeyRef:
++                      name: {{ $.Values.secrets.identity.admin }}
++                      key: OS_TENANT_NAME
++                - name: DELETED_RESOURCES_TTL
++                  value: {{ .Values.jobs.resources_cleaner.deleted_resources_ttl | quote }}
++              command:
++                - /tmp/gnocchi-resources-cleaner.sh
++              volumeMounts:
++              - name: gnocchi-bin
++                mountPath: /tmp/gnocchi-resources-cleaner.sh
++                subPath: gnocchi-resources-cleaner.sh
++                readOnly: true
++              - name: pod-etc-gnocchi
++                mountPath: /etc/gnocchi
++              - name: gnocchi-etc
++                mountPath: /etc/gnocchi/gnocchi.conf
++                subPath: gnocchi.conf
++                readOnly: true
++{{ if $mounts_gnocchi_resources_cleaner.volumeMounts }}{{ toYaml $mounts_gnocchi_resources_cleaner.volumeMounts | indent 14 }}{{ end }}
++          volumes:
++          - name: pod-etc-gnocchi
++            emptyDir: {}
++          - name: gnocchi-etc
++            secret:
++              secretName: gnocchi-etc
++              defaultMode: 0444
++          - name: gnocchi-bin
++            configMap:
++              name: gnocchi-bin
++              defaultMode: 0555
++{{ if $mounts_gnocchi_resources_cleaner.volumes }}{{ toYaml $mounts_gnocchi_resources_cleaner.volumes | indent 10 }}{{ end }}
++{{- end }}
+diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
+index e32693a..2eae14c 100644
+--- a/gnocchi/values.yaml
++++ b/gnocchi/values.yaml
+@@ -50,6 +50,7 @@ images:
+     gnocchi_api: quay.io/attcomdev/ubuntu-source-gnocchi-api:3.0.3
+     gnocchi_statsd: quay.io/attcomdev/ubuntu-source-gnocchi-statsd:3.0.3
+     gnocchi_metricd: quay.io/attcomdev/ubuntu-source-gnocchi-metricd:3.0.3
++    gnocchi_resources_cleaner: quay.io/attcomdev/ubuntu-source-gnocchi-base:3.0.3
+     image_repo_sync: docker.io/docker:17.07.0
+   pull_policy: "IfNotPresent"
+   local_registry:
+@@ -58,6 +59,15 @@ images:
+       - dep_check
+       - image_repo_sync
+ 
++jobs:
++  resources_cleaner:
++    # daily
++    cron: "0 */24 * * *"
++    deleted_resources_ttl: '1day'
++    history:
++      success: 3
++      failed: 1
++
+ network:
+   api:
+     ingress:
+@@ -155,6 +165,19 @@ dependencies:
+           service: oslo_db_postgresql
+         - endpoint: internal
+           service: metric
++    resources_cleaner:
++      jobs:
++        - gnocchi-storage-init
++        - gnocchi-db-sync
++        - gnocchi-ks-user
++        - gnocchi-ks-endpoints
++      services:
++        - endpoint: internal
++          service: oslo_db
++        - endpoint: internal
++          service: identity
++        - endpoint: internal
++          service: metric
+     storage_init:
+       services: null
+     tests:
+@@ -193,6 +216,9 @@ pod:
+     gnocchi_metricd:
+       init_container: null
+       gnocchi_metricd:
++    gnocchi_resources_cleaner:
++      init_container: null
++      gnocchi_resources_cleaner:
+     gnocchi_tests:
+       init_container: null
+       gnocchi_tests:
+@@ -288,6 +314,13 @@ pod:
+         limits:
+           memory: "1024Mi"
+           cpu: "2000m"
++      resources_cleaner:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
+       tests:
+         requests:
+           memory: "124Mi"
+@@ -577,6 +610,7 @@ endpoints:
+ manifests:
+   configmap_bin: true
+   configmap_etc: true
++  cron_job_resources_cleaner: true
+   daemonset_metricd: true
+   daemonset_statsd: true
+   deployment_api: true
+-- 
+1.8.3.1
+

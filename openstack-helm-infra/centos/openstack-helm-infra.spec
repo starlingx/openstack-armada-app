@@ -14,7 +14,7 @@ Source0: %{name}-%{sha}.tar.gz
 
 BuildArch:     noarch
 
-Patch01: 0001-gnocchi-remove-gnocchi-upgrade-option-and-set-coordi.patch
+Patch01: 0001-gnocchi-chart-updates.patch
 
 BuildRequires: helm
 

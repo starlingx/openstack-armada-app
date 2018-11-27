@@ -1,7 +1,7 @@
-From 8615d16af10e1d14dedeb9a026e59491142c0dbf Mon Sep 17 00:00:00 2001
+From 656e36a319f48424d61624473b41c95aa610cd04 Mon Sep 17 00:00:00 2001
 From: Angie Wang <angie.wang@windriver.com>
 Date: Wed, 14 Nov 2018 11:39:55 -0500
-Subject: [PATCH 2/3] Add Aodh Chart
+Subject: [PATCH 1/2] Add Aodh Chart
 
 This commit adds a helm chart to deloy Aodh.
 
@@ -19,7 +19,7 @@ https://review.openstack.org/#/c/468530/
  aodh/templates/bin/_bootstrap.sh.tpl           |  20 +
  aodh/templates/bin/_db-sync.sh.tpl             |  21 +
  aodh/templates/configmap-bin.yaml              |  60 +++
- aodh/templates/configmap-etc.yaml              | 123 +++++
+ aodh/templates/configmap-etc.yaml              | 121 +++++
  aodh/templates/cron-job-alarms-cleaner.yaml    |  84 ++++
  aodh/templates/deployment-api.yaml             | 121 +++++
  aodh/templates/deployment-evaluator.yaml       | 101 ++++
@@ -43,7 +43,7 @@ https://review.openstack.org/#/c/468530/
  aodh/templates/service-api.yaml                |  39 ++
  aodh/templates/service-ingress-api.yaml        |  20 +
  aodh/values.yaml                               | 671 +++++++++++++++++++++++++
- 35 files changed, 2075 insertions(+)
+ 35 files changed, 2073 insertions(+)
  create mode 100644 aodh/Chart.yaml
  create mode 100644 aodh/requirements.yaml
  create mode 100644 aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl
@@ -82,7 +82,7 @@ https://review.openstack.org/#/c/468530/
 
 diff --git a/aodh/Chart.yaml b/aodh/Chart.yaml
 new file mode 100644
-index 00000000..6f666f0e
+index 0000000..6f666f0
 --- /dev/null
 +++ b/aodh/Chart.yaml
 @@ -0,0 +1,24 @@
@@ -112,7 +112,7 @@ index 00000000..6f666f0e
 +  - name: OpenStack-Helm Authors
 diff --git a/aodh/requirements.yaml b/aodh/requirements.yaml
 new file mode 100644
-index 00000000..53782e69
+index 0000000..53782e6
 --- /dev/null
 +++ b/aodh/requirements.yaml
 @@ -0,0 +1,18 @@
@@ -136,7 +136,7 @@ index 00000000..53782e69
 +    version: 0.1.0
 diff --git a/aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl b/aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl
 new file mode 100644
-index 00000000..8ca0e7c5
+index 0000000..8ca0e7c
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl
 @@ -0,0 +1,21 @@
@@ -163,7 +163,7 @@ index 00000000..8ca0e7c5
 +aodh-expirer
 diff --git a/aodh/templates/bin/_aodh-api.sh.tpl b/aodh/templates/bin/_aodh-api.sh.tpl
 new file mode 100644
-index 00000000..708b3272
+index 0000000..708b327
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-api.sh.tpl
 @@ -0,0 +1,39 @@
@@ -208,7 +208,7 @@ index 00000000..708b3272
 +$COMMAND
 diff --git a/aodh/templates/bin/_aodh-evaluator.sh.tpl b/aodh/templates/bin/_aodh-evaluator.sh.tpl
 new file mode 100644
-index 00000000..7c7b07b0
+index 0000000..7c7b07b
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-evaluator.sh.tpl
 @@ -0,0 +1,21 @@
@@ -235,7 +235,7 @@ index 00000000..7c7b07b0
 +exec aodh-evaluator --config-file=/etc/aodh/aodh.conf
 diff --git a/aodh/templates/bin/_aodh-listener.sh.tpl b/aodh/templates/bin/_aodh-listener.sh.tpl
 new file mode 100644
-index 00000000..0abeba43
+index 0000000..0abeba4
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-listener.sh.tpl
 @@ -0,0 +1,21 @@
@@ -262,7 +262,7 @@ index 00000000..0abeba43
 +exec aodh-listener --config-file=/etc/aodh/aodh.conf
 diff --git a/aodh/templates/bin/_aodh-notifier.sh.tpl b/aodh/templates/bin/_aodh-notifier.sh.tpl
 new file mode 100644
-index 00000000..b1b4f947
+index 0000000..b1b4f94
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-notifier.sh.tpl
 @@ -0,0 +1,21 @@
@@ -289,7 +289,7 @@ index 00000000..b1b4f947
 +exec aodh-notifier --config-file=/etc/aodh/aodh.conf
 diff --git a/aodh/templates/bin/_aodh-test.sh.tpl b/aodh/templates/bin/_aodh-test.sh.tpl
 new file mode 100644
-index 00000000..fc95b06c
+index 0000000..fc95b06
 --- /dev/null
 +++ b/aodh/templates/bin/_aodh-test.sh.tpl
 @@ -0,0 +1,54 @@
@@ -349,7 +349,7 @@ index 00000000..fc95b06c
 +
 diff --git a/aodh/templates/bin/_bootstrap.sh.tpl b/aodh/templates/bin/_bootstrap.sh.tpl
 new file mode 100644
-index 00000000..533c0a5a
+index 0000000..533c0a5
 --- /dev/null
 +++ b/aodh/templates/bin/_bootstrap.sh.tpl
 @@ -0,0 +1,20 @@
@@ -375,7 +375,7 @@ index 00000000..533c0a5a
 +{{ .Values.bootstrap.script | default "echo 'Not Enabled'" }}
 diff --git a/aodh/templates/bin/_db-sync.sh.tpl b/aodh/templates/bin/_db-sync.sh.tpl
 new file mode 100644
-index 00000000..7eb7bd3f
+index 0000000..7eb7bd3
 --- /dev/null
 +++ b/aodh/templates/bin/_db-sync.sh.tpl
 @@ -0,0 +1,21 @@
@@ -402,7 +402,7 @@ index 00000000..7eb7bd3f
 +aodh-dbsync
 diff --git a/aodh/templates/configmap-bin.yaml b/aodh/templates/configmap-bin.yaml
 new file mode 100644
-index 00000000..3ee32e79
+index 0000000..3ee32e7
 --- /dev/null
 +++ b/aodh/templates/configmap-bin.yaml
 @@ -0,0 +1,60 @@
@@ -468,10 +468,10 @@ index 00000000..3ee32e79
 +{{- end }}
 diff --git a/aodh/templates/configmap-etc.yaml b/aodh/templates/configmap-etc.yaml
 new file mode 100644
-index 00000000..81f4e1fb
+index 0000000..24e4e08
 --- /dev/null
 +++ b/aodh/templates/configmap-etc.yaml
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,121 @@
 +{{/*
 +Copyright 2017 The Openstack-Helm Authors.
 +
@@ -581,24 +581,21 @@ index 00000000..81f4e1fb
 +{{- end -}}
 +---
 +apiVersion: v1
-+kind: ConfigMap
++kind: Secret
 +metadata:
 +  name: aodh-etc
++type: Opaque
 +data:
-+  aodh.conf: |
-+{{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.aodh | indent 4 }}
-+  logging.conf: |
-+{{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | indent 4 }}
-+  api-paste.ini: |
-+{{ include "helm-toolkit.utils.to_ini" .Values.conf.paste | indent 4 }}
-+  policy.json: |
-+{{ toJson .Values.conf.policy | indent 4 }}
-+{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.wsgi_aodh "key" "wsgi-aodh.conf" ) | indent 2 }}
++  aodh.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.aodh | b64enc }}
++  logging.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | b64enc }}
++  api-paste.ini: {{ include "helm-toolkit.utils.to_ini" .Values.conf.paste | b64enc }}
++  policy.json: {{ toJson .Values.conf.policy | b64enc }}
++{{ include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.wsgi_aodh "key" "wsgi-aodh.conf" "format" "Secret" ) | indent 2 }}
 +{{- end }}
-\ No newline at end of file
++
 diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
 new file mode 100644
-index 00000000..6862c5f3
+index 0000000..efb839b
 --- /dev/null
 +++ b/aodh/templates/cron-job-alarms-cleaner.yaml
 @@ -0,0 +1,84 @@
@@ -677,8 +674,8 @@ index 00000000..6862c5f3
 +          - name: pod-etc-aodh
 +            emptyDir: {}
 +          - name: aodh-etc
-+            configMap:
-+              name: aodh-etc
++            secret:
++              secretName: aodh-etc
 +              defaultMode: 0444
 +          - name: aodh-bin
 +            configMap:
@@ -688,7 +685,7 @@ index 00000000..6862c5f3
 +{{- end }}
 diff --git a/aodh/templates/deployment-api.yaml b/aodh/templates/deployment-api.yaml
 new file mode 100644
-index 00000000..61902610
+index 0000000..cfe697b
 --- /dev/null
 +++ b/aodh/templates/deployment-api.yaml
 @@ -0,0 +1,121 @@
@@ -804,8 +801,8 @@ index 00000000..61902610
 +        - name: pod-etc-aodh
 +          emptyDir: {}
 +        - name: aodh-etc
-+          configMap:
-+            name: aodh-etc
++          secret:
++            secretName: aodh-etc
 +            defaultMode: 0444
 +        - name: aodh-bin
 +          configMap:
@@ -813,10 +810,9 @@ index 00000000..61902610
 +            defaultMode: 0555
 +{{ if $mounts_aodh_api.volumes }}{{ toYaml $mounts_aodh_api.volumes | indent 8 }}{{ end }}
 +{{- end }}
-\ No newline at end of file
 diff --git a/aodh/templates/deployment-evaluator.yaml b/aodh/templates/deployment-evaluator.yaml
 new file mode 100644
-index 00000000..175f1421
+index 0000000..daab9c1
 --- /dev/null
 +++ b/aodh/templates/deployment-evaluator.yaml
 @@ -0,0 +1,101 @@
@@ -912,8 +908,8 @@ index 00000000..175f1421
 +        - name: pod-etc-aodh
 +          emptyDir: {}
 +        - name: aodh-etc
-+          configMap:
-+            name: aodh-etc
++          secret:
++            secretName: aodh-etc
 +            defaultMode: 0444
 +        - name: aodh-bin
 +          configMap:
@@ -923,7 +919,7 @@ index 00000000..175f1421
 +{{- end }}
 diff --git a/aodh/templates/deployment-listener.yaml b/aodh/templates/deployment-listener.yaml
 new file mode 100644
-index 00000000..ca1dc191
+index 0000000..5f90c75
 --- /dev/null
 +++ b/aodh/templates/deployment-listener.yaml
 @@ -0,0 +1,102 @@
@@ -1019,8 +1015,8 @@ index 00000000..ca1dc191
 +        - name: pod-etc-aodh
 +          emptyDir: {}
 +        - name: aodh-etc
-+          configMap:
-+            name: aodh-etc
++          secret:
++            secretName: aodh-etc
 +            defaultMode: 0444
 +        - name: aodh-bin
 +          configMap:
@@ -1031,7 +1027,7 @@ index 00000000..ca1dc191
 +
 diff --git a/aodh/templates/deployment-notifier.yaml b/aodh/templates/deployment-notifier.yaml
 new file mode 100644
-index 00000000..068d83a9
+index 0000000..ee21422
 --- /dev/null
 +++ b/aodh/templates/deployment-notifier.yaml
 @@ -0,0 +1,103 @@
@@ -1128,8 +1124,8 @@ index 00000000..068d83a9
 +        - name: pod-etc-aodh
 +          emptyDir: {}
 +        - name: aodh-etc
-+          configMap:
-+            name: aodh-etc
++          secret:
++            secretName: aodh-etc
 +            defaultMode: 0444
 +        - name: aodh-bin
 +          configMap:
@@ -1140,7 +1136,7 @@ index 00000000..068d83a9
 +
 diff --git a/aodh/templates/ingress-api.yaml b/aodh/templates/ingress-api.yaml
 new file mode 100644
-index 00000000..fe3f31c4
+index 0000000..fe3f31c
 --- /dev/null
 +++ b/aodh/templates/ingress-api.yaml
 @@ -0,0 +1,20 @@
@@ -1166,7 +1162,7 @@ index 00000000..fe3f31c4
 +{{- end }}
 diff --git a/aodh/templates/job-bootstrap.yaml b/aodh/templates/job-bootstrap.yaml
 new file mode 100644
-index 00000000..17cea12b
+index 0000000..17cea12
 --- /dev/null
 +++ b/aodh/templates/job-bootstrap.yaml
 @@ -0,0 +1,20 @@
@@ -1192,7 +1188,7 @@ index 00000000..17cea12b
 +{{- end }}
 diff --git a/aodh/templates/job-db-drop.yaml b/aodh/templates/job-db-drop.yaml
 new file mode 100644
-index 00000000..8c2d80c3
+index 0000000..8c2d80c
 --- /dev/null
 +++ b/aodh/templates/job-db-drop.yaml
 @@ -0,0 +1,20 @@
@@ -1219,7 +1215,7 @@ index 00000000..8c2d80c3
 \ No newline at end of file
 diff --git a/aodh/templates/job-db-init.yaml b/aodh/templates/job-db-init.yaml
 new file mode 100644
-index 00000000..5d14fb75
+index 0000000..5d14fb7
 --- /dev/null
 +++ b/aodh/templates/job-db-init.yaml
 @@ -0,0 +1,20 @@
@@ -1245,7 +1241,7 @@ index 00000000..5d14fb75
 +{{- end }}
 diff --git a/aodh/templates/job-db-sync.yaml b/aodh/templates/job-db-sync.yaml
 new file mode 100644
-index 00000000..2428c7f2
+index 0000000..2428c7f
 --- /dev/null
 +++ b/aodh/templates/job-db-sync.yaml
 @@ -0,0 +1,20 @@
@@ -1271,7 +1267,7 @@ index 00000000..2428c7f2
 +{{- end }}
 diff --git a/aodh/templates/job-image-repo-sync.yaml b/aodh/templates/job-image-repo-sync.yaml
 new file mode 100644
-index 00000000..0eeef1ed
+index 0000000..0eeef1e
 --- /dev/null
 +++ b/aodh/templates/job-image-repo-sync.yaml
 @@ -0,0 +1,20 @@
@@ -1297,7 +1293,7 @@ index 00000000..0eeef1ed
 +{{- end }}
 diff --git a/aodh/templates/job-ks-endpoints.yaml b/aodh/templates/job-ks-endpoints.yaml
 new file mode 100644
-index 00000000..7fc30c2b
+index 0000000..7fc30c2
 --- /dev/null
 +++ b/aodh/templates/job-ks-endpoints.yaml
 @@ -0,0 +1,20 @@
@@ -1323,7 +1319,7 @@ index 00000000..7fc30c2b
 +{{- end }}
 diff --git a/aodh/templates/job-ks-service.yaml b/aodh/templates/job-ks-service.yaml
 new file mode 100644
-index 00000000..b4120b3c
+index 0000000..b4120b3
 --- /dev/null
 +++ b/aodh/templates/job-ks-service.yaml
 @@ -0,0 +1,20 @@
@@ -1349,7 +1345,7 @@ index 00000000..b4120b3c
 +{{- end }}
 diff --git a/aodh/templates/job-ks-user.yaml b/aodh/templates/job-ks-user.yaml
 new file mode 100644
-index 00000000..96189310
+index 0000000..9618931
 --- /dev/null
 +++ b/aodh/templates/job-ks-user.yaml
 @@ -0,0 +1,20 @@
@@ -1375,7 +1371,7 @@ index 00000000..96189310
 +{{- end }}
 diff --git a/aodh/templates/job-rabbit-init.yaml b/aodh/templates/job-rabbit-init.yaml
 new file mode 100644
-index 00000000..06cc5a71
+index 0000000..06cc5a7
 --- /dev/null
 +++ b/aodh/templates/job-rabbit-init.yaml
 @@ -0,0 +1,20 @@
@@ -1401,7 +1397,7 @@ index 00000000..06cc5a71
 +{{- end }}
 diff --git a/aodh/templates/pdb-api.yaml b/aodh/templates/pdb-api.yaml
 new file mode 100644
-index 00000000..1892708e
+index 0000000..1892708
 --- /dev/null
 +++ b/aodh/templates/pdb-api.yaml
 @@ -0,0 +1,29 @@
@@ -1436,7 +1432,7 @@ index 00000000..1892708e
 +{{- end }}
 diff --git a/aodh/templates/pod-aodh-test.yaml b/aodh/templates/pod-aodh-test.yaml
 new file mode 100644
-index 00000000..9254c922
+index 0000000..a12ec30
 --- /dev/null
 +++ b/aodh/templates/pod-aodh-test.yaml
 @@ -0,0 +1,72 @@
@@ -1503,8 +1499,8 @@ index 00000000..9254c922
 +{{ if $mounts_tests.volumeMounts }}{{ toYaml $mounts_tests.volumeMounts | indent 8 }}{{ end }}
 +  volumes:
 +    - name: aodh-etc
-+      configMap:
-+        name: aodh-etc
++      secret:
++        secretName: aodh-etc
 +        defaultMode: 0444
 +    - name: aodh-bin
 +      configMap:
@@ -1514,7 +1510,7 @@ index 00000000..9254c922
 +{{- end }}
 diff --git a/aodh/templates/secret-db.yaml b/aodh/templates/secret-db.yaml
 new file mode 100644
-index 00000000..85568c1a
+index 0000000..85568c1
 --- /dev/null
 +++ b/aodh/templates/secret-db.yaml
 @@ -0,0 +1,30 @@
@@ -1551,7 +1547,7 @@ index 00000000..85568c1a
 \ No newline at end of file
 diff --git a/aodh/templates/secret-keystone.yaml b/aodh/templates/secret-keystone.yaml
 new file mode 100644
-index 00000000..aef25b2e
+index 0000000..aef25b2
 --- /dev/null
 +++ b/aodh/templates/secret-keystone.yaml
 @@ -0,0 +1,30 @@
@@ -1587,7 +1583,7 @@ index 00000000..aef25b2e
 +{{- end }}
 diff --git a/aodh/templates/secret-rabbitmq.yaml b/aodh/templates/secret-rabbitmq.yaml
 new file mode 100644
-index 00000000..ad65ae34
+index 0000000..ad65ae3
 --- /dev/null
 +++ b/aodh/templates/secret-rabbitmq.yaml
 @@ -0,0 +1,30 @@
@@ -1623,7 +1619,7 @@ index 00000000..ad65ae34
 +{{- end }}
 diff --git a/aodh/templates/service-api.yaml b/aodh/templates/service-api.yaml
 new file mode 100644
-index 00000000..bb9083ef
+index 0000000..bb9083e
 --- /dev/null
 +++ b/aodh/templates/service-api.yaml
 @@ -0,0 +1,39 @@
@@ -1668,7 +1664,7 @@ index 00000000..bb9083ef
 +{{- end }}
 diff --git a/aodh/templates/service-ingress-api.yaml b/aodh/templates/service-ingress-api.yaml
 new file mode 100644
-index 00000000..c1b96584
+index 0000000..c1b9658
 --- /dev/null
 +++ b/aodh/templates/service-ingress-api.yaml
 @@ -0,0 +1,20 @@
@@ -1694,7 +1690,7 @@ index 00000000..c1b96584
 +{{- end }}
 diff --git a/aodh/values.yaml b/aodh/values.yaml
 new file mode 100644
-index 00000000..bd7a736f
+index 0000000..bd7a736
 --- /dev/null
 +++ b/aodh/values.yaml
 @@ -0,0 +1,671 @@
@@ -2370,5 +2366,5 @@ index 00000000..bd7a736f
 +  service_ingress_api: true
 +
 -- 
-2.16.5
+1.8.3.1
 

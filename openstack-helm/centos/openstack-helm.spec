@@ -19,6 +19,7 @@ BuildArch:     noarch
 Patch01: 0001-ceilometer-chart-updates.patch
 Patch02: 0002-Add-Aodh-Chart.patch
 Patch03: 0003-Add-Panko-Chart.patch
+Patch04: Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -32,6 +33,7 @@ Openstack Helm charts
 %patch01 -p1
 %patch02 -p1
 %patch03 -p1
+%patch04 -p1
 
 %build
 # initialize helm and stage the toolkit

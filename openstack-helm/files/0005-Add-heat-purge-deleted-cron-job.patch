@@ -1,0 +1,209 @@
+From bd5c50427b8a453cd993cce39c5dc49bb94acd82 Mon Sep 17 00:00:00 2001
+From: David Sullivan <david.sullivan@windriver.com>
+Date: Fri, 23 Nov 2018 14:00:56 -0500
+Subject: [PATCH] Add heat-purge-deleted cron job
+
+This adds a cron job to purge deleted items from the heat db every 24h.
+
+This should be upstreamed.
+---
+ .../bin/_heat-purge-deleted-active.sh.tpl          | 10 +++
+ heat/templates/configmap-bin.yaml                  |  2 +
+ heat/templates/cron-job-purge-deleted.yaml         | 76 ++++++++++++++++++++++
+ heat/values.yaml                                   | 32 +++++++++
+ 4 files changed, 120 insertions(+)
+ create mode 100644 heat/templates/bin/_heat-purge-deleted-active.sh.tpl
+ create mode 100644 heat/templates/cron-job-purge-deleted.yaml
+
+diff --git a/heat/templates/bin/_heat-purge-deleted-active.sh.tpl b/heat/templates/bin/_heat-purge-deleted-active.sh.tpl
+new file mode 100644
+index 0000000..dc38caf
+--- /dev/null
++++ b/heat/templates/bin/_heat-purge-deleted-active.sh.tpl
+@@ -0,0 +1,10 @@
++#!/bin/bash
++
++# Copyright (c) 2017-2018 Wind River Systems, Inc.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++
++set -ex
++
++heat-manage purge_deleted -g hours 1
+diff --git a/heat/templates/configmap-bin.yaml b/heat/templates/configmap-bin.yaml
+index b432097..1463be5 100644
+--- a/heat/templates/configmap-bin.yaml
++++ b/heat/templates/configmap-bin.yaml
+@@ -59,6 +59,8 @@ data:
+ {{ tuple "bin/_heat-engine.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   heat-engine-cleaner.sh: |
+ {{ tuple "bin/_heat-engine-cleaner.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  heat-purge-deleted-active.sh: |
++{{ tuple "bin/_heat-purge-deleted-active.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   rabbit-init.sh: |
+ {{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
+ {{- end }}
+diff --git a/heat/templates/cron-job-purge-deleted.yaml b/heat/templates/cron-job-purge-deleted.yaml
+new file mode 100644
+index 0000000..8b8fb24
+--- /dev/null
++++ b/heat/templates/cron-job-purge-deleted.yaml
+@@ -0,0 +1,76 @@
++# Copyright (c) 2017-2018 Wind River Systems, Inc.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++
++{{- if .Values.manifests.cron_job_purge_deleted }}
++{{- $envAll := . }}
++
++{{- $mounts_heat_purge_deleted := .Values.pod.mounts.heat_purge_deleted.heat_purge_deleted }}
++{{- $mounts_heat_purge_deleted_init := .Values.pod.mounts.heat_purge_deleted.init_container }}
++
++{{- $serviceAccountName := "heat-purge-deleted" }}
++{{ tuple $envAll "purge_deleted" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: batch/v1beta1
++kind: CronJob
++metadata:
++  name: heat-purge-deleted
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++spec:
++  schedule: {{ .Values.jobs.purge_deleted.cron | quote }}
++  successfulJobsHistoryLimit: {{ .Values.jobs.purge_deleted.history.success }}
++  failedJobsHistoryLimit: {{ .Values.jobs.purge_deleted.history.failed }}
++  concurrencyPolicy: Forbid
++  jobTemplate:
++    metadata:
++      labels:
++{{ tuple $envAll "heat" "purge-deleted" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++    spec:
++      template:
++        metadata:
++          labels:
++{{ tuple $envAll "heat" "purge-deleted" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++        spec:
++          serviceAccountName: {{ $serviceAccountName }}
++          restartPolicy: OnFailure
++          nodeSelector:
++            {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
++          initContainers:
++{{ tuple $envAll "purge_deleted" $mounts_heat_purge_deleted_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 12 }}
++          containers:
++            - name: heat-purge-deleted
++{{ tuple $envAll "heat_purge_deleted" | include "helm-toolkit.snippets.image" | indent 14 }}
++{{ tuple $envAll $envAll.Values.pod.resources.jobs.purge_deleted | include "helm-toolkit.snippets.kubernetes_resources" | indent 14 }}
++              command:
++                - /tmp/heat-purge-deleted-active.sh
++              volumeMounts:
++              - name: heat-bin
++                mountPath: /tmp/heat-purge-deleted-active.sh
++                subPath: heat-purge-deleted-active.sh
++                readOnly: true
++              - name: etcheat
++                mountPath: /etc/heat
++              - name: heat-etc
++                mountPath: /etc/heat/heat.conf
++                subPath: heat.conf
++                readOnly: true
++              - name: heat-etc
++                mountPath: {{ .Values.conf.heat.DEFAULT.log_config_append }}
++                subPath: {{ base .Values.conf.heat.DEFAULT.log_config_append }}
++                readOnly: true
++{{ if $mounts_heat_purge_deleted.volumeMounts }}{{ toYaml $mounts_heat_purge_deleted.volumeMounts | indent 14 }}{{ end }}
++          volumes:
++          - name: etcheat
++            emptyDir: {}
++          - name: heat-etc
++            secret:
++              secretName: heat-etc
++              defaultMode: 0444
++          - name: heat-bin
++            configMap:
++              name: heat-bin
++              defaultMode: 0555
++{{ if $mounts_heat_purge_deleted.volumes }}{{ toYaml $mounts_heat_purge_deleted.volumes | indent 10 }}{{ end }}
++{{- end }}
+diff --git a/heat/values.yaml b/heat/values.yaml
+index 5d37081..51a7b42 100644
+--- a/heat/values.yaml
++++ b/heat/values.yaml
+@@ -55,6 +55,7 @@ images:
+     heat_cloudwatch: docker.io/openstackhelm/heat:ocata
+     heat_engine: docker.io/openstackhelm/heat:ocata
+     heat_engine_cleaner: docker.io/openstackhelm/heat:ocata
++    heat_purge_deleted: docker.io/openstackhelm/heat:ocata
+     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+     image_repo_sync: docker.io/docker:17.07.0
+   pull_policy: "IfNotPresent"
+@@ -70,6 +71,12 @@ jobs:
+     history:
+       success: 3
+       failed: 1
++      
++  purge_deleted:
++    cron: "20 */24 * * *"
++    history:
++      success: 3
++      failed: 1
+ 
+ conf:
+   rally_tests:
+@@ -677,6 +684,20 @@ dependencies:
+           service: oslo_messaging
+         - endpoint: internal
+           service: identity
++    purge_deleted:
++      jobs:
++        - heat-db-sync
++        - heat-ks-user
++        - heat-trustee-ks-user
++        - heat-domain-ks-user
++        - heat-ks-endpoints
++      services:
++        - endpoint: internal
++          service: oslo_db
++        - endpoint: internal
++          service: oslo_messaging
++        - endpoint: internal
++          service: identity
+     ks_endpoints:
+       jobs:
+         - heat-ks-service
+@@ -968,6 +989,9 @@ pod:
+     heat_engine_cleaner:
+       init_container: null
+       heat_engine_cleaner:
++    heat_purge_deleted:
++      init_container: null
++      heat_purge_deleted:
+     heat_tests:
+       init_container: null
+       heat_tests:
+@@ -1108,6 +1132,13 @@ pod:
+         limits:
+           memory: "1024Mi"
+           cpu: "2000m"
++      purge_deleted:
++        requests:
++          memory: "124Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
+       image_repo_sync:
+         requests:
+           memory: "128Mi"
+@@ -1143,6 +1174,7 @@ manifests:
+   configmap_bin: true
+   configmap_etc: true
+   cron_job_engine_cleaner: true
++  cron_job_purge_deleted: true
+   deployment_api: true
+   deployment_cfn: true
+   deployment_cloudwatch: false
+-- 
+1.8.3.1
+

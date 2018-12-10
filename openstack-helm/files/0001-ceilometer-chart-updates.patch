@@ -1,4 +1,4 @@
-From f4d666c7fd832307dccb7f0096a48c917179449d Mon Sep 17 00:00:00 2001
+From 56c73d9c0714f4fb5dd673dc84d4cd4579de2306 Mon Sep 17 00:00:00 2001
 From: Angie Wang <angie.wang@windriver.com>
 Date: Fri, 19 Oct 2018 14:46:27 -0400
 Subject: [PATCH 1/1] ceilometer chart updates
@@ -19,11 +19,11 @@ We should try to upstream above changes.
  ceilometer/templates/configmap-bin.yaml           |    2 +
  ceilometer/templates/configmap-etc.yaml           |    6 +
  ceilometer/templates/daemonset-compute.yaml       |    4 +
- ceilometer/templates/daemonset-ipmi.yaml          |  105 ++
+ ceilometer/templates/daemonset-ipmi.yaml          |  113 ++
  ceilometer/templates/deployment-central.yaml      |    4 +
  ceilometer/templates/deployment-notification.yaml |   20 +
  ceilometer/values.yaml                            | 1532 ++++++++++-----------
- 9 files changed, 901 insertions(+), 787 deletions(-)
+ 9 files changed, 910 insertions(+), 786 deletions(-)
  create mode 100644 ceilometer/templates/bin/_ceilometer-ipmi.sh.tpl
  create mode 100644 ceilometer/templates/daemonset-ipmi.yaml
 
@@ -109,10 +109,10 @@ index 686572a..bff2e15 100644
                subPath: ceilometer-compute.sh
 diff --git a/ceilometer/templates/daemonset-ipmi.yaml b/ceilometer/templates/daemonset-ipmi.yaml
 new file mode 100644
-index 0000000..3119ace
+index 0000000..a41d60d
 --- /dev/null
 +++ b/ceilometer/templates/daemonset-ipmi.yaml
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,113 @@
 +{{/*
 +Copyright (c) 2018 Wind River Systems, Inc.
 +
@@ -163,6 +163,8 @@ index 0000000..3119ace
 +        - name: ceilometer-ipmi
 +{{ tuple $envAll "ceilometer_ipmi" | include "helm-toolkit.snippets.image" | indent 10 }}
 +{{ tuple $envAll $envAll.Values.pod.resources.ipmi | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++          securityContext:
++            privileged: true
 +          command:
 +            - /tmp/ceilometer-ipmi.sh
 +          volumeMounts:
@@ -204,6 +206,9 @@ index 0000000..3119ace
 +              mountPath: /tmp/ceilometer-ipmi.sh
 +              subPath: ceilometer-ipmi.sh
 +              readOnly: true
++            - name: ipmi-device
++              mountPath: {{ .Values.ipmi_device }}
++              readOnly: true
 +{{ if $mounts_ceilometer_ipmi.volumeMounts }}{{ toYaml $mounts_ceilometer_ipmi.volumeMounts | indent 12 }}{{ end }}
 +      volumes:
 +        - name: pod-etc-ceilometer
@@ -216,6 +221,9 @@ index 0000000..3119ace
 +          configMap:
 +            name: ceilometer-bin
 +            defaultMode: 0555
++        - name: ipmi-device
++          hostPath:
++            path: {{ .Values.ipmi_device }}
 +{{ if $mounts_ceilometer_ipmi.volumes }}{{ toYaml $mounts_ceilometer_ipmi.volumes | indent 8 }}{{ end }}
 +{{- end }}
 diff --git a/ceilometer/templates/deployment-central.yaml b/ceilometer/templates/deployment-central.yaml
@@ -279,7 +287,7 @@ index 06fda3d..45d7ecb 100644
  {{ if $mounts_ceilometer_notification.volumes }}{{ toYaml $mounts_ceilometer_notification.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
-index 5021967..5908a4e 100644
+index 5021967..7947eb7 100644
 --- a/ceilometer/values.yaml
 +++ b/ceilometer/values.yaml
 @@ -29,6 +29,9 @@ labels:
@@ -292,7 +300,16 @@ index 5021967..5908a4e 100644
    collector:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
-@@ -113,1041 +116,971 @@ conf:
+@@ -80,6 +83,8 @@ network:
+       enabled: false
+       port: 38777
+ 
++ipmi_device: /dev/ipmi0
++
+ conf:
+   ceilometer:
+     DEFAULT:
+@@ -113,1041 +118,971 @@ conf:
        auth_type: password
        interface: internal
      notification:
@@ -749,24 +766,23 @@ index 5021967..5908a4e 100644
      - event_type: identity.authenticate
 -      traits:
 -        action:
--          fields: payload.action
--        eventTime:
--          fields: payload.eventTime
--        eventType:
--          fields: payload.eventType
 +      traits: &identity_authenticate
 +        typeURI:
 +          fields: payload.typeURI
-         id:
-           fields: payload.id
++        id:
++          fields: payload.id
++        action:
+           fields: payload.action
+-        eventTime:
+-          fields: payload.eventTime
+         eventType:
+           fields: payload.eventType
+-        id:
+-          fields: payload.id
 -        initiator_host_addr:
 -          fields: payload.initiator.host.address
 -        initiator_host_agent:
 -          fields: payload.initiator.host.agent
-+        action:
-+          fields: payload.action
-+        eventType:
-+          fields: payload.eventType
 +        eventTime:
 +          fields: payload.eventTime
 +        outcome:
@@ -2050,7 +2066,7 @@ index 5021967..5908a4e 100644
    event_pipeline:
      sinks:
        - name: event_sink
-@@ -1620,6 +1553,22 @@ dependencies:
+@@ -1620,6 +1555,22 @@ dependencies:
            service: mongodb
          - endpoint: internal
            service: metric
@@ -2073,7 +2089,7 @@ index 5021967..5908a4e 100644
      collector:
        jobs:
          - ceilometer-db-init-mongodb
-@@ -1928,6 +1877,9 @@ pod:
+@@ -1928,6 +1879,9 @@ pod:
      ceilometer_central:
        init_container: null
        ceilometer_central:
@@ -2083,7 +2099,7 @@ index 5021967..5908a4e 100644
      ceilometer_collector:
        init_container: null
        ceilometer_collector:
-@@ -1996,6 +1948,13 @@ pod:
+@@ -1996,6 +1950,13 @@ pod:
        limits:
          memory: "1024Mi"
          cpu: "2000m"
@@ -2097,7 +2113,7 @@ index 5021967..5908a4e 100644
      jobs:
        db_init:
          requests:
-@@ -2073,6 +2032,7 @@ manifests:
+@@ -2073,6 +2034,7 @@ manifests:
    deployment_central: true
    deployment_collector: true
    daemonset_compute: true

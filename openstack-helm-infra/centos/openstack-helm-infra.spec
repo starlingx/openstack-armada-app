@@ -15,6 +15,8 @@ Source0: %{name}-%{sha}.tar.gz
 BuildArch:     noarch
 
 Patch01: 0001-gnocchi-chart-updates.patch
+Patch02: Mariadb-Support-adoption-of-running-single-node-mari.patch
+Patch03: Mariadb-Share-container-PID-namespaces-under-docker.patch
 
 BuildRequires: helm
 
@@ -24,6 +26,8 @@ Openstack Helm Infra charts
 %prep
 %setup -n openstack-helm-infra
 %patch01 -p1
+%patch02 -p1
+%patch03 -p1
 
 %build
 # initialize helm and build the toolkit

@@ -23,6 +23,7 @@ Patch02: 0002-Add-Aodh-Chart.patch
 Patch03: 0003-Add-Panko-Chart.patch
 Patch04: Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
 Patch05: 0005-Add-heat-purge-deleted-cron-job.patch
+Patch06: 0006-Stein-Remove-ceilometer-upgrade-option.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -38,6 +39,7 @@ Openstack Helm charts
 %patch03 -p1
 %patch04 -p1
 %patch05 -p1
+%patch06 -p1
 
 %build
 # initialize helm and build the toolkit

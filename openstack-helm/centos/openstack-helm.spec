@@ -24,6 +24,7 @@ Patch03: 0003-Add-Panko-Chart.patch
 Patch04: Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
 Patch05: 0005-Add-heat-purge-deleted-cron-job.patch
 Patch06: 0006-Stein-Remove-ceilometer-upgrade-option.patch
+Patch07: 0007-Stein-Update-Cinder-to-include-resource_filters.json.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -40,6 +41,7 @@ Openstack Helm charts
 %patch04 -p1
 %patch05 -p1
 %patch06 -p1
+%patch07 -p1
 
 %build
 # initialize helm and build the toolkit

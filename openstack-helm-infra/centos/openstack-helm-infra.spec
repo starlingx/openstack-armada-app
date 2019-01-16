@@ -11,6 +11,7 @@ Packager: Wind River <info@windriver.com>
 URL: https://github.com/openstack/openstack-helm-infra
 
 Source0: %{name}-%{sha}.tar.gz
+Source1: repositories.yaml
 
 BuildArch:     noarch
 
@@ -31,8 +32,20 @@ Openstack Helm Infra charts
 
 %build
 # initialize helm and build the toolkit
-helm init --client-only
-make helm-toolkit
+# helm init --client-only does not work if there is no networking
+# The following commands do essentially the same as: helm init
+%define helm_home %{getenv:HOME}/.helm
+mkdir %{helm_home}
+mkdir %{helm_home}/repository
+mkdir %{helm_home}/repository/cache
+mkdir %{helm_home}/repository/local
+mkdir %{helm_home}/plugins
+mkdir %{helm_home}/starters
+mkdir %{helm_home}/cache
+mkdir %{helm_home}/cache/archive
+
+# Stage a repository file that only has a local repo
+cp %{SOURCE1} %{helm_home}/repository/repositories.yaml
 
 # Host a server for the charts
 helm serve /tmp/charts --address localhost:8879 --url http://localhost:8879/charts &
@@ -40,6 +53,7 @@ helm repo rm local
 helm repo add local http://localhost:8879/charts
 
 # Make the charts. These produce tgz files
+make helm-toolkit
 make gnocchi
 make ingress
 make libvirt
@@ -47,6 +61,9 @@ make mariadb
 make memcached
 make openvswitch
 make rabbitmq
+
+# terminate helm server (the last backgrounded task)
+kill %1
 
 %install
 install -d -m 755 ${RPM_BUILD_ROOT}%{helm_folder}

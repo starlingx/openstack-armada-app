@@ -23,9 +23,10 @@ Patch02: 0002-Add-Aodh-Chart.patch
 Patch03: 0003-Add-Panko-Chart.patch
 Patch04: Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
 Patch05: 0005-Add-heat-purge-deleted-cron-job.patch
-Patch06: 0006-Stein-Remove-ceilometer-upgrade-option.patch
-Patch07: 0007-Stein-Update-Cinder-to-include-resource_filters.json.patch
-Patch08: 0008-Stein-add-log_config_append-to-neutron-etc.patch
+Patch06: 0006-Enable-cold-migration-in-nova-helm-chart.patch
+Patch07: 0007-Stein-Remove-ceilometer-upgrade-option.patch
+Patch08: 0008-Stein-Update-Cinder-to-include-resource_filters.json.patch
+Patch09: 0009-Stein-add-log_config_append-to-neutron-etc.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -44,6 +45,7 @@ Openstack Helm charts
 %patch06 -p1
 %patch07 -p1
 %patch08 -p1
+%patch09 -p1
 
 %build
 # initialize helm and build the toolkit

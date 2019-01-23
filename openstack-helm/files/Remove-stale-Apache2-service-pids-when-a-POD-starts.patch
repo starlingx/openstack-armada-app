@@ -56,8 +56,8 @@ index 217d942..a5950a4 100644
       source /etc/apache2/envvars
    fi
  
-+  # Get rid of stale pid file if present.
-+  rm -f /var/run/apache2/*.pid
++  # Get rid of stale pid, shared memory segment and wsgi sock files if present.
++  rm -f /var/run/apache2/*
 +
    # Start Apache2
    exec apache2 -DFOREGROUND

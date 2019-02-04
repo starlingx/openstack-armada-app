@@ -5,4 +5,4 @@ TAR="$TAR_NAME-$SHA.tar.gz"
 
 COPY_LIST="${CGCS_BASE}/downloads/$TAR $PKG_BASE/files/* "
 
-TIS_PATCH_VER=8
+TIS_PATCH_VER=9

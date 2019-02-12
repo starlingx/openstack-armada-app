@@ -18,6 +18,8 @@ BuildArch:     noarch
 Patch01: 0001-gnocchi-chart-updates.patch
 Patch02: Mariadb-Support-adoption-of-running-single-node-mari.patch
 Patch03: Mariadb-Share-container-PID-namespaces-under-docker.patch
+Patch04: 0004-Allow-multiple-containers-per-daemonset-pod.patch
+Patch05: fix-type-error-to-streamline-single-replica-mariadb-.patch
 
 BuildRequires: helm
 
@@ -29,6 +31,8 @@ Openstack Helm Infra charts
 %patch01 -p1
 %patch02 -p1
 %patch03 -p1
+%patch04 -p1
+%patch05 -p1
 
 %build
 # initialize helm and build the toolkit

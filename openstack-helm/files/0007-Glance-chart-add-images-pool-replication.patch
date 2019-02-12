@@ -1,0 +1,55 @@
+From 5480584be125316f3ce325fd1d0e9b4022db5c69 Mon Sep 17 00:00:00 2001
+From: Irina Mihai <irina.mihai@windriver.com>
+Date: Fri, 1 Feb 2019 16:02:46 -0500
+Subject: [PATCH] Add replication support for the images rbd pool
+
+---
+ glance/templates/bin/_storage-init.sh.tpl | 2 ++
+ glance/templates/job-storage-init.yaml    | 4 ++++
+ glance/values.yaml                        | 2 ++
+ 3 files changed, 8 insertions(+)
+
+diff --git a/glance/templates/bin/_storage-init.sh.tpl b/glance/templates/bin/_storage-init.sh.tpl
+index 4082c52..e6bd188 100755
+--- a/glance/templates/bin/_storage-init.sh.tpl
++++ b/glance/templates/bin/_storage-init.sh.tpl
+@@ -47,6 +47,8 @@ elif [ "x$STORAGE_BACKEND" == "xrbd" ]; then
+     if [[ ${test_luminous} -gt 0 ]]; then
+       ceph osd pool application enable "$1" "$3"
+     fi
++    ceph osd pool set $1 size ${RBD_POOL_REPLICATION}
++    ceph osd pool set $1 crush_rule "${RBD_POOL_CRUSH_RULE}"
+   }
+   ensure_pool "${RBD_POOL_NAME}" "${RBD_POOL_CHUNK_SIZE}" "glance-image"
+ 
+diff --git a/glance/templates/job-storage-init.yaml b/glance/templates/job-storage-init.yaml
+index 9d95627..c0cd186 100755
+--- a/glance/templates/job-storage-init.yaml
++++ b/glance/templates/job-storage-init.yaml
+@@ -103,6 +103,10 @@ spec:
+               value: {{ .Values.conf.glance.glance_store.rbd_store_pool | quote }}
+             - name: RBD_POOL_USER
+               value: {{ .Values.conf.glance.glance_store.rbd_store_user | quote }}
++            - name: RBD_POOL_REPLICATION
++              value: {{ .Values.conf.glance.glance_store.rbd_store_replication | quote }}
++            - name: RBD_POOL_CRUSH_RULE
++              value: {{ .Values.conf.glance.glance_store.rbd_store_crush_rule | quote }}
+             - name: RBD_POOL_CHUNK_SIZE
+               value: {{ .Values.conf.glance.glance_store.rbd_store_chunk_size | quote }}
+             - name: RBD_POOL_SECRET
+diff --git a/glance/values.yaml b/glance/values.yaml
+index 5ae9863..4d482d1 100755
+--- a/glance/values.yaml
++++ b/glance/values.yaml
+@@ -268,6 +268,8 @@ conf:
+       memcache_security_strategy: ENCRYPT
+     glance_store:
+       rbd_store_chunk_size: 8
++      rbd_store_replication: 1
++      rbd_store_crush_rule: replicated_rule
+       rbd_store_pool: glance.images
+       rbd_store_user: glance
+       rbd_store_ceph_conf: /etc/ceph/ceph.conf
+-- 
+2.7.4
+

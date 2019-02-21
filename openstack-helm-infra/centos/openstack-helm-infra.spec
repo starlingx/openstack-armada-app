@@ -20,6 +20,7 @@ Patch02: Mariadb-Support-adoption-of-running-single-node-mari.patch
 Patch03: 0004-Allow-multiple-containers-per-daemonset-pod.patch
 Patch04: fix-type-error-to-streamline-single-replica-mariadb-.patch
 Patch05: Add-imagePullSecrets-in-service-account.patch
+Patch06: 0006-Set-Min-NGINX-handles.patch
 
 BuildRequires: helm
 
@@ -33,6 +34,7 @@ Openstack Helm Infra charts
 %patch03 -p1
 %patch04 -p1
 %patch05 -p1
+%patch06 -p1
 
 %build
 # initialize helm and build the toolkit

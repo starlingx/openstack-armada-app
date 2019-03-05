@@ -1,0 +1,99 @@
+From 26dc954e697b365ff8bca6a0f862f1053ed25648 Mon Sep 17 00:00:00 2001
+From: Robert Church <robert.church@windriver.com>
+Date: Fri, 11 Jan 2019 17:23:44 -0500
+Subject: [PATCH 7/7] Stein: Update Cinder to include resource_filters.json
+
+During Stein the deprecated query_volume_filters config option was
+removed. As a result, /etc/cinder/resource_filters.json is required to
+allow volume display operations to function.
+
+This adds the file to the configmap and provides the default values for
+the filters.
+
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ cinder/templates/configmap-etc.yaml  |  1 +
+ cinder/templates/deployment-api.yaml |  4 ++++
+ cinder/values.yaml                   | 39 ++++++++++++++++++++++++++++++++++++
+ 3 files changed, 44 insertions(+)
+
+diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
+index 88d9fa07..5ed73db6 100644
+--- a/cinder/templates/configmap-etc.yaml
++++ b/cinder/templates/configmap-etc.yaml
+@@ -121,6 +121,7 @@ data:
+   policy.json: {{ toJson .Values.conf.policy | b64enc }}
+   cinder_sudoers: {{ $envAll.Values.conf.cinder_sudoers | b64enc }}
+   rootwrap.conf: {{ $envAll.Values.conf.rootwrap | b64enc }}
++  resource_filters.json: {{ toJson .Values.conf.resource_filters | b64enc }}
+ {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
+ {{- $filePrefix := replace "_" "-"  $key }}
+   {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
+diff --git a/cinder/templates/deployment-api.yaml b/cinder/templates/deployment-api.yaml
+index 9213d34f..82131579 100644
+--- a/cinder/templates/deployment-api.yaml
++++ b/cinder/templates/deployment-api.yaml
+@@ -109,6 +109,10 @@ spec:
+               mountPath: /etc/cinder/policy.json
+               subPath: policy.json
+               readOnly: true
++            - name: cinder-etc
++              mountPath: /etc/cinder/resource_filters.json
++              subPath: resource_filters.json
++              readOnly: true
+             {{- if eq ( split "://" .Values.conf.cinder.coordination.backend_url )._0 "file" }}
+             - name: cinder-coordination
+               mountPath: {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index cd3eb1a2..e79f8f6f 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -865,6 +865,45 @@ conf:
+           sla:
+             failure_rate:
+               max: 0
++  resource_filters:
++    volume:
++      - name
++      - status
++      - metadata
++      - bootable
++      - migration_status
++      - availability_zone
++      - group_id
++    backup:
++      - name
++      - status
++      - volume_id
++    snapshot:
++      - name
++      - status
++      - volume_id
++      - metadata
++      - availability_zone
++    group: []
++    group_snapshot:
++      - status
++      - group_id
++    attachment:
++      - volume_id
++      - status
++      - instance_id
++      - attach_status
++    message:
++      - resource_uuid
++      - resource_type
++      - event_id
++      - request_id
++      - message_level
++    pool:
++      - name
++      - volume_type
++    volume_type: []
++
+ 
+ backup:
+   external_ceph_rbd:
+-- 
+2.16.5
+

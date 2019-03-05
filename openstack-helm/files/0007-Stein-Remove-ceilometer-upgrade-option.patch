@@ -1,0 +1,27 @@
+From dc57c567018f8ab2c11bd7dd426cb1176d35e7db Mon Sep 17 00:00:00 2001
+From: Robert Church <robert.church@windriver.com>
+Date: Fri, 11 Jan 2019 16:57:44 -0500
+Subject: [PATCH 6/8] Stein: Remove ceilometer-upgrade option
+
+This removes the --skip-metering-database option from _db-sync.sh.tpl.
+This option was removed with the deprecated storage drivers in
+Queens.
+
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ ceilometer/templates/bin/_db-sync.sh.tpl | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ceilometer/templates/bin/_db-sync.sh.tpl b/ceilometer/templates/bin/_db-sync.sh.tpl
+index ba7c1d84..d649654b 100644
+--- a/ceilometer/templates/bin/_db-sync.sh.tpl
++++ b/ceilometer/templates/bin/_db-sync.sh.tpl
+@@ -18,4 +18,4 @@ limitations under the License.
+ 
+ set -ex
+ 
+-exec ceilometer-upgrade --skip-metering-database
++exec ceilometer-upgrade
+-- 
+2.16.5
+

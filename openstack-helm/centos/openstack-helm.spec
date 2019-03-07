@@ -29,6 +29,7 @@ Patch08: 0007-Stein-Remove-ceilometer-upgrade-option.patch
 Patch09: 0008-Stein-Update-Cinder-to-include-resource_filters.json.patch
 Patch10: 0009-Stein-add-log_config_append-to-neutron-etc.patch
 Patch11: 0010-Stein-Nova-console-address-config-optionality.patch
+Patch12: 0011-Support-per-host-overrides-of-auto_bridge_add.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -50,6 +51,7 @@ Openstack Helm charts
 %patch09 -p1
 %patch10 -p1
 %patch11 -p1
+%patch12 -p1
 
 %build
 # initialize helm and build the toolkit

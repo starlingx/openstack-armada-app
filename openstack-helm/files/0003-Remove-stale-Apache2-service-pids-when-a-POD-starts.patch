@@ -1,7 +1,7 @@
-From 44b9b086f22a561cec91519d03750c3e501d5739 Mon Sep 17 00:00:00 2001
+From a0e8c7e3764b168eaaa82d17d965f62d34766573 Mon Sep 17 00:00:00 2001
 From: Chris Friesen <chris.friesen@windriver.com>
 Date: Wed, 28 Nov 2018 01:33:39 -0500
-Subject: [PATCH] Remove stale Apache2 service pids when a POD starts.
+Subject: [PATCH 03/10] Remove stale Apache2 service pids when a POD starts.
 
 Stale Apache2 pids will prevent Apache2 from starting and will leave
 the POD in a crashed state.
@@ -12,30 +12,16 @@ Note: the pid file is somewhat confusingly called
 
 This is loosely based off the in-review upstream commit at
 https://review.openstack.org/#/c/619747
----
- aodh/templates/bin/_aodh-api.sh.tpl             | 3 +++
- ceilometer/templates/bin/_ceilometer-api.sh.tpl | 3 +++
- keystone/templates/bin/_keystone-api.sh.tpl     | 3 +++
- nova/templates/bin/_nova-placement-api.sh.tpl   | 3 +++
- panko/templates/bin/_panko-api.sh.tpl           | 3 +++
- 5 files changed, 15 insertions(+)
 
-diff --git a/aodh/templates/bin/_aodh-api.sh.tpl b/aodh/templates/bin/_aodh-api.sh.tpl
-index 708b327..dfc7abc 100644
---- a/aodh/templates/bin/_aodh-api.sh.tpl
-+++ b/aodh/templates/bin/_aodh-api.sh.tpl
-@@ -28,6 +28,9 @@ function start () {
-     source /etc/apache2/envvars
-   fi
- 
-+  # Get rid of stale pid file if present.
-+  rm -f /var/run/apache2/*.pid
-+
-   # Start Apache2
-   exec apache2 -DFOREGROUND
- }
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ ceilometer/templates/bin/_ceilometer-api.sh.tpl | 3 +++
+ keystone/templates/bin/_keystone-api.sh.tpl     | 6 ++----
+ nova/templates/bin/_nova-placement-api.sh.tpl   | 3 +++
+ 3 files changed, 8 insertions(+), 4 deletions(-)
+
 diff --git a/ceilometer/templates/bin/_ceilometer-api.sh.tpl b/ceilometer/templates/bin/_ceilometer-api.sh.tpl
-index cdb02f7..0950f03 100644
+index cdb02f79..392873c7 100644
 --- a/ceilometer/templates/bin/_ceilometer-api.sh.tpl
 +++ b/ceilometer/templates/bin/_ceilometer-api.sh.tpl
 @@ -25,6 +25,9 @@ function start () {
@@ -49,21 +35,24 @@ index cdb02f7..0950f03 100644
    exec apache2 -DFOREGROUND
  }
 diff --git a/keystone/templates/bin/_keystone-api.sh.tpl b/keystone/templates/bin/_keystone-api.sh.tpl
-index 217d942..a5950a4 100644
+index 2f127b94..11726809 100644
 --- a/keystone/templates/bin/_keystone-api.sh.tpl
 +++ b/keystone/templates/bin/_keystone-api.sh.tpl
-@@ -31,6 +31,9 @@ function start () {
+@@ -31,10 +31,8 @@ function start () {
       source /etc/apache2/envvars
    fi
  
+-  if [ -f /var/run/apache2/apache2.pid ]; then
+-     # Remove the stale pid for debian/ubuntu images
+-     rm -f /var/run/apache2/apache2.pid
+-  fi
 +  # Get rid of stale pid, shared memory segment and wsgi sock files if present.
 +  rm -f /var/run/apache2/*
-+
+ 
    # Start Apache2
    exec apache2 -DFOREGROUND
- }
 diff --git a/nova/templates/bin/_nova-placement-api.sh.tpl b/nova/templates/bin/_nova-placement-api.sh.tpl
-index f9c8d7c..a7d753e 100644
+index f9c8d7c5..b4bcf178 100644
 --- a/nova/templates/bin/_nova-placement-api.sh.tpl
 +++ b/nova/templates/bin/_nova-placement-api.sh.tpl
 @@ -28,6 +28,9 @@ function start () {
@@ -76,20 +65,6 @@ index f9c8d7c..a7d753e 100644
    # Start Apache2
    exec apache2 -DFOREGROUND
  }
-diff --git a/panko/templates/bin/_panko-api.sh.tpl b/panko/templates/bin/_panko-api.sh.tpl
-index bd08a43..c4ffc3f 100755
---- a/panko/templates/bin/_panko-api.sh.tpl
-+++ b/panko/templates/bin/_panko-api.sh.tpl
-@@ -28,6 +28,9 @@ function start () {
-      source /etc/apache2/envvars
-   fi
- 
-+  # Get rid of stale pid file if present.
-+  rm -f /var/run/apache2/*.pid
-+
-   # Start Apache2
-   exec apache2 -DFOREGROUND
- }
 -- 
-1.8.3.1
+2.16.5
 

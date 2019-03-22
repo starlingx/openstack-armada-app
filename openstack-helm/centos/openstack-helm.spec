@@ -1,4 +1,4 @@
-%global sha 9d72fe1a501bc609a875eebf7b6274e18600ed70
+%global sha 6c71637222f47d85681038994f02feac92f75bd2
 %global helm_folder  /usr/lib/helm
 %global toolkit_version 0.1.0
 %global helmchart_version 0.1.0
@@ -19,20 +19,16 @@ Source2: index.yaml
 
 BuildArch:     noarch
 
-Patch01: 0001-ceilometer-chart-updates.patch
-Patch02: 0002-Add-Aodh-Chart.patch
-Patch03: 0003-Add-Panko-Chart.patch
-Patch04: Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
-Patch05: 0005-Add-heat-purge-deleted-cron-job.patch
-Patch06: 0006-Enable-cold-migration-in-nova-helm-chart.patch
-Patch07: 0007-Glance-chart-add-images-pool-replication.patch
-Patch08: 0007-Stein-Remove-ceilometer-upgrade-option.patch
-Patch09: 0008-Stein-Update-Cinder-to-include-resource_filters.json.patch
-Patch10: 0009-Stein-add-log_config_append-to-neutron-etc.patch
-Patch11: 0010-Stein-Nova-console-address-config-optionality.patch
-Patch12: 0011-Support-per-host-overrides-of-auto_bridge_add.patch
-Patch13: 0012-Nova-chart-Add-ephemeral-pool.patch
-Patch14: 0013-neutron-up-interfaces-added-via-ovs-auto_bridge_add.patch
+Patch01: 0001-Add-Aodh-Chart.patch
+Patch02: 0002-Ceilometer-chart-add-the-ability-to-publish-events-t.patch
+Patch03: 0003-Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
+Patch04: 0004-Fix-ssh-config-in-nova-to-support-cold-migrations.patch
+Patch05: 0005-Nova-console-ip-address-search-optionality.patch
+Patch06: 0006-Nova-chart-Support-ephemeral-pool-creation.patch
+Patch07: 0007-Horizon-Disable-apache2-status_module.patch
+Patch08: 0008-Neutron-Add-support-for-disabling-Readiness-Liveness.patch
+Patch09: 0009-Nova-Add-support-for-disabling-Readiness-Liveness-pr.patch
+Patch10: 0010-Enable-Ceph-Jewel-support-for-nova-cinder-glance.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -53,10 +49,6 @@ Openstack Helm charts
 %patch08 -p1
 %patch09 -p1
 %patch10 -p1
-%patch11 -p1
-%patch12 -p1
-%patch13 -p1
-%patch14 -p1
 
 %build
 # initialize helm and build the toolkit

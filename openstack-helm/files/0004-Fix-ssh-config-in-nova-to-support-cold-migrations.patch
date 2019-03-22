@@ -1,16 +1,26 @@
-From 7760815c98231ffd431f053f8fac35902f420118 Mon Sep 17 00:00:00 2001
+From 6a023c248b3cbd093b8f4480f4b2cca5a3c8600d Mon Sep 17 00:00:00 2001
 From: Gerry Kopec <Gerry.Kopec@windriver.com>
 Date: Thu, 10 Jan 2019 00:12:21 -0500
-Subject: [PATCH] Enable cold migration in nova helm chart
+Subject: [PATCH 04/10] Fix ssh config in nova to support cold migrations
 
-- Move private key from sshd container to nova-compute container.
+- Fix .ssh/config file mapping
+- Move private key from nova-compute-ssh container to nova-compute
+  container.
 - Map private and public keys to configmap-ssh which will default to
-  correct file permissions.
+  the appropriate file permissions.
 - Add additional config to /etc/ssh/sshd_config to allow passwordless
   root logins over appropriate subnet passed in from overrides.
 - Remove chmods from sshd bash script as they are failing.
 
-Depends on helm-toolkit supporting multiple containers per pod.
+Depends on helm-toolkit supporting multiple containers per daemonset
+pod.
+
+Story: 2003463
+Task: 24723
+Change-Id: Idd2e802c293f1e14991ee787ade9a4936fb373ff
+Signed-off-by: Gerry Kopec <Gerry.Kopec@windriver.com>
+(cherry picked from commit 9e9d8aa5e6d4239b40c6c9668592ea799cd6814d)
+Signed-off-by: Robert Church <robert.church@windriver.com>
 ---
  nova/templates/bin/_ssh-start.sh.tpl  | 19 ++++++++++++++++---
  nova/templates/configmap-etc.yaml     |  4 ++--
@@ -21,7 +31,7 @@ Depends on helm-toolkit supporting multiple containers per pod.
  create mode 100755 nova/templates/configmap-ssh.yaml
 
 diff --git a/nova/templates/bin/_ssh-start.sh.tpl b/nova/templates/bin/_ssh-start.sh.tpl
-index 1c10cb0..158090b 100644
+index 1c10cb07..158090b0 100644
 --- a/nova/templates/bin/_ssh-start.sh.tpl
 +++ b/nova/templates/bin/_ssh-start.sh.tpl
 @@ -33,8 +33,21 @@ if [[ $(stat -c %U:%G ~nova/.ssh) != "nova:nova" ]]; then
@@ -50,7 +60,7 @@ index 1c10cb0..158090b 100644
  
  exec /usr/sbin/sshd -D -e -o Port=$SSH_PORT
 diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
-index 55aa311..0d1e7a5 100644
+index 55aa3114..0d1e7a5e 100644
 --- a/nova/templates/configmap-etc.yaml
 +++ b/nova/templates/configmap-etc.yaml
 @@ -232,8 +232,8 @@ data:
@@ -66,7 +76,7 @@ index 55aa311..0d1e7a5 100644
  {{- if .Values.manifests.configmap_etc }}
 diff --git a/nova/templates/configmap-ssh.yaml b/nova/templates/configmap-ssh.yaml
 new file mode 100755
-index 0000000..bab8e33
+index 00000000..bab8e330
 --- /dev/null
 +++ b/nova/templates/configmap-ssh.yaml
 @@ -0,0 +1,35 @@
@@ -106,10 +116,10 @@ index 0000000..bab8e33
 +{{- list "nova-ssh" . | include "nova.configmap.ssh" }}
 +{{- end }}
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 850f0b0..82f185f 100644
+index 09627042..4a7b90b5 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
-@@ -217,6 +217,9 @@ spec:
+@@ -258,6 +258,9 @@ spec:
                mountPath: /root/.ssh/config
                subPath: ssh-config
                readOnly: true
@@ -119,7 +129,7 @@ index 850f0b0..82f185f 100644
              {{- if .Values.conf.ceph.enabled }}
              - name: etcceph
                mountPath: /etc/ceph
-@@ -273,13 +276,10 @@ spec:
+@@ -314,13 +317,10 @@ spec:
                mountPath: /var/lib/nova
              - name: varliblibvirt
                mountPath: /var/lib/libvirt
@@ -135,7 +145,7 @@ index 850f0b0..82f185f 100644
                mountPath: /root/.ssh/authorized_keys
                subPath: ssh-key-public
              - name: nova-bin
-@@ -295,6 +295,10 @@ spec:
+@@ -336,6 +336,10 @@ spec:
            secret:
              secretName: {{ $configMapName }}
              defaultMode: 0444
@@ -145,12 +155,12 @@ index 850f0b0..82f185f 100644
 +            defaultMode: 0400
          {{- if .Values.conf.ceph.enabled }}
          - name: etcceph
-           emptyDir: {}
+           hostPath:
 diff --git a/nova/values.yaml b/nova/values.yaml
-index 4edf5c6..9646ded 100644
+index 7cb4d553..8599027a 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -209,6 +209,9 @@ network:
+@@ -211,6 +211,9 @@ network:
    ssh:
      name: "nova-ssh"
      port: 8022
@@ -160,7 +170,7 @@ index 4edf5c6..9646ded 100644
  
  dependencies:
    dynamic:
-@@ -460,6 +463,8 @@ conf:
+@@ -462,6 +465,8 @@ conf:
        StrictHostKeyChecking no
        UserKnownHostsFile /dev/null
        Port {{ .Values.network.ssh.port }}
@@ -170,5 +180,5 @@ index 4edf5c6..9646ded 100644
      run_tempest: false
      tests:
 -- 
-1.8.3.1
+2.16.5
 

@@ -1,23 +1,33 @@
-From a69da80225eda187df707b7c1fc8ef1d2c1edb57 Mon Sep 17 00:00:00 2001
+From 4f6701c4cab07d9f54012e2a143173803f97ff3d Mon Sep 17 00:00:00 2001
 From: Irina Mihai <irina.mihai@windriver.com>
-Date: Fri, 15 Feb 2019 11:06:49 -0500
-Subject: [PATCH] Add support for ephemeral pool creation
+Date: Tue, 26 Feb 2019 17:43:53 +0000
+Subject: [PATCH 06/10] Nova chart: Support ephemeral pool creation
 
+If libvirt images_type is rbd, then we need to have the
+images_rbd_pool present. These changes add a new job
+to make sure this pool exists.
+
+Change-Id: Iee307cb54384d1c4583d00a8d28f7b1a0676d7d8
+Story: 2004922
+Task: 29285
+Signed-off-by: Irina Mihai <irina.mihai@windriver.com>
+(cherry picked from commit 0afcb0b37cdcf57436e44867bac9242d8684ce81)
+Signed-off-by: Robert Church <robert.church@windriver.com>
 ---
- nova/templates/bin/_nova-storage-init.sh.tpl |  73 +++++++++++++++
- nova/templates/configmap-bin.yaml            |   2 +
- nova/templates/job-storage-init.yaml         | 154 ++++++++++++++++++++++++++++++++
+ nova/templates/bin/_nova-storage-init.sh.tpl |  75 +++++++++++++
+ nova/templates/configmap-bin.yaml            |   4 +-
+ nova/templates/job-storage-init.yaml         | 155 +++++++++++++++++++++++++++
  nova/values.yaml                             |  18 ++++
- 4 files changed, 247 insertions(+)
+ 4 files changed, 251 insertions(+), 1 deletion(-)
  create mode 100644 nova/templates/bin/_nova-storage-init.sh.tpl
  create mode 100644 nova/templates/job-storage-init.yaml
 
 diff --git a/nova/templates/bin/_nova-storage-init.sh.tpl b/nova/templates/bin/_nova-storage-init.sh.tpl
 new file mode 100644
-index 0000000..571cce5
+index 00000000..f79fcff0
 --- /dev/null
 +++ b/nova/templates/bin/_nova-storage-init.sh.tpl
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,75 @@
 +#!/bin/bash
 +
 +{{/*
@@ -63,17 +73,19 @@ index 0000000..571cce5
 +  }
 +  ensure_pool ${RBD_POOL_NAME} ${RBD_POOL_CHUNK_SIZE} "nova-ephemeral"
 +
-+  # TODO: Rework this part for the nova/glance/cinder charts to preserve this
-+  # on the next chart rebase to latest if the ceph mimic rebase isn't complete.
 +  if USERINFO=$(ceph auth get client.${RBD_POOL_USER}); then
-+    KEYSTR=$(echo $USERINFO | sed 's/.*\( key = .*\) caps mon.*/\1/')
-+    echo $KEYSTR  > ${KEYRING}
++    echo "Cephx user client.${RBD_POOL_USER} already exist."
++    echo "Update its cephx caps"
++    ceph auth caps client.${RBD_POOL_USER} \
++      mon "profile rbd" \
++      osd "profile rbd"
++    ceph auth get client.${RBD_POOL_USER} -o ${KEYRING}
 +  else
-+    #NOTE(Portdirect): Determine proper privs to assign keyring
++    # NOTE: Restrict Nova permissions to what is needed.
++    # MON Read only and RBD access to the Nova ephemeral pool only.
 +    ceph auth get-or-create client.${RBD_POOL_USER} \
-+      mon "allow *" \
-+      osd "allow *" \
-+      mgr "allow *" \
++      mon "profile rbd" \
++      osd "profile rbd" \
 +      -o ${KEYRING}
 +  fi
 +
@@ -92,10 +104,17 @@ index 0000000..571cce5
 +fi
 +
 diff --git a/nova/templates/configmap-bin.yaml b/nova/templates/configmap-bin.yaml
-index e422b62..97b4c57 100755
+index c58b90bd..268434fd 100644
 --- a/nova/templates/configmap-bin.yaml
 +++ b/nova/templates/configmap-bin.yaml
-@@ -81,6 +81,8 @@ data:
+@@ -1,5 +1,5 @@
+ {{/*
+-Copyright 2017 The Openstack-Helm Authors.
++Copyright 2017-2019 The Openstack-Helm Authors.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -83,6 +83,8 @@ data:
  {{ tuple "bin/_nova-console-proxy-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
    nova-console-proxy-init-assets.sh: |
  {{ tuple "bin/_nova-console-proxy-init-assets.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
@@ -106,10 +125,10 @@ index e422b62..97b4c57 100755
    cell-setup.sh: |
 diff --git a/nova/templates/job-storage-init.yaml b/nova/templates/job-storage-init.yaml
 new file mode 100644
-index 0000000..60f8c2d
+index 00000000..7d057fb9
 --- /dev/null
 +++ b/nova/templates/job-storage-init.yaml
-@@ -0,0 +1,154 @@
+@@ -0,0 +1,155 @@
 +{{/*
 +Copyright 2019 The Openstack-Helm Authors.
 +
@@ -176,7 +195,7 @@ index 0000000..60f8c2d
 +        {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
 +      initContainers:
 +{{ tuple $envAll "storage_init" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
-+        {{ if .Values.conf.ceph.enabled }}
++        {{ if or .Values.conf.ceph.enabled }}
 +        - name: ceph-keyring-placement
 +{{ tuple $envAll "nova_storage_init" | include "helm-toolkit.snippets.image" | indent 10 }}
 +          securityContext:
@@ -230,7 +249,7 @@ index 0000000..60f8c2d
 +              mountPath: /tmp/nova-storage-init.sh
 +              subPath: nova-storage-init.sh
 +              readOnly: true
-+            {{ if $envAll.Values.conf.ceph.enabled }}
++            {{ if or $envAll.Values.conf.ceph.enabled }}
 +            - name: etcceph
 +              mountPath: /etc/ceph
 +            - name: ceph-etc
@@ -250,7 +269,7 @@ index 0000000..60f8c2d
 +          configMap:
 +            name: nova-bin
 +            defaultMode: 0555
-+        {{ if .Values.conf.ceph.enabled }}
++        {{ if or .Values.conf.ceph.enabled }}
 +        - name: etcceph
 +          emptyDir: {}
 +        - name: ceph-etc
@@ -264,19 +283,20 @@ index 0000000..60f8c2d
 +        {{- end }}
 +        {{- end }}
 +{{- end }}
++
 diff --git a/nova/values.yaml b/nova/values.yaml
-index 4edf5c6..179fb29 100755
+index 0887cecc..7245cf82 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
 @@ -87,6 +87,7 @@ images:
      nova_service_cleaner: 'docker.io/port/ceph-config-helper:v1.10.3'
      nova_spiceproxy: docker.io/openstackhelm/nova:ocata
      nova_spiceproxy_assets: 'docker.io/kolla/ubuntu-source-nova-spicehtml5proxy:ocata'
-+    nova_storage_init: 192.168.204.2:9001/docker.io/port/ceph-config-helper:v1.10.3
-     test: 'docker.io/kolla/ubuntu-source-rally:4.0.0'
++    nova_storage_init: 'docker.io/port/ceph-config-helper:v1.10.3'
+     test: docker.io/xrally/xrally-openstack:1.3.0
      image_repo_sync: docker.io/docker:17.07.0
    local_registry:
-@@ -459,6 +460,14 @@ conf:
+@@ -461,6 +462,14 @@ conf:
        user: "cinder"
        keyring: null
        secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
@@ -286,12 +306,12 @@ index 4edf5c6..179fb29 100755
 +      - rbd_pool_name: ephemeral
 +        rbd_user: ephemeral
 +        rbd_crush_rule: 0
-+        rbd_replication: 2
++        rbd_replication: 3
 +        rbd_chunk_size: 64
    ssh: |
      Host *
        StrictHostKeyChecking no
-@@ -1666,6 +1675,7 @@ secrets:
+@@ -1625,6 +1634,7 @@ secrets:
      placement:
        placement:
          public: placement-tls-public
@@ -313,7 +333,7 @@ index 4edf5c6..179fb29 100755
  
  network_policy:
    nova:
-@@ -2282,6 +2299,7 @@ manifests:
+@@ -2302,6 +2319,7 @@ manifests:
    job_ks_placement_service: true
    job_ks_placement_user: true
    job_cell_setup: true
@@ -322,5 +342,5 @@ index 4edf5c6..179fb29 100755
    pdb_placement: true
    pdb_osapi: true
 -- 
-2.7.4
+2.16.5
 

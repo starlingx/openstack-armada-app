@@ -22,17 +22,17 @@ diff --git a/neutron/templates/daemonset-ovs-agent.yaml b/neutron/templates/daem
 index 34aba253..af765bd7 100644
 --- a/neutron/templates/daemonset-ovs-agent.yaml
 +++ b/neutron/templates/daemonset-ovs-agent.yaml
-@@ -94,6 +94,10 @@ spec:
-               mountPath: /etc/neutron/neutron.conf
+@@ -95,6 +95,10 @@ spec:
                subPath: neutron.conf
                readOnly: true
-+            - name: neutron-etc
+             - name: neutron-etc
 +              mountPath: {{ .Values.conf.neutron.DEFAULT.log_config_append }}
 +              subPath: {{ base .Values.conf.neutron.DEFAULT.log_config_append }}
 +              readOnly: true
-             - name: neutron-etc
++            - name: neutron-etc
                mountPath: /etc/neutron/plugins/ml2/ml2_conf.ini
                subPath: ml2_conf.ini
+               readOnly: true
 -- 
 2.16.5
 

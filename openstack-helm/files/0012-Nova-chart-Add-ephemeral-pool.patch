@@ -276,7 +276,7 @@ index 4edf5c6..179fb29 100755
      test: 'docker.io/kolla/ubuntu-source-rally:4.0.0'
      image_repo_sync: docker.io/docker:17.07.0
    local_registry:
-@@ -455,6 +456,14 @@ conf:
+@@ -459,6 +460,14 @@ conf:
        user: "cinder"
        keyring: null
        secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
@@ -291,7 +291,7 @@ index 4edf5c6..179fb29 100755
    ssh: |
      Host *
        StrictHostKeyChecking no
-@@ -1660,6 +1669,7 @@ secrets:
+@@ -1666,6 +1675,7 @@ secrets:
      placement:
        placement:
          public: placement-tls-public
@@ -299,7 +299,7 @@ index 4edf5c6..179fb29 100755
  
  # typically overridden by environmental
  # values, but should include all endpoints
-@@ -2233,6 +2243,13 @@ pod:
+@@ -2239,6 +2249,13 @@ pod:
          limits:
            memory: "1024Mi"
            cpu: "2000m"
@@ -313,7 +313,7 @@ index 4edf5c6..179fb29 100755
  
  network_policy:
    nova:
-@@ -2276,6 +2293,7 @@ manifests:
+@@ -2282,6 +2299,7 @@ manifests:
    job_ks_placement_service: true
    job_ks_placement_user: true
    job_cell_setup: true

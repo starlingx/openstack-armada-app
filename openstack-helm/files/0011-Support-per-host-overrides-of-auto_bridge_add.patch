@@ -120,7 +120,7 @@ diff --git a/neutron/templates/daemonset-lb-agent.yaml b/neutron/templates/daemo
 index 1c7da46..c2b432f 100644
 --- a/neutron/templates/daemonset-lb-agent.yaml
 +++ b/neutron/templates/daemonset-lb-agent.yaml
-@@ -112,6 +112,10 @@ spec:
+@@ -110,6 +110,10 @@ spec:
                subPath: neutron_sudoers
                readOnly: true
              - name: neutron-etc
@@ -135,7 +135,7 @@ diff --git a/neutron/templates/daemonset-ovs-agent.yaml b/neutron/templates/daem
 index e17693f..2e66844 100644
 --- a/neutron/templates/daemonset-ovs-agent.yaml
 +++ b/neutron/templates/daemonset-ovs-agent.yaml
-@@ -122,6 +122,10 @@ spec:
+@@ -120,6 +120,10 @@ spec:
                subPath: neutron_sudoers
                readOnly: true
              - name: neutron-etc
@@ -169,7 +169,7 @@ index a366dee..cf56ac5 100644
    interface:
    # Tunnel interface will be used for VXLAN tunneling. If null
    # (default) there is a fallback mechanism to search for interface
-@@ -1632,13 +1620,25 @@ conf:
+@@ -1649,13 +1637,25 @@ conf:
          priority: 0
          apply-to: all
          pattern: '(notifications)\.'

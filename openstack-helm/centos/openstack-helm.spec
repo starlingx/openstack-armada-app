@@ -2,6 +2,7 @@
 %global helm_folder  /usr/lib/helm
 %global toolkit_version 0.1.0
 %global helmchart_version 0.1.0
+%global _default_patch_flags --no-backup-if-mismatch --prefix=/tmp/junk
 
 Summary: Openstack-Helm charts
 Name: openstack-helm

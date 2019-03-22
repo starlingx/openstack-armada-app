@@ -1,8 +1,8 @@
 TAR_NAME=openstack-helm-infra
-SHA=5d356f9265b337b75f605dee839faa8cd0ed3ab2
+SHA=aae64213c95fbcea7a0a7671dcb9d8a366f16fa5
 VERSION=1.0.0
 TAR="$TAR_NAME-$SHA.tar.gz"
 
 COPY_LIST="${CGCS_BASE}/downloads/$TAR $PKG_BASE/files/*"
 
-TIS_PATCH_VER=8
+TIS_PATCH_VER=9

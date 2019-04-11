@@ -28,7 +28,6 @@ Patch06: 0006-Nova-chart-Support-ephemeral-pool-creation.patch
 Patch07: 0007-Horizon-Disable-apache2-status_module.patch
 Patch08: 0008-Neutron-Add-support-for-disabling-Readiness-Liveness.patch
 Patch09: 0009-Nova-Add-support-for-disabling-Readiness-Liveness-pr.patch
-Patch10: 0010-Enable-Ceph-Jewel-support-for-nova-cinder-glance.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -48,7 +47,6 @@ Openstack Helm charts
 %patch07 -p1
 %patch08 -p1
 %patch09 -p1
-%patch10 -p1
 
 %build
 # initialize helm and build the toolkit

@@ -1,7 +1,7 @@
 From b3829fef30e76fdf498fa1d0d35185f642dce5f6 Mon Sep 17 00:00:00 2001
 From: Robert Church <robert.church@windriver.com>
 Date: Mon, 8 Apr 2019 02:12:39 -0400
-Subject: [PATCH 5/5] Partial revert of
+Subject: [PATCH 4/4] Partial revert of
  31e3469d28858d7b5eb6355e88b6f49fd62032be
 
 Suspect that new use of mergeOverwrite vs. merge is breaking the

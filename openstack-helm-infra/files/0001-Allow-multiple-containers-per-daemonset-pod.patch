@@ -1,7 +1,7 @@
 From 47315e28d44cff586f6fff026dd00e61c2c77bcd Mon Sep 17 00:00:00 2001
 From: Gerry Kopec <Gerry.Kopec@windriver.com>
 Date: Wed, 9 Jan 2019 20:11:33 -0500
-Subject: [PATCH 1/5] Allow multiple containers per daemonset pod
+Subject: [PATCH 1/4] Allow multiple containers per daemonset pod
 
 Remove code that restricted daemonset pods to single containers.
 Container names will default to name from helm chart template.

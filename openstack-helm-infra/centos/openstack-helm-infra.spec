@@ -63,6 +63,7 @@ make mariadb
 make memcached
 make openvswitch
 make rabbitmq
+make ceph-rgw
 
 # terminate helm server (the last backgrounded task)
 kill %1

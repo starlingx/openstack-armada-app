@@ -33,6 +33,7 @@ Patch11: 0011-Use-nova-s-ping-method-to-find-out-if-the-service-is.patch
 Patch12: 0012-Add-internal-tenant-id-in-conf.patch
 Patch13: 0013-cinder-allow-configuring-the-rbd-app-name.patch
 Patch14: 0014-Cinder-Support-backup-driver-specification-by-module.patch
+Patch15: 0015-Add-Placement-Chart.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -57,6 +58,7 @@ Openstack Helm charts
 %patch12 -p1
 %patch13 -p1
 %patch14 -p1
+%patch15 -p1
 
 %build
 # initialize helm and build the toolkit
@@ -100,6 +102,7 @@ make magnum
 make neutron
 make nova
 make panko
+make placement
 
 # terminate helm server (the last backgrounded task)
 kill %1

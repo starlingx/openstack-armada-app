@@ -1,0 +1,1114 @@
+From 374b61d70c593694f850bd6f6a74842c12ecf5f8 Mon Sep 17 00:00:00 2001
+From: zhipengl <zhipengs.liu@intel.com>
+Date: Fri, 31 May 2019 06:49:51 +0800
+Subject: [PATCH] Add placement chart
+
+This commit adds a helm chart to deploy placement.
+
+Related test pass on simplex and multi-node setup
+
+Story: 2005799
+Task: 33532
+
+Change-Id: Ife908628c6379d2d39d15f72073da3018cc26950
+Signed-off-by: zhipengl <zhipengs.liu@intel.com>
+---
+ placement/Chart.yaml                          |   9 +
+ placement/requirements.yaml                   |  10 +
+ placement/templates/bin/_db-sync.sh.tpl       |  13 +
+ placement/templates/bin/_placement-api.sh.tpl |  34 +++
+ placement/templates/configmap-bin.yaml        |  31 ++
+ placement/templates/configmap-etc.yaml        |  58 ++++
+ placement/templates/deployment.yaml           | 116 ++++++++
+ placement/templates/ingress.yaml              |  12 +
+ placement/templates/job-db-drop.yaml          |  13 +
+ placement/templates/job-db-init.yaml          |  15 +
+ placement/templates/job-db-sync.yaml          |  12 +
+ placement/templates/job-image-repo-sync.yaml  |  12 +
+ placement/templates/job-ks-endpoints.yaml     |  12 +
+ placement/templates/job-ks-service.yaml       |  12 +
+ placement/templates/job-ks-user.yaml          |  12 +
+ placement/templates/network_policy.yaml       |  12 +
+ placement/templates/pdb.yaml                  |  21 ++
+ placement/templates/secret-db.yaml            |  22 ++
+ placement/templates/secret-ingress-tls.yaml   |  11 +
+ placement/templates/secret-keystone.yaml      |  22 ++
+ placement/templates/service-ingress.yaml      |  12 +
+ placement/templates/service.yaml              |  26 ++
+ placement/values.yaml                         | 413 ++++++++++++++++++++++++++
+ 23 files changed, 910 insertions(+)
+ create mode 100644 placement/Chart.yaml
+ create mode 100644 placement/requirements.yaml
+ create mode 100644 placement/templates/bin/_db-sync.sh.tpl
+ create mode 100644 placement/templates/bin/_placement-api.sh.tpl
+ create mode 100644 placement/templates/configmap-bin.yaml
+ create mode 100644 placement/templates/configmap-etc.yaml
+ create mode 100644 placement/templates/deployment.yaml
+ create mode 100644 placement/templates/ingress.yaml
+ create mode 100644 placement/templates/job-db-drop.yaml
+ create mode 100644 placement/templates/job-db-init.yaml
+ create mode 100644 placement/templates/job-db-sync.yaml
+ create mode 100644 placement/templates/job-image-repo-sync.yaml
+ create mode 100644 placement/templates/job-ks-endpoints.yaml
+ create mode 100644 placement/templates/job-ks-service.yaml
+ create mode 100644 placement/templates/job-ks-user.yaml
+ create mode 100644 placement/templates/network_policy.yaml
+ create mode 100644 placement/templates/pdb.yaml
+ create mode 100644 placement/templates/secret-db.yaml
+ create mode 100644 placement/templates/secret-ingress-tls.yaml
+ create mode 100644 placement/templates/secret-keystone.yaml
+ create mode 100644 placement/templates/service-ingress.yaml
+ create mode 100644 placement/templates/service.yaml
+ create mode 100644 placement/values.yaml
+
+diff --git a/placement/Chart.yaml b/placement/Chart.yaml
+new file mode 100644
+index 0000000..e8eb058
+--- /dev/null
++++ b/placement/Chart.yaml
+@@ -0,0 +1,9 @@
++#
++# Copyright (c) 2019 StarlingX.
++#
++
++apiVersion: v1
++appVersion: "1.0"
++description: OpenStack Placement Service
++name: placement
++version: 0.1.0
+diff --git a/placement/requirements.yaml b/placement/requirements.yaml
+new file mode 100644
+index 0000000..3a162a6
+--- /dev/null
++++ b/placement/requirements.yaml
+@@ -0,0 +1,10 @@
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++
++dependencies:
++  - name: helm-toolkit
++    repository: http://localhost:8879/charts
++    version: 0.1.0
+diff --git a/placement/templates/bin/_db-sync.sh.tpl b/placement/templates/bin/_db-sync.sh.tpl
+new file mode 100644
+index 0000000..4a36848
+--- /dev/null
++++ b/placement/templates/bin/_db-sync.sh.tpl
+@@ -0,0 +1,13 @@
++#!/bin/bash
++
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++set -ex
++
++su -s /bin/sh -c "placement-manage db sync" placement
+diff --git a/placement/templates/bin/_placement-api.sh.tpl b/placement/templates/bin/_placement-api.sh.tpl
+new file mode 100644
+index 0000000..4f82970
+--- /dev/null
++++ b/placement/templates/bin/_placement-api.sh.tpl
+@@ -0,0 +1,34 @@
++#!/bin/bash
++
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++set -ex
++COMMAND="${@:-start}"
++
++function start () {
++
++  cp -a $(type -p placement-api) /var/www/cgi-bin/placement/
++
++  if [ -f /etc/apache2/envvars ]; then
++     # Loading Apache2 ENV variables
++     source /etc/apache2/envvars
++  fi
++
++  # Get rid of stale pid file if present.
++  rm -f /var/run/apache2/*.pid
++
++  # Start Apache2
++  exec apache2 -DFOREGROUND
++}
++
++function stop () {
++  apachectl -k graceful-stop
++}
++
++$COMMAND
+diff --git a/placement/templates/configmap-bin.yaml b/placement/templates/configmap-bin.yaml
+new file mode 100644
+index 0000000..3e98ea9
+--- /dev/null
++++ b/placement/templates/configmap-bin.yaml
+@@ -0,0 +1,31 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.configmap_bin }}
++{{- $envAll := . }}
++---
++apiVersion: v1
++kind: ConfigMap
++metadata:
++  name: placement-bin
++data:
++  placement-api.sh: |
++{{ tuple "bin/_placement-api.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  db-sync.sh: |
++{{ tuple "bin/_db-sync.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  db-init.py: |
++{{- include "helm-toolkit.scripts.db_init" . | indent 4 }}
++  db-drop.py: |
++{{- include "helm-toolkit.scripts.db_drop" . | indent 4 }}
++  ks-service.sh: |
++{{- include "helm-toolkit.scripts.keystone_service" . | indent 4 }}
++  ks-endpoints.sh: |
++{{- include "helm-toolkit.scripts.keystone_endpoints" . | indent 4 }}
++  ks-user.sh: |
++{{- include "helm-toolkit.scripts.keystone_user" . | indent 4 }}
++{{- end }}
+diff --git a/placement/templates/configmap-etc.yaml b/placement/templates/configmap-etc.yaml
+new file mode 100644
+index 0000000..62834cc
+--- /dev/null
++++ b/placement/templates/configmap-etc.yaml
+@@ -0,0 +1,58 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.configmap_etc }}
++{{- $envAll := . }}
++
++{{- if empty .Values.conf.placement.placement_database.connection -}}
++{{- $_ := tuple "oslo_db" "internal" "placement" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.placement.placement_database "connection" -}}
++{{- end -}}
++
++{{- if empty .Values.conf.placement.keystone_authtoken.auth_uri -}}
++{{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.placement.keystone_authtoken "auth_uri" -}}
++{{- end -}}
++{{- if empty .Values.conf.placement.keystone_authtoken.auth_url -}}
++{{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.placement.keystone_authtoken "auth_url" -}}
++{{- end -}}
++
++{{- if empty .Values.conf.placement.keystone_authtoken.os_region_name -}}
++{{- $_ := set .Values.conf.placement.keystone_authtoken "os_region_name" .Values.endpoints.identity.auth.placement.region_name -}}
++{{- end -}}
++{{- if empty .Values.conf.placement.keystone_authtoken.project_name -}}
++{{- $_ := set .Values.conf.placement.keystone_authtoken "project_name" .Values.endpoints.identity.auth.placement.project_name -}}
++{{- end -}}
++{{- if empty .Values.conf.placement.keystone_authtoken.project_domain_name -}}
++{{- $_ := set .Values.conf.placement.keystone_authtoken "project_domain_name" .Values.endpoints.identity.auth.placement.project_domain_name -}}
++{{- end -}}
++{{- if empty .Values.conf.placement.keystone_authtoken.user_domain_name -}}
++{{- $_ := set .Values.conf.placement.keystone_authtoken "user_domain_name" .Values.endpoints.identity.auth.placement.user_domain_name -}}
++{{- end -}}
++{{- if empty .Values.conf.placement.keystone_authtoken.username -}}
++{{- $_ := set .Values.conf.placement.keystone_authtoken "username" .Values.endpoints.identity.auth.placement.username -}}
++{{- end -}}
++{{- if empty .Values.conf.placement.keystone_authtoken.password -}}
++{{- $_ := set .Values.conf.placement.keystone_authtoken "password" .Values.endpoints.identity.auth.placement.password -}}
++{{- end -}}
++{{- if empty .Values.conf.placement.keystone_authtoken.memcached_servers -}}
++{{- $_ := tuple "oslo_cache" "internal" "memcache" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" | set .Values.conf.placement.keystone_authtoken "memcached_servers" -}}
++{{- end -}}
++{{- if empty .Values.conf.placement.keystone_authtoken.memcache_secret_key -}}
++{{- $_ := set .Values.conf.placement.keystone_authtoken "memcache_secret_key" ( default ( randAlphaNum 64 ) .Values.endpoints.oslo_cache.auth.memcache_secret_key ) -}}
++{{- end -}}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: placement-etc
++type: Opaque
++data:
++  policy.yaml: {{ toYaml .Values.conf.policy | b64enc }}
++  placement.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.placement | b64enc }}
++  logging.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | b64enc }}
++{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.wsgi_placement "key" "wsgi-placement.conf" "format" "Secret" ) | indent 2 }}
++{{- end }}
+diff --git a/placement/templates/deployment.yaml b/placement/templates/deployment.yaml
+new file mode 100644
+index 0000000..922bbcf
+--- /dev/null
++++ b/placement/templates/deployment.yaml
+@@ -0,0 +1,116 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.deployment }}
++{{- $envAll := . }}
++
++{{- $mounts_placement := .Values.pod.mounts.placement.placement }}
++{{- $mounts_placement_init := .Values.pod.mounts.placement.init_container }}
++
++{{- $serviceAccountName := "placement-api" }}
++{{ tuple $envAll "api" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: apps/v1
++kind: Deployment
++metadata:
++  name: placement-api
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++  labels:
++{{ tuple $envAll "placement" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++spec:
++  replicas: {{ .Values.pod.replicas.api }}
++  selector:
++    matchLabels:
++{{ tuple $envAll "placement" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
++{{ tuple $envAll | include "helm-toolkit.snippets.kubernetes_upgrades_deployment" | indent 2 }}
++  template:
++    metadata:
++      labels:
++{{ tuple $envAll "placement" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++        configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
++        configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++    spec:
++      serviceAccountName: {{ $serviceAccountName }}
++      affinity:
++{{ tuple $envAll "placement" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
++      nodeSelector:
++        {{ .Values.labels.api.node_selector_key }}: {{ .Values.labels.api.node_selector_value }}
++      terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.api.timeout | default "30" }}
++      initContainers:
++{{ tuple $envAll "api" $mounts_placement_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
++      containers:
++        - name: placement-api
++{{ tuple $envAll "placement" | include "helm-toolkit.snippets.image" | indent 10 }}
++{{ tuple $envAll $envAll.Values.pod.resources.api | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++          command:
++            - /tmp/placement-api.sh
++            - start
++          lifecycle:
++            preStop:
++              exec:
++                command:
++                  - /tmp/placement-api.sh
++                  - stop
++          ports:
++            - name: p-api
++              containerPort: {{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++          readinessProbe:
++            #NOTE(portdirect): use tcpSocket check as HTTP will return 401
++            tcpSocket:
++              port: {{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++            initialDelaySeconds: 15
++            periodSeconds: 10
++          livenessProbe:
++            tcpSocket:
++              port: {{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++            initialDelaySeconds: 50
++            periodSeconds: 10
++          volumeMounts:
++            - name: pod-tmp
++              mountPath: /tmp
++            - name: wsgi-placement
++              mountPath: /var/www/cgi-bin/placement
++            - name: placement-bin
++              mountPath: /tmp/placement-api.sh
++              subPath: placement-api.sh
++              readOnly: true
++            - name: placement-etc
++              mountPath: /etc/placement/placement.conf
++              subPath: placement.conf
++              readOnly: true
++            - name: placement-etc
++              mountPath: {{ .Values.conf.placement.DEFAULT.log_config_append }}
++              subPath: {{ base .Values.conf.placement.DEFAULT.log_config_append }}
++              readOnly: true
++            - name: placement-etc
++              mountPath: /etc/placement/policy.yaml
++              subPath: policy.yaml
++              readOnly: true
++            - name: placement-etc
++              mountPath: /etc/apache2/conf-enabled/wsgi-placement.conf
++              subPath: wsgi-placement.conf
++              readOnly: true
++{{ if $mounts_placement.volumeMounts }}{{ toYaml $mounts_placement.volumeMounts | indent 12 }}{{ end }}
++      volumes:
++        - name: pod-tmp
++          emptyDir: {}
++        - name: wsgi-placement
++          emptyDir: {}
++        - name: placement-bin
++          configMap:
++            name: placement-bin
++            defaultMode: 0555
++        - name: placement-etc
++          secret:
++            secretName: placement-etc
++            defaultMode: 0444
++{{ if $mounts_placement.volumes }}{{ toYaml $mounts_placement.volumes | indent 8 }}{{ end }}
++{{- end }}
+diff --git a/placement/templates/ingress.yaml b/placement/templates/ingress.yaml
+new file mode 100644
+index 0000000..5dcced8
+--- /dev/null
++++ b/placement/templates/ingress.yaml
+@@ -0,0 +1,12 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if and .Values.manifests.ingress .Values.network.api.ingress.public }}
++{{- $ingressOpts := dict "envAll" . "backendServiceType" "placement" "backendPort" "p-api" -}}
++{{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
++{{- end }}
+diff --git a/placement/templates/job-db-drop.yaml b/placement/templates/job-db-drop.yaml
+new file mode 100644
+index 0000000..1cdb753
+--- /dev/null
++++ b/placement/templates/job-db-drop.yaml
+@@ -0,0 +1,13 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.job_db_drop }}
++{{- $serviceName := "placement" -}}
++{{- $dbDropJob := dict "envAll" . "serviceName" $serviceName -}}
++{{ $dbDropJob | include "helm-toolkit.manifests.job_db_drop_mysql" }}
++{{- end }}
+diff --git a/placement/templates/job-db-init.yaml b/placement/templates/job-db-init.yaml
+new file mode 100644
+index 0000000..4c9d450
+--- /dev/null
++++ b/placement/templates/job-db-init.yaml
+@@ -0,0 +1,15 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.job_db_init }}
++{{- $serviceName := "placement" -}}
++{{- $dbApi := dict "adminSecret" .Values.secrets.oslo_db.admin "configFile" (printf "/etc/%s/%s.conf" $serviceName $serviceName ) "logConfigFile" (printf "/etc/%s/logging.conf" $serviceName ) "configDbSection" "placement_database" "configDbKey" "connection" -}}
++{{- $dbsToInit := list $dbApi }}
++{{- $dbInitJob := dict "envAll" . "serviceName" $serviceName "dbsToInit" $dbsToInit -}}
++{{ $dbInitJob | include "helm-toolkit.manifests.job_db_init_mysql" }}
++{{- end }}
+diff --git a/placement/templates/job-db-sync.yaml b/placement/templates/job-db-sync.yaml
+new file mode 100644
+index 0000000..5aeefba
+--- /dev/null
++++ b/placement/templates/job-db-sync.yaml
+@@ -0,0 +1,12 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.job_db_sync }}
++{{- $dbSyncJob := dict "envAll" . "serviceName" "placement" -}}
++{{ $dbSyncJob | include "helm-toolkit.manifests.job_db_sync" }}
++{{- end }}
+diff --git a/placement/templates/job-image-repo-sync.yaml b/placement/templates/job-image-repo-sync.yaml
+new file mode 100644
+index 0000000..022b160
+--- /dev/null
++++ b/placement/templates/job-image-repo-sync.yaml
+@@ -0,0 +1,12 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if and .Values.manifests.job_image_repo_sync .Values.images.local_registry.active }}
++{{- $imageRepoSyncJob := dict "envAll" . "serviceName" "placement" -}}
++{{ $imageRepoSyncJob | include "helm-toolkit.manifests.job_image_repo_sync" }}
++{{- end }}
+diff --git a/placement/templates/job-ks-endpoints.yaml b/placement/templates/job-ks-endpoints.yaml
+new file mode 100644
+index 0000000..d3a43fc
+--- /dev/null
++++ b/placement/templates/job-ks-endpoints.yaml
+@@ -0,0 +1,12 @@
++{{/*
++#
++# Copyright (c) 2018 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.job_ks_endpoints }}
++{{- $ksServiceJob := dict "envAll" . "serviceName" "placement" "serviceTypes" ( tuple "placement" ) -}}
++{{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
++{{- end }}
+diff --git a/placement/templates/job-ks-service.yaml b/placement/templates/job-ks-service.yaml
+new file mode 100644
+index 0000000..0dd6d6e
+--- /dev/null
++++ b/placement/templates/job-ks-service.yaml
+@@ -0,0 +1,12 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.job_ks_service }}
++{{- $ksServiceJob := dict "envAll" . "serviceName" "placement" "serviceTypes" ( tuple "placement" ) -}}
++{{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_service" }}
++{{- end }}
+diff --git a/placement/templates/job-ks-user.yaml b/placement/templates/job-ks-user.yaml
+new file mode 100644
+index 0000000..b0f7799
+--- /dev/null
++++ b/placement/templates/job-ks-user.yaml
+@@ -0,0 +1,12 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.job_ks_user }}
++{{- $ksUserJob := dict "envAll" . "serviceName" "placement" -}}
++{{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
++{{- end }}
+diff --git a/placement/templates/network_policy.yaml b/placement/templates/network_policy.yaml
+new file mode 100644
+index 0000000..6355f90
+--- /dev/null
++++ b/placement/templates/network_policy.yaml
+@@ -0,0 +1,12 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.network_policy -}}
++{{- $netpol_opts := dict "envAll" . "name" "application" "label" "placement" }}
++{{ $netpol_opts | include "helm-toolkit.manifests.kubernetes_network_policy" }}
++{{- end -}}
+diff --git a/placement/templates/pdb.yaml b/placement/templates/pdb.yaml
+new file mode 100644
+index 0000000..a61fe58
+--- /dev/null
++++ b/placement/templates/pdb.yaml
+@@ -0,0 +1,21 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.pdb }}
++{{- $envAll := . }}
++---
++apiVersion: policy/v1beta1
++kind: PodDisruptionBudget
++metadata:
++  name: placement-api
++spec:
++  minAvailable: {{ .Values.pod.lifecycle.disruption_budget.api.min_available }}
++  selector:
++    matchLabels:
++{{ tuple $envAll "placement" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
++{{- end }}
+diff --git a/placement/templates/secret-db.yaml b/placement/templates/secret-db.yaml
+new file mode 100644
+index 0000000..5c7321e
+--- /dev/null
++++ b/placement/templates/secret-db.yaml
+@@ -0,0 +1,22 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.secret_db }}
++{{- $envAll := . }}
++{{- range $key1, $userClass := tuple "admin" "placement" }}
++{{- $secretName := index $envAll.Values.secrets.oslo_db $userClass }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: {{ $secretName }}
++type: Opaque
++data:
++  DB_CONNECTION: {{ tuple "oslo_db" "internal" $userClass "mysql" $envAll | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | b64enc -}}
++{{- end }}
++{{- end }}
+diff --git a/placement/templates/secret-ingress-tls.yaml b/placement/templates/secret-ingress-tls.yaml
+new file mode 100644
+index 0000000..3413b5b
+--- /dev/null
++++ b/placement/templates/secret-ingress-tls.yaml
+@@ -0,0 +1,11 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.secret_ingress_tls }}
++{{ include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendService" "placement" "backendServiceType" "placement" ) }}
++{{- end }}
+diff --git a/placement/templates/secret-keystone.yaml b/placement/templates/secret-keystone.yaml
+new file mode 100644
+index 0000000..efc1a17
+--- /dev/null
++++ b/placement/templates/secret-keystone.yaml
+@@ -0,0 +1,22 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.secret_keystone }}
++{{- $envAll := . }}
++{{- range $key1, $userClass := tuple "admin" "placement" }}
++{{- $secretName := index $envAll.Values.secrets.identity $userClass }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: {{ $secretName }}
++type: Opaque
++data:
++{{- tuple $userClass "internal" $envAll | include "helm-toolkit.snippets.keystone_secret_openrc" | indent 2 -}}
++{{- end }}
++{{- end }}
+diff --git a/placement/templates/service-ingress.yaml b/placement/templates/service-ingress.yaml
+new file mode 100644
+index 0000000..75fcd61
+--- /dev/null
++++ b/placement/templates/service-ingress.yaml
+@@ -0,0 +1,12 @@
++{{/*
++#
++# Copyright (c) 2019 StarlingX.
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if and .Values.manifests.service_ingress .Values.network.api.ingress.public }}
++{{- $serviceIngressOpts := dict "envAll" . "backendServiceType" "placement" -}}
++{{ $serviceIngressOpts | include "helm-toolkit.manifests.service_ingress" }}
++{{- end }}
+diff --git a/placement/templates/service.yaml b/placement/templates/service.yaml
+new file mode 100644
+index 0000000..0bda157
+--- /dev/null
++++ b/placement/templates/service.yaml
+@@ -0,0 +1,26 @@
++{{/*
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++*/}}
++
++{{- if .Values.manifests.service }}
++{{- $envAll := . }}
++---
++apiVersion: v1
++kind: Service
++metadata:
++  name: {{ tuple "placement" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
++spec:
++  ports:
++  - name: p-api
++    port: {{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++    {{ if .Values.network.api.node_port.enabled }}
++    nodePort: {{ .Values.network.api.node_port.port }}
++    {{ end }}
++  selector:
++{{ tuple $envAll "placement" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++  {{ if .Values.network.api.node_port.enabled }}
++  type: NodePort
++  {{ end }}
++{{- end }}
+diff --git a/placement/values.yaml b/placement/values.yaml
+new file mode 100644
+index 0000000..33139f0
+--- /dev/null
++++ b/placement/values.yaml
+@@ -0,0 +1,413 @@
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++
++# Default values for openstack-placement.
++# This is a YAML-formatted file.
++# Declare variables to be passed into your templates.
++
++release_group: null
++
++labels:
++  api:
++    node_selector_key: openstack-control-plane
++    node_selector_value: enabled
++  job:
++    node_selector_key: openstack-control-plane
++    node_selector_value: enabled
++
++images:
++  pull_policy: IfNotPresent
++  tags:
++    placement: docker.io/openstackhelm/placement:ocata-ubuntu_xenial
++    ks_user: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
++    ks_service: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
++    ks_endpoints: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
++    db_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
++    db_drop: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
++    placement_db_sync: docker.io/openstackhelm/placement:ocata-ubuntu_xenial
++    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
++    image_repo_sync: docker.io/docker:17.07.0
++  local_registry:
++    active: false
++    exclude:
++      - dep_check
++      - image_repo_sync
++
++network:
++  api:
++    port: 8778
++    ingress:
++      public: true
++      classes:
++        namespace: "nginx"
++        cluster: "nginx-cluster"
++      annotations:
++        nginx.ingress.kubernetes.io/rewrite-target: /
++    external_policy_local: false
++    node_port:
++      enabled: false
++      port: 30778
++
++conf:
++  policy:
++    context_is_admin: 'role:admin'
++    segregation: 'rule:context_is_admin'
++    admin_or_owner: 'rule:context_is_admin or project_id:%(project_id)s'
++    default: 'rule:admin_or_owner'
++  placement:
++    DEFAULT:
++      debug: false
++      use_syslog: false
++      log_config_append: /etc/placement/logging.conf
++    placement_database:
++      connection: null
++    keystone_authtoken:
++      auth_version: v3
++      auth_type: password
++      memcache_security_strategy: ENCRYPT
++  logging:
++    loggers:
++      keys:
++        - root
++        - placement
++    handlers:
++      keys:
++        - stdout
++        - stderr
++        - "null"
++    formatters:
++      keys:
++        - context
++        - default
++    logger_root:
++      level: WARNING
++      handlers: stdout
++    logger_placement:
++      level: INFO
++      handlers:
++        - stdout
++      qualname: placement
++    logger_amqp:
++      level: WARNING
++      handlers: stderr
++      qualname: amqp
++    logger_amqplib:
++      level: WARNING
++      handlers: stderr
++      qualname: amqplib
++    logger_eventletwsgi:
++      level: WARNING
++      handlers: stderr
++      qualname: eventlet.wsgi.server
++    logger_sqlalchemy:
++      level: WARNING
++      handlers: stderr
++      qualname: sqlalchemy
++    logger_boto:
++      level: WARNING
++      handlers: stderr
++      qualname: boto
++    handler_null:
++      class: logging.NullHandler
++      formatter: default
++      args: ()
++    handler_stdout:
++      class: StreamHandler
++      args: (sys.stdout,)
++      formatter: context
++    handler_stderr:
++      class: StreamHandler
++      args: (sys.stderr,)
++      formatter: context
++    formatter_context:
++      class: oslo_log.formatters.ContextFormatter
++      datefmt: "%Y-%m-%d %H:%M:%S"
++    formatter_default:
++      format: "%(message)s"
++      datefmt: "%Y-%m-%d %H:%M:%S"
++  wsgi_placement: |
++    Listen 0.0.0.0:{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
++    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
++    SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
++    CustomLog /dev/stdout combined env=!forwarded
++    CustomLog /dev/stdout proxy env=forwarded
++    <VirtualHost *:{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
++        WSGIDaemonProcess placement-api processes=1 threads=4 user=placement group=placement display-name=%{GROUP}
++        WSGIProcessGroup placement-api
++        WSGIScriptAlias / /var/www/cgi-bin/placement/placement-api
++        WSGIApplicationGroup %{GLOBAL}
++        WSGIPassAuthorization On
++        <IfVersion >= 2.4>
++          ErrorLogFormat "%{cu}t %M"
++        </IfVersion>
++        ErrorLog /dev/stdout
++        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
++        CustomLog /dev/stdout combined env=!forwarded
++        CustomLog /dev/stdout proxy env=forwarded
++    </VirtualHost>
++    Alias /placement /var/www/cgi-bin/placement/placement-api
++    <Location /placement>
++        SetHandler wsgi-script
++        Options +ExecCGI
++        WSGIProcessGroup placement-api
++        WSGIApplicationGroup %{GLOBAL}
++        WSGIPassAuthorization On
++    </Location>
++
++endpoints:
++  cluster_domain_suffix: cluster.local
++  local_image_registry:
++    name: docker-registry
++    namespace: docker-registry
++    hosts:
++      default: localhost
++      internal: docker-registry
++      node: localhost
++    host_fqdn_override:
++      default: null
++    port:
++      registry:
++        node: 5000
++  oslo_db:
++    auth:
++      admin:
++        username: root
++        password: password
++      placement:
++        username: placement
++        password: password
++    hosts:
++      default: mariadb
++    host_fqdn_override:
++      default: null
++    path: /placement
++    scheme: mysql+pymysql
++    port:
++      mysql:
++        default: 3306
++  oslo_cache:
++    auth:
++      # NOTE(portdirect): this is used to define the value for keystone
++      # authtoken cache encryption key, if not set it will be populated
++      # automatically with a random value, but to take advantage of
++      # this feature all services should be set to use the same key,
++      # and memcache service.
++      memcache_secret_key: null
++    hosts:
++      default: memcached
++    host_fqdn_override:
++      default: null
++    port:
++      memcache:
++        default: 11211
++  identity:
++    name: keystone
++    auth:
++      admin:
++        region_name: RegionOne
++        username: admin
++        password: password
++        project_name: admin
++        user_domain_name: default
++        project_domain_name: default
++      placement:
++        role: admin
++        region_name: RegionOne
++        username: placement
++        password: password
++        project_name: service
++        user_domain_name: service
++        project_domain_name: service
++    hosts:
++      default: keystone
++      internal: keystone-api
++    host_fqdn_override:
++      default: null
++    path:
++      default: /v3
++    scheme:
++      default: http
++    port:
++      api:
++        default: 80
++        internal: 5000
++  placement:
++    name: placement
++    hosts:
++      default: placement-api
++      public: placement
++    host_fqdn_override:
++      default: null
++    path:
++      default: /
++    scheme:
++      default: 'http'
++    port:
++      api:
++        default: 8778
++        public: 80
++
++pod:
++  user:
++    placement:
++      uid: 42424
++  affinity:
++    anti:
++      type:
++        default: preferredDuringSchedulingIgnoredDuringExecution
++      topologyKey:
++        default: kubernetes.io/hostname
++  mounts:
++    placement:
++      init_container: null
++      placement:
++        volumeMounts:
++        volumes:
++  replicas:
++    api: 1
++  lifecycle:
++    upgrades:
++      deployments:
++        revision_history: 3
++        pod_replacement_strategy: RollingUpdate
++        rolling_update:
++          max_unavailable: 1
++          max_surge: 3
++    disruption_budget:
++      api:
++        min_available: 0
++    termination_grace_period:
++      api:
++        timeout: 30
++  resources:
++    enabled: false
++    api:
++      requests:
++        memory: "128Mi"
++        cpu: "100m"
++      limits:
++        memory: "1024Mi"
++        cpu: "2000m"
++    jobs:
++      db_init:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      db_sync:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      db_drop:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      ks_endpoints:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      ks_service:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      ks_user:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++
++secrets:
++  identity:
++    admin: placement-keystone-admin
++    placement: placement-keystone-user
++  oslo_db:
++    admin: placement-db-admin
++    placement: placement-db-user
++  tls:
++    placement:
++      placement:
++        public: placement-tls-public
++
++dependencies:
++  dynamic:
++    common:
++      local_image_registry:
++        jobs:
++          - image-repo-sync
++        services:
++          - endpoint: node
++            service: local_image_registry
++  static:
++    api:
++      jobs:
++        - placement-db-sync
++        - placement-ks-service
++        - placement-ks-user
++        - placement-ks-endpoints
++    ks_endpoints:
++      jobs:
++        - placement-ks-user
++        - placement-ks-service
++      services:
++        - endpoint: internal
++          service: identity
++    ks_service:
++      services:
++        - endpoint: internal
++          service: identity
++    ks_user:
++      services:
++        - endpoint: internal
++          service: identity
++    db_drop:
++      services:
++        - endpoint: internal
++          service: oslo_db
++    db_init:
++      services:
++        - endpoint: internal
++          service: oslo_db
++    db_sync:
++      jobs:
++        - placement-db-init
++      services:
++        - endpoint: internal
++          service: oslo_db
++
++manifests:
++  configmap_bin: true
++  configmap_etc: true
++  deployment: true
++  job_image_repo_sync: true
++  job_db_init: true
++  job_db_sync: true
++  job_db_drop: false
++  job_ks_endpoints: true
++  job_ks_service: true
++  job_ks_user: true
++  network_policy: false
++  secret_db: true
++  secret_ingress_tls: true
++  pdb: true
++  ingress: true
++  secret_keystone: true
++  service_ingress: true
++  service: true
+-- 
+2.7.4
+

@@ -1,7 +1,7 @@
 From 5ab3650ea105a53b97f7e0aec2086f141f847aa2 Mon Sep 17 00:00:00 2001
 From: Angie Wang <angie.wang@windriver.com>
 Date: Wed, 6 Mar 2019 15:26:25 -0500
-Subject: [PATCH 01/10] Add Aodh Chart
+Subject: [PATCH 01/11] Add Aodh Chart
 
 This commit adds a helm chart to deploy aodh.
 The default deployment for aodh is ocata.

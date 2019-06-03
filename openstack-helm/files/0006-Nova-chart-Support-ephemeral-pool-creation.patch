@@ -1,7 +1,7 @@
 From 4f6701c4cab07d9f54012e2a143173803f97ff3d Mon Sep 17 00:00:00 2001
 From: Irina Mihai <irina.mihai@windriver.com>
 Date: Tue, 26 Feb 2019 17:43:53 +0000
-Subject: [PATCH 06/10] Nova chart: Support ephemeral pool creation
+Subject: [PATCH 06/11] Nova chart: Support ephemeral pool creation
 
 If libvirt images_type is rbd, then we need to have the
 images_rbd_pool present. These changes add a new job

@@ -1,7 +1,7 @@
 From 8fc7a67eb359d1dfe67b63bc2636386b76071891 Mon Sep 17 00:00:00 2001
 From: Robert Church <robert.church@windriver.com>
 Date: Fri, 22 Mar 2019 03:29:26 -0400
-Subject: [PATCH 07/10] Horizon: Disable apache2 status_module
+Subject: [PATCH 07/11] Horizon: Disable apache2 status_module
 
 a2dismod is not present in the StarlingX httpd based images. Try
 a2dismod first, then fail back to using sed to remove the module.

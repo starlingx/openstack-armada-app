@@ -29,6 +29,7 @@ Patch07: 0007-Horizon-Disable-apache2-status_module.patch
 Patch08: 0008-Neutron-Add-support-for-disabling-Readiness-Liveness.patch
 Patch09: 0009-Nova-Add-support-for-disabling-Readiness-Liveness-pr.patch
 Patch10: 0010-Ironic-Add-pxe-boot-support-for-centos-image.patch
+Patch11: 0011-Use-nova-s-ping-method-to-find-out-if-the-service-is.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -49,6 +50,7 @@ Openstack Helm charts
 %patch08 -p1
 %patch09 -p1
 %patch10 -p1
+%patch11 -p1
 
 %build
 # initialize helm and build the toolkit

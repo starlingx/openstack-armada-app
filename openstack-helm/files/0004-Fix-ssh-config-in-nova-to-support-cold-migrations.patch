@@ -1,7 +1,7 @@
 From 6a023c248b3cbd093b8f4480f4b2cca5a3c8600d Mon Sep 17 00:00:00 2001
 From: Gerry Kopec <Gerry.Kopec@windriver.com>
 Date: Thu, 10 Jan 2019 00:12:21 -0500
-Subject: [PATCH 04/10] Fix ssh config in nova to support cold migrations
+Subject: [PATCH 04/11] Fix ssh config in nova to support cold migrations
 
 - Fix .ssh/config file mapping
 - Move private key from nova-compute-ssh container to nova-compute

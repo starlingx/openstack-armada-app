@@ -1,7 +1,7 @@
 From af94c98eee44769a2c1e8f211029f8346a13ebc2 Mon Sep 17 00:00:00 2001
 From: Robert Church <robert.church@windriver.com>
 Date: Fri, 22 Mar 2019 03:42:08 -0400
-Subject: [PATCH 09/10] Nova: Add support for disabling Readiness/Liveness
+Subject: [PATCH 09/11] Nova: Add support for disabling Readiness/Liveness
  probes
 
 With the introduction of Readiness/Liveness probes in

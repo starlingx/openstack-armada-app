@@ -1,0 +1,82 @@
+From 9fd9b6276bfd41a01c73321e141ef1d14fcdd15c Mon Sep 17 00:00:00 2001
+From: Yi Wang <yi.c.wang@intel.com>
+Date: Fri, 17 May 2019 14:56:04 +0800
+Subject: [PATCH] Add a configmap for ingress controller config
+
+Signed-off-by: Yi Wang <yi.c.wang@intel.com>
+---
+ .../bin/_mariadb-ingress-controller.sh.tpl    |  1 +
+ mariadb/templates/configmap-ingress-conf.yaml | 27 +++++++++++++++++++
+ mariadb/values.yaml                           |  3 +++
+ 3 files changed, 31 insertions(+)
+ create mode 100755 mariadb/templates/configmap-ingress-conf.yaml
+
+diff --git a/mariadb/templates/bin/_mariadb-ingress-controller.sh.tpl b/mariadb/templates/bin/_mariadb-ingress-controller.sh.tpl
+index af6e0c0..f214ec3 100644
+--- a/mariadb/templates/bin/_mariadb-ingress-controller.sh.tpl
++++ b/mariadb/templates/bin/_mariadb-ingress-controller.sh.tpl
+@@ -27,6 +27,7 @@ function start () {
+       --election-id=${RELEASE_NAME} \
+       --ingress-class=${INGRESS_CLASS} \
+       --default-backend-service=${POD_NAMESPACE}/${ERROR_PAGE_SERVICE} \
++      --configmap=${POD_NAMESPACE}/mariadb-ingress-conf \
+       --tcp-services-configmap=${POD_NAMESPACE}/mariadb-services-tcp
+ }
+ 
+diff --git a/mariadb/templates/configmap-ingress-conf.yaml b/mariadb/templates/configmap-ingress-conf.yaml
+new file mode 100755
+index 0000000..64ffdd1
+--- /dev/null
++++ b/mariadb/templates/configmap-ingress-conf.yaml
+@@ -0,0 +1,27 @@
++{{/*
++Copyright 2019 The Openstack-Helm Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.configmap_ingress_conf }}
++{{- $envAll := . }}
++
++---
++apiVersion: v1
++kind: ConfigMap
++metadata:
++  name: mariadb-ingress-conf
++data:
++{{ toYaml .Values.conf.ingress_conf | indent 2 }}
++{{- end }}
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index c0a928e..ca9788b 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -200,6 +200,8 @@ jobs:
+ 
+ conf:
+   ingress: null
++  ingress_conf:
++    worker-processes: "auto"
+   backup:
+     enabled: true
+     base_path: /var/backup
+@@ -322,6 +324,7 @@ network_policy:
+ manifests:
+   configmap_bin: true
+   configmap_etc: true
++  configmap_ingress_conf: true
+   configmap_services_tcp: true
+   deployment_error: true
+   deployment_ingress: true
+-- 
+2.17.1
+

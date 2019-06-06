@@ -1,7 +1,7 @@
 From a0e8c7e3764b168eaaa82d17d965f62d34766573 Mon Sep 17 00:00:00 2001
 From: Chris Friesen <chris.friesen@windriver.com>
 Date: Wed, 28 Nov 2018 01:33:39 -0500
-Subject: [PATCH 03/10] Remove stale Apache2 service pids when a POD starts.
+Subject: [PATCH 03/11] Remove stale Apache2 service pids when a POD starts.
 
 Stale Apache2 pids will prevent Apache2 from starting and will leave
 the POD in a crashed state.

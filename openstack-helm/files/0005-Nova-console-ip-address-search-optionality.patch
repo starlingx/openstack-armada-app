@@ -1,7 +1,7 @@
 From 64b22037b53e6423c465367c26a6d7255768ae17 Mon Sep 17 00:00:00 2001
 From: Gerry Kopec <Gerry.Kopec@windriver.com>
 Date: Wed, 27 Mar 2019 00:35:57 -0400
-Subject: [PATCH 05/10] Nova console/ip address search optionality
+Subject: [PATCH 05/11] Nova console/ip address search optionality
 
 Add options to nova to enable/disable the use of:
 1. the vnc or spice server proxyclient address found by the console

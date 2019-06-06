@@ -1,7 +1,7 @@
 From 615b86e8f394f1648e5c2383364cd46230290182 Mon Sep 17 00:00:00 2001
 From: Robert Church <robert.church@windriver.com>
 Date: Fri, 22 Mar 2019 03:37:05 -0400
-Subject: [PATCH 08/10] Neutron: Add support for disabling Readiness/Liveness
+Subject: [PATCH 08/11] Neutron: Add support for disabling Readiness/Liveness
  probes
 
 With the introduction of Readiness/Liveness probes in

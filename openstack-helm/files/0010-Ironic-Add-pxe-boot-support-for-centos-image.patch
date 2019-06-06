@@ -1,7 +1,7 @@
 From 8b52fcc187dcb2da5fd7453dbb564d24d475dd49 Mon Sep 17 00:00:00 2001
 From: Mingyuan Qi <mingyuan.qi@intel.com>
 Date: Thu, 11 Apr 2019 14:59:11 +0800
-Subject: [PATCH 10/10] Ironic: Add pxe boot support for centos image
+Subject: [PATCH 10/11] Ironic: Add pxe boot support for centos image
 
 Current script does not consider centos distro as base image.
 Different folder was checked to copy pxe files to tftpboot folder.

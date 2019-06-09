@@ -1,0 +1,307 @@
+From 1fa207d2a503e508f48407881b06e0beaa15b1fa Mon Sep 17 00:00:00 2001
+From: Liang Fang <liang.a.fang@intel.com>
+Date: Mon, 25 Mar 2019 10:29:42 -0400
+Subject: [PATCH 12/14] Add internal tenant id in conf
+
+Cinder raw cache feature requires internal tenant id be set in
+/etc/cinder/cinder.conf, something like:
+
+cinder_internal_tenant_project_id = b7455b8974bb4064ad247c8f375eae6c
+cinder_internal_tenant_user_id = f46924c112a14c80ab0a24a613d95eef
+
+This patch get or create if not exist intenal user id and project id, and then
+set in cinder.conf
+
+reference: Cinder cache feature:
+https://docs.openstack.org/cinder/latest/admin/blockstorage-image-volume-cache.html
+
+Story: 2004869
+Task: 29121
+Change-Id: I07954d2efa905a56ca8482d0ec147534c97d01ea
+Signed-off-by: Liang Fang <liang.a.fang@intel.com>
+(cherry picked from commit d1c8e778a733539695d89c21ed4746265e0f1edf)
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ cinder/templates/bin/_cinder-volume.sh.tpl         |  3 +-
+ .../bin/_create-internal-tenant-id.sh.tpl          | 31 ++++++++
+ .../bin/_retrieve-internal-tenant-id.sh.tpl        | 32 +++++++++
+ cinder/templates/configmap-bin.yaml                |  4 ++
+ cinder/templates/deployment-volume.yaml            | 31 ++++++++
+ cinder/templates/job-create-internal-tenant.yaml   | 83 ++++++++++++++++++++++
+ cinder/values.yaml                                 |  4 ++
+ 7 files changed, 187 insertions(+), 1 deletion(-)
+ create mode 100755 cinder/templates/bin/_create-internal-tenant-id.sh.tpl
+ create mode 100755 cinder/templates/bin/_retrieve-internal-tenant-id.sh.tpl
+ create mode 100644 cinder/templates/job-create-internal-tenant.yaml
+
+diff --git a/cinder/templates/bin/_cinder-volume.sh.tpl b/cinder/templates/bin/_cinder-volume.sh.tpl
+index 64aa3828..a248f352 100644
+--- a/cinder/templates/bin/_cinder-volume.sh.tpl
++++ b/cinder/templates/bin/_cinder-volume.sh.tpl
+@@ -19,4 +19,5 @@ limitations under the License.
+ set -ex
+ exec cinder-volume \
+      --config-file /etc/cinder/cinder.conf \
+-     --config-file /etc/cinder/conf/backends.conf
++     --config-file /etc/cinder/conf/backends.conf \
++     --config-file /tmp/pod-shared/internal_tenant.conf
+diff --git a/cinder/templates/bin/_create-internal-tenant-id.sh.tpl b/cinder/templates/bin/_create-internal-tenant-id.sh.tpl
+new file mode 100755
+index 00000000..10582564
+--- /dev/null
++++ b/cinder/templates/bin/_create-internal-tenant-id.sh.tpl
+@@ -0,0 +1,31 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 The Openstack-Helm Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++
++USER_PROJECT_ID=$(openstack project create --or-show --enable -f value -c id \
++    --domain="${PROJECT_DOMAIN_ID}" \
++    "${INTERNAL_PROJECT_NAME}");
++
++USER_ID=$(openstack user create --or-show --enable -f value -c id \
++    --domain="${USER_DOMAIN_ID}" \
++    --project-domain="${PROJECT_DOMAIN_ID}" \
++    --project="${USER_PROJECT_ID}" \
++    "${INTERNAL_USER_NAME}");
++
+diff --git a/cinder/templates/bin/_retrieve-internal-tenant-id.sh.tpl b/cinder/templates/bin/_retrieve-internal-tenant-id.sh.tpl
+new file mode 100755
+index 00000000..b85f69fd
+--- /dev/null
++++ b/cinder/templates/bin/_retrieve-internal-tenant-id.sh.tpl
+@@ -0,0 +1,32 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 The Openstack-Helm Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++
++USER_PROJECT_ID=$(openstack project show -f value -c id \
++    "${INTERNAL_PROJECT_NAME}");
++
++USER_ID=$(openstack user show -f value -c id \
++    "${INTERNAL_USER_NAME}");
++
++tee /tmp/pod-shared/internal_tenant.conf <<EOF
++[DEFAULT]
++cinder_internal_tenant_project_id = ${USER_PROJECT_ID}
++cinder_internal_tenant_user_id = ${USER_ID}
++EOF
+diff --git a/cinder/templates/configmap-bin.yaml b/cinder/templates/configmap-bin.yaml
+index 0cfd6af2..df96fabf 100644
+--- a/cinder/templates/configmap-bin.yaml
++++ b/cinder/templates/configmap-bin.yaml
+@@ -41,6 +41,10 @@ data:
+ {{- include "helm-toolkit.scripts.keystone_endpoints" . | indent 4 }}
+   ks-user.sh: |
+ {{- include "helm-toolkit.scripts.keystone_user" . | indent 4 }}
++  create-internal-tenant.sh: |
++{{ tuple "bin/_create-internal-tenant-id.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  retrieve-internal-tenant.sh: |
++{{ tuple "bin/_retrieve-internal-tenant-id.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   cinder-api.sh: |
+ {{ tuple "bin/_cinder-api.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   cinder-backup.sh: |
+diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
+index a34b4532..17902c02 100644
+--- a/cinder/templates/deployment-volume.yaml
++++ b/cinder/templates/deployment-volume.yaml
+@@ -90,6 +90,33 @@ spec:
+             - name: cinder-coordination
+               mountPath: {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
+         {{ end }}
++        - name: init-cinder-conf
++          image: {{ .Values.images.tags.ks_user }}
++          imagePullPolicy: {{ .Values.images.pull_policy }}
++          securityContext:
++            runAsUser: 0
++          command:
++            - /tmp/retrieve-internal-tenant.sh
++          volumeMounts:
++            - name: cinder-bin
++              mountPath: /tmp/retrieve-internal-tenant.sh
++              subPath: retrieve-internal-tenant.sh
++              readOnly: true
++            - name: pod-shared
++              mountPath: /tmp/pod-shared
++          env:
++{{- with $env := dict "ksUserSecret" .Values.secrets.identity.admin }}
++{{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 12 }}
++{{- end }}
++            - name: INTERNAL_PROJECT_NAME
++              value: {{ .Values.conf.cinder.DEFAULT.internal_project_name | quote }}
++            - name: INTERNAL_USER_NAME
++              value: {{ .Values.conf.cinder.DEFAULT.internal_user_name | quote }}
++
++{{- with $env := dict "ksUserSecret" (index .Values.secrets.identity "cinder" ) }}
++{{- include "helm-toolkit.snippets.keystone_user_create_env_vars" $env | indent 12 }}
++{{- end }}
++
+       containers:
+         - name: cinder-volume
+ {{ tuple $envAll "cinder_volume" | include "helm-toolkit.snippets.image" | indent 10 }}
+@@ -102,6 +129,8 @@ spec:
+               mountPath: /tmp/cinder-volume.sh
+               subPath: cinder-volume.sh
+               readOnly: true
++            - name: pod-shared
++              mountPath: /tmp/pod-shared
+             - name: cinder-etc
+               mountPath: /etc/cinder/cinder.conf
+               subPath: cinder.conf
+@@ -168,6 +197,8 @@ spec:
+         {{- if include "cinder.utils.is_ceph_volume_configured" $envAll }}
+         - name: etcceph
+           emptyDir: {}
++        - name: pod-shared
++          emptyDir: {}
+         - name: ceph-etc
+           configMap:
+             name: {{ .Values.ceph_client.configmap }}
+diff --git a/cinder/templates/job-create-internal-tenant.yaml b/cinder/templates/job-create-internal-tenant.yaml
+new file mode 100644
+index 00000000..2371a922
+--- /dev/null
++++ b/cinder/templates/job-create-internal-tenant.yaml
+@@ -0,0 +1,83 @@
++{{/*
++Copyright 2019 The Openstack-Helm Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_create_internal_tenant }}
++{{- $envAll := . }}
++
++{{- $serviceName := "cinder" }}
++{{- $nodeSelector := index . "nodeSelector" | default ( dict $envAll.Values.labels.job.node_selector_key $envAll.Values.labels.job.node_selector_value ) -}}
++{{- $configMapBin := index . "configMapBin" | default (printf "%s-%s" $serviceName "bin" ) -}}
++{{- $serviceUser := index . "serviceUser" | default $serviceName -}}
++{{- $serviceUserPretty := $serviceUser | replace "_" "-" -}}
++
++{{- $serviceAccountName := printf "%s-%s" $serviceUserPretty "create-internal-tenant" }}
++{{ tuple $envAll "create-internal-tenant" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: batch/v1
++kind: Job
++metadata:
++  name: {{ printf "%s-%s" $serviceUserPretty "create-internal-tenant" | quote }}
++spec:
++  template:
++    metadata:
++      labels:
++{{ tuple $envAll $serviceName "create-internal-tenant" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++    spec:
++      serviceAccountName: {{ $serviceAccountName | quote }}
++      restartPolicy: OnFailure
++      nodeSelector:
++{{ toYaml $nodeSelector | indent 8 }}
++      initContainers:
++{{ tuple $envAll "create_internal_tenant" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
++      containers:
++        - name: create-internal-tenant
++          image: {{ $envAll.Values.images.tags.ks_user }}
++          imagePullPolicy: {{ $envAll.Values.images.pull_policy }}
++{{ tuple $envAll $envAll.Values.pod.resources.jobs.ks_user | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++          command:
++            - /tmp/create-internal-tenant.sh
++          volumeMounts:
++            - name: create-internal-tenant-sh
++              mountPath: /tmp/create-internal-tenant.sh
++              subPath: create-internal-tenant.sh
++              readOnly: true
++          env:
++{{- with $env := dict "ksUserSecret" $envAll.Values.secrets.identity.admin }}
++{{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 12 }}
++{{- end }}
++            - name: SERVICE_OS_SERVICE_NAME
++              value: {{ $serviceName | quote }}
++            - name: INTERNAL_PROJECT_NAME
++              value: {{ .Values.conf.cinder.DEFAULT.internal_project_name | quote }}
++            - name: INTERNAL_USER_NAME
++              value: {{ .Values.conf.cinder.DEFAULT.internal_user_name | quote }}
++
++{{- with $env := dict "ksUserSecret" (index $envAll.Values.secrets.identity $serviceUser ) }}
++{{- include "helm-toolkit.snippets.keystone_user_create_env_vars" $env | indent 12 }}
++{{- end }}
++            - name: SERVICE_OS_ROLES
++            {{- $serviceOsRoles := index $envAll.Values.endpoints.identity.auth $serviceUser "role" }}
++            {{- if kindIs "slice" $serviceOsRoles }}
++              value: {{ include "helm-toolkit.utils.joinListWithComma" $serviceOsRoles | quote }}
++            {{- else }}
++              value: {{ $serviceOsRoles | quote }}
++            {{- end }}
++      volumes:
++        - name: create-internal-tenant-sh
++          configMap:
++            name: {{ $configMapBin | quote }}
++            defaultMode: 0555
++{{- end -}}
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 0256bf3f..39027e9b 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -771,6 +771,9 @@ conf:
+       # Backup: Posix options
+       backup_posix_path: /var/lib/cinder/backup
+       auth_strategy: keystone
++      # Internal tenant id
++      internal_project_name: internal_cinder
++      internal_user_name: internal_cinder
+     database:
+       max_retries: -1
+     keystone_authtoken:
+@@ -1349,6 +1352,7 @@ manifests:
+   job_backup_storage_init: true
+   job_bootstrap: true
+   job_clean: true
++  job_create_internal_tenant: true
+   job_db_init: true
+   job_image_repo_sync: true
+   job_rabbit_init: true
+-- 
+2.16.5
+

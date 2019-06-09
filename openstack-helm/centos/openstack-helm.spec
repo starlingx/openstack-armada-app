@@ -30,6 +30,9 @@ Patch08: 0008-Neutron-Add-support-for-disabling-Readiness-Liveness.patch
 Patch09: 0009-Nova-Add-support-for-disabling-Readiness-Liveness-pr.patch
 Patch10: 0010-Ironic-Add-pxe-boot-support-for-centos-image.patch
 Patch11: 0011-Use-nova-s-ping-method-to-find-out-if-the-service-is.patch
+Patch12: 0012-Add-internal-tenant-id-in-conf.patch
+Patch13: 0013-cinder-allow-configuring-the-rbd-app-name.patch
+Patch14: 0014-Cinder-Support-backup-driver-specification-by-module.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -51,6 +54,9 @@ Openstack Helm charts
 %patch09 -p1
 %patch10 -p1
 %patch11 -p1
+%patch12 -p1
+%patch13 -p1
+%patch14 -p1
 
 %build
 # initialize helm and build the toolkit

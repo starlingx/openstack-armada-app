@@ -34,6 +34,8 @@ Patch12: 0012-Add-internal-tenant-id-in-conf.patch
 Patch13: 0013-cinder-allow-configuring-the-rbd-app-name.patch
 Patch14: 0014-Cinder-Support-backup-driver-specification-by-module.patch
 Patch15: 0015-Add-Placement-Chart.patch
+Patch16: 0016-Cinder-rename-is_ceph_volume-configured.patch
+Patch17: 0017-Cinder-support-multiple-ceph-volume-backends.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -59,6 +61,8 @@ Openstack Helm charts
 %patch13 -p1
 %patch14 -p1
 %patch15 -p1
+%patch16 -p1
+%patch17 -p1
 
 %build
 # initialize helm and build the toolkit

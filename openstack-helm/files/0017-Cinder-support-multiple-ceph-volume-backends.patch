@@ -1,0 +1,305 @@
+From 05919ef2fd1ffc24ca389e4d9ecb54bf621031bd Mon Sep 17 00:00:00 2001
+From: Daniel Badea <daniel.badea@windriver.com>
+Date: Wed, 12 Jun 2019 15:03:43 +0000
+Subject: [PATCH 2/2] Cinder support multiple ceph volume backends
+
+Add support for multiple cinder volume ceph backends.
+---
+ cinder/templates/deployment-backup.yaml            |  9 +++---
+ cinder/templates/deployment-volume.yaml            |  9 +++---
+ cinder/templates/job-backup-storage-init.yaml      |  2 +-
+ cinder/templates/job-storage-init.yaml             | 28 +++++++++--------
+ cinder/templates/utils/_ceph_backend_list.tpl      | 36 ++++++++++++++++++++++
+ .../templates/utils/_ceph_volume_section_name.tpl  | 25 ---------------
+ cinder/templates/utils/_is_ceph_backend.tpl        | 21 +++++++++++++
+ cinder/values.yaml                                 |  6 ++--
+ 8 files changed, 86 insertions(+), 50 deletions(-)
+ create mode 100644 cinder/templates/utils/_ceph_backend_list.tpl
+ delete mode 100644 cinder/templates/utils/_ceph_volume_section_name.tpl
+ create mode 100644 cinder/templates/utils/_is_ceph_backend.tpl
+
+diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
+index 74e38ba..23b67fe 100755
+--- a/cinder/templates/deployment-backup.yaml
++++ b/cinder/templates/deployment-backup.yaml
+@@ -76,8 +76,9 @@ spec:
+               subPath: key
+               readOnly: true
+         {{ end }}
+-        {{- if include "cinder.utils.has_ceph_backend" $envAll }}
+-        - name: ceph-keyring-placement
++        {{- range $name := rest (splitList "," (include "cinder.utils.ceph_backend_list" $envAll)) }}
++          {{- $backend := index $envAll.Values.conf.backends $name }}
++        - name: ceph-keyring-placement-{{$name}}
+ {{ tuple $envAll "cinder_backup" | include "helm-toolkit.snippets.image" | indent 10 }}
+           securityContext:
+             runAsUser: 0
+@@ -85,7 +86,7 @@ spec:
+             - /tmp/ceph-keyring.sh
+           env:
+             - name: RBD_USER
+-              value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "rbd_user" | quote }}
++              value: {{ $backend.rbd_user | quote }}
+           volumeMounts:
+             - name: etcceph
+               mountPath: /etc/ceph
+@@ -97,7 +98,7 @@ spec:
+               mountPath: /tmp/client-keyring
+               subPath: key
+               readOnly: true
+-        {{ end }}
++        {{- end }}
+         {{- if (contains "cinder.backup.drivers.posix" .Values.conf.cinder.DEFAULT.backup_driver) }}
+         - name: ceph-backup-volume-perms
+ {{ tuple $envAll "cinder_backup" | include "helm-toolkit.snippets.image" | indent 10 }}
+diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
+index a274d12..f791cfa 100755
+--- a/cinder/templates/deployment-volume.yaml
++++ b/cinder/templates/deployment-volume.yaml
+@@ -54,8 +54,9 @@ spec:
+         {{ .Values.labels.volume.node_selector_key }}: {{ .Values.labels.volume.node_selector_value }}
+       initContainers:
+ {{ tuple $envAll "volume" $mounts_cinder_volume_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+-        {{- if include "cinder.utils.has_ceph_backend" $envAll }}
+-        - name: ceph-keyring-placement
++        {{- range $name := rest (splitList "," (include "cinder.utils.ceph_backend_list" $envAll)) }}
++          {{- $backend := index $envAll.Values.conf.backends $name }}
++        - name: ceph-keyring-placement-{{$name}}
+ {{ tuple $envAll "cinder_volume" | include "helm-toolkit.snippets.image" | indent 10 }}
+           securityContext:
+             runAsUser: 0
+@@ -63,7 +64,7 @@ spec:
+             - /tmp/ceph-keyring.sh
+           env:
+             - name: RBD_USER
+-              value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "rbd_user" | quote }}
++              value: {{ $backend.rbd_user | quote }}
+           volumeMounts:
+             - name: etcceph
+               mountPath: /etc/ceph
+@@ -75,7 +76,7 @@ spec:
+               mountPath: /tmp/client-keyring
+               subPath: key
+               readOnly: true
+-        {{ end }}
++        {{- end }}
+         {{- if eq ( split "://" .Values.conf.cinder.coordination.backend_url )._0 "file" }}
+         - name: ceph-coordination-volume-perms
+ {{ tuple $envAll "cinder_volume" | include "helm-toolkit.snippets.image" | indent 10 }}
+diff --git a/cinder/templates/job-backup-storage-init.yaml b/cinder/templates/job-backup-storage-init.yaml
+index a43ba99..f3a83a9 100644
+--- a/cinder/templates/job-backup-storage-init.yaml
++++ b/cinder/templates/job-backup-storage-init.yaml
+@@ -110,7 +110,7 @@ spec:
+             - name: RBD_POOL_NAME
+               value: {{ .Values.conf.cinder.DEFAULT.backup_ceph_pool | quote }}
+             - name: RBD_POOL_APP_NAME
+-              value: {{ .Values.conf.software.rbd.rbd_pool_app_name_backup | quote }}
++              value: {{ .Values.conf.ceph.pools.backup.app_name | quote }}
+             - name: RBD_POOL_USER
+               value: {{ .Values.conf.cinder.DEFAULT.backup_ceph_user | quote }}
+             - name: RBD_POOL_CRUSH_RULE
+diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
+index 99128db..5635feb 100755
+--- a/cinder/templates/job-storage-init.yaml
++++ b/cinder/templates/job-storage-init.yaml
+@@ -87,7 +87,9 @@ spec:
+             {{ end }}
+         {{ end }}
+       containers:
+-        - name: cinder-storage-init
++        {{- range $name, $backend := .Values.conf.backends }}
++          {{- if kindIs "map" $backend }}
++        - name: cinder-storage-init-{{$name}}
+ {{ tuple $envAll "cinder_storage_init" | include "helm-toolkit.snippets.image" | indent 10 }}
+ {{ tuple $envAll $envAll.Values.pod.resources.jobs.storage_init | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+           env:
+@@ -95,23 +97,23 @@ spec:
+               valueFrom:
+                 fieldRef:
+                   fieldPath: metadata.namespace
+-            {{- if include "cinder.utils.has_ceph_backend" $envAll }}
++            {{- if include "cinder.utils.is_ceph_backend" $backend }}
+             - name: STORAGE_BACKEND
+-              value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "volume_driver" | quote }}
++              value: {{ $backend.volume_driver | quote }}
+             - name: RBD_POOL_NAME
+-              value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "rbd_pool" | quote }}
++              value: {{ $backend.rbd_pool | quote }}
+             - name: RBD_POOL_APP_NAME
+-              value: {{ .Values.conf.software.rbd.rbd_pool_app_name | quote }}
++              value: {{ (index $envAll.Values.conf.ceph.pools $backend.rbd_pool).app_name | quote }}
+             - name: RBD_POOL_USER
+-              value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "rbd_user" | quote }}
++              value: {{ $backend.rbd_user | quote }}
+             - name: RBD_POOL_CRUSH_RULE
+-              value: {{ .Values.conf.ceph.pools.volume.crush_rule | quote }}
++              value: {{ (index $envAll.Values.conf.ceph.pools $backend.rbd_pool).crush_rule | quote }}
+             - name: RBD_POOL_REPLICATION
+-              value: {{ .Values.conf.ceph.pools.volume.replication | quote }}
++              value: {{ (index $envAll.Values.conf.ceph.pools $backend.rbd_pool).replication | quote }}
+             - name: RBD_POOL_CHUNK_SIZE
+-              value: {{ .Values.conf.ceph.pools.volume.chunk_size | quote }}
++              value: {{ (index $envAll.Values.conf.ceph.pools $backend.rbd_pool).chunk_size | quote }}
+             - name: RBD_POOL_SECRET
+-              value: {{ .Values.secrets.rbd.volume | quote }}
++              value: {{ $envAll.Values.secrets.rbd.volume | quote }}
+             {{- end }}
+           command:
+             - /tmp/storage-init.sh
+@@ -120,20 +122,22 @@ spec:
+               mountPath: /tmp/storage-init.sh
+               subPath: storage-init.sh
+               readOnly: true
+-            {{- if include "cinder.utils.has_ceph_backend" $envAll }}
++            {{- if include "cinder.utils.is_ceph_backend" $backend }}
+             - name: etcceph
+               mountPath: /etc/ceph
+             - name: ceph-etc
+               mountPath: /etc/ceph/ceph.conf
+               subPath: ceph.conf
+               readOnly: true
+-            {{- if empty .Values.conf.ceph.admin_keyring }}
++            {{- if empty $envAll.Values.conf.ceph.admin_keyring }}
+             - name: ceph-keyring
+               mountPath: /tmp/client-keyring
+               subPath: key
+               readOnly: true
+             {{- end }}
+             {{- end }}
++        {{- end }}
++      {{- end }}
+       volumes:
+         - name: cinder-bin
+           configMap:
+diff --git a/cinder/templates/utils/_ceph_backend_list.tpl b/cinder/templates/utils/_ceph_backend_list.tpl
+new file mode 100644
+index 0000000..bd681e6
+--- /dev/null
++++ b/cinder/templates/utils/_ceph_backend_list.tpl
+@@ -0,0 +1,36 @@
++{{/*
++Copyright 2017 The Openstack-Helm Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- /*
++    Return string with all ceph backends separated by comma. The list
++    is either empty or it starts with a comma. Assuming "a", "b" and
++    "c" are ceph backends then ceph_backend_list returns ",a,b,c".
++    This means the first element in the returned list representation
++    can always be skipped.
++
++    Usage: 
++        range $name := rest (splitList include "cinder.utils.ceph_backend_list" $)
++*/ -}}
++{{- define "cinder.utils.ceph_backend_list" -}}
++  {{- range $name, $backend := .Values.conf.backends -}}
++    {{- if kindIs "map" $backend }}
++      {{- if (eq $backend.volume_driver "cinder.volume.drivers.rbd.RBDDriver") -}}
++        {{- "," -}}
++        {{- $name -}}
++      {{- end -}}
++    {{- end -}}
++  {{- end -}}
++{{- end -}}
+diff --git a/cinder/templates/utils/_ceph_volume_section_name.tpl b/cinder/templates/utils/_ceph_volume_section_name.tpl
+deleted file mode 100644
+index af16d6a..0000000
+--- a/cinder/templates/utils/_ceph_volume_section_name.tpl
++++ /dev/null
+@@ -1,25 +0,0 @@
+-{{/*
+-Copyright 2017 The Openstack-Helm Authors.
+-
+-Licensed under the Apache License, Version 2.0 (the "License");
+-you may not use this file except in compliance with the License.
+-You may obtain a copy of the License at
+-
+-   http://www.apache.org/licenses/LICENSE-2.0
+-
+-Unless required by applicable law or agreed to in writing, software
+-distributed under the License is distributed on an "AS IS" BASIS,
+-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-See the License for the specific language governing permissions and
+-limitations under the License.
+-*/}}
+-
+-{{- define "cinder.utils.ceph_volume_section_name" -}}
+-{{- range $section, $values := .Values.conf.backends -}}
+-{{- if kindIs "map" $values -}}
+-{{- if eq $values.volume_driver "cinder.volume.drivers.rbd.RBDDriver" -}}
+-{{ $section }}
+-{{- end -}}
+-{{- end -}}
+-{{- end -}}
+-{{- end -}}
+diff --git a/cinder/templates/utils/_is_ceph_backend.tpl b/cinder/templates/utils/_is_ceph_backend.tpl
+new file mode 100644
+index 0000000..3d5c3be
+--- /dev/null
++++ b/cinder/templates/utils/_is_ceph_backend.tpl
+@@ -0,0 +1,21 @@
++{{/*
++Copyright 2017 The Openstack-Helm Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- define "cinder.utils.is_ceph_backend" -}}
++  {{- if kindIs "map" . -}}
++    {{- eq .volume_driver "cinder.volume.drivers.rbd.RBDDriver" -}}
++  {{- end -}}
++{{- end -}}
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 362f691..839f7fb 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -302,10 +302,6 @@ ceph_client:
+   user_secret_name: pvc-ceph-client-key
+ 
+ conf:
+-  software:
+-    rbd:
+-      rbd_pool_app_name_backup: cinder-backup
+-      rbd_pool_app_name: cinder-volume
+   paste:
+     composite:osapi_volume:
+       use: call:cinder.api:root_app_factory
+@@ -745,10 +741,12 @@ conf:
+         replication: 3
+         crush_rule: replicated_rule
+         chunk_size: 8
++        app_name: cinder-backup
+       volume:
+         replication: 3
+         crush_rule: replicated_rule
+         chunk_size: 8
++        app_name: cinder-volume
+   cinder:
+     DEFAULT:
+       resource_query_filters_file: /etc/cinder/resource_filters.json
+-- 
+1.8.3.1
+

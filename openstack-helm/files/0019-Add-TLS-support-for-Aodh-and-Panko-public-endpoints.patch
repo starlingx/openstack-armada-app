@@ -1,0 +1,141 @@
+From c92678ff20a3ab9b07861131966ea38b340dfff8 Mon Sep 17 00:00:00 2001
+From: Angie Wang <angie.wang@windriver.com>
+Date: Tue, 9 Jul 2019 14:22:02 -0400
+Subject: [PATCH 1/1] Add TLS support for Aodh and Panko public endpoints
+
+Signed-off-by: Angie Wang <angie.wang@windriver.com>
+---
+ aodh/templates/secret-ingress-tls.yaml  | 19 +++++++++++++++++++
+ aodh/values.yaml                        | 12 ++++++++++++
+ panko/templates/secret-ingress-tls.yaml | 19 +++++++++++++++++++
+ panko/values.yaml                       | 12 ++++++++++++
+ 4 files changed, 62 insertions(+)
+ create mode 100644 aodh/templates/secret-ingress-tls.yaml
+ create mode 100644 panko/templates/secret-ingress-tls.yaml
+
+diff --git a/aodh/templates/secret-ingress-tls.yaml b/aodh/templates/secret-ingress-tls.yaml
+new file mode 100644
+index 0000000..707b38c
+--- /dev/null
++++ b/aodh/templates/secret-ingress-tls.yaml
+@@ -0,0 +1,19 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.secret_ingress_tls }}
++{{- include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendServiceType" "alarming" ) }}
++{{- end }}
+diff --git a/aodh/values.yaml b/aodh/values.yaml
+index 90c9fac..cf7c6d7 100644
+--- a/aodh/values.yaml
++++ b/aodh/values.yaml
+@@ -536,6 +536,10 @@ secrets:
+   oslo_messaging:
+     admin: aodh-rabbitmq-admin
+     aodh: aodh-rabbitmq-user
++  tls:
++    alarming:
++      api:
++        public: aodh-tls-public
+ 
+ bootstrap:
+   enabled: false
+@@ -598,6 +602,13 @@ endpoints:
+       public: aodh
+     host_fqdn_override:
+       default: null
++      # NOTE: this chart supports TLS for fqdn over-ridden public
++      # endpoints using the following format:
++      # public:
++      #   host: null
++      #   tls:
++      #     crt: null
++      #     key: null
+     path:
+       default: null
+     scheme:
+@@ -696,5 +707,6 @@ manifests:
+   secret_db: true
+   secret_keystone: true
+   secret_rabbitmq: true
++  secret_ingress_tls: true
+   service_api: true
+   service_ingress_api: true
+diff --git a/panko/templates/secret-ingress-tls.yaml b/panko/templates/secret-ingress-tls.yaml
+new file mode 100644
+index 0000000..9773f53
+--- /dev/null
++++ b/panko/templates/secret-ingress-tls.yaml
+@@ -0,0 +1,19 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.secret_ingress_tls }}
++{{- include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendServiceType" "event" ) }}
++{{- end }}
+diff --git a/panko/values.yaml b/panko/values.yaml
+index 7adefd0..3acaf06 100644
+--- a/panko/values.yaml
++++ b/panko/values.yaml
+@@ -159,6 +159,10 @@ secrets:
+   oslo_db:
+     admin: panko-db-admin
+     panko: panko-db-user
++  tls:
++    event:
++      api:
++        public: panko-tls-public
+ 
+ bootstrap:
+   enabled: false
+@@ -374,6 +378,13 @@ endpoints:
+       public: panko
+     host_fqdn_override:
+       default: null
++      # NOTE: this chart supports TLS for fqdn over-ridden public
++      # endpoints using the following format:
++      # public:
++      #   host: null
++      #   tls:
++      #     crt: null
++      #     key: null
+     path:
+       default: null
+     scheme:
+@@ -580,6 +591,7 @@ manifests:
+   pod_rally_test: true
+   secret_db: true
+   secret_keystone: true
++  secret_ingress_tls: true
+   service_api: true
+   service_ingress_api: true
+ 
+-- 
+1.8.3.1
+

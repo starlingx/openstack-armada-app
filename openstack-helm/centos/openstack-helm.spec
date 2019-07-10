@@ -37,6 +37,7 @@ Patch15: 0015-Add-Placement-Chart.patch
 Patch16: 0016-Cinder-rename-is_ceph_volume-configured.patch
 Patch17: 0017-Cinder-support-multiple-ceph-volume-backends.patch
 Patch18: 0018-Nova-add-service-token.patch
+Patch19: 0019-Add-TLS-support-for-Aodh-and-Panko-public-endpoints.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -65,6 +66,7 @@ Openstack Helm charts
 %patch16 -p1
 %patch17 -p1
 %patch18 -p1
+%patch19 -p1
 
 %build
 # initialize helm and build the toolkit

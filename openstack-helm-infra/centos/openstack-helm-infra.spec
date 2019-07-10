@@ -20,6 +20,7 @@ Patch02: 0002-Add-imagePullSecrets-in-service-account.patch
 Patch03: 0003-Set-Min-NGINX-handles.patch
 Patch04: 0004-Partial-revert-of-31e3469d28858d7b5eb6355e88b6f49fd6.patch
 Patch05: 0005-Add-a-configmap-for-ingress-controller-config.patch
+Patch06: 0006-Add-TLS-support-for-Gnocchi-public-endpoint.patch
 
 BuildRequires: helm
 
@@ -33,6 +34,7 @@ Openstack Helm Infra charts
 %patch03 -p1
 %patch04 -p1
 %patch05 -p1
+%patch06 -p1
 
 %build
 # initialize helm and build the toolkit

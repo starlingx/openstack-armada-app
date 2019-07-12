@@ -610,7 +610,7 @@ index 0000000..3413b5b
 +*/}}
 +
 +{{- if .Values.manifests.secret_ingress_tls }}
-+{{ include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendService" "placement" "backendServiceType" "placement" ) }}
++{{ include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendServiceType" "placement" ) }}
 +{{- end }}
 diff --git a/placement/templates/secret-keystone.yaml b/placement/templates/secret-keystone.yaml
 new file mode 100644
@@ -1041,7 +1041,7 @@ index 0000000..33139f0
 +    placement: placement-db-user
 +  tls:
 +    placement:
-+      placement:
++      api:
 +        public: placement-tls-public
 +
 +dependencies:

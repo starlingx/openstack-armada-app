@@ -63,6 +63,7 @@ make garbd
 make keystone-api-proxy
 make fm-rest-api
 make nginx-ports-control
+make dcdbsync
 cd -
 
 # terminate helm server (the last backgrounded task)

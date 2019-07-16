@@ -3283,6 +3283,46 @@ data:
   dependencies:
     - helm-toolkit
 ---
+schema: armada/Chart/v1
+metadata:
+  schema: metadata/Document/v1
+  name: openstack-dcdbsync
+data:
+  chart_name: dcdbsync
+  release: openstack-dcdbsync
+  namespace: openstack
+  wait:
+    timeout: 1800
+    labels:
+      release_group: osh-openstack-dcdbsync
+  test:
+    enabled: false
+  install:
+    no_hooks: false
+  upgrade:
+    no_hooks: false
+    pre:
+      delete:
+        - type: job
+          labels:
+            release_group: osh-openstack-dcdbsync
+        - type: pod
+          labels:
+            release_group: osh-openstack-dcdbsync
+            component: test
+  values:
+    images:
+      tags:
+        dcdbsync: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+        ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+  source:
+    type: tar
+    location: http://172.17.0.1/helm_charts/dcdbsync-0.1.0.tgz
+    subpath: dcdbsync
+    reference: master
+  dependencies:
+    - helm-toolkit
+---
 schema: armada/ChartGroup/v1
 metadata:
   schema: metadata/Document/v1
@@ -3451,6 +3491,16 @@ data:
     - openstack-gnocchi
     - openstack-panko
     - openstack-ceilometer
+---
+schema: armada/ChartGroup/v1
+metadata:
+  schema: metadata/Document/v1
+  name: openstack-dcdbsync
+data:
+  description: "Deploy dcorch dbsync"
+  sequenced: true
+  chart_group:
+    - openstack-dcdbsync
 ---
 schema: armada/Manifest/v1
 metadata:

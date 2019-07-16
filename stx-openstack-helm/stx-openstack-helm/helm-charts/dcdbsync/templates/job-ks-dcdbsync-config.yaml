@@ -1,0 +1,72 @@
+{{/*
+#
+# Copyright (c) 2019 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+#
+*/}}
+{{- if .Values.manifests.job_ks_dcdbsync }}
+{{- $envAll := . }}
+{{- $serviceName := "dcdbsync" }}
+{{- $configMapBin := "dcdbsync-config-bin" }}
+
+{{- $serviceAccountName := printf "%s-%s" $serviceName "ks-config" }}
+{{ tuple $envAll "ks_endpoints" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+
+{{- $serviceUser := $serviceName }}
+{{- $osServiceName := "dcdbsync" }}
+{{- $osServiceType := "dcorch-dbsync" }}
+{{- $osServiceDescription := "DCOrch DBsync service" }}
+{{- $osServiceEndpointInterface := "internal" }}
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-%s" $serviceName "ks-config" | quote }}
+
+spec:
+  template:
+    metadata:
+      labels:
+{{ tuple $envAll $serviceName "ks-config" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+    spec:
+      serviceAccountName: {{ $serviceAccountName }}
+      restartPolicy: OnFailure
+      containers:
+        - name: {{ printf "%s-%s" "dcdbsync" "ks-config" | quote }}
+          image: {{ $envAll.Values.images.tags.dcdbsync }}
+          imagePullPolicy: {{ $envAll.Values.images.pull_policy }}
+          command:
+            - "/tmp/dc-dcdbsync-config.sh"
+          volumeMounts:
+            - name: dc-dcdbsync-config-sh
+              mountPath: /tmp/dc-dcdbsync-config.sh
+              subPath: dc-dcdbsync-config.sh
+              readOnly: true
+          env:
+{{- with $env := dict "ksUserSecret" $envAll.Values.secrets.identity.admin }}
+{{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 12 }}
+{{- end }}
+{{- with $env := dict "ksUserSecret" (index $envAll.Values.secrets.identity $serviceUser ) }}
+{{- include "helm-toolkit.snippets.keystone_user_create_env_vars" $env | indent 12 }}
+{{- end }}
+            - name: SERVICE_OS_ROLE
+              value: {{ index $envAll.Values.endpoints.identity.auth $serviceUser "role" | quote }}
+            - name: OS_SERVICE_NAME
+              value: {{ $osServiceName | quote }}
+            - name: OS_SERVICE_TYPE
+              value: {{ $osServiceType | quote }}
+            - name: OS_SERVICE_DESCRIPTION
+              value: {{ $osServiceDescription | quote }}
+            - name: OS_SERVICE_ENDPOINT_INTERFACE
+              value: {{ $osServiceEndpointInterface | quote }}
+            - name: OS_SERVICE_ENDPOINT_URL
+              value: {{ tuple $osServiceType $osServiceEndpointInterface "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | quote }}
+      volumes:
+        - name: dc-dcdbsync-config-sh
+          configMap:
+            name: {{ $configMapBin | quote }}
+            defaultMode: 0555
+{{- end }}

@@ -1,0 +1,125 @@
+#
+# Copyright (c) 2019 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# Default values for dcdbsync.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+labels:
+  dcdbsync:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+
+images:
+  tags:
+    ks_endpoints: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    dcdbsync: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+  pullPolicy: IfNotPresent
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
+
+dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
+  static:
+    ks_endpoints:
+      services:
+        - endpoint: internal
+          service: identity
+
+endpoints:
+  cluster_domain_suffix: cluster.local
+  local_image_registry:
+    name: docker-registry
+    namespace: docker-registry
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        node: 5000
+  identity:
+    name: keystone
+    auth:
+      admin:
+        region_name: RegionOne
+        username: admin
+        password: password
+        project_name: admin
+        user_domain_name: default
+        project_domain_name: default
+      dcdbsync:
+        role: admin
+        region_name: RegionOne
+        username: dcdbsync
+        password: password
+        project_name: service
+        user_domain_name: service
+        project_domain_name: service
+    hosts:
+      default: keystone
+      internal: keystone-api
+    host_fqdn_override:
+      default: null
+    path:
+      default: /v3
+    scheme:
+      default: http
+    port:
+      api:
+        default: 80
+        internal: 5000
+  dcorch_dbsync:
+    name: dcdbsync
+    hosts:
+      default: dcdbsync-api
+      public: dcdbsync
+    host_fqdn_override:
+      default: null
+    path:
+      default: /v1.0
+    scheme:
+      default: 'http'
+    port:
+      api:
+        default: 8220
+        public: 80
+
+secrets:
+  identity:
+    admin: keystone-keystone-admin
+    dcdbsync: dcdbsync-keystone-user
+
+manifests:
+  secret_keystone: true
+  configmap_bin: true
+  job_ks_dcdbsync: true
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

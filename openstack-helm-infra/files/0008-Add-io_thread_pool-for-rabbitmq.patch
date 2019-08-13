@@ -1,0 +1,55 @@
+From f4c56def0797f093f626720871bd5e525227685e Mon Sep 17 00:00:00 2001
+From: Bin Yang <bin.yang@intel.com>
+Date: Tue, 13 Aug 2019 10:15:14 +0800
+Subject: [PATCH] add io_thread_pool for rabbitmq
+
+Signed-off-by: Bin Yang <bin.yang@intel.com>
+---
+ rabbitmq/templates/statefulset.yaml | 8 ++++++++
+ rabbitmq/values.yaml                | 4 ++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
+index 1016f7f..afe5520 100644
+--- a/rabbitmq/templates/statefulset.yaml
++++ b/rabbitmq/templates/statefulset.yaml
+@@ -111,6 +111,10 @@ spec:
+                   key: RABBITMQ_ADMIN_PASSWORD
+             - name: RABBITMQ_DEFINITION_FILE
+               value: "{{ index $envAll.Values.conf.rabbitmq "management.load_definitions" }}"
++{{- if $envAll.Values.io_thread_pool.enabled }}
++            - name: RABBITMQ_IO_THREAD_POOL_SIZE
++              value: {{ $envAll.Values.io_thread_pool.size | quote }}
++{{- end }}
+           volumeMounts:
+             - name: rabbitmq-data
+               mountPath: /var/lib/rabbitmq
+@@ -190,6 +194,10 @@ spec:
+               value: "{{ tuple "oslo_messaging" "internal" "amqp" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
+             - name: PORT_CLUSTERING
+               value: "{{ add (tuple "oslo_messaging" "internal" "amqp" . | include "helm-toolkit.endpoints.endpoint_port_lookup") 20000 }}"
++{{- if $envAll.Values.io_thread_pool.enabled }}
++            - name: RABBITMQ_IO_THREAD_POOL_SIZE
++              value: {{ $envAll.Values.io_thread_pool.size | quote }}
++{{- end }}
+           readinessProbe:
+             initialDelaySeconds: 10
+             timeoutSeconds: 10
+diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
+index bdc730a..367058e 100644
+--- a/rabbitmq/values.yaml
++++ b/rabbitmq/values.yaml
+@@ -290,6 +290,10 @@ volume:
+   class_name: general
+   size: 256Mi
+ 
++io_thread_pool:
++  enabled: false
++  size: 64
++
+ manifests:
+   configmap_bin: true
+   configmap_etc: true
+-- 
+2.7.4
+

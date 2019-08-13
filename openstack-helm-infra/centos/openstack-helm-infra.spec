@@ -22,6 +22,7 @@ Patch04: 0004-Partial-revert-of-31e3469d28858d7b5eb6355e88b6f49fd6.patch
 Patch05: 0005-Add-a-configmap-for-ingress-controller-config.patch
 Patch06: 0006-Add-TLS-support-for-Gnocchi-public-endpoint.patch
 Patch07: 0007-Fix-pod-restarts-on-all-workers-when-worker-added-re.patch
+Patch08: 0008-Add-io_thread_pool-for-rabbitmq.patch
 
 BuildRequires: helm
 
@@ -37,6 +38,7 @@ Openstack Helm Infra charts
 %patch05 -p1
 %patch06 -p1
 %patch07 -p1
+%patch08 -p1
 
 %build
 # initialize helm and build the toolkit

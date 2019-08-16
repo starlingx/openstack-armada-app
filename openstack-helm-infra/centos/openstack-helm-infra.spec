@@ -23,6 +23,7 @@ Patch05: 0005-Add-a-configmap-for-ingress-controller-config.patch
 Patch06: 0006-Add-TLS-support-for-Gnocchi-public-endpoint.patch
 Patch07: 0007-Fix-pod-restarts-on-all-workers-when-worker-added-re.patch
 Patch08: 0008-Add-io_thread_pool-for-rabbitmq.patch
+Patch09: 0009-Enable-override-of-rabbitmq-probe-parameters.patch
 
 BuildRequires: helm
 
@@ -39,6 +40,7 @@ Openstack Helm Infra charts
 %patch06 -p1
 %patch07 -p1
 %patch08 -p1
+%patch09 -p1
 
 %build
 # initialize helm and build the toolkit

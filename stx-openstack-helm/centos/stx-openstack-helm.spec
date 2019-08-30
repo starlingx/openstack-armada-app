@@ -57,11 +57,13 @@ helm repo rm local
 helm repo add local http://localhost:8879/charts
 
 # Make the charts. These produce a tgz file
+cd helm-charts
 make nova-api-proxy
 make garbd
 make keystone-api-proxy
 make fm-rest-api
 make nginx-ports-control
+cd -
 
 # terminate helm server (the last backgrounded task)
 kill %1
@@ -74,7 +76,7 @@ rm  ./helm-toolkit-%{toolkit_version}.tgz
 install -d -m 755 ${RPM_BUILD_ROOT}%{app_folder}
 install -p -D -m 755 files/metadata.yaml ${RPM_BUILD_ROOT}%{app_folder}
 install -d -m 755 ${RPM_BUILD_ROOT}%{helm_folder}
-install -p -D -m 755 *.tgz ${RPM_BUILD_ROOT}%{helm_folder}
+install -p -D -m 755 helm-charts/*.tgz ${RPM_BUILD_ROOT}%{helm_folder}
 install -d -m 755 ${RPM_BUILD_ROOT}%{armada_folder}
 install -p -D -m 755 manifests/*.yaml ${RPM_BUILD_ROOT}%{armada_folder}
 

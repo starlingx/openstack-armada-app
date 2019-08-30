@@ -1,6 +1,8 @@
 SRC_DIR="stx-openstack-helm"
-COPY_LIST_TO_TAR="$PKG_BASE/../../../helm-charts/garbd \
-    $PKG_BASE/../../../helm-charts/nginx-ports-control"
+COPY_LIST_TO_TAR="\
+    $STX_BASE/helm-charts/fm-rest-api/fm-rest-api/helm-charts \
+"
+
 # This version is used as a component of the stx-openstack application
 # version. Any change to this version must also be reflected in the
 # SUPPORTED_VERSIONS list in sysinv/helm/openstack_version_check.py

@@ -1,0 +1,31 @@
+From 7de7cf2f14a58255d85149d08577dd63662aa6d9 Mon Sep 17 00:00:00 2001
+From: Teresa Ho <teresa.ho@windriver.com>
+Date: Mon, 15 Jul 2019 10:30:58 -0400
+Subject: [PATCH] Change cinder bootstrap script
+
+This commit changes the cinder template bootstrap script
+to use the openstack client instead of the cinder client
+to list volume types.
+
+Change-Id: I5a4b22ab4475d503b3e8fa46cd3c56a0b40863e0
+Signed-off-by: Teresa Ho <teresa.ho@windriver.com>
+---
+ cinder/templates/bin/_bootstrap.sh.tpl | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cinder/templates/bin/_bootstrap.sh.tpl b/cinder/templates/bin/_bootstrap.sh.tpl
+index 6592d19..bd60fd8 100644
+--- a/cinder/templates/bin/_bootstrap.sh.tpl
++++ b/cinder/templates/bin/_bootstrap.sh.tpl
+@@ -48,7 +48,7 @@ openstack volume type show {{ $name }} || \
+   {{- end }}
+ 
+ {{- /* Check volume type and properties were added */}}
+-cinder extra-specs-list
++openstack volume type list --long
+ 
+ {{- end }}
+ 
+-- 
+1.8.3.1
+

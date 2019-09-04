@@ -1,0 +1,63 @@
+From 132df9829fa4c697e0b9701871888708973f9123 Mon Sep 17 00:00:00 2001
+From: Gerry Kopec <Gerry.Kopec@windriver.com>
+Date: Fri, 16 Aug 2019 14:29:46 -0400
+Subject: [PATCH] Enable override of rabbitmq probe parameters
+
+Add variables for initial delay, period and timeout for rabbitmq
+liveness and readiness probes.
+
+Change-Id: I8d2685118eb4ce3b8c27952892f7ad553fc5de77
+Signed-off-by: Gerry Kopec <Gerry.Kopec@windriver.com>
+---
+ rabbitmq/templates/statefulset.yaml | 10 ++++++----
+ rabbitmq/values.yaml                |  9 +++++++++
+ 2 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
+index afe5520..7b57c64 100644
+--- a/rabbitmq/templates/statefulset.yaml
++++ b/rabbitmq/templates/statefulset.yaml
+@@ -199,14 +199,16 @@ spec:
+               value: {{ $envAll.Values.io_thread_pool.size | quote }}
+ {{- end }}
+           readinessProbe:
+-            initialDelaySeconds: 10
+-            timeoutSeconds: 10
++            initialDelaySeconds: {{ $envAll.Values.pod.probes.readiness.initialDelaySeconds }}
++            periodSeconds: {{ $envAll.Values.pod.probes.readiness.periodSeconds }}
++            timeoutSeconds: {{ $envAll.Values.pod.probes.readiness.timeoutSeconds }}
+             exec:
+               command:
+               - /tmp/rabbitmq-readiness.sh
+           livenessProbe:
+-            initialDelaySeconds: 30
+-            timeoutSeconds: 10
++            initialDelaySeconds: {{ $envAll.Values.pod.probes.liveness.initialDelaySeconds }}
++            periodSeconds: {{ $envAll.Values.pod.probes.liveness.periodSeconds }}
++            timeoutSeconds: {{ $envAll.Values.pod.probes.liveness.timeoutSeconds }}
+             exec:
+               command:
+               - /tmp/rabbitmq-liveness.sh
+diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
+index 367058e..cfd151c 100644
+--- a/rabbitmq/values.yaml
++++ b/rabbitmq/values.yaml
+@@ -102,6 +102,15 @@ pod:
+         limits:
+           memory: "1024Mi"
+           cpu: "2000m"
++  probes:
++    readiness:
++      initialDelaySeconds: 10
++      periodSeconds: 10
++      timeoutSeconds: 10
++    liveness:
++      initialDelaySeconds: 30
++      periodSeconds: 10
++      timeoutSeconds: 10
+ 
+ conf:
+   enabled_plugins:
+-- 
+1.8.3.1
+

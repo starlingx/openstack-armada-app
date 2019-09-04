@@ -1,0 +1,227 @@
+From af94c98eee44769a2c1e8f211029f8346a13ebc2 Mon Sep 17 00:00:00 2001
+From: Robert Church <robert.church@windriver.com>
+Date: Fri, 22 Mar 2019 03:42:08 -0400
+Subject: [PATCH 09/11] Nova: Add support for disabling Readiness/Liveness
+ probes
+
+With the introduction of Readiness/Liveness probes in
+Ib8e4b93486588320fd2d562c3bc90b65844e52e5, some probes are failing and
+preventing successful armada manifest applies.
+
+Add support to disable the probes.
+
+Change-Id: Iebe7327055f58fa78ce3fcac968c1fa617c30c2f
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ nova/templates/daemonset-compute.yaml      |  4 ++++
+ nova/templates/deployment-conductor.yaml   |  4 ++++
+ nova/templates/deployment-consoleauth.yaml |  4 ++++
+ nova/templates/deployment-novncproxy.yaml  |  4 ++++
+ nova/templates/deployment-scheduler.yaml   |  4 ++++
+ nova/templates/deployment-spiceproxy.yaml  |  4 ++++
+ nova/values.yaml                           | 27 +++++++++++++++++++++++++++
+ 7 files changed, 51 insertions(+)
+
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 4a7b90b5..f508b963 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -181,6 +181,7 @@ spec:
+             - name: LIBVIRT_CEPH_SECRET_UUID
+               value: "{{ .Values.conf.ceph.secret_uuid }}"
+           {{ end }}
++          {{- if .Values.pod.probes.readiness.nova_compute.enabled }}
+           readinessProbe:
+             exec:
+               command:
+@@ -193,6 +194,8 @@ spec:
+             initialDelaySeconds: 80
+             periodSeconds: 90
+             timeoutSeconds: 70
++          {{- end }}
++          {{- if .Values.pod.probes.liveness.nova_compute.enabled }}
+           livenessProbe:
+             exec:
+               command:
+@@ -206,6 +209,7 @@ spec:
+             initialDelaySeconds: 120
+             periodSeconds: 90
+             timeoutSeconds: 70
++          {{- end }}
+           command:
+             - /tmp/nova-compute.sh
+           volumeMounts:
+diff --git a/nova/templates/deployment-conductor.yaml b/nova/templates/deployment-conductor.yaml
+index 1e66e419..33d41097 100644
+--- a/nova/templates/deployment-conductor.yaml
++++ b/nova/templates/deployment-conductor.yaml
+@@ -60,6 +60,7 @@ spec:
+ {{ tuple $envAll $envAll.Values.pod.resources.conductor | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+           securityContext:
+             allowPrivilegeEscalation: false
++          {{- if .Values.pod.probes.readiness.nova_conductor.enabled }}
+           readinessProbe:
+             exec:
+               command:
+@@ -72,6 +73,8 @@ spec:
+             initialDelaySeconds: 80
+             periodSeconds: 90
+             timeoutSeconds: 70
++          {{- end }}
++          {{- if .Values.pod.probes.liveness.nova_conductor.enabled }}
+           livenessProbe:
+             exec:
+               command:
+@@ -85,6 +88,7 @@ spec:
+             initialDelaySeconds: 120
+             periodSeconds: 90
+             timeoutSeconds: 70
++          {{- end }}
+           command:
+             - /tmp/nova-conductor.sh
+           volumeMounts:
+diff --git a/nova/templates/deployment-consoleauth.yaml b/nova/templates/deployment-consoleauth.yaml
+index 75b66e79..31013eb7 100644
+--- a/nova/templates/deployment-consoleauth.yaml
++++ b/nova/templates/deployment-consoleauth.yaml
+@@ -60,6 +60,7 @@ spec:
+ {{ tuple $envAll $envAll.Values.pod.resources.consoleauth | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+           securityContext:
+             allowPrivilegeEscalation: false
++          {{- if .Values.pod.probes.readiness.nova_consoleauth.enabled }}
+           readinessProbe:
+             exec:
+               command:
+@@ -72,6 +73,8 @@ spec:
+             initialDelaySeconds: 80
+             periodSeconds: 90
+             timeoutSeconds: 70
++          {{- end }}
++          {{- if .Values.pod.probes.liveness.nova_consoleauth.enabled }}
+           livenessProbe:
+             exec:
+               command:
+@@ -85,6 +88,7 @@ spec:
+             initialDelaySeconds: 120
+             periodSeconds: 90
+             timeoutSeconds: 70
++          {{- end }}
+           command:
+             - /tmp/nova-consoleauth.sh
+           volumeMounts:
+diff --git a/nova/templates/deployment-novncproxy.yaml b/nova/templates/deployment-novncproxy.yaml
+index cf9fda02..2611ba80 100644
+--- a/nova/templates/deployment-novncproxy.yaml
++++ b/nova/templates/deployment-novncproxy.yaml
+@@ -94,14 +94,18 @@ spec:
+         - name: nova-novncproxy
+ {{ tuple $envAll "nova_novncproxy" | include "helm-toolkit.snippets.image" | indent 10 }}
+ {{ tuple $envAll $envAll.Values.pod.resources.novncproxy | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++          {{- if .Values.pod.probes.readiness.nova_novcnproxy.enabled }}
+           readinessProbe:
+             tcpSocket:
+               port: {{ tuple "compute_novnc_proxy" "internal" "novnc_proxy" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+             initialDelaySeconds: 30
++          {{- end }}
++          {{- if .Values.pod.probes.liveness.nova_novcnproxy.enabled }}
+           livenessProbe:
+             tcpSocket:
+               port: {{ tuple "compute_novnc_proxy" "internal" "novnc_proxy" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+             initialDelaySeconds: 30
++          {{- end }}
+           command:
+             - /tmp/nova-console-proxy.sh
+           ports:
+diff --git a/nova/templates/deployment-scheduler.yaml b/nova/templates/deployment-scheduler.yaml
+index 9611d950..0350c47c 100644
+--- a/nova/templates/deployment-scheduler.yaml
++++ b/nova/templates/deployment-scheduler.yaml
+@@ -60,6 +60,7 @@ spec:
+ {{ tuple $envAll $envAll.Values.pod.resources.scheduler | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+           securityContext:
+             allowPrivilegeEscalation: false
++          {{- if .Values.pod.probes.readiness.nova_scheduler.enabled }}
+           readinessProbe:
+             exec:
+               command:
+@@ -72,6 +73,8 @@ spec:
+             initialDelaySeconds: 80
+             periodSeconds: 90
+             timeoutSeconds: 70
++          {{- end }}
++          {{- if .Values.pod.probes.liveness.nova_scheduler.enabled }}
+           livenessProbe:
+             exec:
+               command:
+@@ -85,6 +88,7 @@ spec:
+             initialDelaySeconds: 120
+             periodSeconds: 90
+             timeoutSeconds: 70
++          {{- end }}
+           command:
+             - /tmp/nova-scheduler.sh
+           volumeMounts:
+diff --git a/nova/templates/deployment-spiceproxy.yaml b/nova/templates/deployment-spiceproxy.yaml
+index 4507bde4..1b58ec98 100644
+--- a/nova/templates/deployment-spiceproxy.yaml
++++ b/nova/templates/deployment-spiceproxy.yaml
+@@ -94,14 +94,18 @@ spec:
+         - name: nova-spiceproxy
+ {{ tuple $envAll "nova_spiceproxy" | include "helm-toolkit.snippets.image" | indent 10 }}
+ {{ tuple $envAll $envAll.Values.pod.resources.spiceproxy | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++          {{- if .Values.pod.probes.readiness.nova_spiceproxy.enabled }}
+           readinessProbe:
+             tcpSocket:
+               port: {{ tuple "compute_spice_proxy" "internal" "spice_proxy" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+             initialDelaySeconds: 30
++          {{- end }}
++          {{- if .Values.pod.probes.liveness.nova_spiceproxy.enabled }}
+           livenessProbe:
+             tcpSocket:
+               port: {{ tuple "compute_spice_proxy" "internal" "spice_proxy" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+             initialDelaySeconds: 30
++          {{- end }}
+           command:
+             - /tmp/nova-console-proxy.sh
+           ports:
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 7245cf82..433ec3af 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -2256,6 +2256,33 @@ pod:
+         limits:
+           memory: "1024Mi"
+           cpu: "2000m"
++  probes:
++    readiness:
++      nova_compute:
++        enabled: true
++      nova_conductor:
++        enabled: true
++      nova_consoleauth:
++        enabled: true
++      nova_novcnproxy:
++        enabled: true
++      nova_scheduler:
++        enabled: true
++      nova_spiceproxy:
++        enabled: true
++    liveness:
++      nova_compute:
++        enabled: true
++      nova_conductor:
++        enabled: true
++      nova_consoleauth:
++        enabled: true
++      nova_novcnproxy:
++        enabled: true
++      nova_scheduler:
++        enabled: true
++      nova_spiceproxy:
++        enabled: true
+ 
+ network_policy:
+   nova:
+-- 
+2.16.5
+

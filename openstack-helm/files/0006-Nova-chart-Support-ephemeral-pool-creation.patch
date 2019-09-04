@@ -1,0 +1,346 @@
+From 4f6701c4cab07d9f54012e2a143173803f97ff3d Mon Sep 17 00:00:00 2001
+From: Irina Mihai <irina.mihai@windriver.com>
+Date: Tue, 26 Feb 2019 17:43:53 +0000
+Subject: [PATCH 06/11] Nova chart: Support ephemeral pool creation
+
+If libvirt images_type is rbd, then we need to have the
+images_rbd_pool present. These changes add a new job
+to make sure this pool exists.
+
+Change-Id: Iee307cb54384d1c4583d00a8d28f7b1a0676d7d8
+Story: 2004922
+Task: 29285
+Signed-off-by: Irina Mihai <irina.mihai@windriver.com>
+(cherry picked from commit 0afcb0b37cdcf57436e44867bac9242d8684ce81)
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ nova/templates/bin/_nova-storage-init.sh.tpl |  75 +++++++++++++
+ nova/templates/configmap-bin.yaml            |   4 +-
+ nova/templates/job-storage-init.yaml         | 155 +++++++++++++++++++++++++++
+ nova/values.yaml                             |  18 ++++
+ 4 files changed, 251 insertions(+), 1 deletion(-)
+ create mode 100644 nova/templates/bin/_nova-storage-init.sh.tpl
+ create mode 100644 nova/templates/job-storage-init.yaml
+
+diff --git a/nova/templates/bin/_nova-storage-init.sh.tpl b/nova/templates/bin/_nova-storage-init.sh.tpl
+new file mode 100644
+index 00000000..f79fcff0
+--- /dev/null
++++ b/nova/templates/bin/_nova-storage-init.sh.tpl
+@@ -0,0 +1,75 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 The Openstack-Helm Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -x
++if [ "x$STORAGE_BACKEND" == "xrbd" ]; then
++  SECRET=$(mktemp --suffix .yaml)
++  KEYRING=$(mktemp --suffix .keyring)
++  function cleanup {
++      rm -f ${SECRET} ${KEYRING}
++  }
++  trap cleanup EXIT
++fi
++
++set -ex
++if [ "x$STORAGE_BACKEND" == "xrbd" ]; then
++  ceph -s
++  function ensure_pool () {
++    ceph osd pool stats $1 || ceph osd pool create $1 $2
++    local test_version=$(ceph tell osd.* version | egrep -c "mimic|luminous" | xargs echo)
++    if [[ ${test_version} -gt 0 ]]; then
++      ceph osd pool application enable $1 $3
++    fi
++    size_protection=$(ceph osd pool get $1 nosizechange | cut -f2 -d: | tr -d '[:space:]')
++    ceph osd pool set $1 nosizechange 0
++    ceph osd pool set $1 size ${RBD_POOL_REPLICATION}
++    ceph osd pool set $1 nosizechange ${size_protection}
++    ceph osd pool set $1 crush_rule "${RBD_POOL_CRUSH_RULE}"
++  }
++  ensure_pool ${RBD_POOL_NAME} ${RBD_POOL_CHUNK_SIZE} "nova-ephemeral"
++
++  if USERINFO=$(ceph auth get client.${RBD_POOL_USER}); then
++    echo "Cephx user client.${RBD_POOL_USER} already exist."
++    echo "Update its cephx caps"
++    ceph auth caps client.${RBD_POOL_USER} \
++      mon "profile rbd" \
++      osd "profile rbd"
++    ceph auth get client.${RBD_POOL_USER} -o ${KEYRING}
++  else
++    # NOTE: Restrict Nova permissions to what is needed.
++    # MON Read only and RBD access to the Nova ephemeral pool only.
++    ceph auth get-or-create client.${RBD_POOL_USER} \
++      mon "profile rbd" \
++      osd "profile rbd" \
++      -o ${KEYRING}
++  fi
++
++  ENCODED_KEYRING=$(sed -n 's/^[[:blank:]]*key[[:blank:]]\+=[[:blank:]]\(.*\)/\1/p' ${KEYRING} | base64 -w0)
++  cat > ${SECRET} <<EOF
++apiVersion: v1
++kind: Secret
++metadata:
++  name: "${RBD_POOL_SECRET}"
++type: kubernetes.io/rbd
++data:
++  key: $( echo ${ENCODED_KEYRING} )
++EOF
++  kubectl apply --namespace ${NAMESPACE} -f ${SECRET}
++
++fi
++
+diff --git a/nova/templates/configmap-bin.yaml b/nova/templates/configmap-bin.yaml
+index c58b90bd..268434fd 100644
+--- a/nova/templates/configmap-bin.yaml
++++ b/nova/templates/configmap-bin.yaml
+@@ -1,5 +1,5 @@
+ {{/*
+-Copyright 2017 The Openstack-Helm Authors.
++Copyright 2017-2019 The Openstack-Helm Authors.
+ 
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+@@ -83,6 +83,8 @@ data:
+ {{ tuple "bin/_nova-console-proxy-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   nova-console-proxy-init-assets.sh: |
+ {{ tuple "bin/_nova-console-proxy-init-assets.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  nova-storage-init.sh: |
++{{ tuple "bin/_nova-storage-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   ssh-start.sh: |
+ {{ tuple "bin/_ssh-start.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   cell-setup.sh: |
+diff --git a/nova/templates/job-storage-init.yaml b/nova/templates/job-storage-init.yaml
+new file mode 100644
+index 00000000..7d057fb9
+--- /dev/null
++++ b/nova/templates/job-storage-init.yaml
+@@ -0,0 +1,155 @@
++{{/*
++Copyright 2019 The Openstack-Helm Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_storage_init }}
++{{- $envAll := . }}
++
++{{- $serviceAccountName := "nova-storage-init" }}
++{{ tuple $envAll "storage_init" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: rbac.authorization.k8s.io/v1beta1
++kind: Role
++metadata:
++  name: {{ $serviceAccountName }}
++rules:
++  - apiGroups:
++      - ""
++    resources:
++      - secrets
++    verbs:
++      - get
++      - create
++      - update
++      - patch
++---
++apiVersion: rbac.authorization.k8s.io/v1beta1
++kind: RoleBinding
++metadata:
++  name: {{ $serviceAccountName }}
++roleRef:
++  apiGroup: rbac.authorization.k8s.io
++  kind: Role
++  name: {{ $serviceAccountName }}
++subjects:
++  - kind: ServiceAccount
++    name: {{ $serviceAccountName }}
++    namespace: {{ $envAll.Release.Namespace }}
++---
++apiVersion: batch/v1
++kind: Job
++metadata:
++  name: nova-storage-init
++spec:
++  template:
++    metadata:
++      labels:
++{{ tuple $envAll "nova" "storage-init" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++    spec:
++      serviceAccountName: {{ $serviceAccountName }}
++      restartPolicy: OnFailure
++      nodeSelector:
++        {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
++      initContainers:
++{{ tuple $envAll "storage_init" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
++        {{ if or .Values.conf.ceph.enabled }}
++        - name: ceph-keyring-placement
++{{ tuple $envAll "nova_storage_init" | include "helm-toolkit.snippets.image" | indent 10 }}
++          securityContext:
++            runAsUser: 0
++          command:
++            - /tmp/ceph-admin-keyring.sh
++          volumeMounts:
++            - name: etcceph
++              mountPath: /etc/ceph
++            - name: nova-bin
++              mountPath: /tmp/ceph-admin-keyring.sh
++              subPath: ceph-admin-keyring.sh
++              readOnly: true
++            {{- if empty .Values.conf.ceph.admin_keyring }}
++            - name: ceph-keyring
++              mountPath: /tmp/client-keyring
++              subPath: key
++              readOnly: true
++            {{ end }}
++        {{ end }}
++      containers:
++        {{- range $ephemeralPool := .Values.conf.ceph.ephemeral_storage.rbd_pools }}
++        - name: nova-storage-init-{{- $ephemeralPool.rbd_pool_name }}
++{{ tuple $envAll "nova_storage_init" | include "helm-toolkit.snippets.image" | indent 10 }}
++{{ tuple $envAll $envAll.Values.pod.resources.jobs.storage_init | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++          env:
++            - name: NAMESPACE
++              valueFrom:
++                fieldRef:
++                  fieldPath: metadata.namespace
++            {{ if and (eq $envAll.Values.conf.ceph.ephemeral_storage.type "rbd") $envAll.Values.conf.ceph.enabled }}
++            - name: STORAGE_BACKEND
++              value: {{ $envAll.Values.conf.ceph.ephemeral_storage.type }}
++            - name: RBD_POOL_NAME
++              value: {{ $ephemeralPool.rbd_pool_name | quote }}
++            - name: RBD_POOL_USER
++              value: {{ $ephemeralPool.rbd_user | quote }}
++            - name: RBD_POOL_CRUSH_RULE
++              value: {{ $ephemeralPool.rbd_crush_rule | quote }}
++            - name: RBD_POOL_REPLICATION
++              value: {{ $ephemeralPool.rbd_replication | quote }}
++            - name: RBD_POOL_CHUNK_SIZE
++              value: {{ $ephemeralPool.rbd_chunk_size | quote }}
++            - name: RBD_POOL_SECRET
++              value: {{ $envAll.Values.secrets.ephemeral | quote }}
++            {{- end }}
++          command:
++            - /tmp/nova-storage-init.sh
++          volumeMounts:
++            - name: nova-bin
++              mountPath: /tmp/nova-storage-init.sh
++              subPath: nova-storage-init.sh
++              readOnly: true
++            {{ if or $envAll.Values.conf.ceph.enabled }}
++            - name: etcceph
++              mountPath: /etc/ceph
++            - name: ceph-etc
++              mountPath: /etc/ceph/ceph.conf
++              subPath: ceph.conf
++              readOnly: true
++            {{- if empty $envAll.Values.conf.ceph.admin_keyring }}
++            - name: ceph-keyring
++              mountPath: /tmp/client-keyring
++              subPath: key
++              readOnly: true
++            {{- end }}
++            {{- end }}
++        {{- end }}
++      volumes:
++        - name: nova-bin
++          configMap:
++            name: nova-bin
++            defaultMode: 0555
++        {{ if or .Values.conf.ceph.enabled }}
++        - name: etcceph
++          emptyDir: {}
++        - name: ceph-etc
++          configMap:
++            name: {{ .Values.ceph_client.configmap }}
++            defaultMode: 0444
++        {{- if empty .Values.conf.ceph.admin_keyring }}
++        - name: ceph-keyring
++          secret:
++            secretName: {{ .Values.ceph_client.user_secret_name }}
++        {{- end }}
++        {{- end }}
++{{- end }}
++
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 0887cecc..7245cf82 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -87,6 +87,7 @@ images:
+     nova_service_cleaner: 'docker.io/port/ceph-config-helper:v1.10.3'
+     nova_spiceproxy: docker.io/openstackhelm/nova:ocata
+     nova_spiceproxy_assets: 'docker.io/kolla/ubuntu-source-nova-spicehtml5proxy:ocata'
++    nova_storage_init: 'docker.io/port/ceph-config-helper:v1.10.3'
+     test: docker.io/xrally/xrally-openstack:1.3.0
+     image_repo_sync: docker.io/docker:17.07.0
+   local_registry:
+@@ -461,6 +462,14 @@ conf:
+       user: "cinder"
+       keyring: null
+       secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
++    ephemeral_storage:
++      type: rbd
++      rbd_pools:
++      - rbd_pool_name: ephemeral
++        rbd_user: ephemeral
++        rbd_crush_rule: 0
++        rbd_replication: 3
++        rbd_chunk_size: 64
+   ssh: |
+     Host *
+       StrictHostKeyChecking no
+@@ -1625,6 +1634,7 @@ secrets:
+     placement:
+       placement:
+         public: placement-tls-public
++  ephemeral: nova-ephemeral
+ 
+ # typically overridden by environmental
+ # values, but should include all endpoints
+@@ -2239,6 +2249,13 @@ pod:
+         limits:
+           memory: "1024Mi"
+           cpu: "2000m"
++      storage_init:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
+ 
+ network_policy:
+   nova:
+@@ -2302,6 +2319,7 @@ manifests:
+   job_ks_placement_service: true
+   job_ks_placement_user: true
+   job_cell_setup: true
++  job_storage_init: true
+   pdb_metadata: true
+   pdb_placement: true
+   pdb_osapi: true
+-- 
+2.16.5
+

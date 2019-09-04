@@ -1,0 +1,69 @@
+From 0ce54f2f141d24d1cf5795db8679039c67ffac50 Mon Sep 17 00:00:00 2001
+From: Gerry Kopec <Gerry.Kopec@windriver.com>
+Date: Tue, 25 Jun 2019 20:20:41 -0400
+Subject: [PATCH] Nova: add service token
+
+Add capability for nova to send service token.  Default to disabled.
+Config setup is similar to keystone_authtoken.
+
+Change-Id: I666f8f52fed50c61f67397b3da58133a2f9b49d3
+Signed-off-by: Gerry Kopec <Gerry.Kopec@windriver.com>
+---
+ nova/templates/configmap-etc.yaml | 26 ++++++++++++++++++++++++++
+ nova/values.yaml                  |  3 +++
+ 2 files changed, 29 insertions(+)
+
+diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
+index 0d1e7a5..5446830 100644
+--- a/nova/templates/configmap-etc.yaml
++++ b/nova/templates/configmap-etc.yaml
+@@ -52,6 +52,32 @@ limitations under the License.
+ {{- $_ := set .Values.conf.nova.keystone_authtoken "memcache_secret_key" ( default ( randAlphaNum 64 ) .Values.endpoints.oslo_cache.auth.memcache_secret_key ) -}}
+ {{- end -}}
+ 
++{{- if .Values.conf.nova.service_user.send_service_user_token -}}
++
++{{- if empty .Values.conf.nova.service_user.auth_url -}}
++{{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.service_user "auth_url" -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.service_user.region_name -}}
++{{- $_ := set .Values.conf.nova.service_user "region_name" .Values.endpoints.identity.auth.nova.region_name -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.service_user.project_name -}}
++{{- $_ := set .Values.conf.nova.service_user "project_name" .Values.endpoints.identity.auth.nova.project_name -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.service_user.project_domain_name -}}
++{{- $_ := set .Values.conf.nova.service_user "project_domain_name" .Values.endpoints.identity.auth.nova.project_domain_name -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.service_user.user_domain_name -}}
++{{- $_ := set .Values.conf.nova.service_user "user_domain_name" .Values.endpoints.identity.auth.nova.user_domain_name -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.service_user.username -}}
++{{- $_ := set .Values.conf.nova.service_user "username" .Values.endpoints.identity.auth.nova.username -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.service_user.password -}}
++{{- $_ := set .Values.conf.nova.service_user "password" .Values.endpoints.identity.auth.nova.password -}}
++{{- end -}}
++
++{{- end -}}
++
+ {{- if empty .Values.conf.nova.database.connection -}}
+ {{- $_ := tuple "oslo_db" "internal" "nova" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.nova.database "connection" -}}
+ {{- end -}}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 433ec3a..ee00591 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -1507,6 +1507,9 @@ conf:
+       auth_type: password
+       auth_version: v3
+       memcache_security_strategy: ENCRYPT
++    service_user:
++      auth_type: password
++      send_service_user_token: false
+     libvirt:
+       connection_uri: "qemu+tcp://127.0.0.1/system"
+       images_type: qcow2
+-- 
+1.8.3.1
+

@@ -1,0 +1,89 @@
+From 88656adf554e01d851c297533ceb1dced329bc2c Mon Sep 17 00:00:00 2001
+From: Itxaka <igarcia@suse.com>
+Date: Tue, 28 May 2019 13:21:40 +0200
+Subject: [PATCH 13/14] cinder: allow configuring the rbd app name
+
+Instead of hardcoding it, let us override it with
+custom values for normal volumes and backups
+
+Change-Id: I3abb343877abd0436c592a3371372f82ef581790
+(cherry picked from commit c38443de4c852e86fb9845777bd67657392835fc)
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ cinder/templates/bin/_backup-storage-init.sh.tpl | 2 +-
+ cinder/templates/bin/_storage-init.sh.tpl        | 2 +-
+ cinder/templates/job-backup-storage-init.yaml    | 2 ++
+ cinder/templates/job-storage-init.yaml           | 2 ++
+ cinder/values.yaml                               | 4 ++++
+ 5 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/cinder/templates/bin/_backup-storage-init.sh.tpl b/cinder/templates/bin/_backup-storage-init.sh.tpl
+index 52c8e6bf..af9886ad 100644
+--- a/cinder/templates/bin/_backup-storage-init.sh.tpl
++++ b/cinder/templates/bin/_backup-storage-init.sh.tpl
+@@ -44,7 +44,7 @@ elif [ "x$STORAGE_BACKEND" == "xcinder.backup.drivers.ceph" ]; then
+     ceph osd pool set $1 nosizechange ${size_protection}
+     ceph osd pool set $1 crush_rule "${RBD_POOL_CRUSH_RULE}"
+   }
+-  ensure_pool ${RBD_POOL_NAME} ${RBD_POOL_CHUNK_SIZE} "cinder-backup"
++  ensure_pool ${RBD_POOL_NAME} ${RBD_POOL_CHUNK_SIZE} ${RBD_POOL_APP_NAME}
+ 
+   if USERINFO=$(ceph auth get client.${RBD_POOL_USER}); then
+     echo "Cephx user client.${RBD_POOL_USER} already exists"
+diff --git a/cinder/templates/bin/_storage-init.sh.tpl b/cinder/templates/bin/_storage-init.sh.tpl
+index 9288ec5f..bbc31938 100644
+--- a/cinder/templates/bin/_storage-init.sh.tpl
++++ b/cinder/templates/bin/_storage-init.sh.tpl
+@@ -41,7 +41,7 @@ if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
+     ceph osd pool set $1 nosizechange ${size_protection}
+     ceph osd pool set $1 crush_rule "${RBD_POOL_CRUSH_RULE}"
+   }
+-  ensure_pool ${RBD_POOL_NAME} ${RBD_POOL_CHUNK_SIZE} "cinder-volume"
++  ensure_pool ${RBD_POOL_NAME} ${RBD_POOL_CHUNK_SIZE} ${RBD_POOL_APP_NAME}
+ 
+   if USERINFO=$(ceph auth get client.${RBD_POOL_USER}); then
+     echo "Cephx user client.${RBD_POOL_USER} already exist."
+diff --git a/cinder/templates/job-backup-storage-init.yaml b/cinder/templates/job-backup-storage-init.yaml
+index a073940c..7b0e50e1 100644
+--- a/cinder/templates/job-backup-storage-init.yaml
++++ b/cinder/templates/job-backup-storage-init.yaml
+@@ -109,6 +109,8 @@ spec:
+             {{- if eq .Values.conf.cinder.DEFAULT.backup_driver "cinder.backup.drivers.ceph" }}
+             - name: RBD_POOL_NAME
+               value: {{ .Values.conf.cinder.DEFAULT.backup_ceph_pool | quote }}
++            - name: RBD_POOL_APP_NAME
++              value: {{ .Values.conf.software.rbd.rbd_pool_app_name_backup | quote }}
+             - name: RBD_POOL_USER
+               value: {{ .Values.conf.cinder.DEFAULT.backup_ceph_user | quote }}
+             - name: RBD_POOL_CRUSH_RULE
+diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
+index 1d4819c2..27081816 100644
+--- a/cinder/templates/job-storage-init.yaml
++++ b/cinder/templates/job-storage-init.yaml
+@@ -100,6 +100,8 @@ spec:
+               value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "volume_driver" | quote }}
+             - name: RBD_POOL_NAME
+               value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "rbd_pool" | quote }}
++            - name: RBD_POOL_APP_NAME
++              value: {{ .Values.conf.software.rbd.rbd_pool_app_name | quote }}
+             - name: RBD_POOL_USER
+               value: {{ index (index .Values.conf.backends (include "cinder.utils.ceph_volume_section_name" $envAll)) "rbd_user" | quote }}
+             - name: RBD_POOL_CRUSH_RULE
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 39027e9b..bef7b374 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -302,6 +302,10 @@ ceph_client:
+   user_secret_name: pvc-ceph-client-key
+ 
+ conf:
++  software:
++    rbd:
++      rbd_pool_app_name_backup: cinder-backup
++      rbd_pool_app_name: cinder-volume
+   paste:
+     composite:osapi_volume:
+       use: call:cinder.api:root_app_factory
+-- 
+2.16.5
+

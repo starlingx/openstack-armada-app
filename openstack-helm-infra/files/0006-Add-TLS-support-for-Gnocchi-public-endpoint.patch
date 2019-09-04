@@ -1,0 +1,77 @@
+From e2e9b3c707599b4074ebf504f6a2fa5c185481e2 Mon Sep 17 00:00:00 2001
+From: Angie Wang <angie.wang@windriver.com>
+Date: Tue, 9 Jul 2019 13:37:29 -0400
+Subject: [PATCH 1/1] Add TLS support for Gnocchi public endpoint
+
+Signed-off-by: Angie Wang <angie.wang@windriver.com>
+---
+ gnocchi/templates/secret-ingress-tls.yaml | 19 +++++++++++++++++++
+ gnocchi/values.yaml                       | 12 ++++++++++++
+ 2 files changed, 31 insertions(+)
+ create mode 100644 gnocchi/templates/secret-ingress-tls.yaml
+
+diff --git a/gnocchi/templates/secret-ingress-tls.yaml b/gnocchi/templates/secret-ingress-tls.yaml
+new file mode 100644
+index 0000000..fc279cd
+--- /dev/null
++++ b/gnocchi/templates/secret-ingress-tls.yaml
+@@ -0,0 +1,19 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.secret_ingress_tls }}
++{{- include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendServiceType" "metric" ) }}
++{{- end }}
+diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
+index 2d5f48b..73e245f 100644
+--- a/gnocchi/values.yaml
++++ b/gnocchi/values.yaml
+@@ -470,6 +470,10 @@ secrets:
+     admin: gnocchi-db-indexer-admin
+     gnocchi: gnocchi-db-indexer-user
+   rbd: gnocchi-rbd-keyring
++  tls:
++    metric:
++      api:
++        public: gnocchi-tls-public
+ 
+ bootstrap:
+   enabled: false
+@@ -536,6 +540,13 @@ endpoints:
+       public: gnocchi
+     host_fqdn_override:
+       default: null
++      # NOTE: this chart supports TLS for fqdn over-ridden public
++      # endpoints using the following format:
++      # public:
++      #   host: null
++      #   tls:
++      #     crt: null
++      #     key: null
+     path:
+       default: null
+     scheme:
+@@ -631,6 +642,7 @@ manifests:
+   pod_gnocchi_test: true
+   secret_db: true
+   secret_keystone: true
++  secret_ingress_tls: true
+   service_api: true
+   service_ingress_api: true
+   service_statsd: true
+-- 
+1.8.3.1
+

@@ -1,0 +1,65 @@
+From 64b22037b53e6423c465367c26a6d7255768ae17 Mon Sep 17 00:00:00 2001
+From: Gerry Kopec <Gerry.Kopec@windriver.com>
+Date: Wed, 27 Mar 2019 00:35:57 -0400
+Subject: [PATCH 05/11] Nova console/ip address search optionality
+
+Add options to nova to enable/disable the use of:
+1. the vnc or spice server proxyclient address found by the console
+   compute init container
+2. my_ip hypervisor address found by compute init container
+
+These options can be used to prevent cases where the found addresses
+overwrite what has already been defined in nova.conf by per host nova
+compute daemonset overrides.
+
+Story: 2005259
+Task: 30066
+Change-Id: Idf490f8b19dcd1e71a9b5fa8934461f1198a8af8
+Signed-off-by: Gerry Kopec <Gerry.Kopec@windriver.com>
+(cherry picked from commit f5e8ad20e35b770e5967f75f6f93f0a4dc6e3b41)
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ nova/templates/bin/_nova-compute.sh.tpl | 6 +++++-
+ nova/values.yaml                        | 2 ++
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
+index c80da6d6..4927908a 100644
+--- a/nova/templates/bin/_nova-compute.sh.tpl
++++ b/nova/templates/bin/_nova-compute.sh.tpl
+@@ -20,6 +20,10 @@ set -ex
+ 
+ exec nova-compute \
+       --config-file /etc/nova/nova.conf \
++{{- if .Values.console.address_search_enabled }}
+       --config-file /tmp/pod-shared/nova-console.conf \
++{{- end }}
+       --config-file /tmp/pod-shared/nova-libvirt.conf \
+-      --config-file /tmp/pod-shared/nova-hypervisor.conf
+\ No newline at end of file
++{{- if .Values.conf.hypervisor.address_search_enabled }}
++      --config-file /tmp/pod-shared/nova-hypervisor.conf
++{{- end }}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 8599027a..0887cecc 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -440,6 +440,7 @@ console:
+     vncproxy:
+       # IF blank, search default routing interface
+       vncserver_proxyclient_interface:
++  address_search_enabled: true
+ 
+ ssh:
+   key_types:
+@@ -1433,6 +1434,7 @@ conf:
+     # If this option is set to None, the hostname of the migration target compute node will be used.
+     live_migration_interface:
+   hypervisor:
++    address_search_enabled: true
+     # my_ip can be set automatically through this interface name.
+     host_interface:
+   nova:
+-- 
+2.16.5
+

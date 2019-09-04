@@ -1,0 +1,46 @@
+From 326fcd76f54d7c099f4c3da6c31eefe0eef2e236 Mon Sep 17 00:00:00 2001
+From: Ovidiu Poncea <ovidiu.poncea@windriver.com>
+Date: Mon, 29 Jul 2019 08:00:01 -0400
+Subject: [PATCH] Fix pod restarts on all workers when worker added/removed
+
+---
+ helm-toolkit/templates/utils/_daemonset_overrides.tpl | 4 ++--
+ helm-toolkit/templates/utils/_hash.tpl                | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
+index ef52592..d7194af 100644
+--- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
++++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
+@@ -213,7 +213,7 @@ limitations under the License.
+     name uniqueness */}}
+     {{- $_ := set $current_dict "dns_1123_name" dict }}
+     {{- if hasKey $current_dict "matchExpressions" }}
+-      {{- $_ := set $current_dict "dns_1123_name" (printf (print $name_format2 "-" ($current_dict.matchExpressions | quote | sha256sum | trunc 8))) }}
++      {{- $_ := set $current_dict "dns_1123_name" (printf (print $name_format2 "-" ($current_dict.matchExpressions | toJson | sha256sum | trunc 8))) }}
+     {{- else }}
+       {{- $_ := set $current_dict "dns_1123_name" $name_format2 }}
+     {{- end }}
+@@ -256,7 +256,7 @@ limitations under the License.
+     {{- if not $context.Values.__daemonset_yaml.spec.template.metadata }}{{- $_ := set $context.Values.__daemonset_yaml.spec.template "metadata" dict }}{{- end }}
+     {{- if not $context.Values.__daemonset_yaml.spec.template.metadata.annotations }}{{- $_ := set $context.Values.__daemonset_yaml.spec.template.metadata "annotations" dict }}{{- end }}
+     {{- $cmap := list $current_dict.dns_1123_name $current_dict.nodeData | include $configmap_include }}
+-    {{- $values_hash := $cmap | quote | sha256sum }}
++    {{- $values_hash := $cmap | toJson | sha256sum }}
+     {{- $_ := set $context.Values.__daemonset_yaml.spec.template.metadata.annotations "configmap-etc-hash" $values_hash }}
+ 
+     {{/* generate configmap */}}
+diff --git a/helm-toolkit/templates/utils/_hash.tpl b/helm-toolkit/templates/utils/_hash.tpl
+index 1041ec0..e419e3b 100644
+--- a/helm-toolkit/templates/utils/_hash.tpl
++++ b/helm-toolkit/templates/utils/_hash.tpl
+@@ -19,5 +19,5 @@ limitations under the License.
+ {{- $context := index . 1 -}}
+ {{- $last := base $context.Template.Name }}
+ {{- $wtf := $context.Template.Name | replace $last $name -}}
+-{{- include $wtf $context | sha256sum | quote -}}
++{{- include $wtf $context | toJson | sha256sum | quote -}}
+ {{- end -}}
+-- 
+1.8.3.1
+

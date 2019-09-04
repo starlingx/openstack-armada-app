@@ -1,0 +1,184 @@
+From 6a023c248b3cbd093b8f4480f4b2cca5a3c8600d Mon Sep 17 00:00:00 2001
+From: Gerry Kopec <Gerry.Kopec@windriver.com>
+Date: Thu, 10 Jan 2019 00:12:21 -0500
+Subject: [PATCH 04/11] Fix ssh config in nova to support cold migrations
+
+- Fix .ssh/config file mapping
+- Move private key from nova-compute-ssh container to nova-compute
+  container.
+- Map private and public keys to configmap-ssh which will default to
+  the appropriate file permissions.
+- Add additional config to /etc/ssh/sshd_config to allow passwordless
+  root logins over appropriate subnet passed in from overrides.
+- Remove chmods from sshd bash script as they are failing.
+
+Depends on helm-toolkit supporting multiple containers per daemonset
+pod.
+
+Story: 2003463
+Task: 24723
+Change-Id: Idd2e802c293f1e14991ee787ade9a4936fb373ff
+Signed-off-by: Gerry Kopec <Gerry.Kopec@windriver.com>
+(cherry picked from commit 9e9d8aa5e6d4239b40c6c9668592ea799cd6814d)
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ nova/templates/bin/_ssh-start.sh.tpl  | 19 ++++++++++++++++---
+ nova/templates/configmap-etc.yaml     |  4 ++--
+ nova/templates/configmap-ssh.yaml     | 35 +++++++++++++++++++++++++++++++++++
+ nova/templates/daemonset-compute.yaml | 14 +++++++++-----
+ nova/values.yaml                      |  5 +++++
+ 5 files changed, 67 insertions(+), 10 deletions(-)
+ create mode 100755 nova/templates/configmap-ssh.yaml
+
+diff --git a/nova/templates/bin/_ssh-start.sh.tpl b/nova/templates/bin/_ssh-start.sh.tpl
+index 1c10cb07..158090b0 100644
+--- a/nova/templates/bin/_ssh-start.sh.tpl
++++ b/nova/templates/bin/_ssh-start.sh.tpl
+@@ -33,8 +33,21 @@ if [[ $(stat -c %U:%G ~nova/.ssh) != "nova:nova" ]]; then
+     chown nova: ~nova/.ssh
+ fi
+ 
+-chmod 0600 ~root/.ssh/authorized_keys
+-chmod 0600 ~root/.ssh/id_rsa
+-chmod 0600 ~root/.ssh/id_rsa.pub
++{{- if .Values.network.sshd.enabled }}
++subnet_address="{{- .Values.network.sshd.from_subnet -}}"
++cat > /tmp/sshd_config_extend <<EOF
++
++# This Match block prevents Password Authentication for root user
++Match User root
++    PasswordAuthentication no
++
++# This Match Block is used to allow Root Login exceptions over the
++# internal subnet used by Nova Migrations
++Match Address $subnet_address
++    PermitRootLogin without-password
++EOF
++cat /tmp/sshd_config_extend >> /etc/ssh/sshd_config
++rm /tmp/sshd_config_extend
++{{- end }}
+ 
+ exec /usr/sbin/sshd -D -e -o Port=$SSH_PORT
+diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
+index 55aa3114..0d1e7a5e 100644
+--- a/nova/templates/configmap-etc.yaml
++++ b/nova/templates/configmap-etc.yaml
+@@ -232,8 +232,8 @@ data:
+   logging.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | b64enc }}
+   nova-ironic.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_ironic | b64enc }}
+ {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.wsgi_placement "key" "wsgi-nova-placement.conf" "format" "Secret" ) | indent 2 }}
+-# FIXME(portdirect): why is this file suffixed .sh?
+-{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.ssh "key" "ssh-config.sh" "format" "Secret" ) | indent 2 }}
++{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.ssh "key" "ssh-config" "format" "Secret" ) | indent 2 }}
++
+ {{- end }}
+ {{- end }}
+ {{- if .Values.manifests.configmap_etc }}
+diff --git a/nova/templates/configmap-ssh.yaml b/nova/templates/configmap-ssh.yaml
+new file mode 100755
+index 00000000..bab8e330
+--- /dev/null
++++ b/nova/templates/configmap-ssh.yaml
+@@ -0,0 +1,35 @@
++{{/*
++Copyright 2019 The Openstack-Helm Authors.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- define "nova.configmap.ssh" }}
++{{- $envAll := index . 1 }}
++{{- with $envAll }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: nova-ssh
++type: Opaque
++data:
++  ssh-key-private: {{ .Values.conf.ssh_private | b64enc }}
++{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.ssh_public "key" "ssh-key-public" "format" "Secret" ) | indent 2 }}
++
++{{- end }}
++{{- end }}
++
++{{- if .Values.manifests.configmap_etc }}
++{{- list "nova-ssh" . | include "nova.configmap.ssh" }}
++{{- end }}
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 09627042..4a7b90b5 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -258,6 +258,9 @@ spec:
+               mountPath: /root/.ssh/config
+               subPath: ssh-config
+               readOnly: true
++            - name: nova-ssh
++              mountPath: /root/.ssh/id_rsa
++              subPath: ssh-key-private
+             {{- if .Values.conf.ceph.enabled }}
+             - name: etcceph
+               mountPath: /etc/ceph
+@@ -314,13 +317,10 @@ spec:
+               mountPath: /var/lib/nova
+             - name: varliblibvirt
+               mountPath: /var/lib/libvirt
+-            - name: nova-etc
+-              mountPath: /root/.ssh/id_rsa
+-              subPath: ssh-key-private
+-            - name: nova-etc
++            - name: nova-ssh
+               mountPath: /root/.ssh/id_rsa.pub
+               subPath: ssh-key-public
+-            - name: nova-etc
++            - name: nova-ssh
+               mountPath: /root/.ssh/authorized_keys
+               subPath: ssh-key-public
+             - name: nova-bin
+@@ -336,6 +336,10 @@ spec:
+           secret:
+             secretName: {{ $configMapName }}
+             defaultMode: 0444
++        - name: nova-ssh
++          secret:
++            secretName: nova-ssh
++            defaultMode: 0400
+         {{- if .Values.conf.ceph.enabled }}
+         - name: etcceph
+           hostPath:
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 7cb4d553..8599027a 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -211,6 +211,9 @@ network:
+   ssh:
+     name: "nova-ssh"
+     port: 8022
++  sshd:
++    enabled: false
++    from_subnet: 0.0.0.0/24
+ 
+ dependencies:
+   dynamic:
+@@ -462,6 +465,8 @@ conf:
+       StrictHostKeyChecking no
+       UserKnownHostsFile /dev/null
+       Port {{ .Values.network.ssh.port }}
++  ssh_private: 'null'
++  ssh_public: 'null'
+   rally_tests:
+     run_tempest: false
+     tests:
+-- 
+2.16.5
+

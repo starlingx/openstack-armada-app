@@ -1,0 +1,40 @@
+From 47315e28d44cff586f6fff026dd00e61c2c77bcd Mon Sep 17 00:00:00 2001
+From: Gerry Kopec <Gerry.Kopec@windriver.com>
+Date: Wed, 9 Jan 2019 20:11:33 -0500
+Subject: [PATCH 1/4] Allow multiple containers per daemonset pod
+
+Remove code that restricted daemonset pods to single containers.
+Container names will default to name from helm chart template.
+Required for nova cold migrations to work.
+
+Story: 2003876
+Task: 26735
+Change-Id: Icce660415d43baefbbf768a785c5dedf04ea2930
+Signed-off-by: Gerry Kopec <Gerry.Kopec@windriver.com>
+(cherry picked from commit 7ca30319f418cd39db5ecf44cce5fb5fe39c458e)
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ helm-toolkit/templates/utils/_daemonset_overrides.tpl | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
+index 743bd6b..c02de9e 100644
+--- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
++++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
+@@ -223,13 +223,6 @@ limitations under the License.
+     {{- if not $context.Values.__daemonset_yaml.metadata.name }}{{- $_ := set $context.Values.__daemonset_yaml.metadata "name" dict }}{{- end }}
+     {{- $_ := set $context.Values.__daemonset_yaml.metadata "name" $current_dict.dns_1123_name }}
+ 
+-    {{/* set container name
+-    assume not more than one container is defined */}}
+-    {{- $container := first $context.Values.__daemonset_yaml.spec.template.spec.containers }}
+-    {{- $_ := set $container "name" $current_dict.dns_1123_name }}
+-    {{- $cont_list := list $container }}
+-    {{- $_ := set $context.Values.__daemonset_yaml.spec.template.spec "containers" $cont_list }}
+-
+     {{/* cross-reference configmap name to container volume definitions */}}
+     {{- $_ := set $context.Values "__volume_list" list }}
+     {{- range $current_volume := $context.Values.__daemonset_yaml.spec.template.spec.volumes }}
+-- 
+2.16.5
+

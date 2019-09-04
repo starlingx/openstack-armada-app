@@ -1,0 +1,93 @@
+From 5302aa4e87694e96cc3dfc56ae494a1a8211cc37 Mon Sep 17 00:00:00 2001
+From: Angie Wang <angie.wang@windriver.com>
+Date: Wed, 6 Mar 2019 18:06:06 -0500
+Subject: [PATCH 02/11] Ceilometer chart: add the ability to publish events to
+ panko
+
+Ceilometer notification agent sends the events to panko via panko
+dispatcher/publisher which requires the db connection information
+in /etc/panko/panko.conf.
+This commit updates to mount the configuration file for panko in
+ceilometer notification pod.
+
+Change-Id: I4ca524ed7462f945a245e9dbe1d69493dbc4211d
+Story: 2005019
+Task: 29498
+Depends-On: https://review.openstack.org/#/c/641144/
+Signed-off-by: Angie Wang <angie.wang@windriver.com>
+(cherry picked from commit 507bc47f1447808c57c1c8aa82b0639543083656)
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ ceilometer/values.yaml | 34 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+
+diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
+index e6ae7e3a..9deade59 100644
+--- a/ceilometer/values.yaml
++++ b/ceilometer/values.yaml
+@@ -728,6 +728,11 @@ conf:
+       - name: event_sink
+         publishers:
+           - notifier://
++          # The following publisher will enable to publish events to panko.
++          # Ocata:
++          # - direct://?dispatcher=panko
++          # Pike:
++          # - panko://
+         transformers: null
+     sources:
+       - events:
+@@ -1618,6 +1623,8 @@ dependencies:
+           service: mongodb
+         - endpoint: internal
+           service: metric
++        - endpoint: internal
++          service: event
+     tests:
+       services:
+         - endpoint: internal
+@@ -1739,6 +1746,21 @@ endpoints:
+       api:
+         default: 8041
+         public: 80
++  event:
++    name: panko
++    hosts:
++      default: panko-api
++      public: panko
++    host_fqdn_override:
++      default: null
++    path:
++      default: null
++    scheme:
++      default: 'http'
++    port:
++      api:
++        default: 8977
++        public: 80
+   alarming:
+     name: aodh
+     hosts:
+@@ -1865,7 +1887,19 @@ pod:
+       init_container: null
+       ceilometer_notification:
+         volumeMounts:
++          - name: etcpanko
++            mountPath: /etc/panko
++          - name: panko-etc
++            mountPath: /etc/panko/panko.conf
++            subPath: panko.conf
++            readOnly: true
+         volumes:
++          - name: etcpanko
++            emptyDir: {}
++          - name: panko-etc
++            secret:
++              secretName: panko-etc
++              defaultMode: 0444
+   replicas:
+     api: 1
+     central: 1
+-- 
+2.16.5
+

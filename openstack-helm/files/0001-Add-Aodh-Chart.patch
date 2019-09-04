@@ -1,0 +1,2457 @@
+From 5ab3650ea105a53b97f7e0aec2086f141f847aa2 Mon Sep 17 00:00:00 2001
+From: Angie Wang <angie.wang@windriver.com>
+Date: Wed, 6 Mar 2019 15:26:25 -0500
+Subject: [PATCH 01/11] Add Aodh Chart
+
+This commit adds a helm chart to deploy aodh.
+The default deployment for aodh is ocata.
+
+Change-Id: Id0312d90f079bd36daa1c80d2a9ecaa5fbfed7cd
+Story: 2005022
+Task: 29501
+Signed-off-by: Angie Wang <angie.wang@windriver.com>
+(cherry picked from commit d9e179a607af74571f0e2df9d52961f57d6ea877)
+Signed-off-by: Robert Church <robert.church@windriver.com>
+---
+ aodh/Chart.yaml                                    |  24 +
+ aodh/requirements.yaml                             |  18 +
+ aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl     |  21 +
+ aodh/templates/bin/_aodh-api.sh.tpl                |  43 ++
+ aodh/templates/bin/_aodh-evaluator.sh.tpl          |  21 +
+ aodh/templates/bin/_aodh-listener.sh.tpl           |  21 +
+ aodh/templates/bin/_aodh-notifier.sh.tpl           |  21 +
+ aodh/templates/bin/_aodh-test.sh.tpl               |  54 ++
+ aodh/templates/bin/_bootstrap.sh.tpl               |  21 +
+ aodh/templates/bin/_db-sync.sh.tpl                 |  21 +
+ aodh/templates/configmap-bin.yaml                  |  59 ++
+ aodh/templates/configmap-etc.yaml                  | 120 ++++
+ aodh/templates/cron-job-alarms-cleaner.yaml        |  84 +++
+ aodh/templates/deployment-api.yaml                 | 122 ++++
+ aodh/templates/deployment-evaluator.yaml           | 103 +++
+ aodh/templates/deployment-listener.yaml            | 103 +++
+ aodh/templates/deployment-notifier.yaml            | 103 +++
+ aodh/templates/ingress-api.yaml                    |  20 +
+ aodh/templates/job-bootstrap.yaml                  |  20 +
+ aodh/templates/job-db-drop.yaml                    |  20 +
+ aodh/templates/job-db-init.yaml                    |  20 +
+ aodh/templates/job-db-sync.yaml                    |  20 +
+ aodh/templates/job-image-repo-sync.yaml            |  20 +
+ aodh/templates/job-ks-endpoints.yaml               |  20 +
+ aodh/templates/job-ks-service.yaml                 |  20 +
+ aodh/templates/job-ks-user.yaml                    |  20 +
+ aodh/templates/job-rabbit-init.yaml                |  20 +
+ aodh/templates/pdb-api.yaml                        |  29 +
+ aodh/templates/pod-aodh-test.yaml                  |  72 +++
+ aodh/templates/secret-db.yaml                      |  30 +
+ aodh/templates/secret-keystone.yaml                |  30 +
+ aodh/templates/secret-rabbitmq.yaml                |  30 +
+ aodh/templates/service-api.yaml                    |  39 ++
+ aodh/templates/service-ingress-api.yaml            |  20 +
+ aodh/values.yaml                                   | 700 +++++++++++++++++++++
+ tools/deployment/multinode/250-aodh.sh             |  34 +
+ .../{250-ceilometer.sh => 260-ceilometer.sh}       |   0
+ 37 files changed, 2143 insertions(+)
+ create mode 100644 aodh/Chart.yaml
+ create mode 100644 aodh/requirements.yaml
+ create mode 100644 aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl
+ create mode 100644 aodh/templates/bin/_aodh-api.sh.tpl
+ create mode 100644 aodh/templates/bin/_aodh-evaluator.sh.tpl
+ create mode 100644 aodh/templates/bin/_aodh-listener.sh.tpl
+ create mode 100644 aodh/templates/bin/_aodh-notifier.sh.tpl
+ create mode 100644 aodh/templates/bin/_aodh-test.sh.tpl
+ create mode 100644 aodh/templates/bin/_bootstrap.sh.tpl
+ create mode 100644 aodh/templates/bin/_db-sync.sh.tpl
+ create mode 100644 aodh/templates/configmap-bin.yaml
+ create mode 100644 aodh/templates/configmap-etc.yaml
+ create mode 100644 aodh/templates/cron-job-alarms-cleaner.yaml
+ create mode 100644 aodh/templates/deployment-api.yaml
+ create mode 100644 aodh/templates/deployment-evaluator.yaml
+ create mode 100644 aodh/templates/deployment-listener.yaml
+ create mode 100644 aodh/templates/deployment-notifier.yaml
+ create mode 100644 aodh/templates/ingress-api.yaml
+ create mode 100644 aodh/templates/job-bootstrap.yaml
+ create mode 100644 aodh/templates/job-db-drop.yaml
+ create mode 100644 aodh/templates/job-db-init.yaml
+ create mode 100644 aodh/templates/job-db-sync.yaml
+ create mode 100644 aodh/templates/job-image-repo-sync.yaml
+ create mode 100644 aodh/templates/job-ks-endpoints.yaml
+ create mode 100644 aodh/templates/job-ks-service.yaml
+ create mode 100644 aodh/templates/job-ks-user.yaml
+ create mode 100644 aodh/templates/job-rabbit-init.yaml
+ create mode 100644 aodh/templates/pdb-api.yaml
+ create mode 100644 aodh/templates/pod-aodh-test.yaml
+ create mode 100644 aodh/templates/secret-db.yaml
+ create mode 100644 aodh/templates/secret-keystone.yaml
+ create mode 100644 aodh/templates/secret-rabbitmq.yaml
+ create mode 100644 aodh/templates/service-api.yaml
+ create mode 100644 aodh/templates/service-ingress-api.yaml
+ create mode 100644 aodh/values.yaml
+ create mode 100755 tools/deployment/multinode/250-aodh.sh
+ rename tools/deployment/multinode/{250-ceilometer.sh => 260-ceilometer.sh} (100%)
+
+diff --git a/aodh/Chart.yaml b/aodh/Chart.yaml
+new file mode 100644
+index 00000000..7cc4d27c
+--- /dev/null
++++ b/aodh/Chart.yaml
+@@ -0,0 +1,24 @@
++# Copyright 2019 Wind River Systems, Inc.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++apiVersion: v1
++description: Openstack-Helm Aodh
++name: aodh
++version: 0.1.0
++home: https://docs.openstack.org/aodh/latest/
++sources:
++  - https://git.openstack.org/cgit/openstack/aodh
++  - https://git.openstack.org/cgit/openstack/openstack-helm
++maintainers:
++  - name: OpenStack-Helm Authors
+diff --git a/aodh/requirements.yaml b/aodh/requirements.yaml
+new file mode 100644
+index 00000000..780e525c
+--- /dev/null
++++ b/aodh/requirements.yaml
+@@ -0,0 +1,18 @@
++# Copyright 2019 Wind River Systems, Inc.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++dependencies:
++  - name: helm-toolkit
++    repository: http://localhost:8879/charts
++    version: 0.1.0
+diff --git a/aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl b/aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl
+new file mode 100644
+index 00000000..c7bfe2f3
+--- /dev/null
++++ b/aodh/templates/bin/_aodh-alarms-cleaner.sh.tpl
+@@ -0,0 +1,21 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++exec aodh-expirer
+diff --git a/aodh/templates/bin/_aodh-api.sh.tpl b/aodh/templates/bin/_aodh-api.sh.tpl
+new file mode 100644
+index 00000000..4ec8291e
+--- /dev/null
++++ b/aodh/templates/bin/_aodh-api.sh.tpl
+@@ -0,0 +1,43 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++COMMAND="${@:-start}"
++
++function start () {
++
++  cp -a $(type -p aodh-api) /var/www/cgi-bin/aodh/
++
++  if [ -f /etc/apache2/envvars ]; then
++    # Loading Apache2 ENV variables
++    source /etc/apache2/envvars
++  fi
++
++  # Get rid of stale pid file if present.
++  rm -f /var/run/apache2/*.pid
++
++  # Start Apache2
++  exec apache2 -DFOREGROUND
++}
++
++function stop () {
++  apachectl -k graceful-stop
++}
++
++$COMMAND
+diff --git a/aodh/templates/bin/_aodh-evaluator.sh.tpl b/aodh/templates/bin/_aodh-evaluator.sh.tpl
+new file mode 100644
+index 00000000..55104009
+--- /dev/null
++++ b/aodh/templates/bin/_aodh-evaluator.sh.tpl
+@@ -0,0 +1,21 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++exec aodh-evaluator --config-file=/etc/aodh/aodh.conf
+diff --git a/aodh/templates/bin/_aodh-listener.sh.tpl b/aodh/templates/bin/_aodh-listener.sh.tpl
+new file mode 100644
+index 00000000..b833c974
+--- /dev/null
++++ b/aodh/templates/bin/_aodh-listener.sh.tpl
+@@ -0,0 +1,21 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++exec aodh-listener --config-file=/etc/aodh/aodh.conf
+diff --git a/aodh/templates/bin/_aodh-notifier.sh.tpl b/aodh/templates/bin/_aodh-notifier.sh.tpl
+new file mode 100644
+index 00000000..beba9f1e
+--- /dev/null
++++ b/aodh/templates/bin/_aodh-notifier.sh.tpl
+@@ -0,0 +1,21 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++exec aodh-notifier --config-file=/etc/aodh/aodh.conf
+diff --git a/aodh/templates/bin/_aodh-test.sh.tpl b/aodh/templates/bin/_aodh-test.sh.tpl
+new file mode 100644
+index 00000000..783c8995
+--- /dev/null
++++ b/aodh/templates/bin/_aodh-test.sh.tpl
+@@ -0,0 +1,54 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++export HOME=/tmp
++
++echo "Test: create an alarm"
++aodh alarm create \
++    --name test_cpu_aggregation \
++    --type gnocchi_aggregation_by_resources_threshold \
++    --metric cpu --threshold 214106115 \
++    --comparison-operator lt \
++    --aggregation-method mean \
++    --granularity 300  \
++    --evaluation-periods 1 \
++    --alarm-action 'http://localhost:8776/alarm' \
++    --resource-type instance \
++    --query '{"=": {"flavor_name": "small"}}'
++sleep 5
++
++echo "Test: list alarms"
++aodh alarm list
++sleep 5
++
++echo "Test: show an alarm"
++ALARM_UUID=$(aodh alarm list -c alarm_id -f value | head -1)
++aodh alarm show ${ALARM_UUID}
++sleep 5
++
++echo "Test: update an alarm"
++aodh alarm update ${ALARM_UUID} --comparison-operator gt
++sleep 5
++
++echo "Test: delete an alarm"
++aodh alarm delete ${ALARM_UUID}
++
++exit 0
++
+diff --git a/aodh/templates/bin/_bootstrap.sh.tpl b/aodh/templates/bin/_bootstrap.sh.tpl
+new file mode 100644
+index 00000000..6deaab5b
+--- /dev/null
++++ b/aodh/templates/bin/_bootstrap.sh.tpl
+@@ -0,0 +1,21 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++{{ .Values.bootstrap.script | default "echo 'Not Enabled'" }}
+diff --git a/aodh/templates/bin/_db-sync.sh.tpl b/aodh/templates/bin/_db-sync.sh.tpl
+new file mode 100644
+index 00000000..037db164
+--- /dev/null
++++ b/aodh/templates/bin/_db-sync.sh.tpl
+@@ -0,0 +1,21 @@
++#!/bin/bash
++
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++exec aodh-dbsync
+diff --git a/aodh/templates/configmap-bin.yaml b/aodh/templates/configmap-bin.yaml
+new file mode 100644
+index 00000000..db9c65ee
+--- /dev/null
++++ b/aodh/templates/configmap-bin.yaml
+@@ -0,0 +1,59 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.configmap_bin }}
++{{- $envAll := . }}
++---
++apiVersion: v1
++kind: ConfigMap
++metadata:
++  name: aodh-bin
++data:
++{{- if .Values.images.local_registry.active }}
++  image-repo-sync.sh: |
++{{- include "helm-toolkit.scripts.image_repo_sync" . | indent 4 }}
++{{- end }}
++{{- if .Values.bootstrap.enabled }}
++  bootstrap.sh: |
++{{ tuple "bin/_bootstrap.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++{{- end }}
++  aodh-test.sh: |
++{{ tuple "bin/_aodh-test.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  db-init.py: |
++{{- include "helm-toolkit.scripts.db_init" . | indent 4 }}
++  db-sync.sh: |
++{{ tuple "bin/_db-sync.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  db-drop.py: |
++{{- include "helm-toolkit.scripts.db_drop" . | indent 4 }}
++  aodh-api.sh: |
++{{ tuple "bin/_aodh-api.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  aodh-evaluator.sh: |
++{{ tuple "bin/_aodh-evaluator.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  aodh-listener.sh: |
++{{ tuple "bin/_aodh-listener.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  aodh-notifier.sh: |
++{{ tuple "bin/_aodh-notifier.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  aodh-alarms-cleaner.sh: |
++{{ tuple "bin/_aodh-alarms-cleaner.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  ks-service.sh: |
++{{- include "helm-toolkit.scripts.keystone_service" . | indent 4 }}
++  ks-endpoints.sh: |
++{{- include "helm-toolkit.scripts.keystone_endpoints" . | indent 4 }}
++  ks-user.sh: |
++{{- include "helm-toolkit.scripts.keystone_user" . | indent 4 }}
++  rabbit-init.sh: |
++{{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
++{{- end }}
+diff --git a/aodh/templates/configmap-etc.yaml b/aodh/templates/configmap-etc.yaml
+new file mode 100644
+index 00000000..7cd0dcb1
+--- /dev/null
++++ b/aodh/templates/configmap-etc.yaml
+@@ -0,0 +1,120 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.configmap_etc }}
++{{- $envAll := . }}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.auth_uri -}}
++{{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.aodh.keystone_authtoken "auth_uri" -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.auth_url -}}
++{{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.aodh.keystone_authtoken "auth_url" -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.region_name -}}
++{{- $_ := set .Values.conf.aodh.keystone_authtoken "region_name" .Values.endpoints.identity.auth.aodh.region_name -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.project_name -}}
++{{- $_ := set .Values.conf.aodh.keystone_authtoken "project_name" .Values.endpoints.identity.auth.aodh.project_name -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.project_domain_name -}}
++{{- $_ := set .Values.conf.aodh.keystone_authtoken "project_domain_name" .Values.endpoints.identity.auth.aodh.project_domain_name -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.user_domain_name -}}
++{{- $_ := set .Values.conf.aodh.keystone_authtoken "user_domain_name" .Values.endpoints.identity.auth.aodh.user_domain_name -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.username -}}
++{{- $_ := set .Values.conf.aodh.keystone_authtoken "username" .Values.endpoints.identity.auth.aodh.username -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.password -}}
++{{- $_ := set .Values.conf.aodh.keystone_authtoken "password" .Values.endpoints.identity.auth.aodh.password -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.memcached_servers -}}
++{{- $_ := tuple "oslo_cache" "internal" "memcache" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" | set .Values.conf.aodh.keystone_authtoken "memcached_servers" -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.keystone_authtoken.memcache_secret_key -}}
++{{- $_ := set .Values.conf.aodh.keystone_authtoken "memcache_secret_key" ( default ( randAlphaNum 64 ) .Values.endpoints.oslo_cache.auth.memcache_secret_key ) -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.database.connection -}}
++{{- $_ := tuple "oslo_db" "internal" "aodh" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.aodh.database "connection" -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.DEFAULT.transport_url -}}
++{{- $_ := tuple "oslo_messaging" "internal" "aodh" "amqp" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | set .Values.conf.aodh.DEFAULT "transport_url" -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.service_credentials.auth_url -}}
++{{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup"| set .Values.conf.aodh.service_credentials "auth_url" -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.service_credentials.region_name -}}
++{{- $_ := set .Values.conf.aodh.service_credentials "region_name" .Values.endpoints.identity.auth.aodh.region_name -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.service_credentials.project_name -}}
++{{- $_ := set .Values.conf.aodh.service_credentials "project_name" .Values.endpoints.identity.auth.aodh.project_name -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.service_credentials.project_domain_name -}}
++{{- $_ := set .Values.conf.aodh.service_credentials "project_domain_name" .Values.endpoints.identity.auth.aodh.project_domain_name -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.service_credentials.user_domain_name -}}
++{{- $_ := set .Values.conf.aodh.service_credentials "user_domain_name" .Values.endpoints.identity.auth.aodh.user_domain_name -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.service_credentials.username -}}
++{{- $_ := set .Values.conf.aodh.service_credentials "username" .Values.endpoints.identity.auth.aodh.username -}}
++{{- end -}}
++
++{{- if empty .Values.conf.aodh.service_credentials.password -}}
++{{- $_ := set .Values.conf.aodh.service_credentials "password" .Values.endpoints.identity.auth.aodh.password -}}
++{{- end -}}
++
++{{- if and (empty .Values.conf.logging.handler_fluent) (has "fluent" .Values.conf.logging.handlers.keys) -}}
++{{- $fluentd_host := tuple "fluentd" "internal" $envAll | include "helm-toolkit.endpoints.hostname_namespaced_endpoint_lookup" }}
++{{- $fluentd_port := tuple "fluentd" "internal" "service" $envAll | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++{{- $fluent_args := printf "('%s.%s', '%s', %s)" .Release.Namespace .Release.Name $fluentd_host $fluentd_port }}
++{{- $handler_fluent := dict "class" "fluent.handler.FluentHandler" "formatter" "fluent" "args" $fluent_args -}}
++{{- $_ := set .Values.conf.logging "handler_fluent" $handler_fluent -}}
++{{- end -}}
++
++{{- if and (empty .Values.conf.logging.formatter_fluent) (has "fluent" .Values.conf.logging.formatters.keys) -}}
++{{- $formatter_fluent := dict "class" "oslo_log.formatters.FluentFormatter" -}}
++{{- $_ := set .Values.conf.logging "formatter_fluent" $formatter_fluent -}}
++{{- end -}}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: aodh-etc
++type: Opaque
++data:
++  aodh.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.aodh | b64enc }}
++  logging.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | b64enc }}
++  api-paste.ini: {{ include "helm-toolkit.utils.to_ini" .Values.conf.paste | b64enc }}
++  policy.json: {{ toJson .Values.conf.policy | b64enc }}
++{{ include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.wsgi_aodh "key" "wsgi-aodh.conf" "format" "Secret" ) | indent 2 }}
++{{- end }}
+diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
+new file mode 100644
+index 00000000..a9b273d0
+--- /dev/null
++++ b/aodh/templates/cron-job-alarms-cleaner.yaml
+@@ -0,0 +1,84 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.cron_job_alarms_cleaner }}
++{{- $envAll := . }}
++
++{{- $mounts_aodh_alarms_cleaner := .Values.pod.mounts.aodh_alarms_cleaner.aodh_alarms_cleaner }}
++{{- $mounts_aodh_alarms_cleaner_init := .Values.pod.mounts.aodh_alarms_cleaner.init_container }}
++
++{{- $serviceAccountName := "aodh-alarms-cleaner" }}
++{{ tuple $envAll "alarms_cleaner" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: batch/v1beta1
++kind: CronJob
++metadata:
++  name: aodh-alarms-cleaner
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++spec:
++  schedule: {{ .Values.jobs.alarms_cleaner.cron | quote }}
++  successfulJobsHistoryLimit: {{ .Values.jobs.alarms_cleaner.history.success }}
++  failedJobsHistoryLimit: {{ .Values.jobs.alarms_cleaner.history.failed }}
++  concurrencyPolicy: Forbid
++  jobTemplate:
++    metadata:
++      labels:
++{{ tuple $envAll "aodh" "alarms-cleaner" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++    spec:
++      template:
++        spec:
++          serviceAccountName: {{ $serviceAccountName }}
++          restartPolicy: OnFailure
++          nodeSelector:
++            {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
++          initContainers:
++{{ tuple $envAll "alarms_cleaner" $mounts_aodh_alarms_cleaner_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 12 }}
++          containers:
++            - name: aodh-alarms-cleaner
++{{ tuple $envAll "aodh_alarms_cleaner" | include "helm-toolkit.snippets.image" | indent 14 }}
++{{ tuple $envAll $envAll.Values.pod.resources.jobs.alarms_cleaner | include "helm-toolkit.snippets.kubernetes_resources" | indent 14 }}
++              command:
++                - /tmp/aodh-alarms-cleaner.sh
++              volumeMounts:
++              - name: aodh-bin
++                mountPath: /tmp/aodh-alarms-cleaner.sh
++                subPath: aodh-alarms-cleaner.sh
++                readOnly: true
++              - name: pod-etc-aodh
++                mountPath: /etc/aodh
++              - name: aodh-etc
++                mountPath: /etc/aodh/aodh.conf
++                subPath: aodh.conf
++                readOnly: true
++              - name: aodh-etc
++                mountPath: {{ .Values.conf.aodh.DEFAULT.log_config_append }}
++                subPath: {{ base .Values.conf.aodh.DEFAULT.log_config_append }}
++                readOnly: true
++{{ if $mounts_aodh_alarms_cleaner.volumeMounts }}{{ toYaml $mounts_aodh_alarms_cleaner.volumeMounts | indent 14 }}{{ end }}
++          volumes:
++          - name: pod-etc-aodh
++            emptyDir: {}
++          - name: aodh-etc
++            secret:
++              secretName: aodh-etc
++              defaultMode: 0444
++          - name: aodh-bin
++            configMap:
++              name: aodh-bin
++              defaultMode: 0555
++{{ if $mounts_aodh_alarms_cleaner.volumes }}{{ toYaml $mounts_aodh_alarms_cleaner.volumes | indent 10 }}{{ end }}
++{{- end }}
+diff --git a/aodh/templates/deployment-api.yaml b/aodh/templates/deployment-api.yaml
+new file mode 100644
+index 00000000..9f04ab71
+--- /dev/null
++++ b/aodh/templates/deployment-api.yaml
+@@ -0,0 +1,122 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.deployment_api }}
++{{- $envAll := . }}
++
++{{- $mounts_aodh_api := .Values.pod.mounts.aodh_api.aodh_api }}
++{{- $mounts_aodh_api_init := .Values.pod.mounts.aodh_api.init_container }}
++
++{{- $serviceAccountName := "aodh-api" }}
++{{ tuple $envAll "api" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: apps/v1
++kind: Deployment
++metadata:
++  name: aodh-api
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++    labels:
++{{ tuple $envAll "aodh" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++spec:
++  replicas: {{ .Values.pod.replicas.api }}
++  selector:
++    matchLabels:
++{{ tuple $envAll "aodh" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
++{{ tuple $envAll | include "helm-toolkit.snippets.kubernetes_upgrades_deployment" | indent 2 }}
++  template:
++    metadata:
++      labels:
++{{ tuple $envAll "aodh" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++        configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
++        configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++    spec:
++      serviceAccountName: {{ $serviceAccountName }}
++{{ dict "envAll" $envAll "application" "aodh" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
++      affinity:
++{{ tuple $envAll "aodh" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
++      nodeSelector:
++        {{ .Values.labels.api.node_selector_key }}: {{ .Values.labels.api.node_selector_value }}
++      terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.api.timeout | default "30" }}
++      initContainers:
++{{ tuple $envAll "api" $mounts_aodh_api_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
++      containers:
++        - name: aodh-api
++{{ tuple $envAll "aodh_api" | include "helm-toolkit.snippets.image" | indent 10 }}
++{{ tuple $envAll $envAll.Values.pod.resources.api | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++{{ dict "envAll" $envAll "application" "aodh" "container" "aodh_api" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
++          command:
++            - /tmp/aodh-api.sh
++            - start
++          lifecycle:
++            preStop:
++              exec:
++                command:
++                  - /tmp/aodh-api.sh
++                  - stop
++          ports:
++            - name: a-api
++              containerPort: {{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++          readinessProbe:
++            tcpSocket:
++              port: {{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++          volumeMounts:
++            - name: wsgi-aodh
++              mountPath: /var/www/cgi-bin/aodh
++            - name: pod-etc-aodh
++              mountPath: /etc/aodh
++            - name: aodh-etc
++              mountPath: /etc/aodh/aodh.conf
++              subPath: aodh.conf
++              readOnly: true
++            - name: aodh-etc
++              mountPath: {{ .Values.conf.aodh.DEFAULT.log_config_append }}
++              subPath: {{ base .Values.conf.aodh.DEFAULT.log_config_append }}
++              readOnly: true
++            - name: aodh-etc
++              mountPath: /etc/aodh/api_paste.ini
++              subPath: api-paste.ini
++              readOnly: true
++            - name: aodh-etc
++              mountPath: /etc/aodh/policy.json
++              subPath: policy.json
++              readOnly: true
++            - name: aodh-etc
++              mountPath: /etc/apache2/conf-enabled/wsgi-aodh.conf
++              subPath: wsgi-aodh.conf
++              readOnly: true
++            - name: aodh-bin
++              mountPath: /tmp/aodh-api.sh
++              subPath: aodh-api.sh
++              readOnly: true
++{{ if $mounts_aodh_api.volumeMounts }}{{ toYaml $mounts_aodh_api.volumeMounts | indent 12 }}{{ end }}
++      volumes:
++        - name: wsgi-aodh
++          emptyDir: {}
++        - name: pod-etc-aodh
++          emptyDir: {}
++        - name: aodh-etc
++          secret:
++            secretName: aodh-etc
++            defaultMode: 0444
++        - name: aodh-bin
++          configMap:
++            name: aodh-bin
++            defaultMode: 0555
++{{ if $mounts_aodh_api.volumes }}{{ toYaml $mounts_aodh_api.volumes | indent 8 }}{{ end }}
++{{- end }}
+diff --git a/aodh/templates/deployment-evaluator.yaml b/aodh/templates/deployment-evaluator.yaml
+new file mode 100644
+index 00000000..2df99de6
+--- /dev/null
++++ b/aodh/templates/deployment-evaluator.yaml
+@@ -0,0 +1,103 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.deployment_evaluator }}
++{{- $envAll := . }}
++
++{{- $mounts_aodh_evaluator := .Values.pod.mounts.aodh_evaluator.aodh_evaluator }}
++{{- $mounts_aodh_evaluator_init := .Values.pod.mounts.aodh_evaluator.init_container }}
++
++{{- $serviceAccountName := "aodh-evaluator" }}
++{{ tuple $envAll "evaluator" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: apps/v1
++kind: Deployment
++metadata:
++  name: aodh-evaluator
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++  labels:
++{{ tuple $envAll "aodh" "evaluator" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++spec:
++  replicas: {{ .Values.pod.replicas.evaluator }}
++  selector:
++    matchLabels:
++{{ tuple $envAll "aodh" "evaluator" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
++{{ tuple $envAll | include "helm-toolkit.snippets.kubernetes_upgrades_deployment" | indent 2 }}
++  template:
++    metadata:
++      labels:
++{{ tuple $envAll "aodh" "evaluator" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++        configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
++        configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++    spec:
++      serviceAccountName: {{ $serviceAccountName }}
++{{ dict "envAll" $envAll "application" "aodh" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
++      affinity:
++{{ tuple $envAll "aodh" "evaluator" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
++      nodeSelector:
++        {{ .Values.labels.evaluator.node_selector_key }}: {{ .Values.labels.evaluator.node_selector_value }}
++      initContainers:
++{{ tuple $envAll "evaluator" $mounts_aodh_evaluator_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
++      containers:
++        - name: aodh-evaluator
++{{ tuple $envAll "aodh_evaluator" | include "helm-toolkit.snippets.image" | indent 10 }}
++{{ tuple $envAll $envAll.Values.pod.resources.evaluator | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++{{ dict "envAll" $envAll "application" "aodh" "container" "aodh_evaluator" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
++          command:
++            - /tmp/aodh-evaluator.sh
++            - start
++          lifecycle:
++            preStop:
++              exec:
++                command:
++                  - /tmp/aodh-evaluator.sh
++                  - stop
++          volumeMounts:
++            - name: pod-etc-aodh
++              mountPath: /etc/aodh
++            - name: aodh-etc
++              mountPath: /etc/aodh/aodh.conf
++              subPath: aodh.conf
++              readOnly: true
++            - name: aodh-etc
++              mountPath: {{ .Values.conf.aodh.DEFAULT.log_config_append }}
++              subPath: {{ base .Values.conf.aodh.DEFAULT.log_config_append }}
++              readOnly: true
++            - name: aodh-etc
++              mountPath: /etc/aodh/policy.json
++              subPath: policy.json
++              readOnly: true
++            - name: aodh-bin
++              mountPath: /tmp/aodh-evaluator.sh
++              subPath: aodh-evaluator.sh
++              readOnly: true
++{{ if $mounts_aodh_evaluator.volumeMounts }}{{ toYaml $mounts_aodh_evaluator.volumeMounts | indent 12 }}{{ end }}
++      volumes:
++        - name: pod-etc-aodh
++          emptyDir: {}
++        - name: aodh-etc
++          secret:
++            secretName: aodh-etc
++            defaultMode: 0444
++        - name: aodh-bin
++          configMap:
++            name: aodh-bin
++            defaultMode: 0555
++{{ if $mounts_aodh_evaluator.volumes }}{{ toYaml $mounts_aodh_evaluator.volumes | indent 8 }}{{ end }}
++{{- end }}
+diff --git a/aodh/templates/deployment-listener.yaml b/aodh/templates/deployment-listener.yaml
+new file mode 100644
+index 00000000..f24eb584
+--- /dev/null
++++ b/aodh/templates/deployment-listener.yaml
+@@ -0,0 +1,103 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.deployment_listener }}
++{{- $envAll := . }}
++
++{{- $mounts_aodh_listener := .Values.pod.mounts.aodh_listener.aodh_listener }}
++{{- $mounts_aodh_listener_init := .Values.pod.mounts.aodh_listener.init_container }}
++
++{{- $serviceAccountName := "aodh-listener" }}
++{{ tuple $envAll "listener" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: apps/v1
++kind: Deployment
++metadata:
++  name: aodh-listener
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++  labels:
++{{ tuple $envAll "aodh" "listener" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++spec:
++  replicas: {{ .Values.pod.replicas.listener }}
++  selector:
++    matchLabels:
++{{ tuple $envAll "aodh" "listener" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
++{{ tuple $envAll | include "helm-toolkit.snippets.kubernetes_upgrades_deployment" | indent 2 }}
++  template:
++    metadata:
++      labels:
++{{ tuple $envAll "aodh" "listener" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++        configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
++        configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++    spec:
++      serviceAccountName: {{ $serviceAccountName }}
++{{ dict "envAll" $envAll "application" "aodh" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
++      affinity:
++{{ tuple $envAll "aodh" "listener" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
++      nodeSelector:
++        {{ .Values.labels.listener.node_selector_key }}: {{ .Values.labels.listener.node_selector_value }}
++      initContainers:
++{{ tuple $envAll "listener" $mounts_aodh_listener_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
++      containers:
++        - name: aodh-listener
++{{ tuple $envAll "aodh_listener" | include "helm-toolkit.snippets.image" | indent 10 }}
++{{ tuple $envAll $envAll.Values.pod.resources.listener | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++{{ dict "envAll" $envAll "application" "aodh" "container" "aodh_listener" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
++          command:
++            - /tmp/aodh-listener.sh
++            - start
++          lifecycle:
++            preStop:
++              exec:
++                command:
++                  - /tmp/aodh-listener.sh
++                  - stop
++          volumeMounts:
++            - name: pod-etc-aodh
++              mountPath: /etc/aodh
++            - name: aodh-etc
++              mountPath: /etc/aodh/aodh.conf
++              subPath: aodh.conf
++              readOnly: true
++            - name: aodh-etc
++              mountPath: {{ .Values.conf.aodh.DEFAULT.log_config_append }}
++              subPath: {{ base .Values.conf.aodh.DEFAULT.log_config_append }}
++              readOnly: true
++            - name: aodh-etc
++              mountPath: /etc/aodh/policy.json
++              subPath: policy.json
++              readOnly: true
++            - name: aodh-bin
++              mountPath: /tmp/aodh-listener.sh
++              subPath: aodh-listener.sh
++              readOnly: true
++{{ if $mounts_aodh_listener.volumeMounts }}{{ toYaml $mounts_aodh_listener.volumeMounts | indent 12 }}{{ end }}
++      volumes:
++        - name: pod-etc-aodh
++          emptyDir: {}
++        - name: aodh-etc
++          secret:
++            secretName: aodh-etc
++            defaultMode: 0444
++        - name: aodh-bin
++          configMap:
++            name: aodh-bin
++            defaultMode: 0555
++{{ if $mounts_aodh_listener.volumes }}{{ toYaml $mounts_aodh_listener.volumes | indent 8 }}{{ end }}
++{{- end }}
+diff --git a/aodh/templates/deployment-notifier.yaml b/aodh/templates/deployment-notifier.yaml
+new file mode 100644
+index 00000000..86094443
+--- /dev/null
++++ b/aodh/templates/deployment-notifier.yaml
+@@ -0,0 +1,103 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.deployment_notifier }}
++{{- $envAll := . }}
++
++{{- $mounts_aodh_notifier := .Values.pod.mounts.aodh_notifier.aodh_notifier }}
++{{- $mounts_aodh_notifier_init := .Values.pod.mounts.aodh_notifier.init_container }}
++
++{{- $serviceAccountName := "aodh-notifier" }}
++{{ tuple $envAll "notifier" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: apps/v1
++kind: Deployment
++metadata:
++  name: aodh-notifier
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++  labels:
++{{ tuple $envAll "aodh" "notifier" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++spec:
++  replicas: {{ .Values.pod.replicas.notifier }}
++  selector:
++    matchLabels:
++{{ tuple $envAll "aodh" "notifier" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
++{{ tuple $envAll | include "helm-toolkit.snippets.kubernetes_upgrades_deployment" | indent 2 }}
++  template:
++    metadata:
++      labels:
++{{ tuple $envAll "aodh" "notifier" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++        configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
++        configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++    spec:
++      serviceAccountName: {{ $serviceAccountName }}
++{{ dict "envAll" $envAll "application" "aodh" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
++      affinity:
++{{ tuple $envAll "aodh" "notifier" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
++      nodeSelector:
++        {{ .Values.labels.notifier.node_selector_key }}: {{ .Values.labels.notifier.node_selector_value }}
++      initContainers:
++{{ tuple $envAll "notifier" $mounts_aodh_notifier_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
++      containers:
++        - name: aodh-notifier
++{{ tuple $envAll "aodh_notifier" | include "helm-toolkit.snippets.image" | indent 10 }}
++{{ tuple $envAll $envAll.Values.pod.resources.notifier | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++{{ dict "envAll" $envAll "application" "aodh" "container" "aodh_notifier" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
++          command:
++            - /tmp/aodh-notifier.sh
++            - start
++          lifecycle:
++            preStop:
++              exec:
++                command:
++                  - /tmp/aodh-notifier.sh
++                  - stop
++          volumeMounts:
++            - name: pod-etc-aodh
++              mountPath: /etc/aodh
++            - name: aodh-etc
++              mountPath: /etc/aodh/aodh.conf
++              subPath: aodh.conf
++              readOnly: true
++            - name: aodh-etc
++              mountPath: {{ .Values.conf.aodh.DEFAULT.log_config_append }}
++              subPath: {{ base .Values.conf.aodh.DEFAULT.log_config_append }}
++              readOnly: true
++            - name: aodh-etc
++              mountPath: /etc/aodh/policy.json
++              subPath: policy.json
++              readOnly: true
++            - name: aodh-bin
++              mountPath: /tmp/aodh-notifier.sh
++              subPath: aodh-notifier.sh
++              readOnly: true
++{{ if $mounts_aodh_notifier.volumeMounts }}{{ toYaml $mounts_aodh_notifier.volumeMounts | indent 12 }}{{ end }}
++      volumes:
++        - name: pod-etc-aodh
++          emptyDir: {}
++        - name: aodh-etc
++          secret:
++            secretName: aodh-etc
++            defaultMode: 0444
++        - name: aodh-bin
++          configMap:
++            name: aodh-bin
++            defaultMode: 0555
++{{ if $mounts_aodh_notifier.volumes }}{{ toYaml $mounts_aodh_notifier.volumes | indent 8 }}{{ end }}
++{{- end }}
+diff --git a/aodh/templates/ingress-api.yaml b/aodh/templates/ingress-api.yaml
+new file mode 100644
+index 00000000..f848d55e
+--- /dev/null
++++ b/aodh/templates/ingress-api.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if and .Values.manifests.ingress_api .Values.network.api.ingress.public }}
++{{- $ingressOpts := dict "envAll" . "backendServiceType" "alarming" "backendPort" "a-api" -}}
++{{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
++{{- end }}
+diff --git a/aodh/templates/job-bootstrap.yaml b/aodh/templates/job-bootstrap.yaml
+new file mode 100644
+index 00000000..e6b6f7a7
+--- /dev/null
++++ b/aodh/templates/job-bootstrap.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if and .Values.manifests.job_bootstrap .Values.bootstrap.enabled }}
++{{- $bootstrapJob := dict "envAll" . "serviceName" "aodh" "keystoneUser" .Values.bootstrap.ks_user -}}
++{{ $bootstrapJob | include "helm-toolkit.manifests.job_bootstrap" }}
++{{- end }}
+diff --git a/aodh/templates/job-db-drop.yaml b/aodh/templates/job-db-drop.yaml
+new file mode 100644
+index 00000000..5f5129a3
+--- /dev/null
++++ b/aodh/templates/job-db-drop.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_db_drop }}
++{{- $dbDropJob := dict "envAll" . "serviceName" "aodh" -}}
++{{ $dbDropJob | include "helm-toolkit.manifests.job_db_drop_mysql" }}
++{{- end }}
+diff --git a/aodh/templates/job-db-init.yaml b/aodh/templates/job-db-init.yaml
+new file mode 100644
+index 00000000..8d0fddeb
+--- /dev/null
++++ b/aodh/templates/job-db-init.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_db_init }}
++{{- $dbInitJob := dict "envAll" . "serviceName" "aodh" -}}
++{{ $dbInitJob | include "helm-toolkit.manifests.job_db_init_mysql" }}
++{{- end }}
+diff --git a/aodh/templates/job-db-sync.yaml b/aodh/templates/job-db-sync.yaml
+new file mode 100644
+index 00000000..a642f194
+--- /dev/null
++++ b/aodh/templates/job-db-sync.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_db_sync }}
++{{- $dbSyncJob := dict "envAll" . "serviceName" "aodh" -}}
++{{ $dbSyncJob | include "helm-toolkit.manifests.job_db_sync" }}
++{{- end }}
+diff --git a/aodh/templates/job-image-repo-sync.yaml b/aodh/templates/job-image-repo-sync.yaml
+new file mode 100644
+index 00000000..ebab594f
+--- /dev/null
++++ b/aodh/templates/job-image-repo-sync.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if and .Values.manifests.job_image_repo_sync .Values.images.local_registry.active }}
++{{- $imageRepoSyncJob := dict "envAll" . "serviceName" "aodh" -}}
++{{ $imageRepoSyncJob | include "helm-toolkit.manifests.job_image_repo_sync" }}
++{{- end }}
+diff --git a/aodh/templates/job-ks-endpoints.yaml b/aodh/templates/job-ks-endpoints.yaml
+new file mode 100644
+index 00000000..61819c83
+--- /dev/null
++++ b/aodh/templates/job-ks-endpoints.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_ks_endpoints }}
++{{- $ksServiceJob := dict "envAll" . "serviceName" "aodh" "serviceTypes" ( tuple "alarming" ) -}}
++{{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
++{{- end }}
+diff --git a/aodh/templates/job-ks-service.yaml b/aodh/templates/job-ks-service.yaml
+new file mode 100644
+index 00000000..2c14e1a4
+--- /dev/null
++++ b/aodh/templates/job-ks-service.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_ks_service }}
++{{- $ksServiceJob := dict "envAll" . "serviceName" "aodh" "serviceTypes" ( tuple "alarming" ) -}}
++{{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_service" }}
++{{- end }}
+diff --git a/aodh/templates/job-ks-user.yaml b/aodh/templates/job-ks-user.yaml
+new file mode 100644
+index 00000000..d529fa3f
+--- /dev/null
++++ b/aodh/templates/job-ks-user.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_ks_user }}
++{{- $ksUserJob := dict "envAll" . "serviceName" "aodh" -}}
++{{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
++{{- end }}
+diff --git a/aodh/templates/job-rabbit-init.yaml b/aodh/templates/job-rabbit-init.yaml
+new file mode 100644
+index 00000000..866cbbd4
+--- /dev/null
++++ b/aodh/templates/job-rabbit-init.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_rabbit_init }}
++{{- $rmqUserJob := dict "envAll" . "serviceName" "aodh" -}}
++{{ $rmqUserJob | include "helm-toolkit.manifests.job_rabbit_init" }}
++{{- end }}
+diff --git a/aodh/templates/pdb-api.yaml b/aodh/templates/pdb-api.yaml
+new file mode 100644
+index 00000000..800b8e98
+--- /dev/null
++++ b/aodh/templates/pdb-api.yaml
+@@ -0,0 +1,29 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.pdb_api }}
++{{- $envAll := . }}
++---
++apiVersion: policy/v1beta1
++kind: PodDisruptionBudget
++metadata:
++  name: aodh-api
++spec:
++  minAvailable: {{ .Values.pod.lifecycle.disruption_budget.api.min_available }}
++  selector:
++    matchLabels:
++{{ tuple $envAll "aodh" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
++{{- end }}
+diff --git a/aodh/templates/pod-aodh-test.yaml b/aodh/templates/pod-aodh-test.yaml
+new file mode 100644
+index 00000000..bb029b58
+--- /dev/null
++++ b/aodh/templates/pod-aodh-test.yaml
+@@ -0,0 +1,72 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.pod_aodh_test }}
++{{- $envAll := . }}
++
++{{- $mounts_tests := .Values.pod.mounts.aodh_tests.aodh_tests }}
++{{- $mounts_tests_init := .Values.pod.mounts.aodh_tests.init_container }}
++
++{{- $serviceAccountName := print $envAll.Release.Name "-test" }}
++{{ tuple $envAll "tests" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: v1
++kind: Pod
++metadata:
++  name: {{ print $envAll.Release.Name "-test" }}
++  labels:
++{{ tuple $envAll "aodh" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++  annotations:
++    "helm.sh/hook": test-success
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++spec:
++  restartPolicy: Never
++  nodeSelector:
++    {{ .Values.labels.test.node_selector_key }}: {{ .Values.labels.test.node_selector_value }}
++  serviceAccountName: {{ $serviceAccountName }}
++  initContainers:
++{{ tuple $envAll "tests" $mounts_tests_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 4 }}
++  containers:
++    - name: {{ .Release.Name }}-test
++{{ tuple $envAll "aodh_api" | include "helm-toolkit.snippets.image" | indent 6 }}
++{{ tuple $envAll $envAll.Values.pod.resources.jobs.tests | include "helm-toolkit.snippets.kubernetes_resources" | indent 6 }}
++      env:
++{{- with $env := dict "ksUserSecret" .Values.secrets.identity.admin }}
++{{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 8 }}
++{{- end }}
++      command:
++        - /tmp/aodh-test.sh
++      volumeMounts:
++        - name: aodh-etc
++          mountPath: /etc/aodh/aodh.conf
++          subPath: aodh.conf
++          readOnly: true
++        - name: aodh-bin
++          mountPath: /tmp/aodh-test.sh
++          subPath: aodh-test.sh
++          readOnly: true
++{{ if $mounts_tests.volumeMounts }}{{ toYaml $mounts_tests.volumeMounts | indent 8 }}{{ end }}
++  volumes:
++    - name: aodh-etc
++      secret:
++        secretName: aodh-etc
++        defaultMode: 0444
++    - name: aodh-bin
++      configMap:
++        name: aodh-bin
++        defaultMode: 0555
++{{ if $mounts_tests.volumes }}{{ toYaml $mounts_tests.volumes | indent 4 }}{{ end }}
++{{- end }}
+diff --git a/aodh/templates/secret-db.yaml b/aodh/templates/secret-db.yaml
+new file mode 100644
+index 00000000..14786633
+--- /dev/null
++++ b/aodh/templates/secret-db.yaml
+@@ -0,0 +1,30 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.secret_db }}
++{{- $envAll := . }}
++{{- range $key1, $userClass := tuple "admin" "aodh" }}
++{{- $secretName := index $envAll.Values.secrets.oslo_db $userClass }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: {{ $secretName }}
++type: Opaque
++data:
++  DB_CONNECTION: {{ tuple "oslo_db" "internal" $userClass "mysql" $envAll | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | b64enc -}}
++{{- end }}
++{{- end }}
+diff --git a/aodh/templates/secret-keystone.yaml b/aodh/templates/secret-keystone.yaml
+new file mode 100644
+index 00000000..76664be5
+--- /dev/null
++++ b/aodh/templates/secret-keystone.yaml
+@@ -0,0 +1,30 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.secret_keystone }}
++{{- $envAll := . }}
++{{- range $key1, $userClass := tuple "admin" "aodh" }}
++{{- $secretName := index $envAll.Values.secrets.identity $userClass }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: {{ $secretName }}
++type: Opaque
++data:
++{{- tuple $userClass "internal" $envAll | include "helm-toolkit.snippets.keystone_secret_openrc" | indent 2 -}}
++{{- end }}
++{{- end }}
+diff --git a/aodh/templates/secret-rabbitmq.yaml b/aodh/templates/secret-rabbitmq.yaml
+new file mode 100644
+index 00000000..19b6474a
+--- /dev/null
++++ b/aodh/templates/secret-rabbitmq.yaml
+@@ -0,0 +1,30 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.secret_rabbitmq }}
++{{- $envAll := . }}
++{{- range $key1, $userClass := tuple "admin" "aodh" }}
++{{- $secretName := index $envAll.Values.secrets.oslo_messaging $userClass }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: {{ $secretName }}
++type: Opaque
++data:
++  RABBITMQ_CONNECTION: {{ tuple "oslo_messaging" "internal" $userClass "http" $envAll | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" | b64enc }}
++{{- end }}
++{{- end }}
+diff --git a/aodh/templates/service-api.yaml b/aodh/templates/service-api.yaml
+new file mode 100644
+index 00000000..2a786ce2
+--- /dev/null
++++ b/aodh/templates/service-api.yaml
+@@ -0,0 +1,39 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.service_api }}
++{{- $envAll := . }}
++---
++apiVersion: v1
++kind: Service
++metadata:
++  name: {{ tuple "alarming" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
++spec:
++  ports:
++    - name: a-api
++      port: {{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++      {{ if .Values.network.api.node_port.enabled }}
++      nodePort: {{ .Values.network.api.node_port.port }}
++      {{ end }}
++  selector:
++{{ tuple $envAll "aodh" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++  {{ if .Values.network.api.node_port.enabled }}
++  type: NodePort
++  {{ if .Values.network.api.external_policy_local }}
++  externalTrafficPolicy: Local
++  {{ end }}
++  {{ end }}
++{{- end }}
+diff --git a/aodh/templates/service-ingress-api.yaml b/aodh/templates/service-ingress-api.yaml
+new file mode 100644
+index 00000000..2749b493
+--- /dev/null
++++ b/aodh/templates/service-ingress-api.yaml
+@@ -0,0 +1,20 @@
++{{/*
++Copyright 2019 Wind River Systems, Inc.
++
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if and .Values.manifests.service_ingress_api .Values.network.api.ingress.public }}
++{{- $serviceIngressOpts := dict "envAll" . "backendServiceType" "alarming" -}}
++{{ $serviceIngressOpts | include "helm-toolkit.manifests.service_ingress" }}
++{{- end }}
+diff --git a/aodh/values.yaml b/aodh/values.yaml
+new file mode 100644
+index 00000000..90c9faca
+--- /dev/null
++++ b/aodh/values.yaml
+@@ -0,0 +1,700 @@
++# Copyright 2019 Wind River Systems, Inc.
++#
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++# Default values for aodh.
++# This is a YAML-formatted file.
++# Declare name/value pairs to be passed into your templates.
++# name: value
++
++release_group: null
++
++labels:
++  api:
++    node_selector_key: openstack-control-plane
++    node_selector_value: enabled
++  evaluator:
++    node_selector_key: openstack-control-plane
++    node_selector_value: enabled
++  listener:
++    node_selector_key: openstack-control-plane
++    node_selector_value: enabled
++  notifier:
++    node_selector_key: openstack-control-plane
++    node_selector_value: enabled
++  job:
++    node_selector_key: openstack-control-plane
++    node_selector_value: enabled
++  test:
++    node_selector_key: openstack-control-plane
++    node_selector_value: enabled
++
++
++images:
++  tags:
++    bootstrap: docker.io/openstackhelm/heat:ocata
++    db_init: docker.io/openstackhelm/heat:ocata
++    db_drop: docker.io/openstackhelm/heat:ocata
++    rabbit_init: docker.io/rabbitmq:3.7-management
++    aodh_db_sync: docker.io/kolla/ubuntu-source-aodh-api:ocata
++    ks_user: docker.io/openstackhelm/heat:ocata
++    ks_service: docker.io/openstackhelm/heat:ocata
++    ks_endpoints: docker.io/openstackhelm/heat:ocata
++    aodh_api: docker.io/kolla/ubuntu-source-aodh-api:ocata
++    aodh_evaluator: docker.io/kolla/ubuntu-source-aodh-evaluator:ocata
++    aodh_listener: docker.io/kolla/ubuntu-source-aodh-listener:ocata
++    aodh_notifier: docker.io/kolla/ubuntu-source-aodh-notifier:ocata
++    aodh_alarms_cleaner: docker.io/kolla/ubuntu-source-aodh-base:ocata
++    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
++    image_repo_sync: docker.io/docker:17.07.0
++  pull_policy: "IfNotPresent"
++  local_registry:
++    active: false
++    exclude:
++      - dep_check
++      - image_repo_sync
++
++jobs:
++  alarms_cleaner:
++    # daily
++    cron: "0 */24 * * *"
++    history:
++      success: 3
++      failed: 1
++
++pod:
++  security_context:
++    aodh:
++      pod:
++        runAsUser: 42402
++      container:
++        aodh_api:
++          runAsUser: 0
++        aodh_evaluator:
++          readOnlyRootFilesystem: true
++          allowPrivilegeEscalation: false
++        aodh_notifier:
++          readOnlyRootFilesystem: true
++          allowPrivilegeEscalation: false
++        aodh_listener:
++          readOnlyRootFilesystem: true
++          allowPrivilegeEscalation: false
++  affinity:
++    anti:
++      type:
++        default: preferredDuringSchedulingIgnoredDuringExecution
++      topologyKey:
++        default: kubernetes.io/hostname
++  mounts:
++    aodh_api:
++      init_container: null
++      aodh_api:
++        volumeMounts:
++        volumes:
++    aodh_evaluator:
++      init_container: null
++      aodh_evaluator:
++        volumeMounts:
++        volumes:
++    aodh_listener:
++      init_container: null
++      aodh_listener:
++        volumeMounts:
++        volumes:
++    aodh_notifier:
++      init_container: null
++      aodh_notifier:
++        volumeMounts:
++        volumes:
++    aodh_alarms_cleaner:
++      init_container: null
++      aodh_alarms_cleaner:
++        volumeMounts:
++        volumes:
++    aodh_bootstrap:
++      init_container: null
++      aodh_bootstrap:
++        volumeMounts:
++        volumes:
++    aodh_tests:
++      init_container: null
++      aodh_tests:
++        volumeMounts:
++        volumes:
++  replicas:
++    api: 1
++    evaluator: 1
++    listener: 1
++    notifier: 1
++  lifecycle:
++    upgrades:
++      deployments:
++        revision_history: 3
++        pod_replacement_strategy: RollingUpdate
++        rolling_update:
++          max_unavailable: 1
++          max_surge: 3
++    disruption_budget:
++      api:
++        min_available: 0
++    termination_grace_period:
++      api:
++        timeout: 30
++  resources:
++    enabled: false
++    api:
++      requests:
++        memory: "128Mi"
++        cpu: "100m"
++      limits:
++        memory: "1024Mi"
++        cpu: "2000m"
++    evaluator:
++      requests:
++        memory: "128Mi"
++        cpu: "100m"
++      limits:
++        memory: "1024Mi"
++        cpu: "2000m"
++    listener:
++      requests:
++        memory: "128Mi"
++        cpu: "100m"
++      limits:
++        memory: "1024Mi"
++        cpu: "2000m"
++    notifier:
++      requests:
++        memory: "128Mi"
++        cpu: "100m"
++      limits:
++        memory: "1024Mi"
++        cpu: "2000m"
++    jobs:
++      bootstrap:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      rabbit_init:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      db_init:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      db_sync:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      ks_endpoints:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      ks_service:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      ks_user:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      alarms_cleaner:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      db_drop:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      tests:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++      image_repo_sync:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
++
++network:
++  api:
++    ingress:
++      public: true
++      classes:
++        namespace: "nginx"
++        cluster: "nginx-cluster"
++      annotations:
++        nginx.ingress.kubernetes.io/rewrite-target: /
++    external_policy_local: false
++    node_port:
++      enabled: false
++      port: 8042
++
++dependencies:
++  dynamic:
++    common:
++      local_image_registry:
++        jobs:
++          - aodh-image-repo-sync
++        services:
++          - endpoint: node
++            service: local_image_registry
++  static:
++    api:
++      jobs:
++        - aodh-db-sync
++        - aodh-ks-user
++        - aodh-ks-endpoints
++      services:
++        - endpoint: internal
++          service: oslo_db
++        - endpoint: internal
++          service: identity
++    evaluator:
++      jobs:
++        - aodh-db-sync
++        - aodh-rabbit-init
++      services:
++        - endpoint: internal
++          service: oslo_db
++        - endpoint: internal
++          service: identity
++        - endpoint: internal
++          service: alarming
++    listener:
++      jobs:
++        - aodh-db-sync
++        - aodh-rabbit-init
++      services:
++        - endpoint: internal
++          service: oslo_db
++        - endpoint: internal
++          service: identity
++        - endpoint: internal
++          service: alarming
++    notifier:
++      jobs:
++        - aodh-db-sync
++        - aodh-rabbit-init
++      services:
++        - endpoint: internal
++          service: oslo_db
++        - endpoint: internal
++          service: identity
++        - endpoint: internal
++          service: alarming
++    rabbit_init:
++      services:
++        - service: oslo_messaging
++          endpoint: internal
++    db_init:
++      services:
++        - endpoint: internal
++          service: oslo_db
++    db_sync:
++      jobs:
++        - aodh-db-init
++      services:
++        - endpoint: internal
++          service: oslo_db
++    db_drop:
++      services:
++        - endpoint: internal
++          service: oslo_db
++    ks_endpoints:
++      jobs:
++        - aodh-ks-service
++      services:
++        - endpoint: internal
++          service: identity
++    ks_service:
++      services:
++        - endpoint: internal
++          service: identity
++    ks_user:
++      services:
++        - endpoint: internal
++          service: identity
++    image_repo_sync:
++      services:
++        - endpoint: internal
++          service: local_image_registry
++    tests:
++      jobs:
++        - aodh-db-sync
++      services:
++        - endpoint: internal
++          service: identity
++        - endpoint: internal
++          service: oslo_db
++        - endpoint: internal
++          service: alarming
++
++conf:
++  wsgi_aodh: |
++    Listen 0.0.0.0:{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++
++    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
++    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
++
++    SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
++    CustomLog /dev/stdout combined env=!forwarded
++    CustomLog /dev/stdout proxy env=forwarded
++
++    <VirtualHost *:{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
++        WSGIDaemonProcess aodh processes=1 threads=2 user=aodh group=aodh display-name=%{GROUP}
++        WSGIProcessGroup aodh
++        WSGIScriptAlias / /var/www/cgi-bin/aodh/aodh-api
++        WSGIApplicationGroup %{GLOBAL}
++        <IfVersion >= 2.4>
++          ErrorLogFormat "%{cu}t %M"
++        </IfVersion>
++
++        ErrorLog /dev/stdout
++        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
++        CustomLog /dev/stdout combined env=!forwarded
++        CustomLog /dev/stdout proxy env=forwarded
++    </VirtualHost>
++  paste:
++    composite:aodh+noauth:
++      use: egg:Paste#urlmap
++      /: aodhversions_pipeline
++      /v2: aodhv2_noauth_pipeline
++      /healthcheck: healthcheck
++    composite:aodh+keystone:
++      use: egg:Paste#urlmap
++      /: aodhversions_pipeline
++      /v2: aodhv2_keystone_pipeline
++      /healthcheck: healthcheck
++    app:healthcheck:
++      use: egg:oslo.middleware#healthcheck
++      oslo_config_project: aodh
++    pipeline:aodhversions_pipeline:
++      pipeline: cors http_proxy_to_wsgi aodhversions
++    app:aodhversions:
++      paste.app_factory: aodh.api.app:app_factory
++      root: aodh.api.controllers.root.VersionsController
++    pipeline:aodhv2_keystone_pipeline:
++      pipeline: cors http_proxy_to_wsgi request_id authtoken aodhv2
++    pipeline:aodhv2_noauth_pipeline:
++      pipeline: cors http_proxy_to_wsgi request_id aodhv2
++    app:aodhv2:
++      paste.app_factory: aodh.api.app:app_factory
++      root: aodh.api.controllers.v2.root.V2Controller
++    filter:authtoken:
++      paste.filter_factory: keystonemiddleware.auth_token:filter_factory
++      oslo_config_project: aodh
++    filter:request_id:
++      paste.filter_factory: oslo_middleware:RequestId.factory
++    filter:cors:
++      paste.filter_factory: oslo_middleware.cors:filter_factory
++      oslo_config_project: aodh
++    filter:http_proxy_to_wsgi:
++      paste.filter_factory: oslo_middleware.http_proxy_to_wsgi:HTTPProxyToWSGI.factory
++      oslo_config_project: aodh
++  policy:
++    context_is_admin: 'role:admin'
++    segregation: 'rule:context_is_admin'
++    admin_or_owner: 'rule:context_is_admin or project_id:%(project_id)s'
++    default: 'rule:admin_or_owner'
++    telemetry:get_alarm: 'rule:admin_or_owner'
++    telemetry:get_alarms: 'rule:admin_or_owner'
++    telemetry:query_alarm: 'rule:admin_or_owner'
++    telemetry:create_alarm: ''
++    telemetry:change_alarm: 'rule:admin_or_owner'
++    telemetry:delete_alarm: 'rule:admin_or_owner'
++    telemetry:get_alarm_state: 'rule:admin_or_owner'
++    telemetry:change_alarm_state: 'rule:admin_or_owner'
++    telemetry:alarm_history: 'rule:admin_or_owner'
++    telemetry:query_alarm_history: 'rule:admin_or_owner'
++  aodh:
++    DEFAULT:
++      debug: false
++      log_config_append: /etc/aodh/logging.conf
++    oslo_middleware:
++      enable_proxy_headers_parsing: true
++    database:
++      alarm_history_time_to_live: 86400
++      max_retries: -1
++    keystone_authtoken:
++      auth_version: v3
++      auth_type: password
++      memcache_security_strategy: ENCRYPT
++    service_credentials:
++      auth_type: password
++      interface: internal
++      auth_version: v3
++  logging:
++    loggers:
++      keys:
++        - root
++        - aodh
++    handlers:
++      keys:
++        - stdout
++        - stderr
++        - "null"
++    formatters:
++      keys:
++        - context
++        - default
++    logger_root:
++        level: WARNING
++        handlers: 'null'
++    logger_aodh:
++      level: INFO
++      handlers:
++        - stdout
++      qualname: aodh
++    logger_amqp:
++      level: WARNING
++      handlers: stderr
++      qualname: amqp
++    logger_amqplib:
++      level: WARNING
++      handlers: stderr
++      qualname: amqplib
++    logger_eventletwsgi:
++      level: WARNING
++      handlers: stderr
++      qualname: eventlet.wsgi.server
++    logger_sqlalchemy:
++      level: WARNING
++      handlers: stderr
++      qualname: sqlalchemy
++    logger_boto:
++      level: WARNING
++      handlers: stderr
++      qualname: boto
++    handler_null:
++      class: logging.NullHandler
++      formatter: default
++      args: ()
++    handler_stdout:
++      class: StreamHandler
++      args: (sys.stdout,)
++      formatter: context
++    handler_stderr:
++      class: StreamHandler
++      args: (sys.stderr,)
++      formatter: context
++    formatter_context:
++      class: oslo_log.formatters.ContextFormatter
++    formatter_default:
++      format: "%(message)s"
++
++secrets:
++  identity:
++    admin: aodh-keystone-admin
++    aodh: aodh-keystone-user
++  oslo_db:
++    admin: aodh-db-admin
++    aodh: aodh-db-user
++  oslo_messaging:
++    admin: aodh-rabbitmq-admin
++    aodh: aodh-rabbitmq-user
++
++bootstrap:
++  enabled: false
++  ks_user: aodh
++  script: |
++    openstack token issue
++
++# typically overriden by environmental
++# values, but should include all endpoints
++# required by this chart
++endpoints:
++  cluster_domain_suffix: cluster.local
++  local_image_registry:
++    name: docker-registry
++    namespace: docker-registry
++    hosts:
++      default: localhost
++      internal: docker-registry
++      node: localhost
++    host_fqdn_override:
++      default: null
++    port:
++      registry:
++        node: 5000
++  identity:
++    name: keystone
++    auth:
++      admin:
++        region_name: RegionOne
++        username: admin
++        password: password
++        project_name: admin
++        user_domain_name: default
++        project_domain_name: default
++      aodh:
++        role: admin
++        region_name: RegionOne
++        username: aodh
++        password: password
++        project_name: service
++        user_domain_name: service
++        project_domain_name: service
++    hosts:
++      default: keystone
++      internal: keystone-api
++    host_fqdn_override:
++      default: null
++    path:
++      default: /v3
++    scheme:
++      default: 'http'
++    port:
++      api:
++        default: 80
++        internal: 5000
++  alarming:
++    name: aodh
++    hosts:
++      default: aodh-api
++      public: aodh
++    host_fqdn_override:
++      default: null
++    path:
++      default: null
++    scheme:
++      default: 'http'
++    port:
++      api:
++        default: 8042
++        public: 80
++  oslo_db:
++    auth:
++      admin:
++        username: root
++        password: password
++      aodh:
++        username: aodh
++        password: password
++    hosts:
++      default: mariadb
++    host_fqdn_override:
++      default: null
++    path: /aodh
++    scheme: mysql+pymysql
++    port:
++      mysql:
++        default: 3306
++  oslo_cache:
++    auth:
++      # NOTE: this is used to define the value for keystone
++      # authtoken cache encryption key, if not set it will be populated
++      # automatically with a random value, but to take advantage of
++      # this feature all services should be set to use the same key,
++      # and memcache service.
++      memcache_secret_key: null
++    hosts:
++      default: memcached
++    host_fqdn_override:
++      default: null
++    port:
++      memcache:
++        default: 11211
++  oslo_messaging:
++    auth:
++      admin:
++        username: rabbitmq
++        password: password
++      aodh:
++        username: aodh
++        password: password
++    hosts:
++      default: rabbitmq
++    host_fqdn_override:
++      default: null
++    path: /aodh
++    scheme: rabbit
++    port:
++      amqp:
++        default: 5672
++      http:
++        default: 15672
++  fluentd:
++    namespace: null
++    name: fluentd
++    hosts:
++      default: fluentd-logging
++    host_fqdn_override:
++      default: null
++    path:
++      default: null
++    scheme: 'http'
++    port:
++      service:
++        default: 24224
++      metrics:
++        default: 24220
++
++manifests:
++  configmap_bin: true
++  configmap_etc: true
++  cron_job_alarms_cleaner: true
++  deployment_api: true
++  deployment_evaluator: true
++  deployment_listener: true
++  deployment_notifier: true
++  ingress_api: true
++  job_bootstrap: true
++  job_db_drop: false
++  job_db_init: true
++  job_image_repo_sync: true
++  job_rabbit_init: true
++  job_db_sync: true
++  job_ks_endpoints: true
++  job_ks_service: true
++  job_ks_user: true
++  pdb_api: true
++  pod_aodh_test: true
++  secret_db: true
++  secret_keystone: true
++  secret_rabbitmq: true
++  service_api: true
++  service_ingress_api: true
+diff --git a/tools/deployment/multinode/250-aodh.sh b/tools/deployment/multinode/250-aodh.sh
+new file mode 100755
+index 00000000..41e398a6
+--- /dev/null
++++ b/tools/deployment/multinode/250-aodh.sh
+@@ -0,0 +1,34 @@
++#!/bin/bash
++
++# Copyright 2019 The Openstack-Helm Authors.
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++set -xe
++
++#NOTE: Wait for deploy
++helm upgrade --install aodh ./aodh \
++  --namespace=openstack \
++  --set pod.replicas.api=2 \
++  --set pod.replicas.evaluator=2 \
++  --set pod.replicas.listener=2 \
++  --set pod.replicas.notifier=2 \
++  ${OSH_EXTRA_HELM_ARGS} \
++  ${OSH_EXTRA_HELM_ARGS_AODH}
++
++#NOTE: Wait for deploy
++./tools/deployment/common/wait-for-pods.sh openstack
++
++#NOTE: Validate Deployment info
++helm status aodh
++export OS_CLOUD=openstack_helm
++openstack service list
+diff --git a/tools/deployment/multinode/250-ceilometer.sh b/tools/deployment/multinode/260-ceilometer.sh
+similarity index 100%
+rename from tools/deployment/multinode/250-ceilometer.sh
+rename to tools/deployment/multinode/260-ceilometer.sh
+-- 
+2.16.5
+

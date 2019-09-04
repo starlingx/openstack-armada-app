@@ -1,0 +1,60 @@
+From 8b52fcc187dcb2da5fd7453dbb564d24d475dd49 Mon Sep 17 00:00:00 2001
+From: Mingyuan Qi <mingyuan.qi@intel.com>
+Date: Thu, 11 Apr 2019 14:59:11 +0800
+Subject: [PATCH 10/11] Ironic: Add pxe boot support for centos image
+
+Current script does not consider centos distro as base image.
+Different folder was checked to copy pxe files to tftpboot folder.
+
+Signed-off-by: Mingyuan Qi <mingyuan.qi@intel.com>
+---
+ .../bin/_ironic-conductor-pxe-init.sh.tpl          | 25 +++++++++++++++++-----
+ 1 file changed, 20 insertions(+), 5 deletions(-)
+
+diff --git a/ironic/templates/bin/_ironic-conductor-pxe-init.sh.tpl b/ironic/templates/bin/_ironic-conductor-pxe-init.sh.tpl
+index b8c4c4c..5fe595f 100644
+--- a/ironic/templates/bin/_ironic-conductor-pxe-init.sh.tpl
++++ b/ironic/templates/bin/_ironic-conductor-pxe-init.sh.tpl
+@@ -16,19 +16,34 @@ See the License for the specific language governing permissions and
+ limitations under the License.
+ */}}
+ 
++DISTRO_UBUNTU=$(cat /etc/*release | grep Ubuntu)
++DISTRO_CENTOS=$(cat /etc/*release | grep CentOS)
++
+ set -ex
+ 
+-#NOTE(portdirect): this works round a limitation in Kolla images
+-if ! dpkg -l ipxe; then
+-  apt-get update
+-  apt-get install ipxe -y
++if [[ ! -z $DISTRO_UBUNTU ]]; then
++  #NOTE(portdirect): this works round a limitation in Kolla images
++  if ! dpkg -l ipxe; then
++    apt-get update
++    apt-get install ipxe -y
++  fi
+ fi
+ 
+ mkdir -p /var/lib/openstack-helm/tftpboot
+ mkdir -p /var/lib/openstack-helm/tftpboot/master_images
+ 
+-for FILE in undionly.kpxe ipxe.efi; do
++for FILE in undionly.kpxe ipxe.efi pxelinux.0; do
+   if [ -f /usr/lib/ipxe/$FILE ]; then
+     cp -v /usr/lib/ipxe/$FILE /var/lib/openstack-helm/tftpboot
+   fi
++
++  # For CentOS
++  if [[ ! -z $DISTRO_CENTOS ]]; then
++    if [ -f /var/lib/tftpboot/$FILE ]; then
++      cp -v /var/lib/tftpboot/$FILE /var/lib/openstack-helm/tftpboot
++    fi
++    if [ -f /usr/share/ipxe/$FILE ]; then
++      cp -v /usr/share/ipxe/$FILE /var/lib/openstack-helm/tftpboot
++    fi
++  fi
+ done
+-- 
+1.8.3.1
+

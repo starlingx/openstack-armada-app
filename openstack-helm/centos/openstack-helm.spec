@@ -39,6 +39,7 @@ Patch17: 0017-Cinder-support-multiple-ceph-volume-backends.patch
 Patch18: 0018-Nova-add-service-token.patch
 Patch19: 0019-Add-TLS-support-for-Aodh-and-Panko-public-endpoints.patch
 Patch20: 0020-Change-cinder-bootstrap-script.patch
+Patch21: 0021-Add-config-network-item-for-novncproxy.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -69,6 +70,7 @@ Openstack Helm charts
 %patch18 -p1
 %patch19 -p1
 %patch20 -p1
+%patch21 -p1
 
 %build
 # initialize helm and build the toolkit

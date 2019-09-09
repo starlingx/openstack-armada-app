@@ -44,6 +44,12 @@ data:
       error_server:
         node_selector_key: openstack-control-plane
         node_selector_value: enabled
+    images:
+      tags:
+        image_repo_sync: null
+        ingress_module_init: null
+        ingress_routed_vip: null
+        keepalived: null
     pod:
       replicas:
         error_page: 2
@@ -92,6 +98,12 @@ data:
       error_server:
         node_selector_key: openstack-control-plane
         node_selector_value: enabled
+    images:
+      tags:
+        image_repo_sync: null
+        ingress_module_init: null
+        ingress_routed_vip: null
+        keepalived: null
     pod:
       replicas:
         error_page: 2
@@ -172,7 +184,9 @@ data:
         node_selector_value: enabled
     images:
       tags:
-        prometheus_mysql_exporter_helm_tests: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
+        prometheus_mysql_exporter: null
+        prometheus_mysql_exporter_helm_tests: null
     pod:
       affinity:
         anti:
@@ -217,6 +231,7 @@ data:
     images:
       tags:
         garbd: docker.io/starlingx/stx-mariadb:master-centos-stable-latest
+        image_repo_sync: null
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/garbd-0.1.0.tgz
@@ -256,6 +271,10 @@ data:
     monitoring:
       prometheus:
         enabled: false
+    images:
+      tags:
+        image_repo_sync: null
+        prometheus_memcached_exporter: null
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/memcached-0.1.0.tgz
@@ -304,7 +323,9 @@ data:
         node_selector_value: enabled
     images:
       tags:
-        prometheus_rabbitmq_exporter_helm_tests: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
+        prometheus_rabbitmq_exporter: null
+        prometheus_rabbitmq_exporter_helm_tests: null
         rabbitmq_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
     pod:
       affinity:
@@ -374,6 +395,7 @@ data:
         bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
         keystone_api: docker.io/starlingx/stx-keystone:master-centos-stable-latest
         keystone_credential_rotate: docker.io/starlingx/stx-keystone:master-centos-stable-latest
         keystone_credential_setup: docker.io/starlingx/stx-keystone:master-centos-stable-latest
@@ -382,6 +404,7 @@ data:
         keystone_fernet_rotate: docker.io/starlingx/stx-keystone:master-centos-stable-latest
         keystone_fernet_setup: docker.io/starlingx/stx-keystone:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        test: null
     pod:
       user:
         keystone:
@@ -486,6 +509,7 @@ data:
         bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
@@ -553,11 +577,13 @@ data:
             public: 7480
     images:
       tags:
+        ceph_config_helper: docker.io/starlingx/ceph-config-helper:v1.15.0
+        ceph_rgw: null
+        image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
         rgw_s3_admin: docker.io/starlingx/ceph-config-helper:v1.15.0
-        ceph_config_helper: docker.io/starlingx/ceph-config-helper:v1.15.0
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -631,9 +657,11 @@ data:
         glance_db_sync: docker.io/starlingx/stx-glance:master-centos-stable-latest
         glance_registry: docker.io/starlingx/stx-glance:master-centos-stable-latest
         glance_storage_init: docker.io/starlingx/ceph-config-helper:v1.15.0
+        image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        test: null
     pod:
       replicas:
         api: 2
@@ -707,9 +735,11 @@ data:
         cinder_volume_usage_audit: docker.io/starlingx/stx-cinder:master-centos-stable-latest
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        test: null
     pod:
       replicas:
         api: 2
@@ -764,6 +794,7 @@ data:
         cgroup: "k8s-infra"
     images:
       tags:
+        image_repo_sync: null
         libvirt: docker.io/starlingx/stx-libvirt:master-centos-stable-latest
   source:
     type: tar
@@ -801,6 +832,7 @@ data:
         node_selector_value: enabled
     images:
       tags:
+        image_repo_sync: null
         openvswitch_db_server: docker.io/starlingx/stx-ovs:master-centos-stable-latest
         openvswitch_vswitchd: docker.io/starlingx/stx-ovs:master-centos-stable-latest
   source:
@@ -891,6 +923,7 @@ data:
         bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
@@ -904,12 +937,14 @@ data:
         nova_consoleauth: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_db_sync: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_novncproxy: docker.io/starlingx/stx-nova:master-centos-stable-latest
+        nova_novncproxy_assets: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_placement: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_scheduler: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_service_cleaner: docker.io/starlingx/ceph-config-helper:v1.15.0
         nova_spiceproxy: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_spiceproxy_assets: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_storage_init: docker.io/starlingx/ceph-config-helper:v1.15.0
+        test: null
     pod:
       # TODO(rchurch):
       # Change-Id: I5a60efd133c156ce2ecac31d22e94b25e4e837bf broke armada apply
@@ -1079,12 +1114,13 @@ data:
         node_selector_value: enabled
     images:
       tags:
-        placement: docker.io/starlingx/stx-placement:master-centos-stable-latest
+        db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        placement: docker.io/starlingx/stx-placement:master-centos-stable-latest
         placement_db_sync: docker.io/starlingx/stx-placement:master-centos-stable-latest
     pod:
       replicas:
@@ -1244,19 +1280,21 @@ data:
       tags:
         bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        neutron_db_sync: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        neutron_server: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        neutron_db_sync: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_dhcp: docker.io/starlingx/stx-neutron:master-centos-stable-latest
-        neutron_metadata: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_l3: docker.io/starlingx/stx-neutron:master-centos-stable-latest
-        neutron_openvswitch_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_linuxbridge_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        neutron_metadata: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        neutron_openvswitch_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        neutron_server: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_sriov_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_sriov_agent_init: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        test: null
     network:
       interface:
         tunnel: docker0
@@ -1390,21 +1428,22 @@ data:
         node_selector_value: enabled
     images:
       tags:
-        ironic_manage_cleaning_network: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ironic_retrive_cleaning_network: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ironic_retrive_swift_config: docker.io/starlingx/stx-heat:master-centos-stable-latest
         bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ironic_db_sync: docker.io/starlingx/stx-ironic:master-centos-stable-latest
-        ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
         ironic_api: docker.io/starlingx/stx-ironic:master-centos-stable-latest
         ironic_conductor: docker.io/starlingx/stx-ironic:master-centos-stable-latest
+        ironic_db_sync: docker.io/starlingx/stx-ironic:master-centos-stable-latest
+        ironic_manage_cleaning_network: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ironic_pxe: docker.io/starlingx/stx-ironic:master-centos-stable-latest
         ironic_pxe_init: docker.io/starlingx/stx-ironic:master-centos-stable-latest
         ironic_pxe_http: docker.io/nginx:1.13.3
+        ironic_retrive_cleaning_network: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        ironic_retrive_swift_config: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
     conf:
       ironic:
         DEFAULT:
@@ -1505,9 +1544,11 @@ data:
         heat_engine: docker.io/starlingx/stx-heat:master-centos-stable-latest
         heat_engine_cleaner: docker.io/starlingx/stx-heat:master-centos-stable-latest
         heat_purge_deleted: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        test: null
     conf:
       policy:
         stacks:global_index: rule:context_is_admin
@@ -1560,15 +1601,16 @@ data:
   values:
     images:
       tags:
-        bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        aodh_api: docker.io/starlingx/stx-aodh:master-centos-stable-latest
         aodh_alarms_cleaner: docker.io/starlingx/stx-aodh:master-centos-stable-latest
+        aodh_api: docker.io/starlingx/stx-aodh:master-centos-stable-latest
         aodh_db_sync: docker.io/starlingx/stx-aodh:master-centos-stable-latest
         aodh_evaluator: docker.io/starlingx/stx-aodh:master-centos-stable-latest
         aodh_listener: docker.io/starlingx/stx-aodh:master-centos-stable-latest
         aodh_notifier: docker.io/starlingx/stx-aodh:master-centos-stable-latest
+        bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
@@ -1630,6 +1672,7 @@ data:
         gnocchi_resources_cleaner: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
         gnocchi_statsd: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
         gnocchi_storage_init: docker.io/starlingx/ceph-config-helper:v1.15.0
+        image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
@@ -1783,12 +1826,14 @@ data:
         bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        panko_db_sync: docker.io/starlingx/stx-panko:master-centos-stable-latest
-        panko_api: docker.io/starlingx/stx-panko:master-centos-stable-latest
-        panko_events_cleaner: docker.io/starlingx/stx-panko:master-centos-stable-latest
+        image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        panko_api: docker.io/starlingx/stx-panko:master-centos-stable-latest
+        panko_db_sync: docker.io/starlingx/stx-panko:master-centos-stable-latest
+        panko_events_cleaner: docker.io/starlingx/stx-panko:master-centos-stable-latest
+        test: null
     conf:
       paste:
         composite:panko+noauth:
@@ -1864,19 +1909,20 @@ data:
   values:
     images:
       tags:
-        ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        db_init: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-        db_init_mongodb: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-        ceilometer_db_sync: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
+        ceilometer_api: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
         ceilometer_central: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
+        ceilometer_collector: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
         ceilometer_compute: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
+        ceilometer_db_sync: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
         ceilometer_ipmi: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
         ceilometer_notification: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-        ceilometer_collector: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-        ceilometer_api: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-        test: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
+        db_init: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
+        db_init_mongodb: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
+        image_repo_sync: null
+        ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        test: null
     dependencies:
       static:
         central:
@@ -2390,6 +2436,7 @@ data:
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
         horizon: docker.io/starlingx/stx-horizon:master-centos-stable-latest
         horizon_db_sync: docker.io/starlingx/stx-horizon:master-centos-stable-latest
+        image_repo_sync: null
     network:
       node_port:
         enabled: 'true'

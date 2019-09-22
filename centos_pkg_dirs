@@ -1,3 +1,4 @@
 openstack-helm
 openstack-helm-infra
 stx-openstack-helm
+python-k8sapp-openstack

@@ -21,6 +21,7 @@ BuildRequires: helm
 BuildRequires: openstack-helm-infra
 Requires: openstack-helm-infra
 Requires: openstack-helm
+Requires: python-k8sapp-openstack-wheels
 
 %description
 StarlingX Openstack Application Helm charts

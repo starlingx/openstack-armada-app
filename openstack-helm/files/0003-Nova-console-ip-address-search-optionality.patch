@@ -1,7 +1,7 @@
 From 64b22037b53e6423c465367c26a6d7255768ae17 Mon Sep 17 00:00:00 2001
 From: Gerry Kopec <Gerry.Kopec@windriver.com>
 Date: Wed, 27 Mar 2019 00:35:57 -0400
-Subject: [PATCH 05/11] Nova console/ip address search optionality
+Subject: [PATCH 03] Nova console/ip address search optionality
 
 Add options to nova to enable/disable the use of:
 1. the vnc or spice server proxyclient address found by the console
@@ -20,11 +20,11 @@ Signed-off-by: Gerry Kopec <Gerry.Kopec@windriver.com>
 Signed-off-by: Robert Church <robert.church@windriver.com>
 ---
  nova/templates/bin/_nova-compute.sh.tpl | 6 +++++-
- nova/values.yaml                        | 2 ++
- 2 files changed, 7 insertions(+), 1 deletion(-)
+ nova/values.yaml                        | 3 ++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
-index c80da6d6..4927908a 100644
+index c80da6d..4927908 100644
 --- a/nova/templates/bin/_nova-compute.sh.tpl
 +++ b/nova/templates/bin/_nova-compute.sh.tpl
 @@ -20,6 +20,10 @@ set -ex
@@ -41,25 +41,26 @@ index c80da6d6..4927908a 100644
 +      --config-file /tmp/pod-shared/nova-hypervisor.conf
 +{{- end }}
 diff --git a/nova/values.yaml b/nova/values.yaml
-index 8599027a..0887cecc 100644
+index 29512ca..7ba2925 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -440,6 +440,7 @@ console:
+@@ -461,7 +461,7 @@ console:
      vncproxy:
        # IF blank, search default routing interface
        vncserver_proxyclient_interface:
+-
 +  address_search_enabled: true
- 
  ssh:
    key_types:
-@@ -1433,6 +1434,7 @@ conf:
+     - rsa
+@@ -1598,6 +1598,7 @@ conf:
      # If this option is set to None, the hostname of the migration target compute node will be used.
      live_migration_interface:
    hypervisor:
 +    address_search_enabled: true
      # my_ip can be set automatically through this interface name.
      host_interface:
-   nova:
+   # This list is the keys to exclude from the config file ingested by nova-compute
 -- 
-2.16.5
+2.7.4
 

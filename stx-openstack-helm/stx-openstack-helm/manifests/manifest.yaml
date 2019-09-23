@@ -2411,6 +2411,76 @@ data:
 schema: armada/Chart/v1
 metadata:
   schema: metadata/Document/v1
+  name: openstack-fm-rest-api
+data:
+  chart_name: fm-rest-api
+  release: openstack-fm-rest-api
+  namespace: openstack
+  wait:
+    timeout: 1800
+    labels:
+      release_group: osh-openstack-fm-rest-api
+  test:
+    enabled: false
+  install:
+    no_hooks: false
+  upgrade:
+    no_hooks: false
+    pre:
+      delete:
+        - type: job
+          labels:
+            release_group: osh-openstack-fm-rest-api
+            component: db-init
+        - type: job
+          labels:
+            release_group: osh-openstack-fm-rest-api
+            component: db-sync
+        - type: job
+          labels:
+            release_group: osh-openstack-fm-rest-api
+            component: ks-user
+        - type: job
+          labels:
+            release_group: osh-openstack-fm-rest-api
+            component: ks-service
+        - type: job
+          labels:
+            release_group: osh-openstack-fm-rest-api
+            component: ks-endpoints
+  values:
+    pod:
+      affinity:
+        anti:
+          type:
+            default: requiredDuringSchedulingIgnoredDuringExecution
+    labels:
+      api:
+        node_selector_key: openstack-control-plane
+        node_selector_value: enabled
+      job:
+        node_selector_key: openstack-control-plane
+        node_selector_value: enabled
+    images:
+      tags:
+        fm_rest_api: docker.io/starlingx/stx-fm-rest-api:master-centos-stable-latest
+        ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        fm_db_sync: docker.io/starlingx/stx-fm-rest-api:master-centos-stable-latest
+        db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+  source:
+    type: tar
+    location: http://172.17.0.1/helm_charts/starlingx/fm-rest-api-0.1.0.tgz
+    subpath: fm-rest-api
+    reference: master
+  dependencies:
+    - helm-toolkit
+---
+schema: armada/Chart/v1
+metadata:
+  schema: metadata/Document/v1
   name: openstack-horizon
 data:
   chart_name: horizon
@@ -3351,6 +3421,16 @@ data:
 schema: armada/ChartGroup/v1
 metadata:
   schema: metadata/Document/v1
+  name: openstack-fm-rest-api
+data:
+  description: "Deploy Fault management"
+  sequenced: true
+  chart_group:
+    - openstack-fm-rest-api
+---
+schema: armada/ChartGroup/v1
+metadata:
+  schema: metadata/Document/v1
   name: openstack-horizon
 data:
   description: "Deploy horizon"
@@ -3390,5 +3470,6 @@ data:
     - openstack-ceph-rgw
     - openstack-compute-kit
     - openstack-heat
+    - openstack-fm-rest-api
     - openstack-horizon
     - openstack-telemetry

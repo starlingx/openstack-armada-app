@@ -9,10 +9,10 @@ Subject: [PATCH] Fix pod restarts on all workers when worker added/removed
  2 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-index ef52592..d7194af 100644
+index ab1177a..e564869 100644
 --- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 +++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-@@ -213,7 +213,7 @@ limitations under the License.
+@@ -215,7 +215,7 @@ limitations under the License.
      name uniqueness */}}
      {{- $_ := set $current_dict "dns_1123_name" dict }}
      {{- if hasKey $current_dict "matchExpressions" }}
@@ -21,7 +21,7 @@ index ef52592..d7194af 100644
      {{- else }}
        {{- $_ := set $current_dict "dns_1123_name" $name_format2 }}
      {{- end }}
-@@ -256,7 +256,7 @@ limitations under the License.
+@@ -258,7 +258,7 @@ limitations under the License.
      {{- if not $context.Values.__daemonset_yaml.spec.template.metadata }}{{- $_ := set $context.Values.__daemonset_yaml.spec.template "metadata" dict }}{{- end }}
      {{- if not $context.Values.__daemonset_yaml.spec.template.metadata.annotations }}{{- $_ := set $context.Values.__daemonset_yaml.spec.template.metadata "annotations" dict }}{{- end }}
      {{- $cmap := list $current_dict.dns_1123_name $current_dict.nodeData | include $configmap_include }}
@@ -42,5 +42,5 @@ index 1041ec0..e419e3b 100644
 +{{- include $wtf $context | toJson | sha256sum | quote -}}
  {{- end -}}
 -- 
-1.8.3.1
+2.7.4
 

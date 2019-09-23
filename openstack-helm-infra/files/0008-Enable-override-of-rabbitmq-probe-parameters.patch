@@ -14,10 +14,10 @@ Signed-off-by: Gerry Kopec <Gerry.Kopec@windriver.com>
  2 files changed, 15 insertions(+), 4 deletions(-)
 
 diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
-index afe5520..7b57c64 100644
+index e0e61e6..f71dc3e 100644
 --- a/rabbitmq/templates/statefulset.yaml
 +++ b/rabbitmq/templates/statefulset.yaml
-@@ -199,14 +199,16 @@ spec:
+@@ -200,14 +200,16 @@ spec:
                value: {{ $envAll.Values.io_thread_pool.size | quote }}
  {{- end }}
            readinessProbe:
@@ -39,10 +39,10 @@ index afe5520..7b57c64 100644
                command:
                - /tmp/rabbitmq-liveness.sh
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index 367058e..cfd151c 100644
+index 9cd3a91..2bae4cb 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
-@@ -102,6 +102,15 @@ pod:
+@@ -145,6 +145,15 @@ pod:
          limits:
            memory: "1024Mi"
            cpu: "2000m"
@@ -59,5 +59,5 @@ index 367058e..cfd151c 100644
  conf:
    enabled_plugins:
 -- 
-1.8.3.1
+2.7.4
 

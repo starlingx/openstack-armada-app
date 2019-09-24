@@ -162,6 +162,8 @@ data:
     timeout: 1800
     labels:
       release_group: osh-openstack-mariadb
+  test:
+    enabled: false
   install:
     no_hooks: false
   upgrade:
@@ -172,6 +174,8 @@ data:
           labels:
             release_group: osh-openstack-mariadb
   values:
+    manifests:
+      pod_test: false
     monitoring:
       prometheus:
         enabled: false
@@ -187,6 +191,8 @@ data:
         image_repo_sync: null
         prometheus_mysql_exporter: null
         prometheus_mysql_exporter_helm_tests: null
+        mariadb_backup: docker.io/openstackhelm/mariadb:10.2.18
+        scripted_test: null
     pod:
       affinity:
         anti:
@@ -379,7 +385,12 @@ data:
             release_group: osh-openstack-keystone
             component: test
   values:
+    manifests:
+      job_credential_cleanup: false
     endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
       identity:
         name: keystone
         namespace: openstack
@@ -399,6 +410,7 @@ data:
         keystone_api: docker.io/starlingx/stx-keystone:master-centos-stable-latest
         keystone_credential_rotate: docker.io/starlingx/stx-keystone:master-centos-stable-latest
         keystone_credential_setup: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+        keystone_credential_cleanup: null
         keystone_db_sync: docker.io/starlingx/stx-keystone:master-centos-stable-latest
         keystone_domain_manage: docker.io/starlingx/stx-keystone:master-centos-stable-latest
         keystone_fernet_rotate: docker.io/starlingx/stx-keystone:master-centos-stable-latest
@@ -521,6 +533,10 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+    endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/barbican-0.1.0.tgz
@@ -670,6 +686,10 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+    endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/glance-0.1.0.tgz
@@ -750,6 +770,10 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+    endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
     conf:
       cinder:
         DEFAULT:
@@ -867,6 +891,10 @@ data:
           labels:
             release_group: osh-openstack-nova
   values:
+    endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
     manifests:
       job_ks_endpoints: false
       ingress_osapi: false
@@ -883,6 +911,7 @@ data:
       secret_keystone_placement: false
       service_ingress_placement: false
       service_placement: false
+      deployment_consoleauth: false
     labels:
       agent:
         compute:
@@ -946,12 +975,6 @@ data:
         nova_storage_init: docker.io/starlingx/ceph-config-helper:v1.15.0
         test: null
     pod:
-      # TODO(rchurch):
-      # Change-Id: I5a60efd133c156ce2ecac31d22e94b25e4e837bf broke armada apply
-      # of this manifest. Turning it off for now. Need to determine way forward
-      # here.
-      mandatory_access_control:
-        type: null
       useHostNetwork:
         novncproxy: false
       replicas:
@@ -968,10 +991,10 @@ data:
       user:
         nova:
           uid: 0
-      # TODO:(rchurch) Change-Id: Ib8e4b93486588320fd2d562c3bc90b65844e52e5
-      # introduced readiness/liveness probes for nova. nova_scheduler probes
-      # fail and cause a long delay and eventual failure of the armada
-      # application apply. Need to determine the fix to re-enable this.
+      security_context:
+        nova:
+          pod:
+            runAsUser: 0
       probes:
         readiness:
           nova_scheduler:
@@ -991,7 +1014,6 @@ data:
           running_deleted_instance_poll_interval: 60
           mkisofs_cmd: /usr/bin/genisoimage
           network_allocate_retries: 2
-          force_raw_images: false
           concurrent_disk_operations: 2
           # Set number of block device allocate retries and interval
           # for volume create when VM boots and creates a new volume.
@@ -1214,39 +1236,84 @@ data:
           labels:
             release_group: osh-openstack-neutron
   values:
+    endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
     pod:
       replicas:
         server: 2
-      user:
-        neutron:
-          uid: 0
+      security_context:
+        neutron_dhcp_agent:
+          pod:
+            runAsUser: 0
+        neutron_l2gw_agent:
+          pod:
+            runAsUser: 0
+        neutron_bagpipe_bgp:
+          pod:
+            runAsUser: 0
+        neutron_l3_agent:
+          pod:
+            runAsUser: 0
+        neutron_lb_agent:
+          pod:
+            runAsUser: 0
+        neutron_metadata_agent:
+          pod:
+            runAsUser: 0
+        neutron_ovs_agent:
+          pod:
+            runAsUser: 0
+        neutron_server:
+          pod:
+            runAsUser: 0
+        neutron_sriov_agent:
+          pod:
+            runAsUser: 0
       affinity:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
-      # TODO:(rchurch) Change-Id: Ib99ceaabbad1d1e0faf34cc74314da9aa688fa0a
-      # introduced readiness/liveness probes for neutron. Four of the probes
-      # fail and cause a long delay and eventual failure of the armada
+      # Probes fail cause a long delay and eventual failure of the armada
       # application apply. Need to determine the fix to re-enable these.
       probes:
-        readiness:
+        dhcp_agent:
           dhcp_agent:
-            enabled: false
+            readiness:
+              enabled: false
+            liveness:
+              enabled: false
+        l3_agent:
           l3_agent:
-            enabled: false
+            readiness:
+              enabled: false
+            liveness:
+              enabled: false
+        lb_agent:
+          lb_agent:
+            readiness:
+              enabled: false
+            liveness:
+              enabled: false
+        metadata_agent:
           metadata_agent:
-            enabled: false
+            readiness:
+              enabled: false
+            liveness:
+              enabled: false
+        ovs_agent:
+          ovs_agent:
+            readiness:
+              enabled: false
+            liveness:
+              enabled: false
+        sriov_agent:
           sriov_agent:
-            enabled: false
-        liveness:
-          dhcp_agent:
-            enabled: false
-          l3_agent:
-            enabled: false
-          metadata_agent:
-            enabled: false
-          sriov_agent:
-            enabled: false
+            readiness:
+              enabled: false
+            liveness:
+              enabled: false
     labels:
       agent:
         dhcp:
@@ -1256,6 +1323,9 @@ data:
           node_selector_key: openstack-compute-node
           node_selector_value: enabled
         metadata:
+          node_selector_key: openstack-compute-node
+          node_selector_value: enabled
+        l2gw:
           node_selector_key: openstack-compute-node
           node_selector_value: enabled
       job:
@@ -1289,6 +1359,8 @@ data:
         neutron_db_sync: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_dhcp: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_l3: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        neutron_l2gw: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        neutron_openvswitch_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_linuxbridge_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_metadata: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_openvswitch_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
@@ -1296,6 +1368,7 @@ data:
         neutron_sriov_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_sriov_agent_init: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         test: null
+        neutron_bagpipe_bgp: docker.io/starlingx/stx-neutron:master-centos-stable-latest
     network:
       interface:
         tunnel: docker0
@@ -1473,6 +1546,9 @@ data:
       image:
         enabled: false
     endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
       baremetal:
         port:
           pxe_http:
@@ -1514,6 +1590,9 @@ data:
             component: test
   values:
     endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
       oslo_cache:
         hosts:
           default: heat-memcached
@@ -1623,6 +1702,10 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+    endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
     jobs:
       alarms_cleaner:
         # daily at the 35 minute mark
@@ -1967,6 +2050,9 @@ data:
       secret_db: false
       secret_mongodb: false
     endpoints:
+      oslo_messaging:
+        statefulset:
+          name: osh-openstack-rabbitmq-rabbitmq
       oslo_cache:
         hosts:
           default: memcached
@@ -2491,6 +2577,8 @@ data:
     timeout: 1800
     labels:
       release_group: osh-openstack-horizon
+  test:
+    enabled: false
   install:
     no_hooks: false
   upgrade:
@@ -2508,6 +2596,10 @@ data:
         horizon: docker.io/starlingx/stx-horizon:master-centos-stable-latest
         horizon_db_sync: docker.io/starlingx/stx-horizon:master-centos-stable-latest
         image_repo_sync: null
+        test: null
+    manifests:
+      pod_helm_test: false
+      secret_keystone: false
     network:
       node_port:
         enabled: 'true'
@@ -2526,7 +2618,51 @@ data:
                   type: Directory
                 name: horizon-branding
     conf:
+      software:
+        apache2:
+          a2dismod:
+            - status || sed -i 's/LoadModule status_module/#LoadModule status_module/' /etc/httpd/conf.modules.d/00-base.conf
+          site_dir: /etc/apache2/sites-enabled
       horizon:
+        apache: |
+          Listen 0.0.0.0:{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+          LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+          LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+
+          SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+          CustomLog /dev/stdout combined env=!forwarded
+          CustomLog /dev/stdout proxy env=forwarded
+
+          <VirtualHost *:{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+              WSGIScriptReloading On
+              WSGIDaemonProcess horizon-http processes=5 threads=1 user=horizon group=horizon display-name=%{GROUP} python-path=/var/lib/kolla/venv/lib/python2.7/site-packages
+              WSGIProcessGroup horizon-http
+              WSGIScriptAlias / /var/www/cgi-bin/horizon/django.wsgi
+              WSGIPassAuthorization On
+              RewriteEngine on
+              RewriteCond %{REQUEST_METHOD} !^(POST|PUT|GET|DELETE)
+              RewriteRule .* - [F]
+
+              <Location "/">
+                  Require all granted
+              </Location>
+
+              Alias /static /var/www/html/horizon
+              <Location "/static">
+                  SetHandler static
+              </Location>
+
+              <IfVersion >= 2.4>
+                ErrorLogFormat "%{cu}t %M"
+              </IfVersion>
+              ErrorLog /dev/stdout
+              TransferLog /dev/stdout
+
+              SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+              CustomLog /dev/stdout combined env=!forwarded
+              CustomLog /dev/stdout proxy env=forwarded
+          </Virtualhost>
         local_settings:
           config:
             # Region Modes

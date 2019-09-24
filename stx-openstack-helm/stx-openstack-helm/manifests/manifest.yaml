@@ -952,6 +952,8 @@ data:
       # here.
       mandatory_access_control:
         type: null
+      useHostNetwork:
+        novncproxy: false
       replicas:
         api_metadata: 1
         osapi: 1
@@ -1009,7 +1011,6 @@ data:
           # declared down during controller swacts, reboots, etc...
           service_down_time: 90
           long_rpc_timeout: 400
-
         libvirt:
           cpu_mode: host-model
           live_migration_completion_timeout: 180

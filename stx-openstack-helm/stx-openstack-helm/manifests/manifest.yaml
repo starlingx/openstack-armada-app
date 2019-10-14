@@ -1014,7 +1014,6 @@ data:
           running_deleted_instance_poll_interval: 60
           mkisofs_cmd: /usr/bin/genisoimage
           network_allocate_retries: 2
-          concurrent_disk_operations: 2
           # Set number of block device allocate retries and interval
           # for volume create when VM boots and creates a new volume.
           # The total block allocate retries time is set to 2 hours
@@ -1033,6 +1032,8 @@ data:
           # declared down during controller swacts, reboots, etc...
           service_down_time: 90
           long_rpc_timeout: 400
+        compute:
+          max_concurrent_disk_ops: 2
         libvirt:
           cpu_mode: host-model
           live_migration_completion_timeout: 180

@@ -59,6 +59,7 @@ conf:
       bind_port: 25000
       remote_host: keystone-api.openstack.svc.cluster.local
       remote_port: 5000
+      sync_endpoint: identity_openstack
 
   paste:
     pipeline:dcorch-api-proxy:

@@ -1,7 +1,7 @@
 From 4f6701c4cab07d9f54012e2a143173803f97ff3d Mon Sep 17 00:00:00 2001
 From: Irina Mihai <irina.mihai@windriver.com>
 Date: Tue, 26 Feb 2019 17:43:53 +0000
-Subject: [PATCH 06/11] Nova chart: Support ephemeral pool creation
+Subject: [PATCH 04] Nova chart: Support ephemeral pool creation
 
 If libvirt images_type is rbd, then we need to have the
 images_rbd_pool present. These changes add a new job
@@ -17,14 +17,14 @@ Signed-off-by: Robert Church <robert.church@windriver.com>
  nova/templates/bin/_nova-storage-init.sh.tpl |  75 +++++++++++++
  nova/templates/configmap-bin.yaml            |   4 +-
  nova/templates/job-storage-init.yaml         | 155 +++++++++++++++++++++++++++
- nova/values.yaml                             |  18 ++++
- 4 files changed, 251 insertions(+), 1 deletion(-)
+ nova/values.yaml                             |  19 +++-
+ 4 files changed, 251 insertions(+), 2 deletions(-)
  create mode 100644 nova/templates/bin/_nova-storage-init.sh.tpl
  create mode 100644 nova/templates/job-storage-init.yaml
 
 diff --git a/nova/templates/bin/_nova-storage-init.sh.tpl b/nova/templates/bin/_nova-storage-init.sh.tpl
 new file mode 100644
-index 00000000..f79fcff0
+index 0000000..f79fcff
 --- /dev/null
 +++ b/nova/templates/bin/_nova-storage-init.sh.tpl
 @@ -0,0 +1,75 @@
@@ -104,7 +104,7 @@ index 00000000..f79fcff0
 +fi
 +
 diff --git a/nova/templates/configmap-bin.yaml b/nova/templates/configmap-bin.yaml
-index c58b90bd..268434fd 100644
+index c58b90b..268434f 100644
 --- a/nova/templates/configmap-bin.yaml
 +++ b/nova/templates/configmap-bin.yaml
 @@ -1,5 +1,5 @@
@@ -125,7 +125,7 @@ index c58b90bd..268434fd 100644
    cell-setup.sh: |
 diff --git a/nova/templates/job-storage-init.yaml b/nova/templates/job-storage-init.yaml
 new file mode 100644
-index 00000000..7d057fb9
+index 0000000..7d057fb
 --- /dev/null
 +++ b/nova/templates/job-storage-init.yaml
 @@ -0,0 +1,155 @@
@@ -285,18 +285,18 @@ index 00000000..7d057fb9
 +{{- end }}
 +
 diff --git a/nova/values.yaml b/nova/values.yaml
-index 0887cecc..7245cf82 100644
+index 7ba2925..97ef1b5 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
 @@ -87,6 +87,7 @@ images:
      nova_service_cleaner: 'docker.io/port/ceph-config-helper:v1.10.3'
-     nova_spiceproxy: docker.io/openstackhelm/nova:ocata
+     nova_spiceproxy: docker.io/openstackhelm/nova:ocata-ubuntu_xenial
      nova_spiceproxy_assets: 'docker.io/kolla/ubuntu-source-nova-spicehtml5proxy:ocata'
 +    nova_storage_init: 'docker.io/port/ceph-config-helper:v1.10.3'
      test: docker.io/xrally/xrally-openstack:1.3.0
      image_repo_sync: docker.io/docker:17.07.0
    local_registry:
-@@ -461,6 +462,14 @@ conf:
+@@ -556,6 +557,14 @@ conf:
        user: "cinder"
        keyring: null
        secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
@@ -311,7 +311,7 @@ index 0887cecc..7245cf82 100644
    ssh: |
      Host *
        StrictHostKeyChecking no
-@@ -1625,6 +1634,7 @@ secrets:
+@@ -1797,6 +1806,7 @@ secrets:
      placement:
        placement:
          public: placement-tls-public
@@ -319,10 +319,11 @@ index 0887cecc..7245cf82 100644
  
  # typically overridden by environmental
  # values, but should include all endpoints
-@@ -2239,6 +2249,13 @@ pod:
+@@ -2482,7 +2492,13 @@ pod:
          limits:
            memory: "1024Mi"
            cpu: "2000m"
+-
 +      storage_init:
 +        requests:
 +          memory: "128Mi"
@@ -330,10 +331,10 @@ index 0887cecc..7245cf82 100644
 +        limits:
 +          memory: "1024Mi"
 +          cpu: "2000m"
- 
  network_policy:
    nova:
-@@ -2302,6 +2319,7 @@ manifests:
+     # TODO(lamt): Need to tighten this ingress for security.
+@@ -2545,6 +2561,7 @@ manifests:
    job_ks_placement_service: true
    job_ks_placement_user: true
    job_cell_setup: true
@@ -342,5 +343,5 @@ index 0887cecc..7245cf82 100644
    pdb_placement: true
    pdb_osapi: true
 -- 
-2.16.5
+2.7.4
 

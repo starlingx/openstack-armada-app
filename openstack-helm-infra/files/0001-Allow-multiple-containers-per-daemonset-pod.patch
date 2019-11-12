@@ -18,10 +18,10 @@ Signed-off-by: Robert Church <robert.church@windriver.com>
  1 file changed, 7 deletions(-)
 
 diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-index 743bd6b..c02de9e 100644
+index e352bc9..10ab166 100644
 --- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 +++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-@@ -223,13 +223,6 @@ limitations under the License.
+@@ -225,13 +225,6 @@ limitations under the License.
      {{- if not $context.Values.__daemonset_yaml.metadata.name }}{{- $_ := set $context.Values.__daemonset_yaml.metadata "name" dict }}{{- end }}
      {{- $_ := set $context.Values.__daemonset_yaml.metadata "name" $current_dict.dns_1123_name }}
  
@@ -36,5 +36,5 @@ index 743bd6b..c02de9e 100644
      {{- $_ := set $context.Values "__volume_list" list }}
      {{- range $current_volume := $context.Values.__daemonset_yaml.spec.template.spec.volumes }}
 -- 
-2.16.5
+2.7.4
 

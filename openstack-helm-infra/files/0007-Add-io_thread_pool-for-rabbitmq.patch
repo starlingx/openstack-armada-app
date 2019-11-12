@@ -10,10 +10,10 @@ Signed-off-by: Bin Yang <bin.yang@intel.com>
  2 files changed, 12 insertions(+)
 
 diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
-index 1016f7f..afe5520 100644
+index 41dc198..e0e61e6 100644
 --- a/rabbitmq/templates/statefulset.yaml
 +++ b/rabbitmq/templates/statefulset.yaml
-@@ -111,6 +111,10 @@ spec:
+@@ -105,6 +105,10 @@ spec:
                    key: RABBITMQ_ADMIN_PASSWORD
              - name: RABBITMQ_DEFINITION_FILE
                value: "{{ index $envAll.Values.conf.rabbitmq "management.load_definitions" }}"
@@ -22,9 +22,9 @@ index 1016f7f..afe5520 100644
 +              value: {{ $envAll.Values.io_thread_pool.size | quote }}
 +{{- end }}
            volumeMounts:
-             - name: rabbitmq-data
-               mountPath: /var/lib/rabbitmq
-@@ -190,6 +194,10 @@ spec:
+             - name: pod-tmp
+               mountPath: /tmp
+@@ -191,6 +195,10 @@ spec:
                value: "{{ tuple "oslo_messaging" "internal" "amqp" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
              - name: PORT_CLUSTERING
                value: "{{ add (tuple "oslo_messaging" "internal" "amqp" . | include "helm-toolkit.endpoints.endpoint_port_lookup") 20000 }}"
@@ -36,10 +36,10 @@ index 1016f7f..afe5520 100644
              initialDelaySeconds: 10
              timeoutSeconds: 10
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index bdc730a..367058e 100644
+index 6c95787..9cd3a91 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
-@@ -290,6 +290,10 @@ volume:
+@@ -334,6 +334,10 @@ volume:
    class_name: general
    size: 256Mi
  

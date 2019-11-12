@@ -36,10 +36,10 @@ index 0000000..fc279cd
 +{{- include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendServiceType" "metric" ) }}
 +{{- end }}
 diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
-index 2d5f48b..73e245f 100644
+index a4496b7..394e82a 100644
 --- a/gnocchi/values.yaml
 +++ b/gnocchi/values.yaml
-@@ -470,6 +470,10 @@ secrets:
+@@ -472,6 +472,10 @@ secrets:
      admin: gnocchi-db-indexer-admin
      gnocchi: gnocchi-db-indexer-user
    rbd: gnocchi-rbd-keyring
@@ -50,7 +50,7 @@ index 2d5f48b..73e245f 100644
  
  bootstrap:
    enabled: false
-@@ -536,6 +540,13 @@ endpoints:
+@@ -538,6 +542,13 @@ endpoints:
        public: gnocchi
      host_fqdn_override:
        default: null
@@ -64,7 +64,7 @@ index 2d5f48b..73e245f 100644
      path:
        default: null
      scheme:
-@@ -631,6 +642,7 @@ manifests:
+@@ -633,6 +644,7 @@ manifests:
    pod_gnocchi_test: true
    secret_db: true
    secret_keystone: true
@@ -73,5 +73,5 @@ index 2d5f48b..73e245f 100644
    service_ingress_api: true
    service_statsd: true
 -- 
-1.8.3.1
+2.7.4
 

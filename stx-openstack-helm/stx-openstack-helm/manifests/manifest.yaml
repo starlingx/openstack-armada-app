@@ -1400,7 +1400,6 @@ data:
           pnet_audit_enabled: false
           driver: messagingv2
           enable_proxy_headers_parsing: true
-          lock_path: /var/run/neutron/lock
           log_format: '[%(name)s] %(message)s'
           policy_file: /etc/neutron/policy.json
           service_plugins: router,network_segment_range
@@ -1411,6 +1410,8 @@ data:
           # Increase from default of 75 seconds to avoid agents being declared
           # down during controller swacts, reboots, etc...
           agent_down_time: 180
+        oslo_concurrency:
+          lock_path: /var/run/neutron/lock
         agent:
           root_helper: sudo
         vhost:

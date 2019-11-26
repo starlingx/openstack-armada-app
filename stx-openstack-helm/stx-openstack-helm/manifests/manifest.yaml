@@ -2643,7 +2643,7 @@ data:
               WSGIScriptAlias / /var/www/cgi-bin/horizon/django.wsgi
               WSGIPassAuthorization On
               RewriteEngine on
-              RewriteCond %{REQUEST_METHOD} !^(POST|PUT|GET|DELETE)
+              RewriteCond %{REQUEST_METHOD} !^(POST|PUT|GET|DELETE|PATCH)
               RewriteRule .* - [F]
 
               <Location "/">

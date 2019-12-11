@@ -93,8 +93,8 @@ endpoints:
   dcorch_dbsync:
     name: dcdbsync
     hosts:
-      default: dcdbsync-api
-      public: dcdbsync
+      default: dcdbsync
+      internal: dcdbsync-api
     host_fqdn_override:
       default: null
     path:

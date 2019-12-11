@@ -18,7 +18,7 @@
 {{- $osServiceName := "dcdbsync" }}
 {{- $osServiceType := "dcorch-dbsync" }}
 {{- $osServiceDescription := "DCOrch DBsync service" }}
-{{- $osServiceEndpointInterface := "internal" }}
+{{- $osServiceEndpointInterface := "admin" }}
 
 ---
 apiVersion: batch/v1

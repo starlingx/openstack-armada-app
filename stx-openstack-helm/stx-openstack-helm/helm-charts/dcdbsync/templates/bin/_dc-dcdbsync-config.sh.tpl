@@ -56,10 +56,10 @@ fi
 
 openstack service show ${SERVICE_ID}
 
-# Create endpoint (internal only)
+# Create endpoint
 ENDPOINT_ID=$( openstack endpoint list -f value \
     --region ${SERVICE_OS_REGION_NAME} \
-    --interface ${INTERFACE_NAME} \
+    --interface ${OS_SERVICE_ENDPOINT_INTERFACE} \
     --service ${OS_SERVICE_NAME} \
     | awk '{print $1}')
 

@@ -26,6 +26,7 @@ Patch04: 0004-Nova-chart-Support-ephemeral-pool-creation.patch
 Patch05: 0005-Nova-Add-support-for-disabling-Readiness-Liveness-pr.patch
 Patch06: 0006-Add-Placement-Chart.patch
 Patch07: 0007-Support-ingress-creation-for-keystone-admin-endpoint.patch
+Patch08: 0008-Check-return-value-of-get-subnets-before-iterate-for.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -43,6 +44,7 @@ Openstack Helm charts
 %patch05 -p1
 %patch06 -p1
 %patch07 -p1
+%patch08 -p1
 
 %build
 # initialize helm and build the toolkit

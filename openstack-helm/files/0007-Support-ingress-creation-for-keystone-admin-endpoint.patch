@@ -1,0 +1,36 @@
+From db7a5422e48b963966c5e830d6f4391006a42578 Mon Sep 17 00:00:00 2001
+From: Andy Ning <andy.ning@windriver.com>
+Date: Wed, 4 Dec 2019 13:35:44 -0500
+Subject: [PATCH] Support ingress creation for keystone admin endpoint
+
+This update added support to create ingress for custom keystone admin
+endpoint. It can be used by deployment to expose keytone admin endpoint
+to outside of the cluster by ingress.
+
+Story: 2006588
+Task: 37747
+Signed-off-by: Andy Ning <andy.ning@windriver.com>
+---
+ keystone/templates/ingress-api.yaml | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/keystone/templates/ingress-api.yaml b/keystone/templates/ingress-api.yaml
+index de36571..37c3013 100644
+--- a/keystone/templates/ingress-api.yaml
++++ b/keystone/templates/ingress-api.yaml
+@@ -18,3 +18,12 @@ limitations under the License.
+ {{- $ingressOpts := dict "envAll" . "backendServiceType" "identity" "backendPort" "ks-pub" -}}
+ {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
+ {{- end }}
++
++{{- if and .Values.manifests.ingress_api .Values.network.api.ingress.admin }}
++{{ $ingressNamePublic := tuple "identity" "public" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
++{{ $ingressNameAdmin := tuple "identity" "admin" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
++{{- if not (eq $ingressNamePublic $ingressNameAdmin) }}
++{{- $ingressOpts := dict "envAll" . "backendServiceType" "identity" "backendPort" "ks-pub" "endpoint" "admin" -}}
++{{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
++{{- end }}
++{{- end }}
+-- 
+1.8.3.1
+

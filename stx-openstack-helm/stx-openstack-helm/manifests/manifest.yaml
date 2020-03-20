@@ -333,6 +333,8 @@ data:
         prometheus_rabbitmq_exporter: null
         prometheus_rabbitmq_exporter_helm_tests: null
         rabbitmq_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        scripted_test: docker.io/rabbitmq:3.7.24-management
+        rabbitmq: docker.io/rabbitmq:3.7.24
     pod:
       affinity:
         anti:

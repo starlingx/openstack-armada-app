@@ -1,0 +1,93 @@
+From 8b095bbcbf490da064c6480607c27e30c915b26e Mon Sep 17 00:00:00 2001
+From: Zhipeng Liu <zhipengs.liu@intel.com>
+Date: Fri, 20 Mar 2020 23:37:20 +0800
+Subject: [PATCH] Fix rabbitmq could not bind port to ipv6 address issue
+
+Signed-off-by: Zhipeng Liu <zhipengs.liu@intel.com>
+---
+ rabbitmq/templates/configmap-etc.yaml | 11 ++++++++++-
+ rabbitmq/templates/statefulset.yaml   | 10 ++++++++++
+ rabbitmq/values.yaml                  |  7 +++++--
+ 3 files changed, 25 insertions(+), 3 deletions(-)
+
+diff --git a/rabbitmq/templates/configmap-etc.yaml b/rabbitmq/templates/configmap-etc.yaml
+index 87f25f5..ca05c8e 100644
+--- a/rabbitmq/templates/configmap-etc.yaml
++++ b/rabbitmq/templates/configmap-etc.yaml
+@@ -21,7 +21,9 @@ limitations under the License.
+ {{- $_ := print "kubernetes.default.svc." $envAll.Values.endpoints.cluster_domain_suffix | set $envAll.Values.conf.rabbitmq.cluster_formation.k8s "host" -}}
+ {{- end -}}
+ 
+-{{- $_ := print "0.0.0.0:" ( tuple "oslo_messaging" "internal" "amqp" . | include "helm-toolkit.endpoints.endpoint_port_lookup") | set $envAll.Values.conf.rabbitmq.listeners.tcp "1" -}}
++{{- $_ := print ":::" ( tuple "oslo_messaging" "internal" "amqp" . | include "helm-toolkit.endpoints.endpoint_port_lookup") | set $envAll.Values.conf.rabbitmq.listeners.tcp "1" -}}
++
++{{- $_ := tuple "oslo_messaging" "internal" "http" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | set $envAll.Values.conf.rabbitmq "management.listener.port" -}}
+ 
+ ---
+ apiVersion: v1
+@@ -33,4 +35,11 @@ data:
+ {{ tuple "etc/_enabled_plugins.tpl" . | include  "helm-toolkit.utils.template" | indent 4 }}
+   rabbitmq.conf: |
+ {{ include "rabbitmq.utils.to_rabbit_config" $envAll.Values.conf.rabbitmq | indent 4 }}
++{{- if .Values.manifests.config_ipv6 }}
++  rabbitmq-env.conf: |
++    SERVER_ADDITIONAL_ERL_ARGS="+A 128 -kernel inetrc '/etc/rabbitmq/erl_inetrc' -proto_dist inet6_tcp"
++    CTL_ERL_ARGS="-proto_dist inet6_tcp"
++  erl_inetrc: |
++    {inet6, true}.
++{{- end }}
+ {{ end }}
+diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
+index 41dc198..3597c83 100644
+--- a/rabbitmq/templates/statefulset.yaml
++++ b/rabbitmq/templates/statefulset.yaml
+@@ -228,6 +228,16 @@ spec:
+               mountPath: /etc/rabbitmq/rabbitmq.conf
+               subPath: rabbitmq.conf
+               readOnly: true
++{{- if .Values.manifests.config_ipv6 }}
++            - name: rabbitmq-etc
++              mountPath: /etc/rabbitmq/rabbitmq-env.conf
++              subPath: rabbitmq-env.conf
++              readOnly: true
++            - name: rabbitmq-etc
++              mountPath: /etc/rabbitmq/erl_inetrc
++              subPath: erl_inetrc
++              readOnly: true
++{{- end }}
+       volumes:
+         - name: pod-tmp
+           emptyDir: {}
+diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
+index 6c95787..f00b23b 100644
+--- a/rabbitmq/values.yaml
++++ b/rabbitmq/values.yaml
+@@ -36,9 +36,9 @@ images:
+     prometheus_rabbitmq_exporter: docker.io/kbudde/rabbitmq-exporter:v0.21.0
+     prometheus_rabbitmq_exporter_helm_tests: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+     rabbitmq_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
+-    rabbitmq: docker.io/rabbitmq:3.7.13
++    rabbitmq: docker.io/rabbitmq:3.7.24
+     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+-    scripted_test: docker.io/rabbitmq:3.7.13-management
++    scripted_test: docker.io/rabbitmq:3.7.24-management
+     image_repo_sync: docker.io/docker:17.07.0
+   pull_policy: "IfNotPresent"
+   local_registry:
+@@ -171,6 +171,8 @@ conf:
+     queue_master_locator: min-masters
+     loopback_users.guest: "false"
+     management.load_definitions: "/var/lib/rabbitmq/definitions.json"
++    management.listener.ip: "::"
++    management.listener.port: null
+ 
+ dependencies:
+   dynamic:
+@@ -353,3 +355,4 @@ manifests:
+   service_ingress_management: true
+   service: true
+   statefulset: true
++  config_ipv6: false
+-- 
+2.7.4
+

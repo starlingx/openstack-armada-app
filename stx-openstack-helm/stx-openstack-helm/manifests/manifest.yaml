@@ -61,6 +61,7 @@ data:
     conf:
       ingress:
         worker-processes: '4'
+        bind-address: "::"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/ingress-0.1.0.tgz
@@ -115,6 +116,7 @@ data:
     conf:
       ingress:
         worker-processes: '4'
+        bind-address: "::"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/ingress-0.1.0.tgz
@@ -433,6 +435,34 @@ data:
         keystone:
           pod:
             runAsUser: 0
+    conf:
+      wsgi_keystone: |
+        {{- $portInt := tuple "identity" "internal" "api" $ | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+        Listen :::{{ $portInt }}
+
+        LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+        LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+
+        <VirtualHost *:{{ $portInt }}>
+            WSGIDaemonProcess keystone-public processes=5 threads=1 user=keystone group=keystone display-name=%{GROUP}
+            WSGIProcessGroup keystone-public
+            WSGIScriptAlias / /var/www/cgi-bin/keystone/keystone-wsgi-public
+            WSGIApplicationGroup %{GLOBAL}
+            WSGIPassAuthorization On
+            <IfVersion >= 2.4>
+              ErrorLogFormat "%{cu}t %M"
+            </IfVersion>
+            ErrorLog /dev/stdout
+
+            SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+            CustomLog /dev/stdout combined env=!forwarded
+            CustomLog /dev/stdout proxy env=forwarded
+        </VirtualHost>
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/keystone-0.1.0.tgz
@@ -473,6 +503,10 @@ data:
       tags:
         keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-centos-stable-latest
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    conf:
+      keystone_api_proxy:
+        identity:
+          bind_host: "::"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/keystone-api-proxy-0.1.0.tgz
@@ -539,6 +573,10 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+    conf:
+      barbican:
+        barbican_api:
+          bind_host: "::"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/barbican-0.1.0.tgz
@@ -692,6 +730,10 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+    conf:
+      glance:
+        DEFAULT:
+          bind_host: "::"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/glance-0.1.0.tgz
@@ -780,6 +822,7 @@ data:
       cinder:
         DEFAULT:
           backup_driver: cinder.backup.drivers.ceph.CephBackupDriver
+          osapi_volume_listen: "::"
     storage: rbd
   source:
     type: tar
@@ -818,6 +861,8 @@ data:
         enabled: true
       kubernetes:
         cgroup: "k8s-infra"
+    libvirt:
+      listen_addr: "::"
     images:
       tags:
         image_repo_sync: null
@@ -1034,6 +1079,16 @@ data:
           # declared down during controller swacts, reboots, etc...
           service_down_time: 90
           long_rpc_timeout: 400
+          osapi_compute_listen: "::"
+          metadata_listen: "::"
+          metadata_host: "::"
+          my_ip: "::"
+        vnc:
+          novncproxy_host: "::"
+          vncserver_listen: "::"
+        spice:
+          html5proxy_host: "::"
+          server_listen: "::"
         compute:
           max_concurrent_disk_ops: 2
         libvirt:
@@ -1162,6 +1217,35 @@ data:
       placement:
         DEFAULT:
           log_config_append: /etc/placement/logging.conf
+      wsgi_placement: |
+        Listen :::{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+        LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+        LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+        <VirtualHost *:{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+            WSGIDaemonProcess placement-api processes=4 threads=1 user=placement group=placement display-name=%{GROUP}
+            WSGIProcessGroup placement-api
+            WSGIScriptAlias / /var/www/cgi-bin/placement/placement-api
+            WSGIApplicationGroup %{GLOBAL}
+            WSGIPassAuthorization On
+            <IfVersion >= 2.4>
+              ErrorLogFormat "%{cu}t %M"
+            </IfVersion>
+            ErrorLog /dev/stdout
+            SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+            CustomLog /dev/stdout combined env=!forwarded
+            CustomLog /dev/stdout proxy env=forwarded
+        </VirtualHost>
+        Alias /placement /var/www/cgi-bin/placement/placement-api
+        <Location /placement>
+            SetHandler wsgi-script
+            Options +ExecCGI
+            WSGIProcessGroup placement-api
+            WSGIApplicationGroup %{GLOBAL}
+            WSGIPassAuthorization On
+        </Location>
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/placement-0.1.0.tgz
@@ -1207,6 +1291,11 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+    conf:
+      nova_api_proxy:
+        DEFAULT:
+          osapi_proxy_listen: "::"
+          nfvi_compute_listen: "::"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/nova-api-proxy-0.1.0.tgz
@@ -1413,6 +1502,7 @@ data:
           # Increase from default of 75 seconds to avoid agents being declared
           # down during controller swacts, reboots, etc...
           agent_down_time: 180
+          bind_host: "::"
         oslo_concurrency:
           lock_path: /var/run/neutron/lock
         agent:
@@ -1637,6 +1727,13 @@ data:
       policy:
         stacks:global_index: rule:context_is_admin
         software_configs:global_index: rule:context_is_admin
+      heat:
+        heat_api:
+          bind_host: "::"
+        heat_api_cloudwatch:
+          bind_host: "::"
+        heat_api_cfn:
+          bind_host: "::"
     pod:
       replicas:
         api: 2
@@ -1714,6 +1811,31 @@ data:
       alarms_cleaner:
         # daily at the 35 minute mark
         cron: "35 */24 * * *"
+    conf:
+      wsgi_aodh: |
+        Listen :::{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+        LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+        LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+
+        <VirtualHost *:{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+            WSGIDaemonProcess aodh processes=2 threads=1 user=aodh group=aodh display-name=%{GROUP}
+            WSGIProcessGroup aodh
+            WSGIScriptAlias / /var/www/cgi-bin/aodh/aodh-api
+            WSGIApplicationGroup %{GLOBAL}
+            <IfVersion >= 2.4>
+              ErrorLogFormat "%{cu}t %M"
+            </IfVersion>
+
+            ErrorLog /dev/stdout
+            SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+            CustomLog /dev/stdout combined env=!forwarded
+            CustomLog /dev/stdout proxy env=forwarded
+        </VirtualHost>
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/aodh-0.1.0.tgz
@@ -1771,7 +1893,7 @@ data:
         keystone_authtoken:
           interface: internal
       apache: |
-        Listen 0.0.0.0:{{ tuple "metric" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+        Listen :::{{ tuple "metric" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
@@ -1955,6 +2077,30 @@ data:
         filter:http_proxy_to_wsgi:
           paste.filter_factory: oslo_middleware.http_proxy_to_wsgi:HTTPProxyToWSGI.factory
           oslo_config_project: panko
+      wsgi_panko: |
+        Listen :::{{ tuple "event" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+        LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+        LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+
+        <VirtualHost *:{{ tuple "event" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+            WSGIDaemonProcess panko processes=2 threads=1 user=panko group=panko display-name=%{GROUP}
+            WSGIProcessGroup panko
+            WSGIScriptAlias / /var/www/cgi-bin/panko/panko-api
+            WSGIApplicationGroup %{GLOBAL}
+            <IfVersion >= 2.4>
+              ErrorLogFormat "%{cu}t %M"
+            </IfVersion>
+
+            ErrorLog /dev/stdout
+            SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+            CustomLog /dev/stdout combined env=!forwarded
+            CustomLog /dev/stdout proxy env=forwarded
+        </VirtualHost>
     jobs:
       events_cleaner:
         # hourly at the 10 minute mark
@@ -2486,6 +2632,33 @@ data:
             attributes:
               controller: resource_metadata.controller
               switch: resource_metadata.switch
+    wsgi_ceilometer: |
+      Listen :::{{ tuple "metering" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+      LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+
+      <VirtualHost *:{{ tuple "metering" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+          LogLevel info
+          WSGIDaemonProcess ceilometer-api processes=2 threads=1 user=ceilometer group=ceilometer display-name=%{GROUP} python-path=/var/lib/kolla/venv/lib/python2.7/site-packages
+          WSGIProcessGroup ceilometer-api
+
+          WSGIScriptReloading On
+          WSGIScriptAlias / /var/lib/kolla/venv/lib/python2.7/site-packages/ceilometer/api/app.wsgi
+
+          WSGIApplicationGroup %{GLOBAL}
+
+          <Directory "/var/lib/kolla/venv/lib/python2.7/site-packages/ceilometer/api">
+              <IfVersion >= 2.4>
+                  Require all granted
+              </IfVersion>
+              <IfVersion < 2.4>
+                  Order allow,deny
+                  Allow from all
+              </IfVersion>
+          </Directory>
+          ErrorLog /dev/stdout
+          CustomLog /dev/stdout combined
+      </VirtualHost>
     pod:
       affinity:
         anti:
@@ -2561,6 +2734,10 @@ data:
         fm_db_sync: docker.io/starlingx/stx-fm-rest-api:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    conf:
+      fm:
+        api:
+          bind_host: "::"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/fm-rest-api-0.1.0.tgz
@@ -2629,7 +2806,7 @@ data:
           site_dir: /etc/apache2/sites-enabled
       horizon:
         apache: |
-          Listen 0.0.0.0:{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+          Listen :::{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
           LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
           LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy

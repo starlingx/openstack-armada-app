@@ -1,0 +1,24 @@
+From 06ca3c8594c73d2aacc3958f6e94a4911e2caa8a Mon Sep 17 00:00:00 2001
+From: Jim Gauld <james.gauld@windriver.com>
+Date: Mon, 6 Apr 2020 09:17:47 -0400
+Subject: [PATCH] Update ingress chart for Helm v3
+
+---
+ ingress/Chart.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/ingress/Chart.yaml b/ingress/Chart.yaml
+index 70d7467..a9030e2 100644
+--- a/ingress/Chart.yaml
++++ b/ingress/Chart.yaml
+@@ -12,6 +12,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
++apiVersion: v1
+ description: OpenStack-Helm Ingress Controller
+ name: ingress
+ version: 0.1.0
+-- 
+1.8.3.1
+

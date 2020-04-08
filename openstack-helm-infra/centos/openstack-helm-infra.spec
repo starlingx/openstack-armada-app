@@ -27,8 +27,10 @@ Patch09: 0009-Fix-ipv6-address-issue-causing-mariadb-ingress-not-ready.patch
 Patch10: 0010-Fix-rabbitmq-could-not-bind-port-to-ipv6-address-iss.patch
 Patch11: 0011-Enable-override-of-mariadb-server-probe-parameters.patch
 Patch12: 0012-Mariadb-use-utf8_general_ci-collation-as-default.patch
+Patch13: 0013-Update-ingress-chart-for-Helm-v3.patch
 
 BuildRequires: helm
+BuildRequires: chartmuseum
 
 %description
 Openstack Helm Infra charts
@@ -47,27 +49,12 @@ Openstack Helm Infra charts
 %patch10 -p1
 %patch11 -p1
 %patch12 -p1
+%patch13 -p1
 
 %build
-# initialize helm and build the toolkit
-# helm init --client-only does not work if there is no networking
-# The following commands do essentially the same as: helm init
-%define helm_home %{getenv:HOME}/.helm
-mkdir %{helm_home}
-mkdir %{helm_home}/repository
-mkdir %{helm_home}/repository/cache
-mkdir %{helm_home}/repository/local
-mkdir %{helm_home}/plugins
-mkdir %{helm_home}/starters
-mkdir %{helm_home}/cache
-mkdir %{helm_home}/cache/archive
-
-# Stage a repository file that only has a local repo
-cp %{SOURCE1} %{helm_home}/repository/repositories.yaml
-
 # Host a server for the charts
-helm serve /tmp/charts --address localhost:8879 --url http://localhost:8879/charts &
-helm repo rm local
+chartmuseum --debug --port=8879 --context-path='/charts' --storage="local" --storage-local-rootdir="." &
+sleep 2
 helm repo add local http://localhost:8879/charts
 
 # Make the charts. These produce tgz files

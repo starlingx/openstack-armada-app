@@ -30,6 +30,7 @@ Patch08: 0008-Check-return-value-of-get-subnets-before-iterate-for.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
+BuildRequires: chartmuseum
 Requires: openstack-helm-infra
 
 %description
@@ -47,31 +48,12 @@ Openstack Helm charts
 %patch08 -p1
 
 %build
-# initialize helm and build the toolkit
-# helm init --client-only does not work if there is no networking
-# The following commands do essentially the same as: helm init
-%define helm_home %{getenv:HOME}/.helm
-mkdir %{helm_home}
-mkdir %{helm_home}/repository
-mkdir %{helm_home}/repository/cache
-mkdir %{helm_home}/repository/local
-mkdir %{helm_home}/plugins
-mkdir %{helm_home}/starters
-mkdir %{helm_home}/cache
-mkdir %{helm_home}/cache/archive
-
-# Stage a repository file that only has a local repo
-cp %{SOURCE1} %{helm_home}/repository/repositories.yaml
-
-# Stage a local repo index that can be updated by the build
-cp %{SOURCE2} %{helm_home}/repository/local/index.yaml
-
 # Stage helm-toolkit in the local repo
 cp %{helm_folder}/helm-toolkit-%{toolkit_version}.tgz .
 
 # Host a server for the charts
-helm serve --repo-path . &
-helm repo rm local
+chartmuseum --debug --port=8879 --context-path='/charts' --storage="local" --storage-local-rootdir="." &
+sleep 2
 helm repo add local http://localhost:8879/charts
 
 # Make the charts. These produce a tgz file

@@ -399,9 +399,10 @@ data:
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
 
         <VirtualHost *:{{ $portInt }}>
-            WSGIDaemonProcess keystone-public processes=5 threads=1 user=keystone group=keystone display-name=%{GROUP}
+            WSGIDaemonProcess keystone-public processes=5 threads=1 user=keystone group=keystone display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup keystone-public
             WSGIScriptAlias / /var/www/cgi-bin/keystone/keystone-wsgi-public
             WSGIApplicationGroup %{GLOBAL}
@@ -1176,8 +1177,9 @@ data:
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
         <VirtualHost *:{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-            WSGIDaemonProcess placement-api processes=4 threads=1 user=placement group=placement display-name=%{GROUP}
+            WSGIDaemonProcess placement-api processes=4 threads=1 user=placement group=placement display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup placement-api
             WSGIScriptAlias / /var/www/cgi-bin/placement/placement-api
             WSGIApplicationGroup %{GLOBAL}
@@ -1773,9 +1775,10 @@ data:
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
 
         <VirtualHost *:{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-            WSGIDaemonProcess aodh processes=2 threads=1 user=aodh group=aodh display-name=%{GROUP}
+            WSGIDaemonProcess aodh processes=2 threads=1 user=aodh group=aodh display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup aodh
             WSGIScriptAlias / /var/www/cgi-bin/aodh/aodh-api
             WSGIApplicationGroup %{GLOBAL}
@@ -2038,9 +2041,10 @@ data:
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
 
         <VirtualHost *:{{ tuple "event" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-            WSGIDaemonProcess panko processes=2 threads=1 user=panko group=panko display-name=%{GROUP}
+            WSGIDaemonProcess panko processes=2 threads=1 user=panko group=panko display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup panko
             WSGIScriptAlias / /var/www/cgi-bin/panko/panko-api
             WSGIApplicationGroup %{GLOBAL}
@@ -2588,10 +2592,11 @@ data:
       Listen :::{{ tuple "metering" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
       LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+      WSGISocketPrefix /var/run/httpd/wsgi
 
       <VirtualHost *:{{ tuple "metering" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
           LogLevel info
-          WSGIDaemonProcess ceilometer-api processes=2 threads=1 user=ceilometer group=ceilometer display-name=%{GROUP} python-path=/var/lib/kolla/venv/lib/python2.7/site-packages
+          WSGIDaemonProcess ceilometer-api processes=2 threads=1 user=ceilometer group=ceilometer display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
           WSGIProcessGroup ceilometer-api
 
           WSGIScriptReloading On
@@ -2766,10 +2771,11 @@ data:
           SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
           CustomLog /dev/stdout combined env=!forwarded
           CustomLog /dev/stdout proxy env=forwarded
+          WSGISocketPrefix /var/run/httpd/wsgi
 
           <VirtualHost *:{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
               WSGIScriptReloading On
-              WSGIDaemonProcess horizon-http processes=5 threads=1 user=horizon group=horizon display-name=%{GROUP} python-path=/var/lib/kolla/venv/lib/python2.7/site-packages
+              WSGIDaemonProcess horizon-http processes=5 threads=1 user=horizon group=horizon display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
               WSGIProcessGroup horizon-http
               WSGIScriptAlias / /var/www/cgi-bin/horizon/django.wsgi
               WSGIPassAuthorization On

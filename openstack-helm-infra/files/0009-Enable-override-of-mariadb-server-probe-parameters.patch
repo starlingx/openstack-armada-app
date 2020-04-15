@@ -17,61 +17,32 @@ parameters and override the related probe pareameters.
 Signed-off-by: Hu, Yong <yong.hu@intel.com>
 Co-Authored-By: Zhipeng, Liu <zhipengs.liu@intel.com>
 ---
- mariadb/templates/statefulset.yaml | 16 +++++++++-------
- mariadb/values.yaml                | 16 ++++++++++++++++
- 2 files changed, 25 insertions(+), 7 deletions(-)
+ mariadb/templates/statefulset.yaml | 3 ++-
+ mariadb/values.yaml                | 7 +++++++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
 
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 66d5339..9e3d37d 100644
+index e31d4ac..83e135f 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -14,6 +14,13 @@ See the License for the specific language governing permissions and
- limitations under the License.
- */}}
- 
-+{{- define "mariadbReadinessProbe" }}
-+exec:
-+  command:
-+    - /tmp/readiness.sh
-+{{- end }}
-+
-+
- {{- if .Values.manifests.statefulset }}
- {{- $envAll := . }}
- 
-@@ -170,13 +177,8 @@ spec:
+@@ -187,7 +187,8 @@ spec:
                exec:
                  command:
                    - /tmp/stop.sh
--          readinessProbe:
--            initialDelaySeconds: 30
--            periodSeconds: 30
--            timeoutSeconds: 3
--            exec:
--              command:
--                - /tmp/readiness.sh
+-{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 -}}
 +{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
 +{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "startup" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
            volumeMounts:
              - name: pod-tmp
                mountPath: /tmp
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index b913636..c7a70d2 100644
+index 2d75f39..444bba3 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -59,6 +59,22 @@ labels:
-     node_selector_value: enabled
- 
- pod:
-+  probes:
-+    server:
-+      mariadb:
-+        readiness:
-+          enabled: true
-+          params:
-+            initialDelaySeconds: 30
-+            periodSeconds: 30
-+            timeoutSeconds: 15
+@@ -69,6 +69,13 @@ pod:
+             initialDelaySeconds: 30
+             periodSeconds: 30
+             timeoutSeconds: 15
 +            failureThreshold: 3
 +        startup:
 +          enabled: false
@@ -82,6 +53,6 @@ index b913636..c7a70d2 100644
    security_context:
      server:
        pod:
--- 
-2.7.4
+--
+1.8.3.1
 

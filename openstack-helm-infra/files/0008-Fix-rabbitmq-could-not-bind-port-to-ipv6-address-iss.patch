@@ -1,4 +1,4 @@
-From 8b095bbcbf490da064c6480607c27e30c915b26e Mon Sep 17 00:00:00 2001
+From d6ed947c071d8eeaf646e42dae55fc0d0764d23c Mon Sep 17 00:00:00 2001
 From: Zhipeng Liu <zhipengs.liu@intel.com>
 Date: Fri, 20 Mar 2020 23:37:20 +0800
 Subject: [PATCH] Fix rabbitmq could not bind port to ipv6 address issue
@@ -38,10 +38,10 @@ index 87f25f5..ca05c8e 100644
 +{{- end }}
  {{ end }}
 diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
-index 41dc198..3597c83 100644
+index 96334de..4fb1f38 100644
 --- a/rabbitmq/templates/statefulset.yaml
 +++ b/rabbitmq/templates/statefulset.yaml
-@@ -228,6 +228,16 @@ spec:
+@@ -239,6 +239,16 @@ spec:
                mountPath: /etc/rabbitmq/rabbitmq.conf
                subPath: rabbitmq.conf
                readOnly: true
@@ -59,7 +59,7 @@ index 41dc198..3597c83 100644
          - name: pod-tmp
            emptyDir: {}
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index 6c95787..f00b23b 100644
+index ebaf43c..0824a0e 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
 @@ -36,9 +36,9 @@ images:
@@ -68,13 +68,13 @@ index 6c95787..f00b23b 100644
      rabbitmq_init: docker.io/openstackhelm/heat:ocata-ubuntu_xenial
 -    rabbitmq: docker.io/rabbitmq:3.7.13
 +    rabbitmq: docker.io/rabbitmq:3.7.24
-     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
 -    scripted_test: docker.io/rabbitmq:3.7.13-management
 +    scripted_test: docker.io/rabbitmq:3.7.24-management
      image_repo_sync: docker.io/docker:17.07.0
    pull_policy: "IfNotPresent"
    local_registry:
-@@ -171,6 +171,8 @@ conf:
+@@ -195,6 +195,8 @@ conf:
      queue_master_locator: min-masters
      loopback_users.guest: "false"
      management.load_definitions: "/var/lib/rabbitmq/definitions.json"
@@ -83,11 +83,11 @@ index 6c95787..f00b23b 100644
  
  dependencies:
    dynamic:
-@@ -353,3 +355,4 @@ manifests:
+@@ -385,3 +387,4 @@ manifests:
    service_ingress_management: true
    service: true
    statefulset: true
 +  config_ipv6: false
 -- 
-2.7.4
+1.8.3.1
 

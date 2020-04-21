@@ -25,6 +25,7 @@ Patch07: 0007-Add-io_thread_pool-for-rabbitmq.patch
 Patch08: 0008-Enable-override-of-rabbitmq-probe-parameters.patch
 Patch09: 0009-Fix-ipv6-address-issue-causing-mariadb-ingress-not-ready.patch
 Patch10: 0010-Fix-rabbitmq-could-not-bind-port-to-ipv6-address-iss.patch
+Patch11: 0011-Enable-override-of-mariadb-server-probe-parameters.patch
 
 BuildRequires: helm
 
@@ -43,6 +44,7 @@ Openstack Helm Infra charts
 %patch08 -p1
 %patch09 -p1
 %patch10 -p1
+%patch11 -p1
 
 %build
 # initialize helm and build the toolkit

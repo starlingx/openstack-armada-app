@@ -1132,7 +1132,6 @@ data:
           periodic_task_interval: -1
         service_user:
           send_service_user_token: true
-        upgrade_levels: None
         metrics:
           required: false
         workarounds:

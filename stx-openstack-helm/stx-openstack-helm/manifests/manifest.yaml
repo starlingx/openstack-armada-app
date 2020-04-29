@@ -18,61 +18,6 @@ data:
 schema: armada/Chart/v1
 metadata:
   schema: metadata/Document/v1
-  name: kube-system-ingress
-data:
-  chart_name: ingress
-  release: kube-system-ingress
-  namespace: kube-system
-  wait:
-    timeout: 1800
-    labels:
-      release_group: osh-kube-system-ingress
-  install:
-    no_hooks: false
-  upgrade:
-    no_hooks: false
-    pre:
-      delete:
-        - type: job
-          labels:
-            release_group: osh-kube-system-ingress
-  values:
-    labels:
-      server:
-        node_selector_key: openstack-control-plane
-        node_selector_value: enabled
-      error_server:
-        node_selector_key: openstack-control-plane
-        node_selector_value: enabled
-    images:
-      tags:
-        image_repo_sync: null
-        ingress_module_init: null
-        ingress_routed_vip: null
-        keepalived: null
-    pod:
-      replicas:
-        error_page: 2
-        ingress: 2
-      affinity:
-        anti:
-          type:
-            default: requiredDuringSchedulingIgnoredDuringExecution
-    conf:
-      ingress:
-        worker-processes: '4'
-        bind-address: "::"
-  source:
-    type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/ingress-0.1.0.tgz
-    subpath: ingress
-    reference: master
-  dependencies:
-    - helm-toolkit
----
-schema: armada/Chart/v1
-metadata:
-  schema: metadata/Document/v1
   name: openstack-ingress
 data:
   chart_name: ingress
@@ -3650,16 +3595,6 @@ data:
 schema: armada/ChartGroup/v1
 metadata:
   schema: metadata/Document/v1
-  name: kube-system-ingress
-data:
-  description: "System Ingress Controller"
-  sequenced: false
-  chart_group:
-    - kube-system-ingress
----
-schema: armada/ChartGroup/v1
-metadata:
-  schema: metadata/Document/v1
   name: openstack-ingress
 data:
   description: "OpenStack Ingress Controller"
@@ -3833,7 +3768,6 @@ metadata:
 data:
   release_prefix: osh
   chart_groups:
-    - kube-system-ingress
     - openstack-ingress
     - openstack-mariadb
     - openstack-memcached

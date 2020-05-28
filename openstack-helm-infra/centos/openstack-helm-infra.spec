@@ -25,6 +25,7 @@ Patch07: 0007-Fix-ipv6-address-issue-causing-mariadb-ingress-not-ready.patch
 Patch08: 0008-Fix-rabbitmq-could-not-bind-port-to-ipv6-address-iss.patch
 Patch09: 0009-Enable-override-of-mariadb-server-probe-parameters.patch
 Patch10: 0010-Mariadb-use-utf8_general_ci-collation-as-default.patch
+Patch11: 0011-Add-mariadb-database-config-override-to-support-ipv6.patch
 
 BuildRequires: helm
 BuildRequires: chartmuseum
@@ -44,6 +45,7 @@ Openstack Helm Infra charts
 %patch08 -p1
 %patch09 -p1
 %patch10 -p1
+%patch11 -p1
 
 %build
 # Host a server for the charts

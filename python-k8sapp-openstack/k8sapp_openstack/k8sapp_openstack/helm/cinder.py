@@ -153,7 +153,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         conf_backends = {}
 
         # We don't use the chart's default backends.
-        conf_backends['rbd1'] = ""
+        conf_backends['rbd1'] = {
+            'volume_driver': ''
+        }
 
         # Get tier info.
         tiers = self.dbapi.storage_tier_get_list()

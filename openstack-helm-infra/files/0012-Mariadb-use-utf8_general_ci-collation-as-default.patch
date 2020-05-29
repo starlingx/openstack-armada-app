@@ -1,0 +1,32 @@
+From 8e6de1efc32797f3ba1bc166b2b70992b3399022 Mon Sep 17 00:00:00 2001
+From: "Chen, Yan" <yan.chen@intel.com>
+Date: Fri, 29 May 2020 05:04:30 +0000
+Subject: [PATCH] mariadb: use utf8_general_ci collation as default
+
+Mariadb is using utf8_general_ci as the default collation:
+- https://mariadb.com/kb/en/mariadb/supported-character-sets-and-collations/
+
+Thus the collation server in the helm charts should be utf8_general_ci
+instead of utf8_unicode_ci.
+
+Signed-off-by: Chen, Yan <yan.chen@intel.com>
+---
+ mariadb/values.yaml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index c7a70d2..7bc4497 100755
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -307,7 +307,7 @@ conf:
+       [mysqld]
+       # Charset
+       character_set_server=utf8
+-      collation_server=utf8_unicode_ci
++      collation_server=utf8_general_ci
+       skip-character-set-client-handshake
+ 
+       # Logging
+-- 
+1.8.3.1
+

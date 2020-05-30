@@ -9,6 +9,7 @@ from k8sapp_openstack.helm import openstack
 
 from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.common import utils
 from sysinv.common.storage_backend_conf import StorageBackendConfig
 
 from sysinv.helm import common
@@ -28,6 +29,8 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
     AUTH_USERS = ['glance']
 
     def get_overrides(self, namespace=None):
+        self._rook_ceph = self._is_rook_ceph()
+
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'pod': self._get_pod_overrides(),
@@ -90,8 +93,10 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         }
 
     def _get_storage_overrides(self):
-        ceph_backend = self._get_primary_ceph_backend()
+        if self._rook_ceph:
+            return "rbd"
 
+        ceph_backend = self._get_primary_ceph_backend()
         if not ceph_backend:
             return 'pvc'
 
@@ -109,22 +114,32 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
 
     def _get_conf_overrides(self):
         ceph_backend = self._get_primary_ceph_backend()
-        if not ceph_backend:
+        if not ceph_backend and not self._rook_ceph:
             rbd_store_pool = ""
             rbd_store_user = ""
             replication = 1
+        elif self._rook_ceph:
+            rbd_store_pool = constants.CEPH_POOL_IMAGES_NAME
+            rbd_store_user = RBD_STORE_USER
+
+            replication = 2
+            if utils.is_aio_simplex_system(self.dbapi):
+                replication = 1
         else:
             rbd_store_pool = app_constants.CEPH_POOL_IMAGES_NAME
             rbd_store_user = RBD_STORE_USER
             replication, min_replication = \
                 StorageBackendConfig.get_ceph_pool_replication(self.dbapi)
 
-        # Only the primary Ceph tier is used for the glance images pool
-        rule_name = "{0}{1}{2}".format(
-            constants.SB_TIER_DEFAULT_NAMES[
-                constants.SB_TIER_TYPE_CEPH],
-            constants.CEPH_CRUSH_TIER_SUFFIX,
-            "-ruleset").replace('-', '_')
+        if not self._rook_ceph:
+            # Only the primary Ceph tier is used for the glance images pool
+            rule_name = "{0}{1}{2}".format(
+                constants.SB_TIER_DEFAULT_NAMES[
+                    constants.SB_TIER_TYPE_CEPH],
+                constants.CEPH_CRUSH_TIER_SUFFIX,
+                "-ruleset").replace('-', '_')
+        else:
+            rule_name = "storage_tier_ruleset"
 
         conf = {
             'glance': {
@@ -145,6 +160,10 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
 
         if ceph_backend:
             conf['ceph'] = self._get_ceph_overrides()
+        elif self._rook_ceph:
+            conf['ceph'] = {
+                'admin_keyring': self._get_rook_ceph_admin_keyring()
+            }
 
         return conf
 

@@ -18,6 +18,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.common import kubernetes
 from sysinv.common.storage_backend_conf import K8RbdProvisioner
 from sysinv.helm import base
 from sysinv.helm import common
@@ -491,6 +492,10 @@ class OpenstackBaseHelm(base.BaseHelm):
         return uefi_config
 
     def _get_ceph_client_overrides(self):
+        if self._is_rook_ceph():
+            return {
+                'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
+            }
         # A secret is required by the chart for ceph client access. Use the
         # secret for the kube-rbd pool associated with the primary ceph tier
         return {
@@ -578,3 +583,27 @@ class OpenstackBaseHelm(base.BaseHelm):
         """
         return super(OpenstackBaseHelm, self)._is_enabled(
             app_name, chart_name, namespace)
+
+    def _is_rook_ceph(self):
+        try:
+            # check function getLabels in rook/pkg/operator/ceph/cluster/mon/spec.go
+            # rook will assign label "mon_cluster=kube-system" to monitor pods
+            label = "mon_cluster=" + common.HELM_NS_STORAGE_PROVISIONER
+            kube = kubernetes.KubeOperator()
+            pods = kube.kube_get_pods_by_selector(common.HELM_NS_STORAGE_PROVISIONER, label, "")
+            if len(pods) > 0:
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _get_rook_ceph_admin_keyring(self):
+        try:
+            kube = kubernetes.KubeOperator()
+            keyring = kube.kube_get_secret(constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
+                 common.HELM_NS_STORAGE_PROVISIONER)
+            return keyring.data['key'].decode('base64', 'strict')
+        except Exception:
+            pass
+
+        return 'null'

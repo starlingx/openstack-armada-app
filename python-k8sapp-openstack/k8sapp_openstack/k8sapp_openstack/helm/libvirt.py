@@ -19,6 +19,10 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
     SERVICE_NAME = app_constants.HELM_CHART_LIBVIRT
 
     def get_overrides(self, namespace=None):
+        admin_keyring = 'null'
+        if self._is_rook_ceph():
+            admin_keyring = self._get_rook_ceph_admin_keyring()
+
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'conf': {
@@ -31,7 +35,10 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                         'cgroup_controllers': ["cpu", "cpuacct", "cpuset", "freezer", "net_cls", "perf_event"],
                         'namespaces': [],
                         'clear_emulator_capabilities': 0
-                    }
+                    },
+                    'ceph': {
+                        'admin_keyring': admin_keyring,
+                    },
                 },
                 'pod': {
                     'mounts': {
@@ -39,7 +46,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                             'libvirt': self._get_mount_uefi_overrides()
                         }
                     }
-                }
+                },
             }
         }
 

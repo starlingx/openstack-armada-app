@@ -82,6 +82,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.rbd_config = {}
 
     def get_overrides(self, namespace=None):
+        self._rook_ceph = self._is_rook_ceph()
+        admin_keyring = 'null'
+        if self._rook_ceph:
+            admin_keyring = self._get_rook_ceph_admin_keyring()
+
         self.labels_by_hostid = self._get_host_labels()
         self.cpus_by_hostid = self._get_host_cpus()
         self.interfaces_by_hostid = self._get_host_interfaces()
@@ -118,7 +123,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 },
                 'conf': {
                     'ceph': {
-                        'ephemeral_storage': self._get_rbd_ephemeral_storage()
+                        'ephemeral_storage': self._get_rbd_ephemeral_storage(),
+                        'admin_keyring': admin_keyring,
                     },
                     'nova': {
                         'libvirt': {
@@ -734,7 +740,38 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)
 
+    def _get_rook_ceph_rbd_ephemeral_storage(self):
+        ephemeral_storage_conf = {}
+        ephemeral_pools = []
+
+        # Get the values for replication and min replication from the storage
+        # backend attributes.
+        replication = 2
+        if utils.is_aio_simplex_system(self.dbapi):
+            replication = 1
+
+        # Form the dictionary with the info for the ephemeral pool.
+        # If needed, multiple pools can be specified.
+        ephemeral_pool = {
+            'rbd_pool_name': constants.CEPH_POOL_EPHEMERAL_NAME,
+            'rbd_user': RBD_POOL_USER,
+            'rbd_crush_rule': "storage_tier_ruleset",
+            'rbd_replication': replication,
+            'rbd_chunk_size': constants.CEPH_POOL_EPHEMERAL_PG_NUM
+        }
+        ephemeral_pools.append(ephemeral_pool)
+
+        ephemeral_storage_conf = {
+            'type': 'rbd',
+            'rbd_pools': ephemeral_pools
+        }
+
+        return ephemeral_storage_conf
+
     def _get_rbd_ephemeral_storage(self):
+        if self._rook_ceph:
+            return self._get_rook_ceph_rbd_ephemeral_storage()
+
         ephemeral_storage_conf = {}
         ephemeral_pools = []
 

@@ -436,6 +436,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             default_config.update(multistring)
         default_config.update({'reserved_host_memory_mb': reserved_host_memory})
 
+    # (LP 1881672): method not currently used, but leaving it present in case we implement
+    # an automatic mechanism for users to enable NUMA-aware vswitch features.
     def _get_interface_numa_nodes(self, context):
         # Process all ethernet interfaces with physical port and add each port numa_node to
         # the dict of interface_numa_nodes
@@ -460,6 +462,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
         return interface_numa_nodes
 
+    # (LP 1881672): method not currently used, but leaving it present in case we implement
+    # an automatic mechanism for users to enable NUMA-aware vswitch features.
     def _update_host_neutron_physnet(self, host, neutron_config, per_physnet_numa_config):
         '''
         Generate physnets configuration option and dynamically-generate
@@ -527,15 +531,12 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                     vnc_config = {}
                     libvirt_config = {}
                     pci_config = {}
-                    neutron_config = {}
-                    per_physnet_numa_config = {}
                     self._update_host_cpu_maps(host, default_config)
                     self._update_host_storage(host, default_config, libvirt_config)
                     self._update_host_addresses(host, default_config, vnc_config,
                                                 libvirt_config)
                     self._update_host_pci_whitelist(host, pci_config)
                     self._update_reserved_memory(host, default_config)
-                    self._update_host_neutron_physnet(host, neutron_config, per_physnet_numa_config)
                     host_nova = {
                         'name': hostname,
                         'conf': {
@@ -543,12 +544,10 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                                 'DEFAULT': default_config,
                                 'vnc': vnc_config,
                                 'libvirt': libvirt_config,
-                                'pci': pci_config if pci_config else None,
-                                'neutron': neutron_config
+                                'pci': pci_config if pci_config else None
                             }
                         }
                     }
-                    host_nova['conf']['nova'].update(per_physnet_numa_config)
                     host_list.append(host_nova)
         return host_list
 

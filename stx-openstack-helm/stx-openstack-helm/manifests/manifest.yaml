@@ -775,6 +775,8 @@ data:
         DEFAULT:
           backup_driver: cinder.backup.drivers.ceph.CephBackupDriver
           osapi_volume_listen: "::"
+        keystone_authtoken:
+          interface: internal
     storage: rbd
   source:
     type: tar
@@ -1035,6 +1037,8 @@ data:
           metadata_listen: "::"
           metadata_host: "::"
           my_ip: "::"
+        keystone_authtoken:
+          interface: internal
         vnc:
           novncproxy_host: "::"
           vncserver_listen: "::"
@@ -1248,6 +1252,8 @@ data:
         DEFAULT:
           osapi_proxy_listen: "::"
           nfvi_compute_listen: "::"
+        keystone_authtoken:
+          interface: internal
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/nova-api-proxy-0.1.0.tgz

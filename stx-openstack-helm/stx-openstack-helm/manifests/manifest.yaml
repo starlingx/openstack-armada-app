@@ -2,6 +2,36 @@
 schema: armada/Chart/v1
 metadata:
   schema: metadata/Document/v1
+  name: openstack-psp-rolebinding
+data:
+  chart_name: psp-rolebinding
+  dependencies: []
+  namespace: openstack
+  release: openstack-psp-rolebinding
+  source:
+    location: http://172.17.0.1/helm_charts/starlingx/psp-rolebinding-0.1.0.tgz
+    subpath: psp-rolebinding
+    type: tar
+    reference: master
+  upgrade:
+    no_hooks: false
+    pre:
+      delete:
+      - labels:
+          release_group: osh-openstack-psp-rolebinding
+        type: job
+  wait:
+    labels:
+      release_group: osh-openstack-psp-rolebinding
+    resources: []
+    timeout: 1800
+  values:
+    rolebindingNamespace: openstack
+    serviceAccount: openstack
+---
+schema: armada/Chart/v1
+metadata:
+  schema: metadata/Document/v1
   name: helm-toolkit
 data:
   chart_name: helm-toolkit
@@ -3767,6 +3797,16 @@ data:
   chart_group:
     - openstack-dcdbsync
 ---
+schema: armada/ChartGroup/v1
+metadata:
+  schema: metadata/Document/v1
+  name: openstack-psp-rolebinding
+data:
+  description: "Deploy psp rolebinding"
+  sequenced: true
+  chart_group:
+    - openstack-psp-rolebinding
+---
 schema: armada/Manifest/v1
 metadata:
   schema: metadata/Document/v1
@@ -3774,6 +3814,7 @@ metadata:
 data:
   release_prefix: osh
   chart_groups:
+    - openstack-psp-rolebinding
     - openstack-ingress
     - openstack-mariadb
     - openstack-memcached

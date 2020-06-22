@@ -1,4 +1,4 @@
-%global sha c9d6676bf9a5aceb311dc31dadd07cba6a3d6392
+%global sha 34d54f2812b7d54431d548cff08fe8da7f838124
 %global helm_folder  /usr/lib/helm
 
 Summary: Openstack-Helm-Infra charts
@@ -15,19 +15,16 @@ Source1: repositories.yaml
 
 BuildArch:     noarch
 
-Patch01: 0001-Allow-multiple-containers-per-daemonset-pod.patch
-Patch02: 0002-Add-imagePullSecrets-in-service-account.patch
-Patch03: 0003-Set-Min-NGINX-handles.patch
-Patch04: 0004-Partial-revert-of-31e3469d28858d7b5eb6355e88b6f49fd6.patch
-Patch05: 0005-Add-TLS-support-for-Gnocchi-public-endpoint.patch
-Patch06: 0006-Fix-pod-restarts-on-all-workers-when-worker-added-re.patch
-Patch07: 0007-Add-io_thread_pool-for-rabbitmq.patch
-Patch08: 0008-Enable-override-of-rabbitmq-probe-parameters.patch
-Patch09: 0009-Fix-ipv6-address-issue-causing-mariadb-ingress-not-ready.patch
-Patch10: 0010-Fix-rabbitmq-could-not-bind-port-to-ipv6-address-iss.patch
-Patch11: 0011-Enable-override-of-mariadb-server-probe-parameters.patch
-Patch12: 0012-Mariadb-use-utf8_general_ci-collation-as-default.patch
-Patch13: 0013-Update-ingress-chart-for-Helm-v3.patch
+Patch01: 0001-Add-imagePullSecrets-in-service-account.patch
+Patch02: 0002-Set-Min-NGINX-handles.patch
+Patch03: 0003-Partial-revert-of-31e3469d28858d7b5eb6355e88b6f49fd6.patch
+Patch04: 0004-Fix-pod-restarts-on-all-workers-when-worker-added-re.patch
+Patch05: 0005-Add-io_thread_pool-for-rabbitmq.patch
+Patch06: 0006-Enable-override-of-rabbitmq-probe-parameters.patch
+Patch07: 0007-Fix-ipv6-address-issue-causing-mariadb-ingress-not-ready.patch
+Patch08: 0008-Fix-rabbitmq-could-not-bind-port-to-ipv6-address-iss.patch
+Patch09: 0009-Enable-override-of-mariadb-server-probe-parameters.patch
+Patch10: 0010-Mariadb-use-utf8_general_ci-collation-as-default.patch
 
 BuildRequires: helm
 BuildRequires: chartmuseum
@@ -47,9 +44,6 @@ Openstack Helm Infra charts
 %patch08 -p1
 %patch09 -p1
 %patch10 -p1
-%patch11 -p1
-%patch12 -p1
-%patch13 -p1
 
 %build
 # Host a server for the charts

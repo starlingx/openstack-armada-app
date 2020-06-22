@@ -1,7 +1,7 @@
-From 64b22037b53e6423c465367c26a6d7255768ae17 Mon Sep 17 00:00:00 2001
+From b5ff7217bca8b5af345a8630ce76b360022336b3 Mon Sep 17 00:00:00 2001
 From: Gerry Kopec <Gerry.Kopec@windriver.com>
 Date: Wed, 27 Mar 2019 00:35:57 -0400
-Subject: [PATCH 03] Nova console/ip address search optionality
+Subject: [PATCH] Nova console/ip address search optionality
 
 Add options to nova to enable/disable the use of:
 1. the vnc or spice server proxyclient address found by the console
@@ -19,15 +19,15 @@ Signed-off-by: Gerry Kopec <Gerry.Kopec@windriver.com>
 (cherry picked from commit f5e8ad20e35b770e5967f75f6f93f0a4dc6e3b41)
 Signed-off-by: Robert Church <robert.church@windriver.com>
 ---
- nova/templates/bin/_nova-compute.sh.tpl | 6 +++++-
- nova/values.yaml                        | 3 ++-
- 2 files changed, 7 insertions(+), 2 deletions(-)
+ nova/templates/bin/_nova-compute.sh.tpl | 4 ++++
+ nova/values.yaml                        | 2 ++
+ 2 files changed, 6 insertions(+)
 
 diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
-index c80da6d..4927908 100644
+index 23ce347..60b0272 100644
 --- a/nova/templates/bin/_nova-compute.sh.tpl
 +++ b/nova/templates/bin/_nova-compute.sh.tpl
-@@ -20,6 +20,10 @@ set -ex
+@@ -18,9 +18,13 @@ set -ex
  
  exec nova-compute \
        --config-file /etc/nova/nova.conf \
@@ -35,25 +35,25 @@ index c80da6d..4927908 100644
        --config-file /tmp/pod-shared/nova-console.conf \
 +{{- end }}
        --config-file /tmp/pod-shared/nova-libvirt.conf \
--      --config-file /tmp/pod-shared/nova-hypervisor.conf
-\ No newline at end of file
+ {{- if and ( empty .Values.conf.nova.DEFAULT.host ) ( .Values.pod.use_fqdn.compute ) }}
+       --config-file /tmp/pod-shared/nova-compute-fqdn.conf \
+ {{- end }}
 +{{- if .Values.conf.hypervisor.address_search_enabled }}
-+      --config-file /tmp/pod-shared/nova-hypervisor.conf
+       --config-file /tmp/pod-shared/nova-hypervisor.conf
 +{{- end }}
 diff --git a/nova/values.yaml b/nova/values.yaml
-index 29512ca..7ba2925 100644
+index 6fb6237..ca92907 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -461,7 +461,7 @@ console:
+@@ -512,6 +512,7 @@ console:
      vncproxy:
        # IF blank, search default routing interface
        vncserver_proxyclient_interface:
--
 +  address_search_enabled: true
+ 
  ssh:
    key_types:
-     - rsa
-@@ -1598,6 +1598,7 @@ conf:
+@@ -1658,6 +1659,7 @@ conf:
      # If this option is set to None, the hostname of the migration target compute node will be used.
      live_migration_interface:
    hypervisor:
@@ -62,5 +62,5 @@ index 29512ca..7ba2925 100644
      host_interface:
    # This list is the keys to exclude from the config file ingested by nova-compute
 -- 
-2.7.4
+1.8.3.1
 

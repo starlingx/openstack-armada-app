@@ -4,7 +4,7 @@ metadata:
   schema: metadata/Document/v1
   name: openstack-psp-rolebinding
 data:
-  chart_name: psp-rolebinding
+  chart_name: openstack-psp-rolebinding
   dependencies: []
   namespace: openstack
   release: openstack-psp-rolebinding
@@ -34,7 +34,7 @@ metadata:
   schema: metadata/Document/v1
   name: helm-toolkit
 data:
-  chart_name: helm-toolkit
+  chart_name: openstack-helm-toolkit
   release: helm-toolkit
   namespace: helm-toolkit
   values: {}

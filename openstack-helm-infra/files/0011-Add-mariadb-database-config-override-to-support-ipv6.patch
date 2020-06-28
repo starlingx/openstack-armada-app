@@ -1,0 +1,26 @@
+From 76438c37cc1c5b04ef4326b0810dbff281a8ed48 Mon Sep 17 00:00:00 2001
+From: "Liu, ZhipengS" <zhipengs.liu@intel.com>
+Date: Sun, 14 Jun 2020 12:43:44 +0000
+Subject: [PATCH] Add mariadb database config override to support ipv6
+
+Signed-off-by: Liu, ZhipengS <zhipengs.liu@intel.com>
+---
+ mariadb/values.yaml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index 444bba3..335195c 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -327,7 +327,7 @@ conf:
+       log_queries_not_using_indexes=on
+
+       # Networking
+-      bind_address=0.0.0.0
++      bind_address=::
+       port={{ tuple "oslo_db" "direct" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+       # When a client connects, the server will perform hostname resolution,
+--
+1.8.3.1
+

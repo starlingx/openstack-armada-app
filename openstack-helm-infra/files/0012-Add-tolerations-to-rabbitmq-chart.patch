@@ -1,0 +1,26 @@
+From c8f3a96fad3344cfdb058c7c0fee77431f77a001 Mon Sep 17 00:00:00 2001
+From: Mihnea Saracin <Mihnea.Saracin@windriver.com>
+Date: Wed, 22 Jul 2020 15:53:25 +0300
+Subject: [PATCH] Add tolerations to rabbitmq chart
+
+Signed-off-by: Mihnea Saracin <Mihnea.Saracin@windriver.com>
+---
+ rabbitmq/templates/statefulset.yaml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
+index 9e40a103..cf5d1811 100644
+--- a/rabbitmq/templates/statefulset.yaml
++++ b/rabbitmq/templates/statefulset.yaml
+@@ -85,6 +85,8 @@ spec:
+ {{ tuple $envAll "rabbitmq" "server" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ $envAll.Values.labels.server.node_selector_key }}: {{ $envAll.Values.labels.server.node_selector_value | quote }}
++      tolerations:
++{{ toYaml .Values.tolerations | indent 8 }}
+       initContainers:
+ {{ tuple $envAll "rabbitmq" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+         - name: rabbitmq-password
+-- 
+2.17.1
+

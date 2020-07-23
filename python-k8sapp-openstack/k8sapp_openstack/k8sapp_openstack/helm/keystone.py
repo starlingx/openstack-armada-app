@@ -49,7 +49,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
     def _get_pod_overrides(self):
         overrides = {
             'replicas': {
-                'api': self._num_controllers()
+                'api': self._num_provisioned_controllers()
             },
             'lifecycle': {
                 'termination_grace_period': {

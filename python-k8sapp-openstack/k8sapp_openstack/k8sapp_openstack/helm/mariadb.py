@@ -24,8 +24,8 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
             common.HELM_NS_OPENSTACK: {
                 'pod': {
                     'replicas': {
-                        'server': self._num_server_replicas(),
-                        'ingress': self._num_controllers()
+                        'server': self._num_provisioned_controllers(),
+                        'ingress': self._num_provisioned_controllers()
                     }
                 },
                 'endpoints': self._get_endpoints_overrides(),

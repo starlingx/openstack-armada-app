@@ -1899,9 +1899,10 @@ data:
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
 
         <VirtualHost *:{{ tuple "metric" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-            WSGIDaemonProcess gnocchi processes=1 threads=2 user=gnocchi group=gnocchi display-name=%{GROUP}
+            WSGIDaemonProcess gnocchi processes=1 threads=2 user=gnocchi group=gnocchi display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup gnocchi
             WSGIScriptAlias / "/var/lib/openstack/bin/gnocchi-api"
             WSGIApplicationGroup %{GLOBAL}

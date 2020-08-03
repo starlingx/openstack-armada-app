@@ -1041,6 +1041,9 @@ data:
     conf:
       ceph:
         enabled: true
+      policy:
+        os_compute_api:limits: '@'
+        os_compute_api:os-availability-zone:list: '@'
       nova:
         DEFAULT:
           allow_resize_to_same_host: true

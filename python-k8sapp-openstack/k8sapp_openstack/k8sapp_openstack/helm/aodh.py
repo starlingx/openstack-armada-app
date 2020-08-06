@@ -39,10 +39,10 @@ class AodhHelm(openstack.OpenstackBaseHelm):
     def _get_pod_overrides(self):
         overrides = {
             'replicas': {
-                'api': self._num_controllers(),
-                'evaluator': self._num_controllers(),
-                'listener': self._num_controllers(),
-                'notifier': self._num_controllers()
+                'api': self._num_provisioned_controllers(),
+                'evaluator': self._num_provisioned_controllers(),
+                'listener': self._num_provisioned_controllers(),
+                'notifier': self._num_provisioned_controllers()
             }
         }
         return overrides

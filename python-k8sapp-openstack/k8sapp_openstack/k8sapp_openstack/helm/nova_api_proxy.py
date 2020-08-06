@@ -30,7 +30,7 @@ class NovaApiProxyHelm(openstack.OpenstackBaseHelm):
                         }
                     },
                     'replicas': {
-                        'proxy': self._num_controllers()
+                        'proxy': self._num_provisioned_controllers()
                     }
                 },
                 'conf': {

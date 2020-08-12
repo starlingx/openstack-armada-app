@@ -38,7 +38,7 @@ class PankoHelm(openstack.OpenstackBaseHelm):
     def _get_pod_overrides(self):
         overrides = {
             'replicas': {
-                'api': self._num_provisioned_controllers()
+                'api': self._num_controllers()
             }
         }
         return overrides

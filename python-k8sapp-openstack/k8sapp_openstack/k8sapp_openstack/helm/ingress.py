@@ -62,8 +62,8 @@ class IngressHelm(base.BaseHelm):
             common.HELM_NS_OPENSTACK: {
                 'pod': {
                     'replicas': {
-                        'ingress': self._num_provisioned_controllers(),
-                        'error_page': self._num_provisioned_controllers()
+                        'ingress': self._num_controllers(),
+                        'error_page': self._num_controllers()
                     },
                     'resources': {
                         'enabled': limit_enabled,

@@ -39,7 +39,7 @@ class GnocchiHelm(openstack.OpenstackBaseHelm):
     def _get_pod_overrides(self):
         return {
             'replicas': {
-                'api': self._num_provisioned_controllers()
+                'api': self._num_controllers()
             }
         }
 

@@ -27,7 +27,7 @@ class FmRestApiHelm(openstack.OpenstackBaseHelm):
                 'endpoints': self._get_endpoints_overrides(),
                 'pod': {
                     'replicas': {
-                        'api': self._num_provisioned_controllers()
+                        'api': self._num_controllers()
                     },
                 },
             }

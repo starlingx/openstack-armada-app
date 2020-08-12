@@ -51,7 +51,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         replicas_count = 1
         ceph_backend = self._get_primary_ceph_backend()
         if ceph_backend:
-            replicas_count = self._num_provisioned_controllers()
+            replicas_count = self._num_controllers()
 
         return {
             'replicas': {

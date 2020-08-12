@@ -340,9 +340,6 @@ data:
     # filesystem race as seen in the LP.
     volume:
       size: 1Gi
-    tolerations:
-      - effect: NoExecute
-        operator: Exists
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/rabbitmq-0.1.0.tgz

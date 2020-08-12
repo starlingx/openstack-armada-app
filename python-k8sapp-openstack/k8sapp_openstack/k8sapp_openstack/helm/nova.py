@@ -107,13 +107,13 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                         }
                     },
                     'replicas': {
-                        'api_metadata': self._num_provisioned_controllers(),
-                        'placement': self._num_provisioned_controllers(),
-                        'osapi': self._num_provisioned_controllers(),
-                        'conductor': self._num_provisioned_controllers(),
-                        'consoleauth': self._num_provisioned_controllers(),
-                        'scheduler': self._num_provisioned_controllers(),
-                        'novncproxy': self._num_provisioned_controllers()
+                        'api_metadata': self._num_controllers(),
+                        'placement': self._num_controllers(),
+                        'osapi': self._num_controllers(),
+                        'conductor': self._num_controllers(),
+                        'consoleauth': self._num_controllers(),
+                        'scheduler': self._num_controllers(),
+                        'novncproxy': self._num_controllers()
                     }
                 },
                 'conf': {

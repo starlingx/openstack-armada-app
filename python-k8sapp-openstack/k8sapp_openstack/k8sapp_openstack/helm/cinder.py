@@ -49,10 +49,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                         }
                     },
                     'replicas': {
-                        'api': self._num_provisioned_controllers(),
-                        'volume': self._num_provisioned_controllers(),
-                        'scheduler': self._num_provisioned_controllers(),
-                        'backup': self._num_provisioned_controllers()
+                        'api': self._num_controllers(),
+                        'volume': self._num_controllers(),
+                        'scheduler': self._num_controllers(),
+                        'backup': self._num_controllers()
                     }
                 },
                 'conf': {

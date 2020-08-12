@@ -38,7 +38,20 @@ DEFAULT_NOVA_PCI_ALIAS = [
     {"vendor_id": constants.NOVA_PCI_ALIAS_QAT_VF_VENDOR,
      "product_id": constants.NOVA_PCI_ALIAS_QAT_C62X_VF_DEVICE,
      "name": constants.NOVA_PCI_ALIAS_QAT_C62X_VF_NAME},
-    {"name": constants.NOVA_PCI_ALIAS_GPU_NAME}
+    {"name": constants.NOVA_PCI_ALIAS_GPU_NAME},
+    {"vendor_id": app_constants.NOVA_PCI_ALIAS_GPU_MATROX_VENDOR,
+     "product_id": app_constants.NOVA_PCI_ALIAS_GPU_MATROX_G200E_DEVICE,
+     "name": app_constants.NOVA_PCI_ALIAS_GPU_MATROX_G200E_NAME},
+    {"vendor_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_VENDOR,
+     "product_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_M60_DEVICE,
+     "name": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_M60_NAME},
+    {"vendor_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_VENDOR,
+     "product_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_P40_DEVICE,
+     "name": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_P40_NAME},
+    {"vendor_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_VENDOR,
+     "product_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_T4_PF_DEVICE,
+     "device_type": app_constants.NOVA_PCI_ALIAS_DEVICE_TYPE_PF,
+     "name": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_T4_PF_NAME},
 ]
 
 

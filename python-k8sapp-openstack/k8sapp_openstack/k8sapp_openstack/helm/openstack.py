@@ -512,6 +512,53 @@ class OpenstackBaseHelm(base.BaseHelm):
                 'name': constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH]})
         }
 
+    def _get_interface_datanets(self):
+        """
+        Builds a dictionary of interface datanetworks indexed by interface id
+        """
+        ifdatanets = {}
+        db_ifdatanets = self.dbapi.interface_datanetwork_get_all()
+        for ifdatanet in db_ifdatanets:
+            ifdatanets.setdefault(ifdatanet.interface_id, []).append(ifdatanet)
+        return ifdatanets
+
+    def _get_host_interfaces(self, sort_key=None):
+        """
+        Builds a dictionary of interfaces indexed by host id
+        """
+        interfaces = {}
+        db_interfaces = self.dbapi.iinterface_get_list()
+        if sort_key:
+            db_interfaces = sorted(db_interfaces, key=sort_key)
+
+        for iface in db_interfaces:
+            interfaces.setdefault(iface.forihostid, []).append(iface)
+        return interfaces
+
+    def _get_host_labels(self):
+        """
+        Builds a dictionary of labels indexed by host id
+        """
+        labels = {}
+        db_labels = self.dbapi.label_get_all()
+        for label in db_labels:
+            labels.setdefault(label.host_id, []).append(label)
+        return labels
+
+    def _get_host_addresses(self):
+        """
+        Builds a dictionary of addresses indexed by host id
+        """
+        addresses = {}
+        db_addresses = self.dbapi.addresses_get_all()
+        db_interfaces = self.dbapi.iinterface_get_list()
+        for addr in db_addresses:
+            for iface in db_interfaces:
+                if iface.id == addr.interface_id:
+                    addresses.setdefault(iface.forihostid, []).append(addr)
+                    break
+        return addresses
+
     def execute_manifest_updates(self, operator):
         """
         Update the elements of the armada manifest.

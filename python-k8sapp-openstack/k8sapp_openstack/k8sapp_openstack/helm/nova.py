@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import collections
 import copy
 import os
 
@@ -66,10 +67,36 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     NOVNCPROXY_SERVICE_NAME = 'novncproxy'
     NOVNCPROXY_NODE_PORT = '30680'
 
-    def get_overrides(self, namespace=None):
+    def __init__(self, operator):
+        super(NovaHelm, self).__init__(operator)
+        self.labels_by_hostid = {}
+        self.cpus_by_hostid = {}
+        self.interfaces_by_hostid = {}
+        self.cluster_host_network = None
+        self.interface_networks_by_ifaceid = {}
+        self.addresses_by_hostid = {}
+        self.memory_by_hostid = {}
+        self.ethernet_ports_by_hostid = {}
+        self.ifdatanets_by_ifaceid = {}
+        self.datanets_by_netuuid = {}
+        self.rbd_config = {}
 
+    def get_overrides(self, namespace=None):
+        self.labels_by_hostid = self._get_host_labels()
+        self.cpus_by_hostid = self._get_host_cpus()
+        self.interfaces_by_hostid = self._get_host_interfaces()
+        self.cluster_host_network = self.dbapi.network_get_by_type(
+            constants.NETWORK_TYPE_CLUSTER_HOST)
+        self.interface_networks_by_ifaceid = self._get_interface_networks()
+        self.addresses_by_hostid = self._get_host_addresses()
+        self.memory_by_hostid = self._get_host_imemory()
+        self.ethernet_ports_by_hostid = self._get_host_ethernet_ports()
+        self.ifdatanets_by_ifaceid = self._get_interface_datanets()
+        self.datanets_by_netuuid = self._get_datanetworks()
+        self.rbd_config = self._get_storage_ceph_config()
         ssh_privatekey, ssh_publickey = \
             self._get_or_generate_ssh_keys(self.SERVICE_NAME, common.HELM_NS_OPENSTACK)
+
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'manifests': self._get_compute_ironic_manifests(),
@@ -319,6 +346,81 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             name='alias', values=alias_config)
         return multistring
 
+    def _get_port_interface_id_index(self, host):
+        """
+        Builds a dictionary of ports for a supplied host indexed by interface id.
+
+        A duplicate of _get_port_interface_id_index() from config/.../sysinv/common/interface.py
+        with modification to use cached data instead of querying the DB.
+        """
+        ports = {}
+        for port in self.ethernet_ports_by_hostid.get(host.id, []):
+            ports[port.interface_id] = port
+        return ports
+
+    def _get_interface_name_index(self, host):
+        """
+        Builds a dictionary of interfaces for a supplied host indexed by interface name.
+
+        A duplicate of _get_interface_name_index() from config/.../sysinv/common/interface.py
+        with modification to use cached data instead of querying the DB.
+        """
+        interfaces = {}
+        for iface in self.interfaces_by_hostid.get(host.id, []):
+            interfaces[iface.ifname] = iface
+        return interfaces
+
+    def _get_interface_name_datanets(self, host):
+        """
+        Builds a dictionary of datanets for a supplied host indexed by interface name.
+
+        A duplicate of _get_interface_name_datanets() from config/.../sysinv/common/interface.py
+        with modification to use cached data instead of querying the DB.
+        """
+        datanets = {}
+        for iface in self.interfaces_by_hostid.get(host.id, []):
+
+            datanetworks = []
+            for ifdatanet in self.ifdatanets_by_ifaceid.get(iface.id, []):
+                datanetworks.append(ifdatanet.datanetwork_uuid)
+
+            datanetworks_list = []
+            for datanetwork in datanetworks:
+                dn = self.datanets_by_netuuid.get(datanetwork)
+                if not dn:
+                    raise exception.DataNetworkNotFound(
+                        datanetwork_uuid=datanetwork)
+                datanetwork_dict = \
+                    {'name': dn.name,
+                     'uuid': dn.uuid,
+                     'network_type': dn.network_type,
+                     'mtu': dn.mtu}
+                if dn.network_type == constants.DATANETWORK_TYPE_VXLAN:
+                    datanetwork_dict.update(
+                        {'multicast_group': dn.multicast_group,
+                         'port_num': dn.port_num,
+                         'ttl': dn.ttl,
+                         'mode': dn.mode})
+                datanetworks_list.append(datanetwork_dict)
+            datanets[iface.ifname] = datanetworks_list
+
+        LOG.debug('_get_interface_name_datanets '
+                  'host=%s, datanets=%s', host.hostname, datanets)
+
+        return datanets
+
+    def _get_address_interface_name_index(self, host):
+        """
+        Builds a dictionary of address lists for a supplied host indexed by interface name.
+
+        A duplicate of _get_address_interface_name_index() from config/.../sysinv/common/interface.py
+        with modification to use cached data instead of querying the DB.
+        """
+        addresses = collections.defaultdict(list)
+        for address in self.addresses_by_hostid.get(host.id, []):
+            addresses[address.ifname].append(address)
+        return addresses
+
     def _update_host_pci_whitelist(self, host, pci_config):
         """
         Generate multistring values containing PCI passthrough
@@ -329,14 +431,10 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         """
         # obtain interface information specific to this host
         iface_context = {
-            'ports': interface._get_port_interface_id_index(
-                self.dbapi, host),
-            'interfaces': interface._get_interface_name_index(
-                self.dbapi, host),
-            'interfaces_datanets': interface._get_interface_name_datanets(
-                self.dbapi, host),
-            'addresses': interface._get_address_interface_name_index(
-                self.dbapi, host),
+            'ports': self._get_port_interface_id_index(host),
+            'interfaces': self._get_interface_name_index(host),
+            'interfaces_datanets': self._get_interface_name_datanets(host),
+            'addresses': self._get_address_interface_name_index(host)
         }
 
         # This host's list of PCI passthrough and SR-IOV device dictionaries
@@ -354,50 +452,24 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
     def _update_host_storage(self, host, default_config, libvirt_config):
         remote_storage = False
-        labels = self.dbapi.label_get_all(host.id)
-        for label in labels:
+        for label in self.labels_by_hostid.get(host.id, []):
             if (label.label_key == common.LABEL_REMOTE_STORAGE and
                     label.label_value == common.LABEL_VALUE_ENABLED):
                 remote_storage = True
                 break
 
-        rbd_pool = constants.CEPH_POOL_EPHEMERAL_NAME
-        rbd_ceph_conf = os.path.join(constants.CEPH_CONF_PATH,
-                                     constants.SB_TYPE_CEPH_CONF_FILENAME)
-
-        # If NOVA is a service on a ceph-external backend, use the ephemeral_pool
-        # and ceph_conf file that are stored in that DB entry.
-        # If NOVA is not on any ceph-external backend, it must be on the internal
-        # ceph backend with default "ephemeral" pool and default "/etc/ceph/ceph.conf"
-        # config file
-        sb_list = self.dbapi.storage_backend_get_list_by_type(
-            backend_type=constants.SB_TYPE_CEPH_EXTERNAL)
-        if sb_list:
-            for sb in sb_list:
-                if constants.SB_SVC_NOVA in sb.services:
-                    ceph_ext_obj = self.dbapi.storage_ceph_external_get(sb.id)
-                    rbd_pool = sb.capabilities.get('ephemeral_pool')
-                    rbd_ceph_conf = \
-                        constants.CEPH_CONF_PATH + os.path.basename(ceph_ext_obj.ceph_conf)
-
         if remote_storage:
             libvirt_config.update({'images_type': 'rbd',
-                                   'images_rbd_pool': rbd_pool,
-                                   'images_rbd_ceph_conf': rbd_ceph_conf})
+                                   'images_rbd_pool': self.rbd_config.get('rbd_pool'),
+                                   'images_rbd_ceph_conf': self.rbd_config.get('rbd_ceph_conf')})
         else:
             libvirt_config.update({'images_type': 'default'})
 
     def _update_host_addresses(self, host, default_config, vnc_config, libvirt_config):
-        interfaces = self.dbapi.iinterface_get_by_ihost(host.id)
-        addresses = self.dbapi.addresses_get_by_host(host.id)
-        cluster_host_network = self.dbapi.network_get_by_type(
-            constants.NETWORK_TYPE_CLUSTER_HOST)
         cluster_host_iface = None
-        for iface in interfaces:
-            interface_network = {'interface_id': iface.id,
-                                 'network_id': cluster_host_network.id}
+        for iface in self.interfaces_by_hostid.get(host.id, []):
             try:
-                self.dbapi.interface_network_query(interface_network)
+                self._get_interface_network_query(iface.id, self.cluster_host_network.id)
                 cluster_host_iface = iface
             except exception.InterfaceNetworkNotFoundByHostInterfaceNetwork:
                 pass
@@ -406,7 +478,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             return
         cluster_host_ip = None
         ip_family = None
-        for addr in addresses:
+        for addr in self.addresses_by_hostid.get(host.id, []):
             if addr.interface_id == cluster_host_iface.id:
                 cluster_host_ip = addr.address
                 ip_family = addr.family
@@ -421,16 +493,13 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         vnc_config.update({'vncserver_proxyclient_address': cluster_host_ip})
 
     def _get_ssh_subnet(self):
-        cluster_host_network = self.dbapi.network_get_by_type(
-            constants.NETWORK_TYPE_CLUSTER_HOST)
-        address_pool = self.dbapi.address_pool_get(cluster_host_network.pool_uuid)
+        address_pool = self.dbapi.address_pool_get(self.cluster_host_network.pool_uuid)
         return '%s/%s' % (str(address_pool.network), str(address_pool.prefix))
 
     def _update_reserved_memory(self, host, default_config):
-        host_memory = self.dbapi.imemory_get_by_ihost(host.id)
         reserved_pages = []
         reserved_host_memory = 0
-        for cell in host_memory:
+        for cell in self.memory_by_hostid.get(host.id, []):
             reserved_4K_pages = 'node:%d,size:4,count:%d' % (
                                 cell.numa_node,
                                 cell.platform_reserved_mib * constants.NUM_4K_PER_MiB)
@@ -484,12 +553,9 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         '''
         # obtain interface information specific to this host
         iface_context = {
-            'ports': interface._get_port_interface_id_index(
-                self.dbapi, host),
-            'interfaces': interface._get_interface_name_index(
-                self.dbapi, host),
-            'interfaces_datanets': interface._get_interface_name_datanets(
-                self.dbapi, host),
+            'ports': self._get_port_interface_id_index(host),
+            'interfaces': self._get_interface_name_index(host),
+            'interfaces_datanets': self._get_interface_name_datanets(host),
         }
 
         # find out the numa_nodes of ports which the physnet(datanetwork) is bound with
@@ -526,12 +592,113 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             numa_nodes = ','.join('%s' % n for n in tunneled_net_numa_nodes)
             per_physnet_numa_config.update({'neutron_tunneled': {'numa_nodes': numa_nodes}})
 
+    def _get_host_ethernet_ports(self):
+        """
+        Builds a dictionary of ethernet ports indexed by host id
+        """
+        ethernet_ports = {}
+        db_ethernet_ports = self.dbapi.ethernet_port_get_list()
+        for port in db_ethernet_ports:
+            ethernet_ports.setdefault(port.host_id, []).append(port)
+        return ethernet_ports
+
+    def _get_host_imemory(self):
+        """
+        Builds a dictionary of memory indexed by host id
+        """
+        memory = {}
+        db_memory = self.dbapi.imemory_get_list()
+        for m in db_memory:
+            memory.setdefault(m.forihostid, []).append(m)
+        return memory
+
+    def _get_host_cpus(self):
+        """
+        Builds a dictionary of cpus indexed by host id
+        """
+        cpus = {}
+        db_cpus = self.dbapi.icpu_get_list()
+        for cpu in db_cpus:
+            cpus.setdefault(cpu.forihostid, []).append(cpu)
+        return cpus
+
+    def _get_host_cpu_list(self, host, function=None, threads=False):
+        """
+        Retrieve a list of CPUs for the host, filtered by function and thread
+        siblings (if supplied)
+        """
+        cpus = []
+        for c in self.cpus_by_hostid.get(host.id, []):
+            if c.thread != 0 and not threads:
+                continue
+            if c.allocated_function == function or not function:
+                cpus.append(c)
+        return cpus
+
+    def _get_storage_ceph_config(self):
+        rbd_pool = constants.CEPH_POOL_EPHEMERAL_NAME
+        rbd_ceph_conf = os.path.join(constants.CEPH_CONF_PATH,
+                                     constants.SB_TYPE_CEPH_CONF_FILENAME)
+
+        # If NOVA is a service on a ceph-external backend, use the ephemeral_pool
+        # and ceph_conf file that are stored in that DB entry.
+        # If NOVA is not on any ceph-external backend, it must be on the internal
+        # ceph backend with default "ephemeral" pool and default "/etc/ceph/ceph.conf"
+        # config file
+        sb_list = self.dbapi.storage_backend_get_list_by_type(
+            backend_type=constants.SB_TYPE_CEPH_EXTERNAL)
+        if sb_list:
+            for sb in sb_list:
+                if constants.SB_SVC_NOVA in sb.services:
+                    ceph_ext_obj = self.dbapi.storage_ceph_external_get(sb.id)
+                    rbd_pool = sb.capabilities.get('ephemeral_pool')
+                    rbd_ceph_conf = \
+                        constants.CEPH_CONF_PATH + os.path.basename(ceph_ext_obj.ceph_conf)
+
+        rbd_config = {
+            'rbd_pool': rbd_pool,
+            'rbd_ceph_conf': rbd_ceph_conf
+        }
+        return rbd_config
+
+    def _get_interface_networks(self):
+        """
+        Builds a dictionary of interface networks indexed by interface id
+        """
+        interface_networks = {}
+
+        db_interface_networks = self.dbapi.interface_network_get_all()
+        for iface_net in db_interface_networks:
+            interface_networks.setdefault(iface_net.interface_id, []).append(iface_net)
+        return interface_networks
+
+    def _get_interface_network_query(self, interface_id, network_id):
+        """
+        Return the interface network of the supplied interface id and network id
+        """
+        for iface_net in self.interface_networks_by_ifaceid.get(interface_id, []):
+            if iface_net.interface_id == interface_id and iface_net.network_id == network_id:
+                return iface_net
+
+        raise exception.InterfaceNetworkNotFoundByHostInterfaceNetwork(
+            interface_id=interface_id, network_id=network_id)
+
+    def _get_datanetworks(self):
+        """
+        Builds a dictionary of datanetworks indexed by datanetwork uuid
+        """
+        datanets = {}
+        db_datanets = self.dbapi.datanetworks_get_all()
+        for datanet in db_datanets:
+            datanets.update({datanet.uuid: datanet})
+        return datanets
+
     def _get_per_host_overrides(self):
         host_list = []
         hosts = self.dbapi.ihost_get_list()
 
         for host in hosts:
-            host_labels = self.dbapi.label_get_by_host(host.id)
+            host_labels = self.labels_by_hostid.get(host.id, [])
             if (host.invprovision in [constants.PROVISIONED,
                                       constants.PROVISIONING] or
                     host.ihost_action in [constants.UNLOCK_ACTION,

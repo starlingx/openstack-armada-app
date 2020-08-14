@@ -84,7 +84,6 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
 
         # Distributed cloud additions
         if self._distributed_cloud_role() in [
-                constants.DISTRIBUTED_CLOUD_ROLE_SUBCLOUD,
                 constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER]:
 
             local_settings_config.update({

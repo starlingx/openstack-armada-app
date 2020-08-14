@@ -257,14 +257,6 @@ class OpenstackBaseHelm(base.BaseHelm):
                 'host': service_name + '.' + str(endpoint_domain.value).lower()
             })
 
-        if (self._distributed_cloud_role() ==
-                constants.DISTRIBUTED_CLOUD_ROLE_SUBCLOUD):
-            admin_endpoint_domain = 'openstack.svc.cluster.%s' \
-                                % self._region_name()
-            overrides['admin'] = {
-                'host': service_name + '-admin' + '.' + admin_endpoint_domain
-            }
-
         # Get TLS certificate files if installed
         cert = None
         try:
@@ -281,18 +273,10 @@ class OpenstackBaseHelm(base.BaseHelm):
         return overrides
 
     def _get_endpoints_hosts_admin_overrides(self, service_name):
-        overrides = {}
-        if (self._distributed_cloud_role() ==
-                constants.DISTRIBUTED_CLOUD_ROLE_SUBCLOUD):
-            overrides['admin'] = service_name + '-' + 'admin'
-        return overrides
+        return {}
 
     def _get_network_api_ingress_overrides(self):
-        overrides = {'admin': False}
-        if (self._distributed_cloud_role() ==
-                constants.DISTRIBUTED_CLOUD_ROLE_SUBCLOUD):
-            overrides['admin'] = True
-        return overrides
+        return {'admin': False}
 
     def _get_endpoints_scheme_public_overrides(self):
         overrides = {}

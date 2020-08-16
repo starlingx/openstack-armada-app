@@ -26,9 +26,7 @@ class DcdbsyncHelm(openstack.OpenstackBaseHelm):
             app_name, chart_name, namespace)
         if enabled \
                 and (self._distributed_cloud_role() !=
-                         constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER) \
-                and (self._distributed_cloud_role() !=
-                         constants.DISTRIBUTED_CLOUD_ROLE_SUBCLOUD):
+                         constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER):
             enabled = False
         return enabled
 

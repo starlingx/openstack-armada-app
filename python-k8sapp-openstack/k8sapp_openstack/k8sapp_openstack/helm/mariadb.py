@@ -7,6 +7,7 @@
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 
+from sysinv.common import utils as cutils
 from sysinv.common import exception
 from sysinv.helm import common
 
@@ -34,6 +35,16 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
                 }
             }
         }
+
+        if not cutils.is_std_system(self.dbapi):
+            config_override = {
+                'conf': {
+                    'database': {
+                        'config_override': ''
+                    }
+                }
+            }
+            overrides[common.HELM_NS_OPENSTACK].update(config_override)
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]

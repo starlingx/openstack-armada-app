@@ -186,6 +186,10 @@ data:
     conf:
       ingress_conf:
         worker-processes: '4'
+      database:
+        config_override: |
+          [mysqld]
+          wsrep_provider_options="gmcast.listen_addr=tcp://0.0.0.0:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/mariadb-0.1.0.tgz

@@ -452,6 +452,28 @@ data:
             CustomLog /dev/stdout combined env=!forwarded
             CustomLog /dev/stdout proxy env=forwarded
         </VirtualHost>
+    bootstrap:
+      script: |
+        #NOTE(gagehugo): As of Rocky, keystone creates a member role by default
+        openstack role create --or-show member
+        openstack role add \
+              --user="${OS_USERNAME}" \
+              --user-domain="${OS_USER_DOMAIN_NAME}" \
+              --project-domain="${OS_PROJECT_DOMAIN_NAME}" \
+              --project="${OS_PROJECT_NAME}" \
+              "member"
+        # admin needs the admin role for the default domain
+        openstack role add \
+              --user="${OS_USERNAME}" \
+              --domain="${OS_DEFAULT_DOMAIN}" \
+              "admin"
+
+        #STX: exempt admin from auth faillockout
+        TOKEN=$(openstack token issue -c id -f value)
+        USER_ID=$(openstack user show ${OS_USERNAME} -c id -f value)
+        REQ_URL="http://keystone.openstack.svc.cluster.local/v3/users/${USER_ID}"
+        DATA_JSON="{\"user\": {\"options\": {\"ignore_lockout_failure_attempts\": true}}}"
+        curl -X PATCH -H "X-Auth-Token: ${TOKEN}" -H "Content-Type: application/json" -d "${DATA_JSON}" "${REQ_URL}"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/keystone-0.1.0.tgz

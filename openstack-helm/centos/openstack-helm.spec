@@ -26,6 +26,7 @@ Patch04: 0004-Nova-chart-Support-ephemeral-pool-creation.patch
 Patch05: 0005-Nova-Add-support-for-disabling-Readiness-Liveness-pr.patch
 Patch06: 0006-Support-ingress-creation-for-keystone-admin-endpoint.patch
 Patch07: 0007-Allow-more-generic-overrides-for-placeme.patch
+Patch08: 0008-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -44,6 +45,7 @@ Openstack Helm charts
 %patch05 -p1
 %patch06 -p1
 %patch07 -p1
+%patch08 -p1
 
 %build
 # Stage helm-toolkit in the local repo

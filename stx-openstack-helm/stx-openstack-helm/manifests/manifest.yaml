@@ -385,6 +385,7 @@ data:
       identity:
         name: keystone
         namespace: openstack
+        force_public_endpoint: true
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -487,6 +488,9 @@ data:
             release_group: osh-openstack-keystone-api-proxy
             component: test
   values:
+    endpoints:
+      identity:
+        force_public_endpoint: true
     images:
       tags:
         keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-centos-stable-latest
@@ -495,6 +499,8 @@ data:
       keystone_api_proxy:
         identity:
           bind_host: "::"
+          remote_host: keystone.openstack.svc.cluster.local
+          remote_port: 80
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/keystone-api-proxy-0.1.0.tgz
@@ -561,10 +567,15 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     conf:
       barbican:
         barbican_api:
           bind_host: "::"
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/barbican-0.1.0.tgz
@@ -720,10 +731,21 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     conf:
       glance:
         DEFAULT:
           bind_host: "::"
+          registry_host: glance-reg.openstack.svc.cluster.local
+          registry_port: 80
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+      glance_registry:
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/glance-0.1.0.tgz
@@ -808,13 +830,18 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     conf:
       cinder:
         DEFAULT:
           backup_driver: cinder.backup.drivers.ceph.CephBackupDriver
           osapi_volume_listen: "::"
+          glance_api_servers: http://glance.openstack.svc.cluster.local:80/
         keystone_authtoken:
           interface: internal
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     storage: rbd
   source:
     type: tar
@@ -1081,6 +1108,8 @@ data:
           my_ip: "::"
         keystone_authtoken:
           interface: internal
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         vnc:
           novncproxy_host: "::"
           vncserver_listen: "::"
@@ -1109,8 +1138,17 @@ data:
           idle_timeout: 60
           max_overflow: 64
           max_pool_size: 1
+        glance:
+          api_servers: http://glance.openstack.svc.cluster.local:80/
+        ironic:
+          api_endpoint: http://ironic.openstack.svc.cluster.local:80/
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        placement:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         neutron:
           default_floating_pool: public
+          url: http://neutron.openstack.svc.cluster.local:80/
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         notifications:
           notification_format: unversioned
         filter_scheduler:
@@ -1138,6 +1176,7 @@ data:
           discover_hosts_in_cells_interval: 30
           periodic_task_interval: -1
         service_user:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
           send_service_user_token: true
         metrics:
           required: false
@@ -1183,6 +1222,9 @@ data:
           labels:
             release_group: osh-openstack-placement
   values:
+    endpoints:
+      identity:
+        force_public_endpoint: true
     labels:
       placement:
         node_selector_key: openstack-control-plane
@@ -1214,6 +1256,9 @@ data:
       placement:
         DEFAULT:
           log_config_append: /etc/placement/logging.conf
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       wsgi_placement: |
         Listen :::{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
         LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
@@ -1284,6 +1329,9 @@ data:
       tags:
         nova_api_proxy: docker.io/starlingx/stx-nova-api-proxy:master-centos-stable-latest
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    endpoints:
+      identity:
+        force_public_endpoint: true
     pod:
       affinity:
         anti:
@@ -1296,6 +1344,8 @@ data:
           nfvi_compute_listen: "::"
         keystone_authtoken:
           interface: internal
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/nova-api-proxy-0.1.0.tgz
@@ -1332,6 +1382,8 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     pod:
       replicas:
         server: 2
@@ -1516,6 +1568,11 @@ data:
           root_helper: sudo
         vhost:
           vhost_user_enabled: true
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        nova:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       dhcp_agent:
         DEFAULT:
           enable_isolated_metadata: true
@@ -1636,6 +1693,18 @@ data:
           enabled_raid_interfaces: no-raid
           enabled_storage_interfaces: cinder,noop
           enabled_vendor_interfaces: ipmitool,no-vendor
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        glance:
+          glance_host: glance.openstack.svc.cluster.local
+          glance_port: 80
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        inspector:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        neutron:
+          url: http://neutron.openstack.svc.cluster.local:80/
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         api:
           port: 6385
         pxe:
@@ -1654,6 +1723,8 @@ data:
         port:
           pxe_http:
             default: 28080
+      identity:
+        force_public_endpoint: true
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/ironic-0.1.0.tgz
@@ -1697,6 +1768,8 @@ data:
       oslo_cache:
         hosts:
           default: heat-memcached
+      identity:
+        force_public_endpoint: true
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -1735,6 +1808,13 @@ data:
         stacks:global_index: rule:context_is_admin
         software_configs:global_index: rule:context_is_admin
       heat:
+        clients_keystone:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        trustee:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         heat_api:
           bind_host: "::"
         heat_api_cloudwatch:
@@ -1814,11 +1894,19 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     jobs:
       alarms_cleaner:
         # daily at the 35 minute mark
         cron: "35 */24 * * *"
     conf:
+      aodh:
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        service_credentials:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       wsgi_aodh: |
         Listen :::{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
@@ -1900,6 +1988,8 @@ data:
           driver: mariadb
         keystone_authtoken:
           interface: internal
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       apache: |
         Listen :::{{ tuple "metric" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
@@ -1996,6 +2086,8 @@ data:
       oslo_cache:
         hosts:
           default: memcached
+      identity:
+        force_public_endpoint: true
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/gnocchi-0.1.0.tgz
@@ -2032,6 +2124,9 @@ data:
             release_group: osh-openstack-panko
             component: test
   values:
+    endpoints:
+      identity:
+        force_public_endpoint: true
     pod:
       user:
         panko:
@@ -2054,6 +2149,10 @@ data:
         panko_events_cleaner: docker.io/starlingx/stx-panko:master-centos-stable-latest
         test: null
     conf:
+      panko:
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       paste:
         composite:panko+noauth:
           use: egg:Paste#urlmap
@@ -2210,6 +2309,8 @@ data:
       secret_db: false
       secret_mongodb: false
     endpoints:
+      identity:
+        force_public_endpoint: true
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
@@ -2233,6 +2334,15 @@ data:
             public: 80
     conf:
       ceilometer:
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        service_credentials:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        dispatcher_gnocchi:
+          url: http://gnocchi.openstack.svc.cluster.local:80/
+        api:
+          aodh_url: http://aodh.openstack.svc.cluster.local:80/
         cache:
           expiration_time: 86400
         compute:
@@ -2724,6 +2834,9 @@ data:
             release_group: osh-openstack-fm-rest-api
             component: ks-endpoints
   values:
+    endpoints:
+      identity:
+        force_public_endpoint: true
     pod:
       affinity:
         anti:
@@ -2749,6 +2862,9 @@ data:
       fm:
         api:
           bind_host: "::"
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/fm-rest-api-0.1.0.tgz

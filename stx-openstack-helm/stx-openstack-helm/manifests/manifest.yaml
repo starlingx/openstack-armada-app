@@ -962,10 +962,13 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      compute:
+        hosts:
+          public: nova-api-internal
     manifests:
       job_ks_endpoints: false
-      ingress_osapi: false
-      service_ingress_osapi: false
+      ingress_osapi: true
+      service_ingress_osapi: true
       cron_job_cell_setup: false
       statefulset_compute_ironic: false
       deployment_placement: false
@@ -1342,6 +1345,8 @@ data:
         DEFAULT:
           osapi_proxy_listen: "::"
           nfvi_compute_listen: "::"
+          osapi_compute_listen: nova-api-internal.openstack.svc.cluster.local
+          osapi_compute_listen_port: 80
         keystone_authtoken:
           interface: internal
           auth_uri: http://keystone.openstack.svc.cluster.local:80/v3

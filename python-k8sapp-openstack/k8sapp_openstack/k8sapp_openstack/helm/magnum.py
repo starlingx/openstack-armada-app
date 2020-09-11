@@ -24,8 +24,8 @@ class MagnumHelm(openstack.OpenstackBaseHelm):
             common.HELM_NS_OPENSTACK: {
                 'pod': {
                     'replicas': {
-                        'api': self._num_controllers(),
-                        'conductor': self._num_controllers()
+                        'api': self._num_provisioned_controllers(),
+                        'conductor': self._num_provisioned_controllers()
                     }
                 }
             }

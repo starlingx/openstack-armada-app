@@ -1047,6 +1047,8 @@ data:
     pod:
       useHostNetwork:
         novncproxy: false
+      use_fqdn:
+        compute: false
       replicas:
         api_metadata: 1
         osapi: 1

@@ -636,7 +636,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         return cpus
 
     def _get_storage_ceph_config(self):
-        rbd_pool = constants.CEPH_POOL_EPHEMERAL_NAME
+        rbd_pool = app_constants.CEPH_POOL_EPHEMERAL_NAME
         rbd_ceph_conf = os.path.join(constants.CEPH_CONF_PATH,
                                      constants.SB_TYPE_CEPH_CONF_FILENAME)
 
@@ -753,11 +753,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         # Form the dictionary with the info for the ephemeral pool.
         # If needed, multiple pools can be specified.
         ephemeral_pool = {
-            'rbd_pool_name': constants.CEPH_POOL_EPHEMERAL_NAME,
+            'rbd_pool_name': app_constants.CEPH_POOL_EPHEMERAL_NAME,
             'rbd_user': RBD_POOL_USER,
             'rbd_crush_rule': rule_name,
             'rbd_replication': replication,
-            'rbd_chunk_size': constants.CEPH_POOL_EPHEMERAL_PG_NUM
+            'rbd_chunk_size': app_constants.CEPH_POOL_EPHEMERAL_CHUNK_SIZE
         }
         ephemeral_pools.append(ephemeral_pool)
 

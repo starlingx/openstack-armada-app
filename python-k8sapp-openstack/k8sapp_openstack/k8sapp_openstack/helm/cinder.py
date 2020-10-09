@@ -87,9 +87,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         pools = {}
         for backend in self.dbapi.storage_ceph_get_list():
             if backend.tier_name == primary_tier_name:
-                pool_name = constants.CEPH_POOL_VOLUMES_NAME
+                pool_name = app_constants.CEPH_POOL_VOLUMES_NAME
             else:
-                pool_name = "%s-%s" % (constants.CEPH_POOL_VOLUMES_NAME,
+                pool_name = "%s-%s" % (app_constants.CEPH_POOL_VOLUMES_NAME,
                                       backend.tier_name)
             rule_name = "{0}{1}{2}".format(
                 backend.tier_name, constants.CEPH_CRUSH_TIER_SUFFIX,
@@ -97,14 +97,20 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             pool = {
                 'replication': replication,
                 'crush_rule': rule_name.encode('utf8', 'strict'),
-                'chunk_size': constants.CEPH_POOL_VOLUMES_CHUNK_SIZE,
-                'app_name': constants.CEPH_POOL_VOLUMES_APP_NAME
+                'chunk_size': app_constants.CEPH_POOL_VOLUMES_CHUNK_SIZE,
+                'app_name': app_constants.CEPH_POOL_VOLUMES_APP_NAME
             }
             pools[pool_name.encode('utf8', 'strict')] = pool
             if backend.name == constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH]:
                 # Backup uses the same replication and crush rule as
                 # the default storage backend
-                pools['backup'] = dict(pool)
+                pool_backup = {
+                    'replication': replication,
+                    'crush_rule': rule_name.encode('utf8', 'strict'),
+                    'chunk_size': app_constants.CEPH_POOL_BACKUP_PG_NUM,
+                    'app_name': app_constants.CEPH_POOL_BACKUP_APP_NAME
+                }
+                pools['backup'] = dict(pool_backup)
 
         return {
             'monitors': self._get_formatted_ceph_monitor_ips(),
@@ -177,9 +183,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 raise Exception("No tier present for backend %s" % bk_name)
 
             if tier.name == primary_tier_name:
-                rbd_pool = constants.CEPH_POOL_VOLUMES_NAME
+                rbd_pool = app_constants.CEPH_POOL_VOLUMES_NAME
             else:
-                rbd_pool = "%s-%s" % (constants.CEPH_POOL_VOLUMES_NAME,
+                rbd_pool = "%s-%s" % (app_constants.CEPH_POOL_VOLUMES_NAME,
                                       tier.name)
 
             conf_backends[bk_name] = {

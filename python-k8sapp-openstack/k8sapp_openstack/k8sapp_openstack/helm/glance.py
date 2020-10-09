@@ -114,7 +114,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             rbd_store_user = ""
             replication = 1
         else:
-            rbd_store_pool = constants.CEPH_POOL_IMAGES_NAME
+            rbd_store_pool = app_constants.CEPH_POOL_IMAGES_NAME
             rbd_store_user = RBD_STORE_USER
             replication, min_replication = \
                 StorageBackendConfig.get_ceph_pool_replication(self.dbapi)
@@ -133,6 +133,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     'show_image_direct_url': True,
                 },
                 'glance_store': {
+                    'chunk_size': app_constants.CEPH_POOL_IMAGES_CHUNK_SIZE,
                     'filesystem_store_datadir': constants.GLANCE_IMAGE_PATH,
                     'rbd_store_pool': rbd_store_pool,
                     'rbd_store_user': rbd_store_user,

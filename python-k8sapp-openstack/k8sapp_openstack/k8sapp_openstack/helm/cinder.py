@@ -107,7 +107,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 pool_backup = {
                     'replication': replication,
                     'crush_rule': rule_name.encode('utf8', 'strict'),
-                    'chunk_size': app_constants.CEPH_POOL_BACKUP_PG_NUM,
+                    'chunk_size': app_constants.CEPH_POOL_BACKUP_CHUNK_SIZE,
                     'app_name': app_constants.CEPH_POOL_BACKUP_APP_NAME
                 }
                 pools['backup'] = dict(pool_backup)

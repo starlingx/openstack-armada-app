@@ -52,8 +52,6 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
     APP = constants.HELM_APP_OPENSTACK
     ARMADA_MANIFEST = 'armada-manifest'
 
-    CHART_INGRESS_KS = CHART_GROUP_INGRESS_KS = 'kube-system-ingress'
-
     CHART_GROUP_PSP_ROLEBINDING = 'openstack-psp-rolebinding'
     CHART_GROUP_INGRESS_OS = 'openstack-ingress'
     CHART_GROUP_MAGNUM = 'openstack-magnum'
@@ -151,8 +149,7 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
             # MariaDB service.
             self.manifest_chart_groups_set(
                 self.ARMADA_MANIFEST,
-                [self.CHART_GROUP_INGRESS_KS,
-                 self.CHART_GROUP_INGRESS_OS,
+                [self.CHART_GROUP_INGRESS_OS,
                  self.CHART_GROUP_MARIADB])
 
         elif mode == constants.OPENSTACK_RESTORE_STORAGE:
@@ -160,8 +157,7 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
             # Glance and Cinder.
             self.manifest_chart_groups_set(
                 self.ARMADA_MANIFEST,
-                [self.CHART_GROUP_INGRESS_KS,
-                 self.CHART_GROUP_INGRESS_OS,
+                [self.CHART_GROUP_INGRESS_OS,
                  self.CHART_GROUP_MARIADB,
                  self.CHART_GROUP_MEMCACHED,
                  self.CHART_GROUP_RABBITMQ,

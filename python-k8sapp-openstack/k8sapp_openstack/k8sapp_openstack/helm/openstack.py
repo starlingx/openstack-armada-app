@@ -345,6 +345,9 @@ class OpenstackBaseHelm(base.BaseHelm):
             if user == common.USER_ADMIN:
                 o_user = self._get_admin_user_name()
                 o_service = common.SERVICE_ADMIN
+            elif user == common.USER_STX_ADMIN:
+                o_user = user
+                o_service = common.SERVICE_ADMIN
             else:
                 o_user = user
                 o_service = service

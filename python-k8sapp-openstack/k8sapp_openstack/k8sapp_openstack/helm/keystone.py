@@ -289,5 +289,11 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
 
         return self._get_identity_password(o_service, o_user)
 
+    def get_stx_admin_password(self):
+        o_user = common.USER_STX_ADMIN
+        o_service = common.SERVICE_ADMIN
+
+        return self._get_identity_password(o_service, o_user)
+
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)

@@ -60,6 +60,11 @@ class IngressHelm(base.BaseHelm):
                 },
             },
             common.HELM_NS_OPENSTACK: {
+                'conf': {
+                     'ingress': {
+                         'proxy-connect-timeout': "30"
+                     }
+                },
                 'pod': {
                     'replicas': {
                         'ingress': self._num_controllers(),

@@ -38,6 +38,7 @@ from k8sapp_openstack.helm.panko import PankoHelm
 from k8sapp_openstack.helm.placement import PlacementHelm
 from k8sapp_openstack.helm.rabbitmq import RabbitmqHelm
 from k8sapp_openstack.helm.swift import SwiftHelm
+from k8sapp_openstack.helm.psp_rolebinding import PSPRolebindingHelm
 
 from sysinv.common import constants
 from sysinv.common import exception
@@ -51,8 +52,7 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
     APP = constants.HELM_APP_OPENSTACK
     ARMADA_MANIFEST = 'armada-manifest'
 
-    CHART_INGRESS_KS = CHART_GROUP_INGRESS_KS = 'kube-system-ingress'
-
+    CHART_GROUP_PSP_ROLEBINDING = 'openstack-psp-rolebinding'
     CHART_GROUP_INGRESS_OS = 'openstack-ingress'
     CHART_GROUP_MAGNUM = 'openstack-magnum'
     CHART_GROUP_MARIADB = 'openstack-mariadb'
@@ -97,6 +97,7 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
         OpenvswitchHelm.CHART: CHART_GROUP_COMPUTE_KIT,
         PankoHelm.CHART: CHART_GROUP_TELEMETRY,
         PlacementHelm.CHART: CHART_GROUP_COMPUTE_KIT,
+        PSPRolebindingHelm.CHART: CHART_GROUP_PSP_ROLEBINDING,
         RabbitmqHelm.CHART: CHART_GROUP_RABBITMQ,
         SwiftHelm.CHART: CHART_GROUP_SWIFT,
         DcdbsyncHelm.CHART: CHART_GROUP_DCDBSYNC,
@@ -127,6 +128,7 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
         NovaApiProxyHelm.CHART: 'openstack-nova-api-proxy',
         OpenvswitchHelm.CHART: 'openstack-openvswitch',
         PankoHelm.CHART: 'openstack-panko',
+        PSPRolebindingHelm.CHART: 'openstack-psp-rolebinding',
         PlacementHelm.CHART: 'openstack-placement',
         RabbitmqHelm.CHART: 'openstack-rabbitmq',
         SwiftHelm.CHART: 'openstack-ceph-rgw',
@@ -147,8 +149,7 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
             # MariaDB service.
             self.manifest_chart_groups_set(
                 self.ARMADA_MANIFEST,
-                [self.CHART_GROUP_INGRESS_KS,
-                 self.CHART_GROUP_INGRESS_OS,
+                [self.CHART_GROUP_INGRESS_OS,
                  self.CHART_GROUP_MARIADB])
 
         elif mode == constants.OPENSTACK_RESTORE_STORAGE:
@@ -156,8 +157,7 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
             # Glance and Cinder.
             self.manifest_chart_groups_set(
                 self.ARMADA_MANIFEST,
-                [self.CHART_GROUP_INGRESS_KS,
-                 self.CHART_GROUP_INGRESS_OS,
+                [self.CHART_GROUP_INGRESS_OS,
                  self.CHART_GROUP_MARIADB,
                  self.CHART_GROUP_MEMCACHED,
                  self.CHART_GROUP_RABBITMQ,

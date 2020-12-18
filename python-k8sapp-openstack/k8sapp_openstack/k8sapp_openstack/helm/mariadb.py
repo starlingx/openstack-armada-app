@@ -7,6 +7,7 @@
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 
+from sysinv.common import utils as cutils
 from sysinv.common import exception
 from sysinv.helm import common
 
@@ -29,13 +30,21 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
                     }
                 },
                 'endpoints': self._get_endpoints_overrides(),
-                'conf': {
-                    'database': {
-                        'config_override': self._get_database_config_override()
-                    }
+                'manifests': {
+                    'config_ipv6': self._is_ipv6_cluster_service()
                 }
             }
         }
+
+        if not cutils.is_std_system(self.dbapi):
+            config_override = {
+                'conf': {
+                    'database': {
+                        'config_override': ''
+                    }
+                }
+            }
+            overrides[common.HELM_NS_OPENSTACK].update(config_override)
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
@@ -44,18 +53,6 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
                                                  namespace=namespace)
         else:
             return overrides
-
-    def _get_database_config_override(self):
-        listen_host = "0.0.0.0"
-        if self._is_ipv6_cluster_service():
-            listen_host = "::"
-        return "[mysqld]\n" \
-               "bind_address=::\n" \
-               "wsrep_provider_options=\"evs.suspect_timeout=PT30S; " \
-               "gmcast.peer_timeout=PT15S; " \
-               "gmcast.listen_addr=tcp://%s:{{ tuple \"oslo_db\" " \
-               "\"direct\" \"wsrep\" . | " \
-               "include \"helm-toolkit.endpoints.endpoint_port_lookup\" }}\"" % listen_host
 
     def _get_endpoints_overrides(self):
         return {

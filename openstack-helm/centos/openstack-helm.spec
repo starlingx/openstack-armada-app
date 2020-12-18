@@ -1,4 +1,4 @@
-%global sha 82c72367c85ca94270f702661c7b984899c1ae38
+%global sha 34a7533b6484a157c8725889d0d68e792e13fc8d
 %global helm_folder  /usr/lib/helm
 %global toolkit_version 0.1.0
 %global helmchart_version 0.1.0
@@ -24,9 +24,11 @@ Patch02: 0002-Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
 Patch03: 0003-Nova-console-ip-address-search-optionality.patch
 Patch04: 0004-Nova-chart-Support-ephemeral-pool-creation.patch
 Patch05: 0005-Nova-Add-support-for-disabling-Readiness-Liveness-pr.patch
-Patch06: 0006-Add-Placement-Chart.patch
-Patch07: 0007-Support-ingress-creation-for-keystone-admin-endpoint.patch
-Patch08: 0008-Check-return-value-of-get-subnets-before-iterate-for.patch
+Patch06: 0006-Support-ingress-creation-for-keystone-admin-endpoint.patch
+Patch07: 0007-Allow-more-generic-overrides-for-placeme.patch
+Patch08: 0008-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
+Patch09: 0009-Wrong-usage-of-rbd_store_chunk_size.patch
+Patch10: 0010-Add-stx_admin-account.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -46,6 +48,8 @@ Openstack Helm charts
 %patch06 -p1
 %patch07 -p1
 %patch08 -p1
+%patch09 -p1
+%patch10 -p1
 
 %build
 # Stage helm-toolkit in the local repo

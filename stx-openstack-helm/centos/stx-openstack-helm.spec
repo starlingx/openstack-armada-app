@@ -47,6 +47,7 @@ make keystone-api-proxy
 make fm-rest-api
 make nginx-ports-control
 make dcdbsync
+make psp-rolebinding
 cd -
 
 # terminate helm server (the last backgrounded task)

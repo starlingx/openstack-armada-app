@@ -1,0 +1,45 @@
+From 2892d1bedf30e7260aa67ad93d94677fad55a760 Mon Sep 17 00:00:00 2001
+From: Elena Taivan <elena.taivan@windriver.com>
+Date: Wed, 30 Sep 2020 14:14:32 +0000
+Subject: [PATCH] Wrong usage of 'rbd_store_chunk_size'
+
+'rbd_store_chunk_size' option represents the size of the chunks
+of the objects into which an image is chuncked.
+It does not represent the 'pg_num' value of 'images' ceph pool.
+
+Solution: replace 'rdb_store_chunk_size' with 'chunk_size' custom
+option.
+---
+ glance/templates/job-storage-init.yaml | 2 +-
+ glance/values.yaml                     | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/glance/templates/job-storage-init.yaml b/glance/templates/job-storage-init.yaml
+index 82524086..77ab1c60 100644
+--- a/glance/templates/job-storage-init.yaml
++++ b/glance/templates/job-storage-init.yaml
+@@ -114,7 +114,7 @@ spec:
+             - name: RBD_POOL_CRUSH_RULE
+               value: {{ .Values.conf.glance.glance_store.rbd_store_crush_rule | quote }}
+             - name: RBD_POOL_CHUNK_SIZE
+-              value: {{ .Values.conf.glance.glance_store.rbd_store_chunk_size | quote }}
++              value: {{ .Values.conf.glance.glance_store.chunk_size | quote }}
+             - name: RBD_POOL_SECRET
+               value: {{ .Values.secrets.rbd | quote }}
+             {{ end }}
+diff --git a/glance/values.yaml b/glance/values.yaml
+index 1428c299..a4f74379 100644
+--- a/glance/values.yaml
++++ b/glance/values.yaml
+@@ -256,7 +256,7 @@ conf:
+       auth_version: v3
+       memcache_security_strategy: ENCRYPT
+     glance_store:
+-      rbd_store_chunk_size: 8
++      chunk_size: 8
+       rbd_store_replication: 3
+       rbd_store_crush_rule: replicated_rule
+       rbd_store_pool: glance.images
+-- 
+2.17.1
+

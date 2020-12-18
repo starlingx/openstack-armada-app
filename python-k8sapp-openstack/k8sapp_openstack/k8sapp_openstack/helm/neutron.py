@@ -28,7 +28,23 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
     AUTH_USERS = ['neutron']
     SERVICE_USERS = ['nova']
 
+    def __init__(self, operator):
+        super(NeutronHelm, self).__init__(operator)
+        self.ports_by_ifaceid = {}
+        self.labels_by_hostid = {}
+        self.ifdatanets_by_ifaceid = {}
+        self.interfaces_by_hostid = {}
+        self.addresses_by_hostid = {}
+
     def get_overrides(self, namespace=None):
+        self.ports_by_ifaceid = self._get_interface_ports()
+        self.labels_by_hostid = self._get_host_labels()
+        self.ifdatanets_by_ifaceid = self._get_interface_datanets()
+        self.interfaces_by_hostid = self._get_host_interfaces(
+            sort_key=self._interface_sort_key)
+        self.addresses_by_hostid = self._get_host_addresses()
+        host_overrides = self._get_per_host_overrides()
+
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'pod': {
@@ -42,19 +58,19 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                     },
                     'overrides': {
                         'neutron_ovs-agent': {
-                            'hosts': self._get_per_host_overrides()
+                            'hosts': host_overrides
                         },
                         'neutron_dhcp-agent': {
-                            'hosts': self._get_per_host_overrides()
+                            'hosts': host_overrides
                         },
                         'neutron_l3-agent': {
-                            'hosts': self._get_per_host_overrides()
+                            'hosts': host_overrides
                         },
                         'neutron_metadata-agent': {
-                            'hosts': self._get_per_host_overrides()
+                            'hosts': host_overrides
                         },
                         'neutron_sriov-agent': {
-                            'hosts': self._get_per_host_overrides()
+                            'hosts': host_overrides
                         },
                     },
                     'paste': {
@@ -81,14 +97,13 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         hosts = self.dbapi.ihost_get_list()
 
         for host in hosts:
-            host_labels = self.dbapi.label_get_by_host(host.id)
+            host_labels = self.labels_by_hostid.get(host.id, [])
             if (host.invprovision in [constants.PROVISIONED,
                                       constants.PROVISIONING] or
                     host.ihost_action in [constants.UNLOCK_ACTION,
                                           constants.FORCE_UNLOCK_ACTION]):
                 if (constants.WORKER in utils.get_personalities(host) and
                         utils.has_openstack_compute(host_labels)):
-
                     hostname = str(host.hostname)
                     host_neutron = {
                         'name': hostname,
@@ -104,7 +119,6 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                         host_neutron['conf'].update({
                             'auto_bridge_add': self._get_host_bridges(host)})
                     host_list.append(host_neutron)
-
         return host_list
 
     def _interface_sort_key(self, iface):
@@ -129,16 +143,15 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
     def _get_host_bridges(self, host):
         bridges = {}
         index = 0
-        for iface in sorted(self.dbapi.iinterface_get_by_ihost(host.id),
-                            key=self._interface_sort_key):
+        for iface in self.interfaces_by_hostid.get(host.id, []):
             if self._is_data_network_type(iface):
                 if any(dn.datanetwork_network_type in
                        [constants.DATANETWORK_TYPE_FLAT,
                         constants.DATANETWORK_TYPE_VLAN] for dn in
-                       self._get_interface_datanets(iface)):
+                       self.ifdatanets_by_ifaceid.get(iface.id, [])):
                     # obtain the assigned bridge for interface
                     brname = 'br-phy%d' % index
-                    port_name = self._get_interface_port_name(iface)
+                    port_name = self._get_interface_port_name(host, iface)
                     bridges[brname] = port_name.encode('utf8', 'strict')
                     index += 1
         return bridges
@@ -148,13 +161,12 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         tunnel_types = None
         bridge_mappings = ""
         index = 0
-        for iface in sorted(self.dbapi.iinterface_get_by_ihost(host.id),
-                            key=self._interface_sort_key):
+        for iface in self.interfaces_by_hostid.get(host.id, []):
             if self._is_data_network_type(iface):
                 # obtain the assigned bridge for interface
                 brname = 'br-phy%d' % index
                 if brname:
-                    datanets = self._get_interface_datanets(iface)
+                    datanets = self.ifdatanets_by_ifaceid.get(iface.id, [])
                     for datanet in datanets:
                         dn_name = datanet['datanetwork_name'].strip()
                         LOG.debug('_get_dynamic_ovs_agent_config '
@@ -197,12 +209,11 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
 
     def _get_dynamic_sriov_agent_config(self, host):
         physical_device_mappings = ""
-        for iface in sorted(self.dbapi.iinterface_get_by_ihost(host.id),
-                            key=self._interface_sort_key):
+        for iface in self.interfaces_by_hostid.get(host.id, []):
             if self._is_sriov_network_type(iface):
                 # obtain the assigned datanets for interface
-                datanets = self._get_interface_datanets(iface)
-                port_name = self._get_interface_port_name(iface)
+                datanets = self.ifdatanets_by_ifaceid.get(iface.id, [])
+                port_name = self._get_interface_port_name(host, iface)
                 for datanet in datanets:
                     dn_name = datanet['datanetwork_name'].strip()
                     physical_device_mappings += ('%s:%s,' % (dn_name, port_name))
@@ -260,34 +271,37 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
     def _is_sriov_network_type(self, iface):
         return iface.ifclass == constants.INTERFACE_CLASS_PCI_SRIOV
 
-    def _get_interface_datanets(self, iface):
+    def _get_interface_ports(self):
         """
-        Return the data networks of the supplied interface as a list.
+        Builds a dictionary of ports indexed by interface id
         """
+        ports = {}
+        db_ports = self.dbapi.port_get_list()
+        for port in db_ports:
+            ports.setdefault(port.interface_id, []).append(port)
+        return ports
 
-        ifdatanets = self.dbapi.interface_datanetwork_get_by_interface(
-            iface.uuid)
-        return ifdatanets
-
-    def _get_interface_port_name(self, iface):
+    def _get_interface_port_name(self, host, iface):
         """
         Determine the port name of the underlying device.
         """
         if (iface['iftype'] == constants.INTERFACE_TYPE_VF and iface['uses']):
-            lower_iface = self.dbapi.iinterface_get(iface['uses'][0])
+            for i in self.interfaces_by_hostid.get(host.id, []):
+                if i.ifname == iface['uses'][0]:
+                    lower_iface = i
             if lower_iface:
-                return self._get_interface_port_name(lower_iface)
+                return self._get_interface_port_name(host, lower_iface)
         assert iface['iftype'] == constants.INTERFACE_TYPE_ETHERNET
-        port = self.dbapi.port_get_by_interface(iface.id)
-        if port:
-            return port[0]['name']
+        ifports = self.ports_by_ifaceid.get(iface.id, [])
+        if ifports:
+            return ifports[0]['name']
 
     def _get_interface_primary_address(self, context, host, iface):
         """
         Determine the primary IP address on an interface (if any).  If multiple
         addresses exist then the first address is returned.
         """
-        for address in self.dbapi.addresses_get_by_host(host.id):
+        for address in self.addresses_by_hostid.get(host.id, []):
             if address.ifname == iface.ifname:
                 return address.address
 

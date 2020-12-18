@@ -2,9 +2,39 @@
 schema: armada/Chart/v1
 metadata:
   schema: metadata/Document/v1
+  name: openstack-psp-rolebinding
+data:
+  chart_name: openstack-psp-rolebinding
+  dependencies: []
+  namespace: openstack
+  release: openstack-psp-rolebinding
+  source:
+    location: http://172.17.0.1/helm_charts/starlingx/psp-rolebinding-0.1.0.tgz
+    subpath: psp-rolebinding
+    type: tar
+    reference: master
+  upgrade:
+    no_hooks: false
+    pre:
+      delete:
+      - labels:
+          release_group: osh-openstack-psp-rolebinding
+        type: job
+  wait:
+    labels:
+      release_group: osh-openstack-psp-rolebinding
+    resources: []
+    timeout: 1800
+  values:
+    rolebindingNamespace: openstack
+    serviceAccount: openstack
+---
+schema: armada/Chart/v1
+metadata:
+  schema: metadata/Document/v1
   name: helm-toolkit
 data:
-  chart_name: helm-toolkit
+  chart_name: openstack-helm-toolkit
   release: helm-toolkit
   namespace: helm-toolkit
   values: {}
@@ -139,6 +169,7 @@ data:
         prometheus_mysql_exporter: null
         prometheus_mysql_exporter_helm_tests: null
         mariadb_backup: docker.io/openstackhelm/mariadb:10.2.18
+        mariadb: docker.io/openstackhelm/mariadb:ubuntu_xenial-20200303
         scripted_test: null
     pod:
       probes:
@@ -155,6 +186,10 @@ data:
     conf:
       ingress_conf:
         worker-processes: '4'
+      database:
+        config_override: |
+          [mysqld]
+          wsrep_provider_options="gmcast.listen_addr=tcp://0.0.0.0:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/mariadb-0.1.0.tgz
@@ -350,6 +385,7 @@ data:
       identity:
         name: keystone
         namespace: openstack
+        force_public_endpoint: true
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -399,9 +435,10 @@ data:
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
 
         <VirtualHost *:{{ $portInt }}>
-            WSGIDaemonProcess keystone-public processes=5 threads=1 user=keystone group=keystone display-name=%{GROUP}
+            WSGIDaemonProcess keystone-public processes=5 threads=1 user=keystone group=keystone display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup keystone-public
             WSGIScriptAlias / /var/www/cgi-bin/keystone/keystone-wsgi-public
             WSGIApplicationGroup %{GLOBAL}
@@ -415,6 +452,28 @@ data:
             CustomLog /dev/stdout combined env=!forwarded
             CustomLog /dev/stdout proxy env=forwarded
         </VirtualHost>
+    bootstrap:
+      script: |
+        #NOTE(gagehugo): As of Rocky, keystone creates a member role by default
+        openstack role create --or-show member
+        openstack role add \
+              --user="${OS_USERNAME}" \
+              --user-domain="${OS_USER_DOMAIN_NAME}" \
+              --project-domain="${OS_PROJECT_DOMAIN_NAME}" \
+              --project="${OS_PROJECT_NAME}" \
+              "member"
+        # admin needs the admin role for the default domain
+        openstack role add \
+              --user="${OS_USERNAME}" \
+              --domain="${OS_DEFAULT_DOMAIN}" \
+              "admin"
+
+        #STX: exempt admin from auth faillockout
+        TOKEN=$(openstack token issue -c id -f value)
+        USER_ID=$(openstack user show ${OS_USERNAME} -c id -f value)
+        REQ_URL="http://keystone.openstack.svc.cluster.local/v3/users/${USER_ID}"
+        DATA_JSON="{\"user\": {\"options\": {\"ignore_lockout_failure_attempts\": true}}}"
+        curl -X PATCH -H "X-Auth-Token: ${TOKEN}" -H "Content-Type: application/json" -d "${DATA_JSON}" "${REQ_URL}"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/keystone-0.1.0.tgz
@@ -451,6 +510,9 @@ data:
             release_group: osh-openstack-keystone-api-proxy
             component: test
   values:
+    endpoints:
+      identity:
+        force_public_endpoint: true
     images:
       tags:
         keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-centos-stable-latest
@@ -459,6 +521,8 @@ data:
       keystone_api_proxy:
         identity:
           bind_host: "::"
+          remote_host: keystone.openstack.svc.cluster.local
+          remote_port: 80
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/keystone-api-proxy-0.1.0.tgz
@@ -525,10 +589,15 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     conf:
       barbican:
         barbican_api:
           bind_host: "::"
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/barbican-0.1.0.tgz
@@ -588,6 +657,7 @@ data:
         ceph_config_helper: docker.io/starlingx/ceph-config-helper:v1.15.0
         ceph_rgw: null
         image_repo_sync: null
+        ceph_bootstrap: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
@@ -670,6 +740,7 @@ data:
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
         test: null
+        glance_metadefs_load: docker.io/starlingx/stx-glance:master-centos-stable-latest
     pod:
       replicas:
         api: 2
@@ -682,10 +753,21 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     conf:
       glance:
         DEFAULT:
           bind_host: "::"
+          registry_host: glance-reg.openstack.svc.cluster.local
+          registry_port: 80
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+      glance_registry:
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/glance-0.1.0.tgz
@@ -770,13 +852,18 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     conf:
       cinder:
         DEFAULT:
           backup_driver: cinder.backup.drivers.ceph.CephBackupDriver
           osapi_volume_listen: "::"
+          glance_api_servers: http://glance.openstack.svc.cluster.local:80/
         keystone_authtoken:
           interface: internal
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     storage: rbd
   source:
     type: tar
@@ -821,6 +908,7 @@ data:
       tags:
         image_repo_sync: null
         libvirt: docker.io/starlingx/stx-libvirt:master-centos-stable-latest
+        ceph_config_helper: docker.io/starlingx/ceph-config-helper:v1.15.0
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/libvirt-0.1.0.tgz
@@ -896,10 +984,13 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      compute:
+        hosts:
+          public: nova-api-internal
     manifests:
       job_ks_endpoints: false
-      ingress_osapi: false
-      service_ingress_osapi: false
+      ingress_osapi: true
+      service_ingress_osapi: true
       cron_job_cell_setup: false
       statefulset_compute_ironic: false
       deployment_placement: false
@@ -978,6 +1069,8 @@ data:
     pod:
       useHostNetwork:
         novncproxy: false
+      use_fqdn:
+        compute: false
       replicas:
         api_metadata: 1
         osapi: 1
@@ -1006,6 +1099,9 @@ data:
     conf:
       ceph:
         enabled: true
+      policy:
+        os_compute_api:limits: '@'
+        os_compute_api:os-availability-zone:list: '@'
       nova:
         DEFAULT:
           allow_resize_to_same_host: true
@@ -1039,6 +1135,8 @@ data:
           my_ip: "::"
         keystone_authtoken:
           interface: internal
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         vnc:
           novncproxy_host: "::"
           vncserver_listen: "::"
@@ -1067,8 +1165,17 @@ data:
           idle_timeout: 60
           max_overflow: 64
           max_pool_size: 1
+        glance:
+          api_servers: http://glance.openstack.svc.cluster.local:80/
+        ironic:
+          api_endpoint: http://ironic.openstack.svc.cluster.local:80/
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        placement:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         neutron:
           default_floating_pool: public
+          url: http://neutron.openstack.svc.cluster.local:80/
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         notifications:
           notification_format: unversioned
         filter_scheduler:
@@ -1096,8 +1203,8 @@ data:
           discover_hosts_in_cells_interval: 30
           periodic_task_interval: -1
         service_user:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
           send_service_user_token: true
-        upgrade_levels: None
         metrics:
           required: false
         workarounds:
@@ -1142,6 +1249,9 @@ data:
           labels:
             release_group: osh-openstack-placement
   values:
+    endpoints:
+      identity:
+        force_public_endpoint: true
     labels:
       placement:
         node_selector_key: openstack-control-plane
@@ -1173,6 +1283,9 @@ data:
       placement:
         DEFAULT:
           log_config_append: /etc/placement/logging.conf
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       wsgi_placement: |
         Listen :::{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
         LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
@@ -1180,8 +1293,9 @@ data:
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
         <VirtualHost *:{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-            WSGIDaemonProcess placement-api processes=4 threads=1 user=placement group=placement display-name=%{GROUP}
+            WSGIDaemonProcess placement-api processes=4 threads=1 user=placement group=placement display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup placement-api
             WSGIScriptAlias / /var/www/cgi-bin/placement/placement-api
             WSGIApplicationGroup %{GLOBAL}
@@ -1242,6 +1356,9 @@ data:
       tags:
         nova_api_proxy: docker.io/starlingx/stx-nova-api-proxy:master-centos-stable-latest
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    endpoints:
+      identity:
+        force_public_endpoint: true
     pod:
       affinity:
         anti:
@@ -1252,8 +1369,12 @@ data:
         DEFAULT:
           osapi_proxy_listen: "::"
           nfvi_compute_listen: "::"
+          osapi_compute_listen: nova-api-internal.openstack.svc.cluster.local
+          osapi_compute_listen_port: 80
         keystone_authtoken:
           interface: internal
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/nova-api-proxy-0.1.0.tgz
@@ -1290,6 +1411,8 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     pod:
       replicas:
         server: 2
@@ -1418,13 +1541,20 @@ data:
         neutron_sriov_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_sriov_agent_init: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         test: null
+        purge_test: null
         neutron_bagpipe_bgp: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        neutron_ironic_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        neutron_netns_cleanup_cron: docker.io/starlingx/stx-neutron:master-centos-stable-latest
     network:
       interface:
         tunnel: docker0
       backend:
         - openvswitch
         - sriov
+    dependencies:
+      static:
+        ovs_agent:
+          pod: null
     conf:
       neutron:
         DEFAULT:
@@ -1467,6 +1597,11 @@ data:
           root_helper: sudo
         vhost:
           vhost_user_enabled: true
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        nova:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       dhcp_agent:
         DEFAULT:
           enable_isolated_metadata: true
@@ -1587,6 +1722,18 @@ data:
           enabled_raid_interfaces: no-raid
           enabled_storage_interfaces: cinder,noop
           enabled_vendor_interfaces: ipmitool,no-vendor
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        glance:
+          glance_host: glance.openstack.svc.cluster.local
+          glance_port: 80
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        inspector:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        neutron:
+          url: http://neutron.openstack.svc.cluster.local:80/
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         api:
           port: 6385
         pxe:
@@ -1605,6 +1752,8 @@ data:
         port:
           pxe_http:
             default: 28080
+      identity:
+        force_public_endpoint: true
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/ironic-0.1.0.tgz
@@ -1648,6 +1797,8 @@ data:
       oslo_cache:
         hosts:
           default: heat-memcached
+      identity:
+        force_public_endpoint: true
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -1686,6 +1837,13 @@ data:
         stacks:global_index: rule:context_is_admin
         software_configs:global_index: rule:context_is_admin
       heat:
+        clients_keystone:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        trustee:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         heat_api:
           bind_host: "::"
         heat_api_cloudwatch:
@@ -1765,11 +1923,19 @@ data:
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
+      identity:
+        force_public_endpoint: true
     jobs:
       alarms_cleaner:
         # daily at the 35 minute mark
         cron: "35 */24 * * *"
     conf:
+      aodh:
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        service_credentials:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       wsgi_aodh: |
         Listen :::{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
@@ -1779,9 +1945,10 @@ data:
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
 
         <VirtualHost *:{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-            WSGIDaemonProcess aodh processes=2 threads=1 user=aodh group=aodh display-name=%{GROUP}
+            WSGIDaemonProcess aodh processes=2 threads=1 user=aodh group=aodh display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup aodh
             WSGIScriptAlias / /var/www/cgi-bin/aodh/aodh-api
             WSGIApplicationGroup %{GLOBAL}
@@ -1850,15 +2017,18 @@ data:
           driver: mariadb
         keystone_authtoken:
           interface: internal
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       apache: |
         Listen :::{{ tuple "metric" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
 
         <VirtualHost *:{{ tuple "metric" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-            WSGIDaemonProcess gnocchi processes=1 threads=2 user=gnocchi group=gnocchi display-name=%{GROUP}
+            WSGIDaemonProcess gnocchi processes=1 threads=2 user=gnocchi group=gnocchi display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup gnocchi
             WSGIScriptAlias / "/var/lib/openstack/bin/gnocchi-api"
             WSGIApplicationGroup %{GLOBAL}
@@ -1945,6 +2115,8 @@ data:
       oslo_cache:
         hosts:
           default: memcached
+      identity:
+        force_public_endpoint: true
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/gnocchi-0.1.0.tgz
@@ -1981,6 +2153,9 @@ data:
             release_group: osh-openstack-panko
             component: test
   values:
+    endpoints:
+      identity:
+        force_public_endpoint: true
     pod:
       user:
         panko:
@@ -2003,6 +2178,10 @@ data:
         panko_events_cleaner: docker.io/starlingx/stx-panko:master-centos-stable-latest
         test: null
     conf:
+      panko:
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       paste:
         composite:panko+noauth:
           use: egg:Paste#urlmap
@@ -2044,9 +2223,10 @@ data:
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
         CustomLog /dev/stdout proxy env=forwarded
+        WSGISocketPrefix /var/run/httpd/wsgi
 
         <VirtualHost *:{{ tuple "event" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-            WSGIDaemonProcess panko processes=2 threads=1 user=panko group=panko display-name=%{GROUP}
+            WSGIDaemonProcess panko processes=2 threads=1 user=panko group=panko display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
             WSGIProcessGroup panko
             WSGIScriptAlias / /var/www/cgi-bin/panko/panko-api
             WSGIApplicationGroup %{GLOBAL}
@@ -2158,6 +2338,8 @@ data:
       secret_db: false
       secret_mongodb: false
     endpoints:
+      identity:
+        force_public_endpoint: true
       oslo_messaging:
         statefulset:
           name: osh-openstack-rabbitmq-rabbitmq
@@ -2181,6 +2363,15 @@ data:
             public: 80
     conf:
       ceilometer:
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        service_credentials:
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+        dispatcher_gnocchi:
+          url: http://gnocchi.openstack.svc.cluster.local:80/
+        api:
+          aodh_url: http://aodh.openstack.svc.cluster.local:80/
         cache:
           expiration_time: 86400
         compute:
@@ -2594,10 +2785,11 @@ data:
       Listen :::{{ tuple "metering" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
       LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+      WSGISocketPrefix /var/run/httpd/wsgi
 
       <VirtualHost *:{{ tuple "metering" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
           LogLevel info
-          WSGIDaemonProcess ceilometer-api processes=2 threads=1 user=ceilometer group=ceilometer display-name=%{GROUP} python-path=/var/lib/kolla/venv/lib/python2.7/site-packages
+          WSGIDaemonProcess ceilometer-api processes=2 threads=1 user=ceilometer group=ceilometer display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
           WSGIProcessGroup ceilometer-api
 
           WSGIScriptReloading On
@@ -2671,6 +2863,9 @@ data:
             release_group: osh-openstack-fm-rest-api
             component: ks-endpoints
   values:
+    endpoints:
+      identity:
+        force_public_endpoint: true
     pod:
       affinity:
         anti:
@@ -2696,6 +2891,9 @@ data:
       fm:
         api:
           bind_host: "::"
+        keystone_authtoken:
+          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/fm-rest-api-0.1.0.tgz
@@ -2772,10 +2970,11 @@ data:
           SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
           CustomLog /dev/stdout combined env=!forwarded
           CustomLog /dev/stdout proxy env=forwarded
+          WSGISocketPrefix /var/run/httpd/wsgi
 
           <VirtualHost *:{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
               WSGIScriptReloading On
-              WSGIDaemonProcess horizon-http processes=5 threads=1 user=horizon group=horizon display-name=%{GROUP} python-path=/var/lib/kolla/venv/lib/python2.7/site-packages
+              WSGIDaemonProcess horizon-http processes=5 threads=1 user=horizon group=horizon display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
               WSGIProcessGroup horizon-http
               WSGIScriptAlias / /var/www/cgi-bin/horizon/django.wsgi
               WSGIPassAuthorization On
@@ -3767,6 +3966,16 @@ data:
   chart_group:
     - openstack-dcdbsync
 ---
+schema: armada/ChartGroup/v1
+metadata:
+  schema: metadata/Document/v1
+  name: openstack-psp-rolebinding
+data:
+  description: "Deploy psp rolebinding"
+  sequenced: true
+  chart_group:
+    - openstack-psp-rolebinding
+---
 schema: armada/Manifest/v1
 metadata:
   schema: metadata/Document/v1
@@ -3774,6 +3983,7 @@ metadata:
 data:
   release_prefix: osh
   chart_groups:
+    - openstack-psp-rolebinding
     - openstack-ingress
     - openstack-mariadb
     - openstack-memcached

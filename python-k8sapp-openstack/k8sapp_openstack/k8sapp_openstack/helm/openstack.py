@@ -257,14 +257,6 @@ class OpenstackBaseHelm(base.BaseHelm):
                 'host': service_name + '.' + str(endpoint_domain.value).lower()
             })
 
-        if (self._distributed_cloud_role() ==
-                constants.DISTRIBUTED_CLOUD_ROLE_SUBCLOUD):
-            admin_endpoint_domain = 'openstack.svc.cluster.%s' \
-                                % self._region_name()
-            overrides['admin'] = {
-                'host': service_name + '-admin' + '.' + admin_endpoint_domain
-            }
-
         # Get TLS certificate files if installed
         cert = None
         try:
@@ -281,18 +273,10 @@ class OpenstackBaseHelm(base.BaseHelm):
         return overrides
 
     def _get_endpoints_hosts_admin_overrides(self, service_name):
-        overrides = {}
-        if (self._distributed_cloud_role() ==
-                constants.DISTRIBUTED_CLOUD_ROLE_SUBCLOUD):
-            overrides['admin'] = service_name + '-' + 'admin'
-        return overrides
+        return {}
 
     def _get_network_api_ingress_overrides(self):
-        overrides = {'admin': False}
-        if (self._distributed_cloud_role() ==
-                constants.DISTRIBUTED_CLOUD_ROLE_SUBCLOUD):
-            overrides['admin'] = True
-        return overrides
+        return {'admin': False}
 
     def _get_endpoints_scheme_public_overrides(self):
         overrides = {}
@@ -360,6 +344,9 @@ class OpenstackBaseHelm(base.BaseHelm):
         for user in common.USERS:
             if user == common.USER_ADMIN:
                 o_user = self._get_admin_user_name()
+                o_service = common.SERVICE_ADMIN
+            elif user == common.USER_STX_ADMIN:
+                o_user = user
                 o_service = common.SERVICE_ADMIN
             else:
                 o_user = user
@@ -511,6 +498,53 @@ class OpenstackBaseHelm(base.BaseHelm):
             K8RbdProvisioner.get_user_secret_name({
                 'name': constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH]})
         }
+
+    def _get_interface_datanets(self):
+        """
+        Builds a dictionary of interface datanetworks indexed by interface id
+        """
+        ifdatanets = {}
+        db_ifdatanets = self.dbapi.interface_datanetwork_get_all()
+        for ifdatanet in db_ifdatanets:
+            ifdatanets.setdefault(ifdatanet.interface_id, []).append(ifdatanet)
+        return ifdatanets
+
+    def _get_host_interfaces(self, sort_key=None):
+        """
+        Builds a dictionary of interfaces indexed by host id
+        """
+        interfaces = {}
+        db_interfaces = self.dbapi.iinterface_get_list()
+        if sort_key:
+            db_interfaces = sorted(db_interfaces, key=sort_key)
+
+        for iface in db_interfaces:
+            interfaces.setdefault(iface.forihostid, []).append(iface)
+        return interfaces
+
+    def _get_host_labels(self):
+        """
+        Builds a dictionary of labels indexed by host id
+        """
+        labels = {}
+        db_labels = self.dbapi.label_get_all()
+        for label in db_labels:
+            labels.setdefault(label.host_id, []).append(label)
+        return labels
+
+    def _get_host_addresses(self):
+        """
+        Builds a dictionary of addresses indexed by host id
+        """
+        addresses = {}
+        db_addresses = self.dbapi.addresses_get_all()
+        db_interfaces = self.dbapi.iinterface_get_list()
+        for addr in db_addresses:
+            for iface in db_interfaces:
+                if iface.id == addr.interface_id:
+                    addresses.setdefault(iface.forihostid, []).append(addr)
+                    break
+        return addresses
 
     def execute_manifest_updates(self, operator):
         """

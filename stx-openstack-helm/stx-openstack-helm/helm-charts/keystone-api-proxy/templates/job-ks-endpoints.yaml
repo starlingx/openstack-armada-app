@@ -61,7 +61,11 @@ spec:
             - name: OS_SERVICE_TYPE
               value: {{ $osServiceType | quote }}
             - name: OS_SERVICE_ENDPOINT
+              {{- if and (hasKey $envAll.Values.endpoints.identity "force_public_endpoint") $envAll.Values.endpoints.identity.force_public_endpoint }}
+              value: {{ tuple $osRealServiceType "public" "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | quote }}
+              {{- else }}
               value: {{ tuple $osRealServiceType $osServiceEndPoint "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | quote }}
+              {{- end }}
             - name: OS_SERVICE_REGION
               value: {{ $osServiceRegion | quote }}
 {{- end }}

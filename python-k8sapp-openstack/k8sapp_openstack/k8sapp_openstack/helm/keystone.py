@@ -217,11 +217,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
 
     def _region_config(self):
         # A wrapper over the Base region_config check.
-        if (self._distributed_cloud_role() ==
-                constants.DISTRIBUTED_CLOUD_ROLE_SUBCLOUD):
-            return False
-        else:
-            return super(KeystoneHelm, self)._region_config()
+        return super(KeystoneHelm, self)._region_config()
 
     def _get_endpoints_overrides(self):
         overrides = {
@@ -289,6 +285,12 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
 
     def get_admin_password(self):
         o_user = self.get_admin_user_name()
+        o_service = common.SERVICE_ADMIN
+
+        return self._get_identity_password(o_service, o_user)
+
+    def get_stx_admin_password(self):
+        o_user = common.USER_STX_ADMIN
         o_service = common.SERVICE_ADMIN
 
         return self._get_identity_password(o_service, o_user)

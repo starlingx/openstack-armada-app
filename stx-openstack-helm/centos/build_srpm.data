@@ -1,6 +1,7 @@
 SRC_DIR="stx-openstack-helm"
 COPY_LIST_TO_TAR="\
     $STX_BASE/helm-charts/fm-rest-api/fm-rest-api/helm-charts \
+    $STX_BASE/helm-charts/psp-rolebinding/psp-rolebinding/helm-charts \
 "
 
 # Bump the version by the previous version value prior to decoupling as this

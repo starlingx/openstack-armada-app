@@ -267,7 +267,13 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 host, function=constants.APPLICATION_FUNCTION, threads=True)
             vm_cpu_list = [c.cpu for c in vm_cpus]
             vm_cpu_fmt = "\"%s\"" % utils.format_range_set(vm_cpu_list)
-            default_config.update({'vcpu_pin_set': vm_cpu_fmt})
+            default_config.update({'cpu_shared_set': vm_cpu_fmt})
+
+            isol_cpus = self._get_host_cpu_list(
+                host, function=constants.ISOLATED_FUNCTION, threads=True)
+            isol_cpu_list = [c.cpu for c in isol_cpus]
+            isol_cpu_fmt = "\"%s\"" % utils.format_range_set(isol_cpu_list)
+            default_config.update({'cpu_dedicated_set': vm_cpu_fmt})
 
             shared_cpus = self._get_host_cpu_list(
                 host, function=constants.SHARED_FUNCTION, threads=True)

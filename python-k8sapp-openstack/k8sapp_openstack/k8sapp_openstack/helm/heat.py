@@ -38,10 +38,10 @@ class HeatHelm(openstack.OpenstackBaseHelm):
     def _get_pod_overrides(self):
         return {
             'replicas': {
-                'api': self._num_controllers(),
-                'cfn': self._num_controllers(),
-                'cloudwatch': self._num_controllers(),
-                'engine': self._num_controllers()
+                'api': self._num_provisioned_controllers(),
+                'cfn': self._num_provisioned_controllers(),
+                'cloudwatch': self._num_provisioned_controllers(),
+                'engine': self._num_provisioned_controllers()
             }
         }
 

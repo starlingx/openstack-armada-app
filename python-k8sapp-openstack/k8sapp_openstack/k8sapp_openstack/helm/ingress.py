@@ -67,8 +67,8 @@ class IngressHelm(base.BaseHelm):
                 },
                 'pod': {
                     'replicas': {
-                        'ingress': self._num_controllers(),
-                        'error_page': self._num_controllers()
+                        'ingress': self._num_provisioned_controllers(),
+                        'error_page': self._num_provisioned_controllers()
                     },
                     'resources': {
                         'enabled': limit_enabled,

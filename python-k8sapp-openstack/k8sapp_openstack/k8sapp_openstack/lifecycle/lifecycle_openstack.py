@@ -73,6 +73,12 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
                 return lifecycle_utils.delete_rbd_provisioner_secrets(app_op, app, hook_info)
 
+        # Semantic checks
+        elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK:
+            if hook_info.mode == constants.APP_LIFECYCLE_MODE_AUTO and \
+                    hook_info.operation == constants.APP_EVALUATE_REAPPLY_OP:
+                return self._semantic_check_evaluate_app_reapply(app_op, app, hook_info)
+
         # Default behavior
         super(OpenstackAppLifecycleOperator, self).app_lifecycle_actions(context, conductor_obj, app_op, app,
                                                                          hook_info)
@@ -225,3 +231,52 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         except Exception as e:
             LOG.error(e)
             raise
+
+    def _semantic_check_evaluate_app_reapply(self, app_op, app, hook_info):
+        """Semantic check for evaluating app reapply
+
+        This is an example of how to use the evaluate reapply semantic check.
+        The same behavior could have been achieved by placing a filter in the metadata
+        based on LifecycleConstants.TRIGGER_CONFIGURE_REQUIRED
+
+        Example of equivalent behavior by adding filters to triggers in metadata:
+        ---
+        behavior:
+          evaluate_reapply:
+            triggers:
+              - type: unlock
+                filters:                    # This line was added
+                - configure_required: True  # This line was added
+              - type: force-unlock
+                filters:                    # This line was added
+                - configure_required: True  # This line was added
+
+        :param app_op: AppOperator object
+        :param app: AppOperator.Application object
+        :param hook_info: LifecycleHookInfo object
+
+        """
+        if LifecycleConstants.EVALUATE_REAPPLY_TRIGGER not in hook_info[LifecycleConstants.EXTRA]:
+            raise exception.LifecycleMissingInfo(
+                "Missing {}".format(LifecycleConstants.EVALUATE_REAPPLY_TRIGGER))
+        trigger = hook_info[LifecycleConstants.EXTRA][LifecycleConstants.EVALUATE_REAPPLY_TRIGGER]
+
+        if LifecycleConstants.TRIGGER_TYPE not in trigger:
+            raise exception.LifecycleMissingInfo(
+                "Missing {} {}".format(LifecycleConstants.EVALUATE_REAPPLY_TRIGGER,
+                                       LifecycleConstants.TRIGGER_TYPE))
+
+        # At the moment of writing this focus is on keeping backwards compatibility
+        # The logic was extracted and kept as it was
+        if trigger[LifecycleConstants.TRIGGER_TYPE] in [constants.UNLOCK_ACTION, constants.FORCE_UNLOCK_ACTION]:
+            if LifecycleConstants.TRIGGER_CONFIGURE_REQUIRED not in trigger:
+                raise exception.LifecycleMissingInfo(
+                    "Missing {} {}".format(LifecycleConstants.EVALUATE_REAPPLY_TRIGGER,
+                                           LifecycleConstants.TRIGGER_CONFIGURE_REQUIRED))
+
+            # For an unlock, the logic had 'configure_required' set to True
+            if not trigger[LifecycleConstants.TRIGGER_CONFIGURE_REQUIRED]:
+                raise exception.LifecycleSemanticCheckException(
+                    "Trigger type {} expects {} to be true".format(
+                        trigger[LifecycleConstants.TRIGGER_TYPE],
+                        LifecycleConstants.TRIGGER_CONFIGURE_REQUIRED))

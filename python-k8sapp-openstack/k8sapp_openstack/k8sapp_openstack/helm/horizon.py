@@ -33,6 +33,13 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
                 'network': {
                     'node_port': {
                         'enabled': self._get_network_node_port_overrides()
+                    },
+                    'dashboard': {
+                        'ingress': {
+                            'annotations': {
+                                'nginx.ingress.kubernetes.io/proxy-body-size': "2500m"
+                            }
+                        }
                     }
                 }
             }

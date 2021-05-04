@@ -1,0 +1,58 @@
+conf:
+    policy:
+        admin_or_projectadmin_owner: rule:context_is_admin or rule:projectadmin_and_owner
+        admin_or_projectadmin_required: rule:context_is_admin or rule:projectadmin_required
+        admin_or_projectmember_owner: rule:context_is_admin or rule:projectmember_and_owner
+        admin_or_projectmember_required: rule:context_is_admin or rule:projectmember_required
+        context_is_admin: role:admin
+        os_compute_api:os-admin-password: rule:admin_or_projectadmin_owner
+        os_compute_api:os-attach-interfaces:create: rule:admin_or_projectadmin_owner
+        os_compute_api:os-attach-interfaces:delete: rule:admin_or_projectadmin_owner
+        os_compute_api:os-console-output: rule:admin_or_projectmember_owner
+        os_compute_api:os-consoles:create: rule:admin_or_projectmember_owner
+        os_compute_api:os-consoles:delete: rule:admin_or_projectmember_owner
+        os_compute_api:os-create-backup: rule:admin_or_projectadmin_owner
+        os_compute_api:os-deferred-delete: rule:admin_or_projectadmin_owner
+        os_compute_api:os-lock-server:lock: rule:admin_or_projectadmin_owner
+        os_compute_api:os-lock-server:unlock: rule:admin_or_projectadmin_owner
+        os_compute_api:os-pause-server:pause: rule:admin_or_projectadmin_owner
+        os_compute_api:os-pause-server:unpause: rule:admin_or_projectadmin_owner
+        os_compute_api:os-remote-consoles: rule:admin_or_projectmember_owner
+        os_compute_api:os-rescue: rule:admin_or_projectadmin_owner
+        os_compute_api:os-security-groups: rule:admin_or_projectadmin_owner
+        os_compute_api:os-server-groups:create: rule:admin_or_projectadmin_owner
+        os_compute_api:os-server-groups:delete: rule:admin_or_projectadmin_owner
+        os_compute_api:os-server-password: rule:admin_or_projectadmin_owner
+        os_compute_api:os-server-tags:delete: rule:admin_or_projectadmin_owner
+        os_compute_api:os-server-tags:delete_all: rule:admin_or_projectadmin_owner
+        os_compute_api:os-server-tags:update: rule:admin_or_projectadmin_owner
+        os_compute_api:os-server-tags:update_all: rule:admin_or_projectadmin_owner
+        os_compute_api:os-shelve:shelve: rule:admin_or_projectadmin_owner
+        os_compute_api:os-shelve:unshelve: rule:admin_or_projectadmin_owner
+        os_compute_api:os-suspend-server:resume: rule:admin_or_projectadmin_owner
+        os_compute_api:os-suspend-server:suspend: rule:admin_or_projectadmin_owner
+        os_compute_api:os-volumes-attachments:create: rule:admin_or_projectmember_owner
+        os_compute_api:os-volumes-attachments:delete: rule:admin_or_projectmember_owner
+        os_compute_api:os-volumes-attachments:update: rule:admin_or_projectadmin_required
+        os_compute_api:server-metadata:create: rule:admin_or_projectadmin_owner
+        os_compute_api:server-metadata:delete: rule:admin_or_projectadmin_owner
+        os_compute_api:server-metadata:update: rule:admin_or_projectadmin_owner
+        os_compute_api:server-metadata:update_all: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:confirm_resize: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:create: rule:admin_or_projectmember_owner
+        os_compute_api:servers:create_image: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:delete: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:reboot: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:rebuild: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:resize: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:revert_resize: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:start: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:stop: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:trigger_crash_dump: rule:admin_or_projectadmin_owner
+        os_compute_api:servers:update: rule:admin_or_projectadmin_owner
+        owner: project_id:%(project_id)s
+        projectadmin_and_owner: rule:projectadmin_required and rule:owner
+        projectadmin_required: role:project_admin
+        projectmember_and_owner: rule:projectmember_required and rule:owner
+        projectmember_required: role:project_admin or role:member
+

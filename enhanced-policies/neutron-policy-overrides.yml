@@ -1,0 +1,270 @@
+conf:
+    policy:
+        add_router_interface: rule:admin_or_projectadmin_owner
+        add_subports: rule:admin_or_projectadmin_owner
+        admin_only: rule:context_is_admin
+        admin_or_data_plane_int: rule:context_is_admin or role:data_plane_integrator
+        admin_or_generic_owner: rule:context_is_admin or rule:generic_owner
+        admin_or_network_owner: rule:context_is_admin or tenant_id:%(network:tenant_id)s
+        admin_or_ext_parent_owner: rule:context_is_admin or tenant_id:%(ext_parent:tenant_id)s
+        admin_or_owner: rule:context_is_admin or rule:owner
+        admin_or_projectadmin_generic_owner: rule:context_is_admin or rule:projectadmin_and_generic_owner
+        admin_or_projectadmin_network_owner: rule:context_is_admin or rule:projectadmin_and_network_owner
+        admin_or_projectadmin_ext_owner: rule:context_is_admin or rule:projectadmin_and_ext_owner
+        admin_or_projectadmin_owner: rule:context_is_admin or rule:projectadmin_and_owner
+        admin_or_projectadmin_required: rule:context_is_admin or rule:projectadmin_required
+        admin_or_projectmember_generic_owner: rule:context_is_admin or rule:projectmember_and_generic_owner
+        admin_or_projectmember_network_owner: rule:context_is_admin or rule:projectmember_and_network_owner
+        admin_or_projectmember_owner: rule:context_is_admin or rule:projectmember_and_owner
+        admin_or_projectmember_required: rule:context_is_admin or rule:projectmember_required
+        admin_or_qos_owner: rule:context_is_admin or tenant_id:%(qos:tenant_id)s
+        admin_owner_or_network_owner: rule:owner or rule:admin_or_network_owner
+        context_is_admin: role:admin
+        context_is_advsvc: role:advsvc
+        create_address_scope: rule:admin_or_projectadmin_required
+        create_address_scope:shared: rule:admin_or_projectadmin_required
+        create_dhcp-network: rule:admin_only
+        create_flavor: rule:admin_only
+        create_flavor_service_profile: rule:admin_only
+        create_floatingip: rule:admin_or_projectadmin_required
+        create_floatingip:floating_ip_address: rule:admin_or_projectadmin_required
+        create_floatingip_port_forwarding: rule:admin_or_projectadmin_required
+        create_l3-router: rule:admin_only
+        create_log: rule:admin_only
+        create_lsn: rule:admin_only
+        create_metering_label: rule:admin_only
+        create_metering_label_rule: rule:admin_only
+        create_network: rule:admin_or_projectadmin_required
+        create_network:is_default: rule:admin_only
+        create_network:provider:network_type: rule:admin_only
+        create_network:provider:physical_network: rule:admin_only
+        create_network:provider:segmentation_id: rule:admin_only
+        create_network:router:external: rule:admin_only
+        create_network:segments: rule:admin_only
+        create_network:shared: rule:admin_or_projectadmin_required
+        create_network:wrs-tm:qos: rule:admin_or_qos_owner
+        create_network_profile: rule:admin_only
+        create_policy: rule:admin_only
+        create_policy_bandwidth_limit_rule: rule:admin_only
+        create_policy_dscp_marking_rule: rule:admin_only
+        create_policy_minimum_bandwidth_rule: rule:admin_only
+        create_port: rule:admin_or_projectmember_required
+        create_port:allowed_address_pairs: rule:admin_or_network_owner
+        create_port:binding:host_id: rule:admin_only
+        create_port:binding:profile: rule:admin_only
+        create_port:device_owner: not rule:network_device or rule:context_is_advsvc or rule:admin_or_network_owner
+        create_port:fixed_ips: rule:context_is_advsvc or rule:admin_or_network_owner
+        create_port:mac_address: rule:context_is_advsvc or rule:admin_or_network_owner
+        create_port:mac_learning_enabled: rule:context_is_advsvc or rule:admin_or_network_owner
+        create_port:port_security_enabled: rule:context_is_advsvc or rule:admin_or_network_owner
+        create_port:wrs-binding:mac_filtering: rule:admin_only
+        create_port:wrs-binding:mtu: rule:admin_only
+        create_port:wrs-tm:qos: rule:admin_or_qos_owner
+        create_providernet: rule:admin_only
+        create_providernet_range: rule:admin_only
+        create_qos: rule:admin_only
+        create_qos_queue: rule:admin_only
+        create_rbac_policy: rule:admin_or_projectadmin_required
+        create_rbac_policy:target_tenant: rule:restrict_wildcard
+        create_router: rule:admin_or_projectadmin_required
+        create_router:distributed: rule:admin_or_projectadmin_required
+        create_router:external_gateway_info:enable_snat: rule:admin_or_projectadmin_required
+        create_router:external_gateway_info:external_fixed_ips: rule:admin_or_projectadmin_required
+        create_router:ha: rule:admin_or_projectadmin_required
+        create_security_group: rule:admin_or_projectadmin_owner
+        create_security_group_rule: rule:admin_or_projectadmin_owner
+        create_segment: rule:admin_only
+        create_service_profile: rule:admin_only
+        create_subnet: rule:admin_or_projectadmin_network_owner
+        create_subnet:segment_id: rule:admin_only
+        create_subnet:service_types: rule:admin_only
+        create_subnet:wrs-provider:segmentation_id: rule:admin_only
+        create_subnetpool: rule:admin_or_projectadmin_required
+        create_subnetpool:is_default: rule:admin_only
+        create_subnetpool:shared: rule:admin_or_projectadmin_required
+        create_trunk: rule:admin_or_projectadmin_required
+        default: rule:admin_or_owner
+        delete_address_scope: rule:admin_or_projectadmin_owner
+        delete_agent: rule:admin_only
+        delete_dhcp-network: rule:admin_only
+        delete_flavor: rule:admin_only
+        delete_flavor_service_profile: rule:admin_only
+        delete_floatingip: rule:admin_or_projectadmin_owner
+        delete_floatingip_port_forwarding: rule:admin_or_projectadmin_ext_owner
+        delete_l3-router: rule:admin_only
+        delete_log: rule:admin_only
+        delete_metering_label: rule:admin_only
+        delete_metering_label_rule: rule:admin_only
+        delete_network: rule:admin_or_projectadmin_owner
+        delete_network_profile: rule:admin_only
+        delete_policy: rule:admin_only
+        delete_policy_bandwidth_limit_rule: rule:admin_only
+        delete_policy_dscp_marking_rule: rule:admin_only
+        delete_policy_minimum_bandwidth_rule: rule:admin_only
+        delete_port: rule:context_is_advsvc or rule:admin_or_projectmember_generic_owner
+        delete_providernet: rule:admin_only
+        delete_providernet_range: rule:admin_only
+        delete_qos: rule:admin_only
+        delete_rbac_policy: rule:admin_or_projectadmin_owner
+        delete_router: rule:admin_or_projectadmin_owner
+        delete_security_group: rule:admin_or_projectadmin_owner
+        delete_security_group_rule: rule:admin_or_projectadmin_owner
+        delete_segment: rule:admin_only
+        delete_service_profile: rule:admin_only
+        delete_subnet: rule:admin_or_projectadmin_network_owner
+        delete_subnetpool: rule:admin_or_projectadmin_owner
+        delete_trunk: rule:admin_or_projectadmin_owner
+        external: field:networks:router:external=True
+        ext_parent_owner: tenant_id:%(ext_parent:tenant_id)s
+        generic_owner: rule:owner or rule:network_owner
+        get_address_scope: rule:admin_or_owner or rule:shared_address_scopes
+        get_agent: rule:admin_only
+        get_agent-loadbalancers: rule:admin_only
+        get_auto_allocated_topology: rule:admin_or_owner
+        get_dhcp-agents: rule:admin_only
+        get_dhcp-networks: rule:admin_only
+        get_flavor: rule:regular_user
+        get_flavor_service_profile: rule:regular_user
+        get_flavors: rule:regular_user
+        get_floatingip: rule:admin_or_owner
+        get_floatingip_port_forwarding: rule:admin_or_ext_parent_owner or rule:context_is_advsvc
+        get_l3-agents: rule:admin_only
+        get_l3-routers: rule:admin_only
+        get_loadbalancer-agent: rule:admin_only
+        get_loadbalancer-hosting-agent: rule:admin_only
+        get_loadbalancer-pools: rule:admin_only
+        get_log: rule:admin_only
+        get_loggable_resources: rule:admin_only
+        get_logs: rule:admin_only
+        get_lsn: rule:admin_only
+        get_metering_label: rule:admin_only
+        get_metering_label_rule: rule:admin_only
+        get_network: rule:admin_or_owner or rule:shared or rule:external or rule:context_is_advsvc
+        get_network:provider:network_type: rule:admin_only
+        get_network:provider:physical_network: rule:admin_only
+        get_network:provider:segmentation_id: rule:admin_only
+        get_network:queue_id: rule:admin_only
+        get_network:router:external: rule:regular_user
+        get_network:segments: rule:admin_only
+        get_network:wrs-tm:qos: rule:admin_or_qos_owner
+        get_network_ip_availabilities: rule:admin_or_projectadmin_owner
+        get_network_ip_availability: rule:admin_or_projectadmin_owner
+        get_network_profile: ""
+        get_network_profiles: ""
+        get_policy: rule:regular_user
+        get_policy_bandwidth_limit_rule: rule:regular_user
+        get_policy_dscp_marking_rule: rule:regular_user
+        get_policy_minimum_bandwidth_rule: rule:regular_user
+        get_policy_profile: ""
+        get_policy_profiles: ""
+        get_port: rule:context_is_advsvc or rule:admin_owner_or_network_owner
+        get_port:binding:host_id: rule:admin_only
+        get_port:binding:profile: rule:admin_only
+        get_port:binding:vif_details: rule:admin_only
+        get_port:binding:vif_type: rule:admin_only
+        get_port:queue_id: rule:admin_only
+        get_providernet: rule:admin_only
+        get_providernet-bindings: rule:admin_only
+        get_providernet_range: rule:admin_only
+        get_providernet_ranges: rule:admin_only
+        get_providernet_types: rule:admin_only
+        get_providernets: rule:admin_only
+        get_qos: rule:admin_or_owner
+        get_qos_queue: rule:admin_only
+        get_rbac_policy: rule:admin_or_owner
+        get_router: rule:admin_or_owner
+        get_router:distributed: rule:admin_or_projectadmin_required
+        get_router:ha: rule:admin_or_projectadmin_required
+        get_router:wrs-net:host: rule:admin_only
+        get_routers:wrs-net:host: rule:admin_only
+        get_rule_type: rule:regular_user
+        get_security_group: rule:admin_or_owner
+        get_security_group_rule: rule:admin_or_owner
+        get_security_group_rules: rule:admin_or_owner
+        get_security_groups: rule:admin_or_owner
+        get_segment: rule:admin_only
+        get_service_profile: rule:admin_only
+        get_service_profiles: rule:admin_only
+        get_service_provider: rule:regular_user
+        get_subnet: rule:admin_or_owner or rule:shared
+        get_subnet:segment_id: rule:admin_only
+        get_subnet:wrs-provider:network_type: rule:admin_only
+        get_subnet:wrs-provider:physical_network: rule:admin_only
+        get_subnet:wrs-provider:segmentation_id: rule:admin_only
+        get_subnetpool: rule:admin_or_owner or rule:shared_subnetpools
+        get_subports: ""
+        get_trunk: rule:admin_or_owner
+        network_device: 'field:port:device_owner=~^network:'
+        network_owner: tenant_id:%(network:tenant_id)s
+        owner: tenant_id:%(tenant_id)s
+        projectadmin_and_ext_owner: rule:projectadmin_required and rule:ext_parent_owner
+        projectadmin_and_generic_owner: rule:projectadmin_required and rule:generic_owner
+        projectadmin_and_network_owner: rule:projectadmin_required and rule:network_owner
+        projectadmin_and_owner: rule:projectadmin_required and rule:owner
+        projectadmin_required: role:project_admin
+        projectmember_and_generic_owner: rule:projectmember_required and rule:generic_owner
+        projectmember_and_network_owner: rule:projectmember_required and rule:network_owner
+        projectmember_and_owner: rule:projectmember_required and rule:owner
+        projectmember_required: role:project_admin or role:member
+        regular_user: ""
+        remove_router_interface: rule:admin_or_projectadmin_owner
+        remove_subports: rule:admin_or_projectadmin_owner
+        restrict_wildcard: (not field:rbac_policy:target_tenant=*) or rule:admin_only
+        shared: field:networks:shared=True
+        shared_address_scopes: field:address_scopes:shared=True
+        shared_subnetpools: field:subnetpools:shared=True
+        update_address_scope: rule:admin_or_projectadmin_owner
+        update_address_scope:shared: rule:admin_or_projectadmin_owner
+        update_agent: rule:admin_only
+        update_flavor: rule:admin_only
+        update_floatingip: rule:admin_or_projectadmin_owner
+        update_log: rule:admin_only
+        update_network: rule:admin_or_projectadmin_owner
+        update_network:provider:network_type: rule:admin_only
+        update_network:provider:physical_network: rule:admin_only
+        update_network:provider:segmentation_id: rule:admin_only
+        update_network:router:external: rule:admin_only
+        update_network:segments: rule:admin_only
+        update_network:shared: rule:admin_or_projectadmin_required
+        update_network:wrs-tm:qos: rule:admin_or_qos_owner
+        update_network_profile: rule:admin_only
+        update_policy: rule:admin_only
+        update_policy_bandwidth_limit_rule: rule:admin_only
+        update_policy_dscp_marking_rule: rule:admin_only
+        update_policy_minimum_bandwidth_rule: rule:admin_only
+        update_policy_profiles: rule:admin_only
+        update_port: rule:admin_or_projectmember_owner or rule:context_is_advsvc
+        update_port:allowed_address_pairs: rule:admin_or_network_owner
+        update_port:binding:host_id: rule:admin_only
+        update_port:binding:profile: rule:admin_only
+        update_port:data_plane_status: rule:admin_or_data_plane_int
+        update_port:device_owner: not rule:network_device or rule:context_is_advsvc or rule:admin_or_network_owner
+        update_port:fixed_ips: rule:context_is_advsvc or rule:admin_or_network_owner
+        update_port:mac_address: rule:admin_only or rule:context_is_advsvc
+        update_port:mac_learning_enabled: rule:context_is_advsvc or rule:admin_or_network_owner
+        update_port:port_security_enabled: rule:context_is_advsvc or rule:admin_or_network_owner
+        update_port:wrs-binding:mac_filtering: rule:admin_only
+        update_port:wrs-binding:mtu: rule:admin_only
+        update_port:wrs-tm:qos: rule:admin_or_qos_owner
+        update_floatingip_port_forwarding: rule:admin_or_projectadmin_ext_owner
+        update_providernet: rule:admin_only
+        update_providernet_range: rule:admin_only
+        update_qos: rule:admin_only
+        update_rbac_policy: rule:admin_or_projectadmin_owner
+        update_rbac_policy:target_tenant: rule:restrict_wildcard and rule:admin_or_owner
+        update_router: rule:admin_or_projectadmin_owner
+        update_router:distributed: rule:admin_or_projectadmin_required
+        update_router:external_gateway_info: rule:admin_or_projectadmin_owner
+        update_router:external_gateway_info:enable_snat: rule:admin_or_projectadmin_required
+        update_router:external_gateway_info:external_fixed_ips: rule:admin_or_projectadmin_required
+        update_router:external_gateway_info:network_id: rule:admin_or_projectadmin_owner
+        update_router:ha: rule:admin_or_projectadmin_required
+        update_security_group: rule:admin_or_projectadmin_owner
+        update_segment: rule:admin_only
+        update_service_profile: rule:admin_only
+        update_subnet: rule:admin_or_projectadmin_network_owner
+        update_subnet:service_types: rule:admin_only
+        update_subnet:wrs-provider:segmentation_id: rule:admin_only
+        update_subnetpool: rule:admin_or_projectadmin_owner
+        update_subnetpool:is_default: rule:admin_only
+        update_trunk: rule:admin_or_projectadmin_owner

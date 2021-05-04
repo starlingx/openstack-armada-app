@@ -1,0 +1,65 @@
+conf:
+    policy:
+        owner: project_id:%(owner)s
+        admin_or_projectadmin_owner: rule:context_is_admin or rule:projectadmin_and_owner
+        admin_or_projectadmin_required: rule:context_is_admin or rule:projectadmin_required
+        admin_or_projectmember_owner: rule:context_is_admin or rule:projectmember_and_owner
+        admin_or_projectmember_required: rule:context_is_admin or rule:projectmember_required
+        projectadmin_required: role:project_admin
+        projectadmin_and_owner: rule:projectadmin_required and rule:owner
+        projectmember_and_owner: rule:projectmember_required and rule:owner
+        projectmember_required: role:project_admin or role:member
+        add_image: rule:admin_or_projectmember_required
+        add_member: rule:admin_or_projectadmin_owner
+        add_metadef_namespace: rule:admin_or_projectadmin_required
+        add_metadef_object: rule:admin_or_projectadmin_required
+        add_metadef_property: rule:admin_or_projectadmin_required
+        add_metadef_resource_type_association: rule:admin_or_projectadmin_required
+        add_metadef_tag: rule:admin_or_projectadmin_required
+        add_metadef_tags: rule:admin_or_projectadmin_required
+        add_task: rule:admin_or_projectadmin_owner
+        communitize_image: rule:admin_or_projectadmin_required
+        context_is_admin: role:admin
+        copy_from: rule:admin_or_projectadmin_owner
+        deactivate: rule:admin_or_projectadmin_owner
+        default: role:admin
+        delete_image: rule:admin_or_projectadmin_owner
+        delete_image_location: rule:admin_or_projectadmin_owner
+        delete_member: rule:admin_or_projectadmin_owner
+        delete_metadef_namespace: rule:admin_or_projectadmin_owner
+        delete_metadef_object: rule:admin_or_projectadmin_owner
+        delete_metadef_tag: rule:admin_or_projectadmin_owner
+        delete_metadef_tags: rule:admin_or_projectadmin_owner
+        download_image: ""
+        get_image: ""
+        get_image_location: ""
+        get_images: ""
+        get_member: ""
+        get_members: ""
+        get_metadef_namespace: ""
+        get_metadef_namespaces: ""
+        get_metadef_object: ""
+        get_metadef_objects: ""
+        get_metadef_properties: ""
+        get_metadef_property: ""
+        get_metadef_resource_type: ""
+        get_metadef_tag: ""
+        get_metadef_tags: ""
+        get_task: rule:admin_or_projectadmin_owner
+        get_tasks: rule:admin_or_projectadmin_owner
+        list_metadef_resource_types: ""
+        manage_image_cache: role:admin
+        modify_image: rule:admin_or_projectmember_owner
+        modify_member: rule:admin_or_projectmember_required
+        modify_metadef_namespace: rule:admin_or_projectadmin_owner
+        modify_metadef_object: rule:admin_or_projectadmin_owner
+        modify_metadef_property: rule:admin_or_projectadmin_owner
+        modify_metadef_tag: rule:admin_or_projectadmin_owner
+        modify_task: rule:admin_or_projectadmin_owner
+        publicize_image: rule:admin_or_projectadmin_required
+        reactivate: rule:admin_or_projectadmin_owner
+        remove_metadef_property: rule:admin_or_projectadmin_owner
+        remove_metadef_resource_type_association: rule:admin_or_projectadmin_owner
+        set_image_location: rule:admin_or_projectadmin_owner
+        tasks_api_access: role:admin
+        upload_image: rule:admin_or_projectmember_required

@@ -266,27 +266,25 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         else:
             return 'kvm'
 
-    def _update_host_cpu_maps(self, host, default_config):
+    def _update_host_cpu_maps(self, host, compute_config):
         host_cpus = self._get_host_cpu_list(host, threads=True)
         if host_cpus:
+            # "Applicaton" CPUs on the platform are used for regular Openstack
+            # VMs
             vm_cpus = self._get_host_cpu_list(
                 host, function=constants.APPLICATION_FUNCTION, threads=True)
             vm_cpu_list = [c.cpu for c in vm_cpus]
             vm_cpu_fmt = "\"%s\"" % utils.format_range_set(vm_cpu_list)
-            default_config.update({'cpu_shared_set': vm_cpu_fmt})
+            compute_config.update({'cpu_shared_set': vm_cpu_fmt})
 
+            # "Application-isolated" CPUs are completely isolated from the host
+            # process scheduler and are used on Openstack VMs that require
+            # dedicated CPUs
             isol_cpus = self._get_host_cpu_list(
                 host, function=constants.ISOLATED_FUNCTION, threads=True)
             isol_cpu_list = [c.cpu for c in isol_cpus]
             isol_cpu_fmt = "\"%s\"" % utils.format_range_set(isol_cpu_list)
-            default_config.update({'cpu_dedicated_set': vm_cpu_fmt})
-
-            shared_cpus = self._get_host_cpu_list(
-                host, function=constants.SHARED_FUNCTION, threads=True)
-            shared_cpu_map = {c.numa_node: c.cpu for c in shared_cpus}
-            shared_cpu_fmt = "\"%s\"" % ','.join(
-                "%r:%r" % (node, cpu) for node, cpu in shared_cpu_map.items())
-            default_config.update({'shared_pcpu_map': shared_cpu_fmt})
+            compute_config.update({'cpu_dedicated_set': isol_cpu_fmt})
 
     def _get_pci_pt_whitelist(self, host, iface_context):
         # Process all configured PCI passthrough interfaces and add them to
@@ -720,10 +718,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
                     hostname = str(host.hostname)
                     default_config = {}
+                    compute_config = {}
                     vnc_config = {}
                     libvirt_config = {}
                     pci_config = {}
-                    self._update_host_cpu_maps(host, default_config)
+                    self._update_host_cpu_maps(host, compute_config)
                     self._update_host_storage(host, default_config, libvirt_config)
                     self._update_host_addresses(host, default_config, vnc_config,
                                                 libvirt_config)
@@ -734,9 +733,10 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                         'conf': {
                             'nova': {
                                 'DEFAULT': default_config,
+                                'compute': compute_config if compute_config else None,
                                 'vnc': vnc_config,
                                 'libvirt': libvirt_config,
-                                'pci': pci_config if pci_config else None
+                                'pci': pci_config if pci_config else None,
                             }
                         }
                     }

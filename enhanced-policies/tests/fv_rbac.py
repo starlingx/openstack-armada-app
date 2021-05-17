@@ -878,3 +878,774 @@ class OpenStackBasicTesting():
         #       None
         """
         self.os_sdk_conn.image.reactivate_image(image.id)
+
+    # -------------------------------------------------------------------------
+    # Network methods - Neutron
+    # -------------------------------------------------------------------------
+
+    def _create_floatingip(self, subnet_id, floating_network_id, port_id=None,
+                           autoclear=True, **attrs):
+        """
+        # Create a new floating ip from attributes
+        # Parameters
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # attrs (dict) – Keyword arguments which will be used to create a
+        # FloatingIP, comprised of the properties on the FloatingIP class.
+        # Returns
+        # The results of floating ip creation
+        # Return type
+        # FloatingIP
+        """
+        fip = self.os_sdk_conn.network.create_ip(
+            subnet_id=subnet_id,
+            floating_network_id=floating_network_id,
+            port_id=port_id, **attrs
+        )
+        if debug1: print("created fip: " + fip.name + " id: " + fip.id)
+        if autoclear:
+            self.floating_ips_clearing.append(fip.id)
+        return fip
+
+    def _delete_floatingip(self, fip_name_or_id, if_revision=None,
+                           autoclear=True):
+        """
+        # Delete a floating ip
+        # Parameters
+        # fip_name_or_id – The name or ID of an IP or a FloatingIP instance.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be
+        # raised when the floating ip does not exist. When set to True, no
+        # exception will be set when attempting to delete a nonexistent ip.
+        # if_revision (int) – Revision to put in If-Match header of update
+        # request to perform compare-and-swap update.
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # Returns
+        # None
+        """
+        fip = self._find_floatingip(fip_name_or_id, ignore_missing=False)
+        self.os_sdk_conn.network.delete_ip(fip.id, if_revision=if_revision)
+        if debug1:
+            print("deleted fip: " + fip.name + " id: " + fip.id)
+        if autoclear:
+            self.floating_ips_clearing.remove(fip.id)
+
+    def _update_floatingip(self, fip_name_or_id, if_revision=None, **args):
+        fip = self._find_floatingip(fip_name_or_id, ignore_missing=False)
+        """
+        # Update a ip
+        # Parameters
+        # fip_name_or_id – The name or ID of an IP or a FloatingIP instance.
+        # if_revision (int) – Revision to put in If-Match header of update request
+        # to perform compare-and-swap update.
+        # attrs (dict) – The attributes to update on the ip represented by value.
+        # Returns
+        # The updated ip
+        # Return type
+        # FloatingIP
+        """
+        return self.os_sdk_conn.network.update_ip(fip.id,
+                                                  if_revision=if_revision,
+                                                  **args)
+
+    def _list_floatingips(self, **query):
+        """
+        # Return a generator of ips
+        # Parameters
+        # query (dict) –
+        # Optional query parameters to be sent to limit
+        # the resources being returned. Valid parameters are:
+        # description: The description of a floating IP.
+        # fixed_ip_address: The fixed IP address associated with a
+        # floating IP address.
+        # floating_ip_address: The IP address of a floating IP.
+        # floating_network_id: The ID of the network associated with
+        # a floating IP.
+        # port_id: The ID of the port to which a floating IP is
+        # associated.
+        # project_id: The ID of the project a floating IP is
+        # associated with.
+        # router_id: The ID of an associated router.
+        # status: The status of a floating IP, which can be ACTIVE
+        # or DOWN.
+        # Returns
+        # A generator of floating IP objects
+        # Return type
+        # FloatingIP
+        """
+        return self.os_sdk_conn.network.ips(**query)
+
+    def _find_floatingip(self, fip_name_or_id, ignore_missing=True, **args):
+        """
+        # Find a single FloatingIP
+        # Parameters
+        # fip_name_or_id – The name or ID of a FloatingIP instance.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be raised
+        # when the resource does not exist. When set to True, None will be returned
+        # when attempting to find a nonexistent resource.
+        # args (dict) – Any additional parameters to be passed into underlying
+        # methods. such as query filters.
+        # Returns
+        # One FloatingIP or None
+        """
+        return self.os_sdk_conn.network.find_ip(fip_name_or_id,
+                                                ignore_missing=ignore_missing,
+                                                **args)
+
+    def _get_floatingip(self, fip_name_or_id):
+        """
+        # Get a single floating ip
+        # Parameters
+        # fip_name_or_id – The name or ID of a FloatingIP instance.
+        # Returns
+        # One FloatingIP
+        # Raises
+        # ResourceNotFound when no resource can be found.
+        """
+        fip = self._find_floatingip(fip_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.get_ip(fip.id)
+
+    def _create_router(self, name, ext_network_name, autoclear=True, **attrs):
+        """
+        # Create a new router from attributes
+        # Parameters
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # attrs (dict) – Keyword arguments which will be used to create a Router,
+        # comprised of the properties on the Router class.
+        # Returns
+        # The results of router creation
+        # Return type
+        # Router
+        """
+        network = self._get_network(ext_network_name)
+        router = self.os_sdk_conn.network.create_router(
+            name=name,
+            external_gateway_info={'network_id': network.id},
+            **attrs
+        )
+        if debug1: print(
+            "created router: " + router.name + " id: " + router.id)
+        if autoclear:
+            self.routers_clearing.append(router.id)
+        return router
+
+    def _delete_router(self, router_name_or_id, ignore_missing=True,
+                       if_revision=None, autoclear=True):
+        """
+        # Delete a router
+        # Parameters
+        # router_name_or_id – The name or ID of a Router instance.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be raised
+        # when the router does not exist. When set to True, no exception will be
+        # set when attempting to delete a nonexistent router.
+        # if_revision (int) – Revision to put in If-Match header of update request
+        # to perform compare-and-swap update.
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # Returns
+        # None
+        """
+        router = self._find_router(router_name_or_id, ignore_missing=False)
+        self.os_sdk_conn.network.delete_router(router.id,
+                                               ignore_missing=ignore_missing,
+                                               if_revision=if_revision)
+        if debug1: print(
+            "deleted router: " + router.name + " id: " + router.id)
+        if autoclear:
+            self.routers_clearing.remove(router.id)
+
+    def _update_router(self, router_name_or_id, if_revision=None, **args):
+        """
+        # Update a router
+        # Parameters
+        # router_name_or_id – The name or ID of a Router instance.
+        # if_revision (int) – Revision to put in If-Match header of update request
+        # to perform compare-and-swap update.
+        # attrs (dict) – The attributes to update on the router represented by
+        # router.
+        # Returns
+        # The updated router
+        # Return type
+        # Router
+        """
+        router = self._find_router(router_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.update_router(router.id,
+                                                      if_revision=if_revision,
+                                                      **args)
+
+    def _list_routers(self, **query):
+        """
+        # Return a generator of routers
+        # Parameters
+        # query (dict) –
+        # Optional query parameters to be sent to limit
+        # the resources being returned. Valid parameters are:
+        # description: The description of a router.
+        # flavor_id: The ID of the flavor.
+        # is_admin_state_up: Router administrative state is up or not
+        # is_distributed: The distributed state of a router
+        # is_ha: The highly-available state of a router
+        # name: Router name
+        # project_id: The ID of the project this router is associated
+        # with.
+        # status: The status of the router.
+        # Returns
+        # A generator of router objects
+        # Return type
+        # Router
+        """
+        return self.os_sdk_conn.network.routers(**query)
+
+    def _find_router(self, router_name_or_id, ignore_missing=True, **args):
+        """
+        # Find a single router
+        # Parameters
+        # router_name_or_id – The name or ID of a router.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be raised
+        # when the resource does not exist. When set to True, None will be returned
+        # when attempting to find a nonexistent resource.
+        # args (dict) – Any additional parameters to be passed into underlying
+        # methods. such as query filters.
+        # Returns
+        # One Router or None
+        """
+        return self.os_sdk_conn.network.find_router(router_name_or_id,
+                                                    ignore_missing=ignore_missing,
+                                                    **args)
+
+    def _get_router(self, router_name_or_id):
+        """
+        # Get a single router
+        # Parameters
+        # router_name_or_id – The name or ID of a Router instance.
+        # Returns
+        # One Router or None
+        """
+        router = self._find_router(router_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.get_router(router.id)
+
+    def _add_interface_to_router(self, ri, autoclear=True):
+        """
+        # Add Interface to a router
+        # Parameters
+        # ri – ID of an OpenStackRouterInterface instance
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # Returns
+        # Router with updated interface
+        # Return type
+        # class
+        # ~openstack.network.v2.router.Router
+        """
+        router = self._find_router(ri.router_name_or_id, ignore_missing=False)
+        subnet = self._find_subnet(ri.subnet_name_or_id, ignore_missing=False)
+        interface = self.os_sdk_conn.network.add_interface_to_router(
+            router.id,
+            subnet_id=subnet.id
+        )
+        if debug1:
+            print("added interface to router " + router.name + " : "
+                  + subnet.name + " id: " + subnet.id)
+        if autoclear:
+            self.interfaces_clearing.append(ri)
+        return interface
+
+    def _delete_interface_from_router(self, ri, autoclear=True):
+        """
+        # Remove Interface from a router
+        # Parameters
+        # ri – ID of an OpenStackRouterInterface instance
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # Returns
+        # Router with updated interface
+        # Return type
+        # class
+        # ~openstack.network.v2.router.Router
+        """
+        router = self._find_router(ri.router_name_or_id, ignore_missing=False)
+        subnet = self._find_subnet(ri.subnet_name_or_id, ignore_missing=False)
+        self.os_sdk_conn.network.remove_interface_from_router(
+            router.id,
+            subnet_id=subnet.id
+        )
+        if debug1:
+            print("removed interface from router " + router.name + " : " +
+                  subnet.name + " id: " + subnet.id)
+        if autoclear:
+            self.interfaces_clearing.remove(ri)
+
+    def _create_network(self, name, shared=False, autoclear=True, **args):
+        """
+        # Create a new network from attributes
+        # Parameters
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # attrs (dict) – Keyword arguments which will be used to create a Network,
+        # comprised of the properties on the Network class.
+        # Returns
+        # The results of network creation
+        # Return type
+        # Network
+        """
+        conn = self.os_sdk_conn
+        network = conn.network.create_network(name=name, shared=shared, **args)
+        if debug1: print(
+            "created network: " + network.name + " id: " + network.id)
+        if autoclear:
+            self.networks_clearing.append(network.id)
+        return network
+
+    def _delete_network(self, network_name_or_id, if_revision=None,
+                        autoclear=True):
+        """
+        # Delete a network
+        # Parameters
+        # network_name_or_id – The name or ID of a Network instance.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be raised
+        # when the network does not exist. When set to True, no exception will be
+        # set when attempting to delete a nonexistent network.
+        # if_revision (int) – Revision to put in If-Match header of update request
+        # to perform compare-and-swap update.
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # Returns
+        # None
+        """
+        network = self._find_network(network_name_or_id, ignore_missing=False)
+        self.os_sdk_conn.network.delete_network(network.id,
+                                                if_revision=if_revision)
+        if debug1: print(
+            "deleted network: " + network.name + " id: " + network.id)
+        if autoclear:
+            self.networks_clearing.remove(network.id)
+
+    def _update_network(self, network_name_or_id, if_revision=None, **args):
+        """
+        # Update a network
+        # Parameters
+        # network_name_or_id – The name or ID of a Network instance.
+        # if_revision (int) – Revision to put in If-Match header of update request
+        # to perform compare-and-swap update.
+        # attrs (dict) – The attributes to update on the network represented by
+        # network.
+        # Returns
+        # The updated network
+        # Return type
+        # Network
+        """
+        network = self._find_network(network_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.update_network(network.id,
+                                                       if_revision=if_revision,
+                                                       **args)
+
+    def _list_networks(self, **query):
+        """
+        # Return a generator of networks
+        # Parameters
+        # query (kwargs) –
+        # Optional query parameters to be sent to limit the resources being
+        # returned. Available parameters include:
+        # description: The network description.
+        # ipv4_address_scope_id: The ID of the IPv4 address scope for
+        # the network.
+        # ipv6_address_scope_id: The ID of the IPv6 address scope for
+        # the network.
+        # is_admin_state_up: Network administrative state
+        # is_port_security_enabled: The port security status.
+        # is_router_external: Network is external or not.
+        # is_shared: Whether the network is shared across projects.
+        # name: The name of the network.
+        # status: Network status
+        # project_id: Owner tenant ID
+        # provider_network_type: Network physical mechanism
+        # provider_physical_network: Physical network
+        # provider_segmentation_id: VLAN ID for VLAN networks or Tunnel
+        # ID for GENEVE/GRE/VXLAN networks
+        # Returns
+        # A generator of network objects
+        # Return type
+        # Network
+        """
+        return self.os_sdk_conn.list_networks(**query)
+
+    def _find_network(self, network_name_or_id, ignore_missing=True, **args):
+        """
+        # Find a single network
+        # Parameters
+        # network_name_or_id – The name or ID of a Network instance.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be raised
+        # when the resource does not exist. When set to True, None will be returned when attempting to find a nonexistent resource.
+        # args (dict) – Any additional parameters to be passed into underlying
+        # methods. such as query filters.
+        # Returns
+        # One Network or None
+        """
+        return self.os_sdk_conn.network.find_network(network_name_or_id,
+                                                     ignore_missing=ignore_missing,
+                                                     **args)
+
+    def _get_network(self, network_name_or_id):
+        """
+        # Get a single network
+        # Parameters
+        # network_name_or_id – The name or ID of a Network instance.
+        # Returns
+        # One Network or None
+        """
+        network = self._find_network(network_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.get_network(network.id)
+
+    def _create_subnet(self, name, network_name_or_id, enable_dhcp=True,
+                       ip_version=4, cidr=None, gateway_ip=None,
+                       autoclear=True, **attrs):
+        """
+        # Create a new subnet from attributes
+        # Parameters
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # attrs (dict) – Keyword arguments which will be used to create a Subnet,
+        # comprised of the properties on the Subnet class.
+        # Returns
+        # The results of subnet creation
+        # Return type
+        # Subnet
+        """
+        network = self._find_network(network_name_or_id, ignore_missing=False)
+        subnet = self.os_sdk_conn.network.create_subnet(
+            name=name,
+            network_id=network.id,
+            enable_dhcp=enable_dhcp,
+            cidr=cidr,
+            gateway_ip=gateway_ip,
+            ip_version=ip_version,
+            **attrs
+        )
+        if debug1: print(
+            "created subnet: " + subnet.name + " id: " + subnet.id)
+        if autoclear:
+            self.subnets_clearing.append(subnet.id)
+        return subnet
+
+    def _delete_subnet(self, subnet_name_or_id, if_revision=None,
+                       autoclear=True):
+        """
+        # Delete a subnet
+        # Parameters
+        # subnet_name_or_id – The name or ID of a Subnet instance.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be raised
+        # when the subnet does not exist. When set to True, no exception will be
+        # set when attempting to delete a nonexistent subnet.
+        # if_revision (int) – Revision to put in If-Match header of update request
+        # to perform compare-and-swap update.
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # Returns
+        # None
+        """
+        subnet = self._find_subnet(subnet_name_or_id, ignore_missing=False)
+        self.os_sdk_conn.network.delete_subnet(subnet.id,
+                                               if_revision=if_revision)
+        if debug1: print(
+            "deleted subnet: " + subnet.name + " id: " + subnet.id)
+        if autoclear:
+            self.subnets_clearing.remove(subnet.id)
+
+    def _update_subnet(self, subnet_name_or_id, if_revision=None, **args):
+        """
+        # Update a subnet
+        # Parameters
+        # subnet_name_or_id – The name or ID of a Subnet instance.
+        # if_revision (int) – Revision to put in If-Match header of update request
+        # to perform compare-and-swap update.
+        # attrs (dict) – The attributes to update on the subnet represented by
+        # subnet.
+        # Returns
+        # The updated subnet
+        # Return type
+        # Subnet
+        """
+        subnet = self._find_subnet(subnet_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.update_subnet(subnet.id,
+                                                      if_revision=if_revision,
+                                                      **args)
+
+    def _list_subnets(self, **query):
+        """
+        # Return a generator of subnets
+        # Parameters
+        # query (dict) –
+        # Optional query parameters to be sent to limit the resources being
+        # returned. Available parameters include:
+        # cidr: Subnet CIDR
+        # description: The subnet description
+        # gateway_ip: Subnet gateway IP address
+        # ip_version: Subnet IP address version
+        # ipv6_address_mode: The IPv6 address mode
+        # ipv6_ra_mode: The IPv6 router advertisement mode
+        # is_dhcp_enabled: Subnet has DHCP enabled (boolean)
+        # name: Subnet name
+        # network_id: ID of network that owns the subnets
+        # project_id: Owner tenant ID
+        # subnet_pool_id: The subnet pool ID from which to obtain a
+        # CIDR.
+        # Returns
+        # A generator of subnet objects
+        # Return type
+        # Subnet
+        """
+        return self.os_sdk_conn.list_subnets(**query)
+
+    def _find_subnet(self, subnet_name_or_id, ignore_missing=True, **args):
+        """
+        # Find a single subnet
+        # Parameters
+        # subnet_name_or_id – The name or ID of a Subnet instance.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be raised
+        # when the resource does not exist. When set to True, None will be returned
+        # when attempting to find a nonexistent resource.
+        # args (dict) – Any additional parameters to be passed into underlying
+        # methods. such as query filters.
+        # Returns
+        # One Subnet or None
+        """
+        return self.os_sdk_conn.network.find_subnet(
+            subnet_name_or_id,
+            ignore_missing=ignore_missing,
+            **args
+        )
+
+    def _get_subnet(self, subnet_name_or_id):
+        """
+        # Get a single subnet
+        # Parameters
+        # subnet_name_or_id – The name or ID of a Subnet instance.
+        # Returns
+        # One Subnet or None
+        """
+        subnet = self._find_subnet(subnet_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.get_subnet(subnet.id)
+
+    def _create_port(self, port_name, network_name_or_id, autoclear=True,
+                     **attrs):
+        """
+        # Create a new port from attributes
+        # Parameters
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # attrs (dict) – Keyword arguments which will be used to create a Port,
+        # comprised of the properties on the Port class.
+        # Returns
+        # The results of port creation
+        # Return type
+        # Port
+        """
+        network = self._find_network(network_name_or_id, ignore_missing=False)
+        port = self.os_sdk_conn.network.create_port(name=port_name,
+                                                    network_id=network.id,
+                                                    **attrs)
+        if debug1: print("created port id: " + port.id)
+        if autoclear:
+            self.ports_clearing.append(port.id)
+        return port
+
+    def _delete_port(self, port_name_or_id, if_revision=None, autoclear=True):
+        """
+        # Delete a port
+        # Parameters
+        # port_name_or_id – The name or ID of a Port instance.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be raised
+        # when the port does not exist. When set to True, no exception will be set
+        # when attempting to delete a nonexistent port.
+        # if_revision (int) – Revision to put in If-Match header of update request
+        # to perform compare-and-swap update.
+        # autoclear – Used in the teardown mechanism (keep default value)
+        # Returns
+        # None
+        """
+        port = self._find_port(port_name_or_id, ignore_missing=False)
+        self.os_sdk_conn.network.delete_port(port.id, if_revision=if_revision)
+        if debug1: print("deleted port id: " + port.id)
+        if autoclear:
+            self.ports_clearing.remove(port.id)
+
+    def _update_port(self, port_name_or_id, if_revision=None, **args):
+        """
+        # Update a port
+        # Parameters
+        # port_name_or_id – The name or ID of a Port instance.
+        # if_revision (int) – Revision to put in If-Match header of update request
+        # to perform compare-and-swap update.
+        # attrs (dict) – The attributes to update on the port represented by port.
+        # Returns
+        # The updated port
+        # Return type
+        # Port
+        """
+        port = self._find_port(port_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.update_port(port.id,
+                                                    if_revision=if_revision,
+                                                    **args)
+
+    def _list_ports(self, **kwargs):
+        """
+        # Return a generator of ports
+        # Parameters
+        # query (kwargs) –
+        # Optional query parameters to be sent to limit the resources being
+        # returned. Available parameters include:
+        # description: The port description.
+        # device_id: Port device ID.
+        # device_owner: Port device owner (e.g. network:dhcp).
+        # ip_address: IP addresses of an allowed address pair.
+        # is_admin_state_up: The administrative state of the port.
+        # is_port_security_enabled: The port security status.
+        # mac_address: Port MAC address.
+        # name: The port name.
+        # network_id: ID of network that owns the ports.
+        # project_id: The ID of the project who owns the network.
+        # status: The port status. Value is ACTIVE or DOWN.
+        # subnet_id: The ID of the subnet.
+        # Returns
+        # A generator of port objects
+        # Return type
+        # Port
+        """
+        return self.os_sdk_conn.network.ports(**kwargs)
+
+    def _find_port(self, port_name_or_id, ignore_missing=True, **args):
+        """
+        # Find a single port
+        # Parameters
+        # port_name_or_id – The name or ID of a Port instance.
+        # ignore_missing (bool) – When set to False ResourceNotFound will be raised
+        # when the resource does not exist. When set to True, None will be returned
+        # when attempting to find a nonexistent resource.
+        # args (dict) – Any additional parameters to be passed into underlying
+        # methods. such as query filters.
+        # Returns
+        # One Port or None
+        """
+        return self.os_sdk_conn.network.find_port(port_name_or_id,
+                                                  ignore_missing=True, **args)
+
+    def _get_port(self, port_name_or_id):
+        """
+        # Get a single port
+        # Parameters
+        # port_name_or_id – The name or ID of a Port instance.
+        # Returns
+        # One Port
+        # Raises
+        # ResourceNotFound when no resource can be found.
+        """
+        port = self._find_port(port_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.get_port(port.id)
+
+    def _create_security_group(self, name, autoclear=True, **attrs):
+        """
+        # Create a new security group from attributes
+        # Parameters
+        #       autoclear – Used in the teardown mechanism (keep default value)
+        #       attrs (dict) – Keyword arguments which will be used to create a
+        #       SecurityGroup, comprised of the properties on the SecurityGroup
+        #       class.
+        # Returns
+        #       The results of security group creation
+        # Return type
+        #       SecurityGroup
+        """
+        sg = self.os_sdk_conn.network.create_security_group(name=name, **attrs)
+        if debug1: print("created SG: " + sg.name + " id: " + sg.id)
+        if autoclear:
+            self.security_groups_clearing.append(sg.id)
+        return sg
+
+    def _delete_security_group(self, sg_name_or_id, ignore_missing=True,
+                               if_revision=None, autoclear=True):
+        """
+        # Delete a security group
+        # Parameters
+        #       sg_name_or_id – The name or ID of a SecurityGroup instance.
+        #       ignore_missing (bool) – When set to False ResourceNotFound will be
+        #       raised when the security group does not exist. When set to True, no
+        #       exception will be set when attempting to delete a nonexistent
+        #       security group.
+        #       if_revision (int) – Revision to put in If-Match header of update
+        #       request to perform compare-and-swap update.
+        #       autoclear – Used in the teardown mechanism (keep default value)
+        # Returns
+        #       None
+        """
+        sg = self._find_security_group(sg_name_or_id, ignore_missing=False)
+        self.os_sdk_conn.network.delete_security_group(
+            sg.id,
+            ignore_missing=ignore_missing,
+            if_revision=if_revision
+        )
+        if debug1: print("deleted SG: " + sg.name + " id: " + sg.id)
+        if autoclear:
+            self.security_groups_clearing.remove(sg.id)
+
+    def _update_security_group(self, sg_name_or_id, description=None,
+                               if_revision=None, **attrs):
+        """
+        # Update a security group
+        # Parameters
+        #       sg_name_or_id – The name or ID of a SecurityGroup instance.
+        #       attrs (dict) – The attributes to update on the security group
+        #       represented by security_group.
+        # Returns
+        #       The updated security group
+        # Return type
+        #       SecurityGroup
+        """
+        sg = self._find_security_group(sg_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.update_security_group(
+            sg.id,
+            description=description,
+            if_revision=if_revision,
+            **attrs
+        )
+
+    def _list_security_groups(self, **query):
+        """
+        # Return a generator of security groups
+        # Parameters
+        #       query (dict) –
+        #       Optional query parameters to be sent to limit the resources being
+        #       returned.
+        #       Valid parameters are:
+        #           description: Security group description
+        #           ìd: The id of a security group, or list of security group ids
+        #           name: The name of a security group
+        #           project_id: The ID of the project this security group is
+        #           associated with.
+        # Returns
+        #       A generator of security group objects
+        # Return type
+        #       SecurityGroup
+        """
+        return self.os_sdk_conn.network.security_groups(**query)
+
+    def _find_security_group(self, sg_name_or_id, ignore_missing=True, **args):
+        """
+        # Find a single security group
+        # Parameters
+        #       sg_name_or_id – The name or ID of a SecurityGroup instance.
+        #       ignore_missing (bool) – When set to False ResourceNotFound will be
+        #       raised when the resource does not exist. When set to True, None
+        #       will be returned when attempting to find a nonexistent resource.
+        #       args (dict) – Any additional parameters to be passed into
+        #       underlying methods. such as query filters.
+        # Returns
+        #       One SecurityGroup or None
+        """
+        return self.os_sdk_conn.network.find_security_group(
+            sg_name_or_id,
+            ignore_missing=ignore_missing,
+            **args
+        )
+
+    def _get_security_group(self, sg_name_or_id):
+        """
+        # Get a single security group
+        # Parameters
+        #       sg_name_or_id – The name or ID of a SecurityGroup instance.
+        # Returns
+        #       One SecurityGroup
+        # Raises
+        #       ResourceNotFound when no resource can be found.
+        """
+        sg = self._find_security_group(sg_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.network.get_security_group(sg.id)

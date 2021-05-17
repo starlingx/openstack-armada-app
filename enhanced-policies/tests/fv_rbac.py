@@ -1649,3 +1649,243 @@ class OpenStackBasicTesting():
         """
         sg = self._find_security_group(sg_name_or_id, ignore_missing=False)
         return self.os_sdk_conn.network.get_security_group(sg.id)
+
+    # -------------------------------------------------------------------------
+    # Server methods - Nova
+    # -------------------------------------------------------------------------
+
+    def _create_server(self, server_name, image_name_or_id, flavor_name_or_id,
+                       network_name=None, autoclear=True, **attrs):
+        """
+        # Create a new server from attributes
+        # Parameters
+        #       autoclear – Used in the teardown mechanism (keep default value)
+        #       attrs (dict) – Keyword arguments which will be used to create a
+        #       Server, comprised of the properties on the Server class.
+        # Returns
+        #       The results of server creation
+        # Return type
+        #       Server
+        """
+        image = self._find_image(image_name_or_id, ignore_missing=False)
+        flavor = self._find_flavor(flavor_name_or_id, ignore_missing=False)
+        if network_name:
+            network = self.os_sdk_conn.network.find_network(network_name)
+            instance = self.os_sdk_conn.compute.create_server(
+                name=server_name,
+                image_id=image.id,
+                flavor_id=flavor.id,
+                networks=[{"uuid": network.id}],
+                **attrs
+            )
+        else:
+            # instance = self.os_sdk_conn.compute.create_server(
+            #   name=server_name,
+            #   image_id=image.id,
+            #   flavor_id=flavor.id,
+            #   networks=[],
+            #   autoip=False,
+            #   **attrs
+            # )
+            instance = self.os_sdk_conn.compute.create_server(
+                name=server_name,
+                image_id=image.id,
+                flavor_id=flavor.id,
+                networks=[],
+                **attrs
+            )
+        if debug1: print(
+            "created instance: " + instance.name + " id: " + instance.id)
+        if autoclear:
+            self.instances_clearing.append(instance.id)
+        return self._wait_for_server(instance)
+
+    def _delete_server(self, instance_name_or_id, autoclear=True):
+        """
+        # Delete a server
+        # Parameters
+        #       name_or_id – The name or ID of a server.
+        #       ignore_missing (bool) – When set to False ResourceNotFound will be
+        #       raised when the server does not exist. When set to True, no
+        #       exception will be set when attempting to delete a nonexistent
+        #       server
+        #       force (bool) – When set to True, the server deletion will be forced
+        #       immediately.
+        #       autoclear – Used in the teardown mechanism (keep default value)
+        # Returns
+        # None
+        """
+        instance = self._find_server(instance_name_or_id, ignore_missing=False)
+        if instance:
+            self.os_sdk_conn.compute.delete_server(instance.id,
+                                                   ignore_missing=False)
+            if debug1: print(
+                "deleted instance: " + instance.name + " id: " + instance.id)
+            if autoclear:
+                self.instances_clearing.remove(instance.id)
+            self.os_sdk_conn.compute.wait_for_delete(instance)
+        elif debug1:
+            print("error: not found instance: " + instance_name_or_id)
+
+    def _update_server(self, instance_name_or_id, **kwargs):
+        """
+        # Update a server
+        # Parameters
+        #       instance_name_or_id – The name or ID of a server.
+        # Attrs kwargs
+        #       The attributes to update on the server represented by server.
+        # Returns
+        #       The updated server
+        # Return type
+        #       Server
+        """
+        instance = self._find_server(instance_name_or_id, ignore_missing=False)
+        update = None
+        if instance:
+            update = self.os_sdk_conn.compute.update_server(instance.id,
+                                                            **kwargs)
+            if debug1: print(
+                "updated instance: " + instance.name + " id: " + instance.id)
+        elif debug1:
+            print("error: not found instance: " + instance_name_or_id)
+        return update
+
+    def _wait_for_server(self, server, status='ACTIVE', failures=None,
+                         interval=2, wait=120):
+        """
+        # Wait for a server to be in a particular status.
+        # Parameters
+        #       server (Server:) – The Server to wait on to reach the specified
+        #       status.
+        #       status – Desired status.
+        #       failures (list) – Statuses that would be interpreted as failures.
+        #       interval (int) – Number of seconds to wait before to consecutive
+        #       checks. Default to 2.
+        #       wait (int) – Maximum number of seconds to wait before the change.
+        #       Default to 120.
+        # Returns
+        #       The resource is returned on success.
+        # Raises
+        #       ResourceTimeout if transition to the desired status failed to occur
+        #       in specified seconds.
+        #       ResourceFailure if the resource has transited to one of the failure
+        #       statuses.
+        #       AttributeError if the resource does not have a status attribute.
+        """
+        return self.os_sdk_conn.compute.wait_for_server(server, status=status,
+                                                        failures=failures,
+                                                        interval=interval,
+                                                        wait=wait)
+
+    def _list_servers(self, details=True, all_projects=False, **query):
+        """
+        # Retrieve a generator of servers
+        # Parameters
+        #       details (bool) – When set to False instances with only basic data
+        #       will be returned. The default, True, will cause instances with full
+        #       data to be returned.
+        #       query (kwargs) – Optional query parameters to be sent to limit the
+        #       servers being returned. Available parameters can be seen under
+        #       https://docs.openstack.org/api-ref/compute/#list-servers
+        # Returns
+        #       A generator of server instances.
+        ##
+        # def _servers(self, details=True, all_projects=False, **query):
+        #     return self.os_sdk_conn.compute.servers(details, all_projects,
+        #     **query)
+        """
+        return self.os_sdk_conn.compute.servers(details=details,
+                                                all_projects=all_projects,
+                                                **query)
+
+    def _find_server(self, instance_name_or_id, ignore_missing=True):
+        """
+        # Find a single server
+        # Parameters
+        #       instance_name_or_id – The name or ID of a server.
+        #       ignore_missing (bool) – When set to False ResourceNotFound will be
+        #       raised when the resource does not exist. When set to True, None
+        #       will be returned when attempting to find a nonexistent resource.
+        # Returns
+        #       One Server or None
+        """
+        return self.os_sdk_conn.compute.find_server(
+            instance_name_or_id,
+            ignore_missing=ignore_missing
+        )
+
+    def _get_server(self, instance_name_or_id):
+        """
+        # Get a single server
+        # Parameters:
+        #       instance_name_or_id – The name or ID of a server.
+        # Returns:
+        #   One Server
+        # Raises:
+        #   ResourceNotFound when no resource can be found.
+        """
+        instance = self._find_server(instance_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.compute.get_server(instance.id)
+
+    def _get_flavor(self, flavor_name_or_id, get_extra_specs=False):
+        """
+        # Get a single flavor
+        # Parameters
+        #       flavor_name_or_id – The name or ID of a flavor.
+        #       get_extra_specs (bool) – When set to True and extra_specs not
+        #       present in the response will invoke additional API call to fetch
+        #       extra_specs.
+        # Returns
+        #       One Flavor
+        # Raises
+        #       ResourceNotFound when no resource can be found.
+        """
+        flavor = self._find_flavor(flavor_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.compute.get_flavor(flavor.id,
+                                                   get_extra_specs=get_extra_specs)
+
+    def _find_flavor(self, flavor_name_or_id, ignore_missing=True,
+                     get_extra_specs=False, **query):
+        """
+        # Find a single flavor
+        # Parameters
+        #       flavor_name_or_id – The name or ID of a flavor.
+        #       ignore_missing (bool) – When set to False ResourceNotFound will be
+        #       raised when the resource does not exist. When set to True, None
+        #       will be returned when attempting to find a nonexistent resource.
+        #       get_extra_specs (bool) – When set to True and extra_specs not
+        #       present in the response will invoke additional API call to fetch
+        #       extra_specs.
+        #       query (kwargs) – Optional query parameters to be sent to limit the
+        #       flavors being returned.
+        # Returns
+        #       One Flavor or None
+        """
+        return self.os_sdk_conn.compute.find_flavor(flavor_name_or_id,
+                                                    ignore_missing=ignore_missing,
+                                                    get_extra_specs=get_extra_specs,
+                                                    **query)
+
+    def _list_flavors(self, details=True, get_extra_specs=False, **query):
+        """
+        # Return a generator of flavors
+        # Parameters
+        #       details (bool) – When True, returns Flavor objects, with additional
+        #       attributes filled.
+        #       get_extra_specs (bool) – When set to True and extra_specs not
+        #       present in the response will invoke additional API call to fetch
+        #       extra_specs.
+        #       query (kwargs) – Optional query parameters to be sent to limit the
+        #       flavors being returned.
+        # Returns
+        #       A generator of flavor objects
+        ##
+        # def _flavors(self):
+        #     return self.os_sdk_conn.compute.flavors(details=True,
+        #     get_extra_specs=False, **query)
+        """
+        return self.os_sdk_conn.compute.flavors(
+            details=details,
+            get_extra_specs=get_extra_specs,
+            **query
+        )

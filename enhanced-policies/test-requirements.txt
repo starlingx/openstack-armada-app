@@ -1,0 +1,15 @@
+pytest==6.2.2
+openstacksdk==0.55.0
+os-client-config==2.1.0
+
+#Nova
+python-novaclient==17.4.0
+
+#Cinder
+python-cinderclient==7.3.0
+
+#Glance
+python-glanceclient==3.3.0
+
+# Neutron
+netaddr

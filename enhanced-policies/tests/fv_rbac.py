@@ -634,3 +634,247 @@ class OpenStackBasicTesting():
             self._get_snapshot(snapshot_name).id
         )
         self.cc.volume_snapshots.delete_metadata(snapshot, metadata_keys)
+
+    # -------------------------------------------------------------------------
+    # Image methods - Glance
+    # -------------------------------------------------------------------------
+
+    def _create_image(self, image_name, filename=None, admin=False,
+                      disk_format="qcow2", container_format="bare",
+                      visibility="private", wait=True, timeout=3 * 60,
+                      autoclear=True):
+        """
+        # create_image(name, filename=None, container=None, md5=None, sha256=None,
+        #              disk_format=None, container_format=None,
+        #              disable_vendor_agent=True, allow_duplicates=False,
+        #              meta=None, wait=False, timeout=3600, data=None,
+        #              validate_checksum=False, use_import=False, stores=None,
+        #              all_stores=None, all_stores_must_succeed=None, **kwargs)
+        # Upload an image.
+        # Parameters
+        # name (str) – Name of the image to create. If it is a pathname of an
+        # image, the name will be constructed from the extensionless basename of
+        # the path.
+        # filename (str) – The path to the file to upload, if needed. (optional,
+        # defaults to None)
+        # data – Image data (string or file-like object). It is mutually exclusive
+        # with filename
+        # container (str) – Name of the container in swift where images should be
+        # uploaded for import if the cloud requires such a thing. (optional,
+        # defaults to ‘images’)
+        # md5 (str) – md5 sum of the image file. If not given, an md5 will be
+        # calculated.
+        # sha256 (str) – sha256 sum of the image file. If not given, an md5 will
+        # be calculated.
+        # disk_format (str) – The disk format the image is in. (optional, defaults
+        # to the os-client-config config value for this cloud)
+        # container_format (str) – The container format the image is in. (optional,
+        # defaults to the os-client-config config value for this cloud)
+        # disable_vendor_agent (bool) – Whether or not to append metadata flags to
+        # the image to inform the cloud in question to not expect a vendor agent to
+        # be runing. (optional, defaults to True)
+        # allow_duplicates – If true, skips checks that enforce unique image name.
+        # (optional, defaults to False)
+        # meta – A dict of key/value pairs to use for metadata that bypasses
+        # automatic type conversion.
+        # wait (bool) – If true, waits for image to be created. Defaults to true -
+        # however, be aware that one of the upload methods is always synchronous.
+        # timeout – Seconds to wait for image creation. None is forever.
+        # validate_checksum (bool) – If true and cloud returns checksum, compares
+        # return value with the one calculated or passed into this call. If value
+        # does not match - raises exception. Default is ‘false’
+        # use_import (bool) – Use the interoperable image import mechanism to
+        # import the image. This defaults to false because it is harder on the
+        # target cloud so should only be used when needed, such as when the user
+        # needs the cloud to transform image format. If the cloud has disabled
+        # direct uploads, this will default to true.
+        # stores – List of stores to be used when enabled_backends is activated in
+        # glance. List values can be the id of a store or a Store instance. Implies
+        # use_import equals True.
+        # all_stores – Upload to all available stores. Mutually exclusive with
+        # store and stores. Implies use_import equals True.
+        # all_stores_must_succeed – When set to True, if an error occurs during the
+        # upload in at least one store, the worfklow fails, the data is deleted
+        # from stores where copying is done (not staging), and the state of the
+        # image is unchanged. When set to False, the workflow will fail (data
+        # deleted from stores, …) only if the import fails on all stores specified
+        # by the user. In case of a partial success, the locations added to the
+        # image will be the stores where the data has been correctly uploaded.
+        # Default is True. Implies use_import equals True.
+        # Additional kwargs will be passed to the image creation as additional
+        # metadata for the image and will have all values converted to string
+        # except for min_disk, min_ram, size and virtual_size which will be
+        # converted to int.
+        # If you are sure you have all of your data types correct or have an
+        # advanced need to be explicit, use meta. If you are just a normal
+        # consumer, using kwargs is likely the right choice.
+        # If a value is in meta and kwargs, meta wins.
+        # Returns
+        # A munch.Munch of the Image object
+        # Raises
+        # SDKException if there are problems uploading
+        """
+        os_sdk_conn = self.os_sdk_conn
+        if admin:
+            os_sdk_conn = self.os_sdk_admin_conn
+        image = os_sdk_conn.image.create_image(name=image_name,
+                                               filename=filename,
+                                               container_format=container_format,
+                                               disk_format=disk_format,
+                                               visibility=visibility,
+                                               wait=wait, timeout=timeout)
+        if debug1:
+            print("created image: " + image.name + " id: " + image.id)
+        if autoclear:
+            self.images_clearing.append(image.id)
+        return image
+
+    def _delete_image(self, name_or_id, autoclear=True):
+        """
+        # Delete an image
+        # Parameters
+        #       name_or_id – The name or ID of a image.
+        #       ignore_missing (bool) – When set to False ResourceNotFound will be
+        #       raised when the image does not exist. When set to True, no
+        #       exception will be set when attempting to delete a nonexistent
+        #       image.
+        # Returns
+        #       None
+        """
+        image = self._find_image(name_or_id)
+        if image:
+            self.os_sdk_conn.image.delete_image(image.id, ignore_missing=False)
+            if debug1: print(
+                "created image: " + image.name + " id: " + image.id)
+            if autoclear:
+                self.images_clearing.remove(image.id)
+
+    def _list_images(self, **query):
+        """
+        # Return a generator of images
+        # Parameters
+        #       query (kwargs) – Optional query parameters to be sent to limit the
+        #       resources being returned.
+        # Returns
+        #       A generator of image objects
+        # Return type
+        #       Image
+        """
+        return self.gc.images.list(**query)
+
+    def _update_image(self, image, **attrs):
+        """
+        # Update a image
+        # Parameters
+        #       image – Either the ID of a image or a Image instance.
+        #       Attrs kwargs
+        #       The attributes to update on the image represented by value.
+        # Returns
+        #       The updated image
+        # Return type
+        #       Image
+        """
+        self.os_sdk_conn.image.update_image(image, **attrs)
+        return self._get_image(image.id)
+
+    def _upload_image(self, image_id, filename):
+        """
+        # upload_image(container_format=None, disk_format=None, data=None, **attrs)
+        # Create and upload a new image from attributes
+        # Parameters
+        #       container_format – Format of the container. A valid value is ami,
+        #       ari, aki, bare, ovf, ova, or docker.
+        #       disk_format – The format of the disk. A valid value is ami, ari,
+        #       aki, vhd, vmdk, raw, qcow2, vdi, or iso.
+        #       data – The data to be uploaded as an image.
+        #       attrs (dict) – Keyword arguments which will be used to create a
+        #       Image, comprised of the properties on the Image class.
+        # Returns
+        #       The results of image creation
+        # Return type
+        #       Image
+        """
+        image = self.gc.images.upload(
+            image_id,
+            open(filename, 'rb')
+        )
+        return image
+
+    def _download_image(self, image, stream=False, output=None,
+                        chunk_size=1024):
+        """
+        # Download an image
+        # This will download an image to memory when stream=False, or allow
+        # streaming downloads using an iterator when stream=True. For examples of
+        # working with streamed responses, see Downloading an Image with
+        # stream=True.
+        # Parameters
+        #       image – The value can be either the ID of an image or a Image
+        #       instance.
+        #       stream (bool) –
+        #       When True, return a requests.Response instance allowing you to
+        #       iterate over the response data stream instead of storing its
+        #       entire contents in memory. See requests.Response.iter_content()
+        #       for more details. NOTE: If you do not consume the entirety of the
+        #       response you must explicitly call requests.Response.close() or
+        #       otherwise risk inefficiencies with the requests library’s
+        #       handling of connections.
+        #       When False, return the entire contents of the response.
+        #       output – Either a file object or a path to store data into.
+        #       chunk_size (int) – size in bytes to read from the wire and buffer
+        #       at one time. Defaults to 1024
+        # Returns
+        #       When output is not given - the bytes comprising the given Image
+        #       when stream is False, otherwise a requests.Response instance.
+        #       When output is given - a Image instance.
+        """
+        return self.os_sdk_conn.image.download_image(image, stream=True,
+                                                     output=output,
+                                                     chunk_size=chunk_size)
+
+    def _find_image(self, image_name_or_id, ignore_missing=True):
+        """
+        # Find a single image
+        # Parameters
+        #       image_name_or_id – The name or ID of a image.
+        #       ignore_missing (bool) – When set to False ResourceNotFound will be
+        #       raised when the resource does not exist. When set to True, None
+        #       will be returned when attempting to find a nonexistent resource.
+        # Returns
+        #       One Image or None
+        """
+        return self.os_sdk_conn.image.find_image(image_name_or_id,
+                                                 ignore_missing=ignore_missing)
+
+    def _get_image(self, image_name_or_id):
+        """
+        # Get a single image
+        # Parameters
+        #       image_name_or_id – The name or ID of a image.
+        # Returns
+        #       One Image
+        # Raises
+        #       ResourceNotFound when no resource can be found.
+        """
+        image = self._find_image(image_name_or_id, ignore_missing=False)
+        return self.os_sdk_conn.image.get_image(image.id)
+
+    def _deactivate_image(self, image):
+        """
+        # Deactivate an image
+        # Parameters
+        #       image – Either the ID of a image or a Image instance.
+        # Returns
+        #       None
+        """
+        self.os_sdk_conn.image.deactivate_image(image.id)
+
+    def _reactivate_image(self, image):
+        """
+        # Deactivate an image
+        # Parameters
+        #       image – Either the ID of a image or a Image instance.
+        # Returns
+        #       None
+        """
+        self.os_sdk_conn.image.reactivate_image(image.id)

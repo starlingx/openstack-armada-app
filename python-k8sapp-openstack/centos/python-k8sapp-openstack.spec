@@ -19,15 +19,6 @@ BuildRequires: python3-wheel
 %description
 StarlingX sysinv extensions: Openstack K8S app
 
-%package -n     python3-%{pypi_name}
-Summary:        StarlingX sysinv extensions: Openstack K8S app
-
-Requires:       python3-pbr >= 2.0.0
-Requires:       sysinv >= 1.0
-
-%description -n python3-%{pypi_name}
-StarlingX sysinv extensions: Openstack K8S app
-
 %prep
 %setup
 # Remove bundled egg-info

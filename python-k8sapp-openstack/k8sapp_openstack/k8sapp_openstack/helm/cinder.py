@@ -10,6 +10,7 @@ from k8sapp_openstack.helm import openstack
 import tsconfig.tsconfig as tsc
 from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.common import utils
 from sysinv.common.storage_backend_conf import StorageBackendConfig
 
 from sysinv.helm import common
@@ -40,6 +41,15 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         return overrides
 
     def get_overrides(self, namespace=None):
+        if self._is_rook_ceph():
+            cinder_override = self._get_conf_rook_cinder_overrides()
+            ceph_override = self._get_conf_rook_ceph_overrides()
+            backend_override = self._get_conf_rook_backends_overrides()
+        else:
+            cinder_override = self._get_conf_cinder_overrides()
+            ceph_override = self._get_conf_ceph_overrides()
+            backend_override = self._get_conf_backends_overrides()
+
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'pod': {
@@ -49,16 +59,16 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                         }
                     },
                     'replicas': {
-                        'api': self._num_controllers(),
-                        'volume': self._num_controllers(),
-                        'scheduler': self._num_controllers(),
-                        'backup': self._num_controllers()
+                        'api': self._num_provisioned_controllers(),
+                        'volume': self._num_provisioned_controllers(),
+                        'scheduler': self._num_provisioned_controllers(),
+                        'backup': self._num_provisioned_controllers()
                     }
                 },
                 'conf': {
-                    'cinder': self._get_conf_cinder_overrides(),
-                    'ceph': self._get_conf_ceph_overrides(),
-                    'backends': self._get_conf_backends_overrides(),
+                    'cinder': cinder_override,
+                    'ceph': ceph_override,
+                    'backends': backend_override,
                 },
                 'endpoints': self._get_endpoints_overrides(),
                 'ceph_client': self._get_ceph_client_overrides()
@@ -269,3 +279,60 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             return self.SERVICE_TYPE + 'v2'
         else:
             return service_type
+
+    def _get_conf_rook_cinder_overrides(self):
+        conf_cinder = {
+            'DEFAULT': {
+                'enabled_backends': 'ceph-store',
+                'default_volume_type': 'ceph-store'
+            },
+        }
+
+        return conf_cinder
+
+    def _get_conf_rook_ceph_overrides(self):
+        replication = 2
+        if utils.is_aio_simplex_system(self.dbapi):
+            replication = 1
+
+        pools = {
+            'cinder-volumes': {
+                'app_name': 'cinder-volumes',
+                'chunk_size': 8,
+                'crush_rule': 'kube-rbd',
+                'replication': replication,
+            },
+            'backup': {
+                'app_name': 'cinder-volumes',
+                'chunk_size': 8,
+                'crush_rule': 'kube-rbd',
+                'replication': replication,
+            },
+        }
+
+        ceph_override = {
+            'admin_keyring': self._get_rook_ceph_admin_keyring(),
+            'monitors': [],
+            'pools': pools,
+        }
+        return ceph_override
+
+    def _get_conf_rook_backends_overrides(self):
+        conf_backends = {}
+
+        # We don't use the chart's default backends.
+        conf_backends['rbd1'] = {
+            'volume_driver': ''
+        }
+
+        conf_backends['ceph-store'] = {
+            'image_volume_cache_enabled': 'True',
+            'volume_backend_name': 'ceph-store',
+            'volume_driver': 'cinder.volume.drivers.rbd.RBDDriver',
+            'rbd_pool': 'cinder-volumes',
+            'rbd_user': 'cinder',
+            'rbd_ceph_conf':
+                (constants.CEPH_CONF_PATH +
+                 constants.SB_TYPE_CEPH_CONF_FILENAME),
+        }
+        return conf_backends

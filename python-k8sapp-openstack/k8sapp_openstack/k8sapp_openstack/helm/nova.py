@@ -82,6 +82,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.rbd_config = {}
 
     def get_overrides(self, namespace=None):
+        self._rook_ceph = self._is_rook_ceph()
+        admin_keyring = 'null'
+        if self._rook_ceph:
+            admin_keyring = self._get_rook_ceph_admin_keyring()
+
         self.labels_by_hostid = self._get_host_labels()
         self.cpus_by_hostid = self._get_host_cpus()
         self.interfaces_by_hostid = self._get_host_interfaces()
@@ -107,18 +112,19 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                         }
                     },
                     'replicas': {
-                        'api_metadata': self._num_controllers(),
-                        'placement': self._num_controllers(),
-                        'osapi': self._num_controllers(),
-                        'conductor': self._num_controllers(),
-                        'consoleauth': self._num_controllers(),
-                        'scheduler': self._num_controllers(),
-                        'novncproxy': self._num_controllers()
+                        'api_metadata': self._num_provisioned_controllers(),
+                        'placement': self._num_provisioned_controllers(),
+                        'osapi': self._num_provisioned_controllers(),
+                        'conductor': self._num_provisioned_controllers(),
+                        'consoleauth': self._num_provisioned_controllers(),
+                        'scheduler': self._num_provisioned_controllers(),
+                        'novncproxy': self._num_provisioned_controllers()
                     }
                 },
                 'conf': {
                     'ceph': {
-                        'ephemeral_storage': self._get_rbd_ephemeral_storage()
+                        'ephemeral_storage': self._get_rbd_ephemeral_storage(),
+                        'admin_keyring': admin_keyring,
                     },
                     'nova': {
                         'libvirt': {
@@ -260,21 +266,25 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         else:
             return 'kvm'
 
-    def _update_host_cpu_maps(self, host, default_config):
+    def _update_host_cpu_maps(self, host, compute_config):
         host_cpus = self._get_host_cpu_list(host, threads=True)
         if host_cpus:
+            # "Applicaton" CPUs on the platform are used for regular Openstack
+            # VMs
             vm_cpus = self._get_host_cpu_list(
                 host, function=constants.APPLICATION_FUNCTION, threads=True)
             vm_cpu_list = [c.cpu for c in vm_cpus]
             vm_cpu_fmt = "\"%s\"" % utils.format_range_set(vm_cpu_list)
-            default_config.update({'vcpu_pin_set': vm_cpu_fmt})
+            compute_config.update({'cpu_shared_set': vm_cpu_fmt})
 
-            shared_cpus = self._get_host_cpu_list(
-                host, function=constants.SHARED_FUNCTION, threads=True)
-            shared_cpu_map = {c.numa_node: c.cpu for c in shared_cpus}
-            shared_cpu_fmt = "\"%s\"" % ','.join(
-                "%r:%r" % (node, cpu) for node, cpu in shared_cpu_map.items())
-            default_config.update({'shared_pcpu_map': shared_cpu_fmt})
+            # "Application-isolated" CPUs are completely isolated from the host
+            # process scheduler and are used on Openstack VMs that require
+            # dedicated CPUs
+            isol_cpus = self._get_host_cpu_list(
+                host, function=constants.ISOLATED_FUNCTION, threads=True)
+            isol_cpu_list = [c.cpu for c in isol_cpus]
+            isol_cpu_fmt = "\"%s\"" % utils.format_range_set(isol_cpu_list)
+            compute_config.update({'cpu_dedicated_set': isol_cpu_fmt})
 
     def _get_pci_pt_whitelist(self, host, iface_context):
         # Process all configured PCI passthrough interfaces and add them to
@@ -708,10 +718,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
                     hostname = str(host.hostname)
                     default_config = {}
+                    compute_config = {}
                     vnc_config = {}
                     libvirt_config = {}
                     pci_config = {}
-                    self._update_host_cpu_maps(host, default_config)
+                    self._update_host_cpu_maps(host, compute_config)
                     self._update_host_storage(host, default_config, libvirt_config)
                     self._update_host_addresses(host, default_config, vnc_config,
                                                 libvirt_config)
@@ -722,9 +733,10 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                         'conf': {
                             'nova': {
                                 'DEFAULT': default_config,
+                                'compute': compute_config if compute_config else None,
                                 'vnc': vnc_config,
                                 'libvirt': libvirt_config,
-                                'pci': pci_config if pci_config else None
+                                'pci': pci_config if pci_config else None,
                             }
                         }
                     }
@@ -734,7 +746,38 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)
 
+    def _get_rook_ceph_rbd_ephemeral_storage(self):
+        ephemeral_storage_conf = {}
+        ephemeral_pools = []
+
+        # Get the values for replication and min replication from the storage
+        # backend attributes.
+        replication = 2
+        if utils.is_aio_simplex_system(self.dbapi):
+            replication = 1
+
+        # Form the dictionary with the info for the ephemeral pool.
+        # If needed, multiple pools can be specified.
+        ephemeral_pool = {
+            'rbd_pool_name': constants.CEPH_POOL_EPHEMERAL_NAME,
+            'rbd_user': RBD_POOL_USER,
+            'rbd_crush_rule': "storage_tier_ruleset",
+            'rbd_replication': replication,
+            'rbd_chunk_size': constants.CEPH_POOL_EPHEMERAL_PG_NUM
+        }
+        ephemeral_pools.append(ephemeral_pool)
+
+        ephemeral_storage_conf = {
+            'type': 'rbd',
+            'rbd_pools': ephemeral_pools
+        }
+
+        return ephemeral_storage_conf
+
     def _get_rbd_ephemeral_storage(self):
+        if self._rook_ceph:
+            return self._get_rook_ceph_rbd_ephemeral_storage()
+
         ephemeral_storage_conf = {}
         ephemeral_pools = []
 

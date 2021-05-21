@@ -10,6 +10,7 @@
 
 from eventlet import greenthread
 from oslo_log import log as logging
+from sysinv.api.controllers.v1 import utils
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.helm import common
@@ -78,6 +79,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             if hook_info.mode == constants.APP_LIFECYCLE_MODE_AUTO and \
                     hook_info.operation == constants.APP_EVALUATE_REAPPLY_OP:
                 return self._semantic_check_evaluate_app_reapply(app_op, app, hook_info)
+            elif hook_info.mode == constants.APP_LIFECYCLE_MODE_MANUAL and \
+                    hook_info.operation == constants.APP_APPLY_OP and \
+                        hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
+                return self._pre_manual_apply_check(conductor_obj, app, hook_info)
 
         # Default behavior
         super(OpenstackAppLifecycleOperator, self).app_lifecycle_actions(context, conductor_obj, app_op, app,
@@ -280,3 +285,24 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     "Trigger type {} expects {} to be true".format(
                         trigger[LifecycleConstants.TRIGGER_TYPE],
                         LifecycleConstants.TRIGGER_CONFIGURE_REQUIRED))
+
+    def _pre_manual_apply_check(self, conductor_obj, app, hook_info):
+        """Semantic check for evaluating app manual apply
+
+        :param conductor_obj: conductor object
+        :param app: AppOperator.Application object
+        :param hook_info: LifecycleHookInfo object
+
+        """
+        # Check AIO-SX node stable state
+        active_controller = utils.HostHelper.get_active_controller(conductor_obj.dbapi)
+        if (utils.is_host_simplex_controller(active_controller) and
+                not active_controller.vim_progress_status.startswith(
+                constants.VIM_SERVICES_ENABLED)):
+            LOG.info("%s requires application-apply, but some VIM services "
+                "are not at services-enabled state on node %s. "
+                "Application-apply rejected." % (app.name, active_controller.hostname))
+            raise exception.LifecycleSemanticCheckException(
+                "Application-apply rejected: operation is not allowed "
+                "while the node {} not in {} state.".format(
+                    active_controller.hostname, constants.VIM_SERVICES_ENABLED))

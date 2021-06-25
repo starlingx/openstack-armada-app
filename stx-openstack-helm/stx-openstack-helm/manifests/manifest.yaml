@@ -3733,7 +3733,7 @@ data:
             # Custom Theme Override
             for root, dirs, files in os.walk('/opt/branding/applied'):
                 if 'manifest.py' in files:
-                    execfile(os.path.join(root, 'manifest.py'))
+                    exec(open(os.path.join(root, 'manifest.py')).read())
                     AVAILABLE_THEMES = [
                         ('default', 'Default', 'themes/default'),
                         ('material', 'Material', 'themes/material'),

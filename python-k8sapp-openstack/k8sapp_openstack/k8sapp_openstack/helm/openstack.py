@@ -106,7 +106,8 @@ class OpenstackBaseHelm(base.BaseHelm):
             if pw_format == common.PASSWORD_FORMAT_CEPH:
                 try:
                     cmd = ['ceph-authtool', '--gen-print-key']
-                    password = subprocess.check_output(cmd).strip()
+                    password = subprocess.check_output(cmd,
+                            universal_newlines=True).strip()
                 except subprocess.CalledProcessError:
                     raise exception.SysinvException(
                         'Failed to generate ceph key')

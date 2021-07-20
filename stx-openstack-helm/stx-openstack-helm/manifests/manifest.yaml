@@ -3730,16 +3730,16 @@ data:
                           " parameters:[%(param)s] message:[%(message)s]"),
             }
 
+            AVAILABLE_THEMES = [
+                ('default', 'Default', 'themes/default'),
+                ('material', 'Material', 'themes/material'),
+            ]
+
             # Custom Theme Override
             for root, dirs, files in os.walk('/opt/branding/applied'):
                 if 'manifest.py' in files:
                     exec(open(os.path.join(root, 'manifest.py')).read())
-                    AVAILABLE_THEMES = [
-                        ('default', 'Default', 'themes/default'),
-                        ('material', 'Material', 'themes/material'),
-                        ('starlingx', 'StarlingX', 'themes/starlingx'),
-                        ('custom', 'Custom', '/opt/branding/applied'),
-                    ]
+                    AVAILABLE_THEMES.append(('custom', 'Custom', '/opt/branding/applied'))
                     DEFAULT_THEME = 'custom'
 
             # Secure site configuration

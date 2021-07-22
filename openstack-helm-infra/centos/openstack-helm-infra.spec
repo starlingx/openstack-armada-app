@@ -30,6 +30,7 @@ Patch12: 0012-enable-Values.conf.database.config_override-for-mari.patch
 Patch13: 0013-Allow-set-public-endpoint-url-for-all-openstack-types.patch
 Patch14: 0014-Add-tolerations-to-rabbitmq-chart.patch
 Patch15: 0015-Add-tolerations-to-mariadb-chart.patch
+Patch16: 0016-Add-Trust-ingress-support-to-helm-toolkit.patch
 
 BuildRequires: helm
 BuildRequires: chartmuseum
@@ -54,6 +55,7 @@ Openstack Helm Infra charts
 %patch13 -p1
 %patch14 -p1
 %patch15 -p1
+%patch16 -p1
 
 %build
 # Host a server for the charts

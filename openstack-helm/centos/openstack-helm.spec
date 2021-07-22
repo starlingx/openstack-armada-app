@@ -29,6 +29,7 @@ Patch07: 0007-Allow-more-generic-overrides-for-placeme.patch
 Patch08: 0008-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
 Patch09: 0009-Wrong-usage-of-rbd_store_chunk_size.patch
 Patch10: 0010-Add-stx_admin-account.patch
+Patch11: 0011-Trust-public-ingress-certificate.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -50,6 +51,7 @@ Openstack Helm charts
 %patch08 -p1
 %patch09 -p1
 %patch10 -p1
+%patch11 -p1
 
 %build
 # Stage helm-toolkit in the local repo

@@ -47,9 +47,9 @@ index 2d75f39..444bba3 100644
 +        startup:
 +          enabled: false
 +          params:
-+            initialDelaySeconds: 30
-+            periodSeconds: 30
-+            failureThreshold: 3
++            initialDelaySeconds: 60
++            periodSeconds: 60
++            failureThreshold: 10
    security_context:
      server:
        pod:

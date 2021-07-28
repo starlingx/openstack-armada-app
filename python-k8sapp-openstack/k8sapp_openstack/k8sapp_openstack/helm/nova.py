@@ -61,6 +61,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
     CHART = app_constants.HELM_CHART_NOVA
 
+    # (lcavalca): 'nova' is used as ingress fqdn by nova-api-proxy
+    SERVICE_FQDN = 'nova-api-internal'
     SERVICE_NAME = app_constants.HELM_CHART_NOVA
     AUTH_USERS = ['nova', ]
     SERVICE_USERS = ['neutron', 'ironic', 'placement']
@@ -197,7 +199,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             },
             'compute': {
                 'host_fqdn_override':
-                    self._get_endpoints_host_fqdn_overrides(self.SERVICE_NAME),
+                    self._get_endpoints_host_fqdn_overrides(self.SERVICE_FQDN),
+
                 'port': self._get_endpoints_port_api_public_overrides(),
                 'scheme': self._get_endpoints_scheme_public_overrides(),
             },

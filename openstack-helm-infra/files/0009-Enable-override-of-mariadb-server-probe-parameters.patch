@@ -17,21 +17,22 @@ parameters and override the related probe pareameters.
 Signed-off-by: Hu, Yong <yong.hu@intel.com>
 Co-Authored-By: Zhipeng, Liu <zhipengs.liu@intel.com>
 ---
- mariadb/templates/statefulset.yaml | 3 ++-
- mariadb/values.yaml                | 7 +++++++
- 2 files changed, 9 insertions(+), 1 deletion(-)
+ mariadb/templates/statefulset.yaml | 3 +++-
+ mariadb/values.yaml                | 20 +++++++++++++++
+ 2 files changed, 23 insertions(+), 1 deletion(-)
 
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
 index e31d4ac..83e135f 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -187,7 +187,8 @@ spec:
+@@ -187,7 +187,9 @@ spec:
                exec:
                  command:
                    - /tmp/stop.sh
 -{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 -}}
 +{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
 +{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "startup" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
++{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "liveness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
            volumeMounts:
              - name: pod-tmp
                mountPath: /tmp
@@ -39,7 +40,7 @@ diff --git a/mariadb/values.yaml b/mariadb/values.yaml
 index 2d75f39..444bba3 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -69,6 +69,13 @@ pod:
+@@ -69,6 +69,20 @@ pod:
              initialDelaySeconds: 30
              periodSeconds: 30
              timeoutSeconds: 15
@@ -50,6 +51,13 @@ index 2d75f39..444bba3 100644
 +            initialDelaySeconds: 60
 +            periodSeconds: 60
 +            failureThreshold: 10
++        liveness:
++          enabled: false
++          params:
++            initialDelaySeconds: 60
++            periodSeconds: 30
++            failureThreshold: 5
++            timeoutSeconds: 15
    security_context:
      server:
        pod:

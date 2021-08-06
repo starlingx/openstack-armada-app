@@ -291,7 +291,7 @@ secrets:
   tls:
     compute:
       api_proxy:
-        public: nova-api-proxy-tls-public
+        public: nova-tls-public
 
 manifests:
   configmap_bin: true

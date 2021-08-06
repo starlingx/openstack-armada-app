@@ -8,5 +8,8 @@
 
 {{- if .Values.manifests.job_ks_endpoints }}
 {{- $ksServiceJob := dict "envAll" . "serviceName" "nova" "serviceTypes" ( tuple "compute" ) -}}
+{{- if .Values.manifests.certificates -}}
+{{- $_ := set $ksServiceJob "tlsSecret" .Values.secrets.tls.compute.api_proxy.public -}}
+{{- end -}}
 {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
 {{- end }}

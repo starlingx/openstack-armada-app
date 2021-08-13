@@ -179,6 +179,8 @@ data:
               enabled: true
             startup:
               enabled: true
+            liveness:
+              enabled: true
       affinity:
         anti:
           type:

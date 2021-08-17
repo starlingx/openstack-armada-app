@@ -3021,6 +3021,8 @@ data:
             lockout_retries_num: '3'
             # Turn off domain support as we aren't using
             keystone_multidomain_support: 'False'
+            # OpenStack Help Documentation URL
+            help_url: 'http://docs.openstack.org/ussuri/'
           template: |
             import os
 
@@ -3104,7 +3106,7 @@ data:
                     'fade_duration': 1500,
                     'types': ['alert-success', 'alert-info']
                 },
-                'help_url': "http://docs.openstack.org",
+                'help_url': '{{ .Values.conf.horizon.local_settings.config.help_url }}',
                 'exceptions': {'recoverable': exceptions.RECOVERABLE,
                                'not_found': exceptions.NOT_FOUND,
                                'unauthorized': exceptions.UNAUTHORIZED},

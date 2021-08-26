@@ -18,16 +18,12 @@ from tests.test_neutron.rbac_neutron import OpenStackNetworkingTesting
 def networking_setup(request, network_admin_setup):
 
     cfg = network_admin_setup
-
     request.cls.os_sdk_admin_conn = cfg.os_sdk_admin_conn
     request.cls.users = cfg.users
-
     request.cls.user02 = cfg.user02
     request.cls.user11 = cfg.user11
     request.cls.user12 = cfg.user12
     request.cls.user13 = cfg.user13
-
-    request.cls.env = cfg.env
 
 
 class TestNetworking(OpenStackNetworkingTesting):

@@ -13,20 +13,6 @@ from tests.fv_rbac import OpenStackNetworkingSetup
 from tests.fv_rbac import OpenStackTestingSetup
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--env",
-        action="store",
-        default="stx",
-        help="Environment to run tests against (stx or wro). Default: stx"
-    )
-
-
-@fixture(scope="session")
-def env(request):
-    return request.config.getoption("--env")
-
-
 @fixture(scope='session')
 def rbac_setup(request):
 
@@ -90,9 +76,9 @@ def rbac_setup(request):
 
 
 @fixture(scope='session')
-def network_admin_setup(request, rbac_setup, env):
+def network_admin_setup(request, rbac_setup):
 
-    cfg = OpenStackNetworkingSetup(env)
+    cfg = OpenStackNetworkingSetup()
 
     # Create segment ranges based on projects
     cfg._create_network_segment_range(
@@ -102,7 +88,6 @@ def network_admin_setup(request, rbac_setup, env):
         physical_network="group0-data0",
         minimum=10, maximum=10
     )
-
     cfg._create_network_segment_range(
         "group0-data0-r0",
         project_name="project1",
@@ -111,7 +96,6 @@ def network_admin_setup(request, rbac_setup, env):
         physical_network="group0-data0",
         minimum=400, maximum=499
     )
-
     cfg._create_network_segment_range(
         "group0-data0b-r0",
         shared=True,
@@ -119,7 +103,6 @@ def network_admin_setup(request, rbac_setup, env):
         physical_network="group0-data0",
         minimum=500, maximum=599
     )
-
     cfg._create_network_segment_range(
         "group0-data1-r0",
         project="project2",
@@ -129,19 +112,11 @@ def network_admin_setup(request, rbac_setup, env):
         minimum=600, maximum=699
     )
 
-    if env == "wro":
-        cfg._create_qos("admin-qos", weight=16,
-                        description="External Network Policy")
-
     def network_admin_teardown():
         cfg._delete_network_segment_range("group0-data1-r0")
         cfg._delete_network_segment_range("group0-data0b-r0")
         cfg._delete_network_segment_range("group0-data0-r0")
         cfg._delete_network_segment_range("group0-ext-r0")
 
-        if env == "wro":
-            cfg._delete_qos("admin-qos")
-
     request.addfinalizer(network_admin_teardown)
-
     return cfg

@@ -4,10 +4,12 @@
       jobs:
         - openstack-tox-linters
         - k8sapp-openstack-tox-py39
+        - k8sapp-openstack-tox-pylint
     gate:
       jobs:
         - openstack-tox-linters
         - k8sapp-openstack-tox-py39
+        - k8sapp-openstack-tox-pylint
     post:
       jobs:
         - stx-openstack-armada-app-upload-git-mirror
@@ -41,6 +43,22 @@
       - name: git_mirror_credentials
         secret: stx-openstack-armada-app-github-secret
         pass-to-parent: true
+- job:
+    name: k8sapp-openstack-tox-pylint
+    parent: tox
+    description: |
+      Run pylint tests for k8sapp_oidc
+    nodeset: ubuntu-bionic
+    required-projects:
+      - starlingx/config
+      - starlingx/fault
+      - starlingx/update
+      - starlingx/utilities
+    files:
+      - python-k8sapp-openstack/*
+    vars:
+      tox_envlist: pylint
+      tox_extra_args: -c python-k8sapp-openstack/k8sapp_openstack/tox.ini
 
 - secret:
     name: stx-openstack-armada-app-github-secret

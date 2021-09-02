@@ -22,7 +22,7 @@ class NovaApiProxyTestCase(test_plugins.K8SAppOpenstackAppMixin,
 
 
 class NovaApiProxyIPv4ControllerHostTestCase(NovaApiProxyTestCase,
-                                             dbbase.ControllerHostTestCase):
+                                             dbbase.ProvisionedControllerHostTestCase):
 
     def test_replicas(self):
         overrides = self.operator.get_helm_chart_overrides(
@@ -36,7 +36,8 @@ class NovaApiProxyIPv4ControllerHostTestCase(NovaApiProxyTestCase,
 
 
 class NovaApiProxyIPv4AIODuplexSystemTestCase(NovaApiProxyTestCase,
-                                              dbbase.AIODuplexSystemTestCase):
+                                             dbbase.ProvisionedAIODuplexSystemTestCase):
+
 
     def test_replicas(self):
         overrides = self.operator.get_helm_chart_overrides(

@@ -46,11 +46,12 @@ diff --git a/mariadb/values.yaml b/mariadb/values.yaml
 index 444bba3..880b31e 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -550,3 +550,4 @@ manifests:
+@@ -671,4 +671,5 @@ manifests:
    service_error: true
    service: true
    statefulset: true
 +  config_ipv6: false
+ ...
 -- 
 1.8.3.1
 

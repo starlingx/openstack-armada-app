@@ -1,7 +1,7 @@
 %global helm_folder  /usr/lib/helm
 %global armada_folder  /usr/lib/armada
 %global app_folder  /usr/lib/application
-%global toolkit_version 0.1.0
+%global toolkit_version 0.2.19
 %global helmchart_version 0.1.0
 
 Summary: StarlingX Openstack Application Helm charts

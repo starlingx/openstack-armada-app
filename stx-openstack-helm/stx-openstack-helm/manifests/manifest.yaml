@@ -40,7 +40,7 @@ data:
   values: {}
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/helm-toolkit-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/helm-toolkit-0.2.19.tgz
     subpath: helm-toolkit
     reference: master
   dependencies: []
@@ -94,7 +94,7 @@ data:
         bind-address: "::"
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/ingress-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/ingress-0.2.3.tgz
     subpath: ingress
     reference: master
   dependencies:
@@ -198,7 +198,7 @@ data:
         operator: Exists
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/mariadb-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/mariadb-0.2.5.tgz
     subpath: mariadb
   dependencies:
     - helm-toolkit
@@ -278,7 +278,7 @@ data:
         prometheus_memcached_exporter: null
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/memcached-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/memcached-0.1.4.tgz
     subpath: memcached
     reference: master
   dependencies:
@@ -351,7 +351,7 @@ data:
         operator: Exists
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/rabbitmq-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/rabbitmq-0.1.13.tgz
     subpath: rabbitmq
     reference: master
   dependencies:
@@ -691,7 +691,7 @@ data:
             default: requiredDuringSchedulingIgnoredDuringExecution
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/ceph-rgw-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/ceph-rgw-0.1.15.tgz
     subpath: ceph-rgw
     reference: master
   dependencies:
@@ -920,7 +920,7 @@ data:
         ceph_config_helper: docker.io/starlingx/ceph-config-helper:v1.15.0
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/libvirt-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/libvirt-0.1.7.tgz
     subpath: libvirt
     reference: master
   dependencies:
@@ -959,7 +959,7 @@ data:
         openvswitch_vswitchd: docker.io/starlingx/stx-ovs:master-centos-stable-latest
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/openvswitch-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/openvswitch-0.1.5.tgz
     subpath: openvswitch
     reference: master
   dependencies:

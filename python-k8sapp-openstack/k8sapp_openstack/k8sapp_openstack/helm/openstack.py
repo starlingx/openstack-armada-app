@@ -5,6 +5,7 @@
 #
 
 from eventlet.green import subprocess
+import base64
 import keyring
 import os
 
@@ -602,7 +603,7 @@ class OpenstackBaseHelm(base.BaseHelm):
             kube = kubernetes.KubeOperator()
             keyring = kube.kube_get_secret(constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
                  common.HELM_NS_STORAGE_PROVISIONER)
-            return keyring.data['key'].decode('base64', 'strict')
+            return base64.b64decode(keyring.data['key']).decode('utf-8')
         except Exception:
             pass
 

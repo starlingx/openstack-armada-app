@@ -147,9 +147,8 @@ class OpenStackTestingSetup:
 
 class OpenStackNetworkingSetup(OpenStackTestingSetup):
 
-    def __init__(self, env):
+  def __init__(self):
         super(OpenStackNetworkingSetup, self).__init__()
-        self.env = env
 
     def _create_network_segment_range(self, name, project_name=None, **kwargs):
         sr = self.os_sdk_admin_conn.network.find_network_segment_range(name)
@@ -158,7 +157,6 @@ class OpenStackNetworkingSetup(OpenStackTestingSetup):
             if project_name:
                 project_id = self.os_sdk_admin_conn.get_project(
                     project_name).id
-
             if project_id is None:
                 return self.os_sdk_admin_conn.network. \
                     create_network_segment_range(name=name, **kwargs)

@@ -18,6 +18,7 @@ from tests.test_nova.rbac_nova import OpenStackComputeTesting
 
 @pytest.fixture(scope='class', autouse=True)
 def networking_setup(request, network_admin_setup):
+
     cfg = network_admin_setup
     request.cls.os_sdk_admin_conn = cfg.os_sdk_admin_conn
     request.cls.users = cfg.users
@@ -28,7 +29,6 @@ def networking_setup(request, network_admin_setup):
     request.cls.user21 = cfg.user21
     request.cls.user22 = cfg.user22
     request.cls.user23 = cfg.user23
-    request.cls.env = cfg.env
 
 
 class TestVM(OpenStackComputeTesting):

@@ -11,5 +11,8 @@
 {{- if .Values.manifests.certificates -}}
 {{- $_ := set $ksServiceJob "tlsSecret" .Values.secrets.tls.compute.api_proxy.internal -}}
 {{- end -}}
+{{- if .Values.pod.tolerations.nova.enabled -}}
+{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
+{{- end -}}
 {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
 {{- end }}

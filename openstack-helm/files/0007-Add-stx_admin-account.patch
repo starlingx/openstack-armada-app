@@ -21,7 +21,7 @@ new file mode 100644
 index 00000000..91f990f3
 --- /dev/null
 +++ b/keystone/templates/job-ks-user.yaml
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,24 @@
 +{{/*
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -40,6 +40,9 @@ index 00000000..91f990f3
 +{{- $ksUserJob := dict "envAll" . "serviceName" "keystone" "serviceUser" "stx_admin" -}}
 +{{- if .Values.manifests.certificates -}}
 +{{- $_ := set $ksUserJob "tlsSecret" .Values.secrets.tls.identity.api.internal -}}
++{{- end -}}
++{{- if .Values.pod.tolerations.keystone.enabled -}}
++{{- $_ := set $ksUserJob "tolerationsEnabled" true -}}
 +{{- end -}}
 +{{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
 +{{- end }}

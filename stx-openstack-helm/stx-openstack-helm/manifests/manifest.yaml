@@ -88,6 +88,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        ingress:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
     conf:
       ingress:
         worker-processes: '4'
@@ -185,6 +192,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        mariadb:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
     conf:
       ingress_conf:
         worker-processes: '4'
@@ -269,6 +283,14 @@ data:
       prometheus_memcached_exporter:
         node_selector_key: openstack-control-plane
         node_selector_value: enabled
+    pod:
+      tolerations:
+        memcached:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
     monitoring:
       prometheus:
         enabled: false
@@ -335,6 +357,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        rabbitmq:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
       probes:
         readiness:
           periodSeconds: 30
@@ -428,6 +457,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        keystone:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
       security_context:
         keystone:
           pod:
@@ -758,6 +794,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        glance:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
     endpoints:
       oslo_messaging:
         statefulset:
@@ -877,6 +920,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        cinder:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
     endpoints:
       oslo_messaging:
         statefulset:
@@ -933,6 +983,14 @@ data:
         cgroup: "k8s-infra"
     libvirt:
       listen_addr: "::"
+    pod:
+      tolerations:
+        libvirt:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
     images:
       tags:
         image_repo_sync: null
@@ -977,6 +1035,14 @@ data:
         image_repo_sync: null
         openvswitch_db_server: docker.io/starlingx/stx-ovs:master-centos-stable-latest
         openvswitch_vswitchd: docker.io/starlingx/stx-ovs:master-centos-stable-latest
+    pod:
+      tolerations:
+        openvswitch:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/openvswitch-0.1.5.tgz
@@ -1111,6 +1177,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        nova:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
       user:
         nova:
           uid: 0
@@ -1306,6 +1379,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        placement:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
       user:
         placement:
           uid: 42424
@@ -1394,6 +1474,19 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        nova_api_proxy:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+        nova:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
     conf:
       nova_api_proxy:
         DEFAULT:
@@ -1517,6 +1610,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        neutron:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
       # Probes fail cause a long delay and eventual failure of the armada
       # application apply. Need to determine the fix to re-enable these.
       probes:
@@ -1929,6 +2029,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        heat:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/heat-0.2.7.tgz
@@ -2798,6 +2905,13 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        fm:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -2869,6 +2983,13 @@ data:
         enabled: 'true'
         port: 31000
     pod:
+      tolerations:
+        horizon:
+          enabled: true
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
       mounts:
         horizon:
           horizon:

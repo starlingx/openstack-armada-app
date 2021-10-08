@@ -38,6 +38,9 @@ spec:
       serviceAccountName: {{ $serviceAccountName }}
       affinity:
 {{ tuple $envAll "nova" "api-proxy" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+{{ if $envAll.Values.pod.tolerations.nova.enabled }}
+{{ tuple $envAll "nova_api_proxy" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
+{{ end }}
       nodeSelector:
         {{ .Values.labels.api_proxy.node_selector_key }}: {{ .Values.labels.api_proxy.node_selector_value }}
       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.api_proxy.timeout | default "30" }}

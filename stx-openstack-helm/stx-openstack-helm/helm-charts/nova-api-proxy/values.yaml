@@ -240,6 +240,19 @@ pod:
         default: preferredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
+  tolerations:
+    nova_api_proxy:
+      enabled: false
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+    nova:
+      enabled: false
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
   mounts:
     nova_api_proxy:
       init_container: null

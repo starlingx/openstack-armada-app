@@ -42,6 +42,7 @@ helm repo add local http://localhost:8879/charts
 # Make the charts. These produce a tgz file
 cd helm-charts
 make nova-api-proxy
+make pci-irq-affinity-agent
 make garbd
 make keystone-api-proxy
 make fm-rest-api

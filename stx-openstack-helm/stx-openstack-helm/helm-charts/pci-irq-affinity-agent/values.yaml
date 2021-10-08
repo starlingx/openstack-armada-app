@@ -1,0 +1,122 @@
+#
+# Copyright (c) 2021 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# Default values for pci-irq-affinity-agent.
+# This is a YAML-formatted file.
+# Declare name/value pairs to be passed into your templates.
+# name: value
+
+release_group: null
+
+images:
+  pull_policy: "IfNotPresent"
+  tags:
+    pci_irq_affinity_agent: docker.io/starlingx/stx-pci-irq-affinity-agent:master-centos-stable-latest
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+
+labels:
+  agent:
+    pci_irq_affinity_agent:
+      node_selector_key: openstack-compute-node
+      node_selector_value: enabled
+
+dependencies:
+  static:
+    pci_irq_affinity_agent:
+      services:
+        - endpoint: internal
+          service: keystone
+        - endpoint: internal
+          service: rabbitmq
+        - endpoint: internal
+          service: nova
+
+pod:
+  security_context:
+    pci_irq_affinity_agent:
+      pod:
+        runAsUser: 0
+      container:
+        readOnlyRootFilesystem: true
+  probes:
+    readiness:
+      pci_irq_affinity_agent:
+        enabled: true
+    liveness:
+      pci_irq_affinity_agent:
+        enabled: true
+
+conf:
+  endpoints:
+    identity:
+      name: keystone
+      auth:
+        admin:
+          username: admin
+          project_name: admin
+          user_domain_name: default
+          project_domain_name: default
+          cacert: /etc/ssl/certs/openstack-helm.crt
+    keystone:
+      openstack_enabled: True
+      openstack_auth_protocol: http
+      openstack_auth_host: keystone.openstack.svc.cluster.local
+      openstack_auth_port: 80
+      openstack_keyring_service: CGCS
+    rabbit:
+      rabbit_host: rabbitmq.openstack.svc.cluster.local
+      rabbit_port: 5672
+      rabbit_userid: nova
+      rabbit_password: password
+      rabbit_virtual_host: nova
+  template: |
+    [openstack]
+    openstack_enabled={{ .Values.conf.endpoints.keystone.openstack_enabled }}
+    username={{ .Values.conf.endpoints.identity.auth.admin.username }}
+    tenant={{ .Values.conf.endpoints.identity.auth.admin.username }}
+    authorization_protocol={{ .Values.conf.endpoints.keystone.openstack_auth_protocol }}
+    authorization_ip={{ .Values.conf.endpoints.keystone.openstack_auth_host }}
+    authorization_port={{ .Values.conf.endpoints.keystone.openstack_auth_port }}
+    user_domain_name={{ .Values.conf.endpoints.identity.auth.admin.user_domain_name }}
+    project_domain_name={{ .Values.conf.endpoints.identity.auth.admin.project_domain_name}}
+    project_name={{ .Values.conf.endpoints.identity.auth.admin.project_name }}
+    keyring_service={{ .Values.conf.endpoints.keystone.openstack_keyring_service }}
+    auth_url={{ .Values.conf.endpoints.keystone.openstack_auth_protocol }}://{{ .Values.conf.endpoints.keystone.openstack_auth_host }}/v3
+    {{- if .Values.manifests.certificates }}
+    cacert={{ .Values.conf.endpoints.identity.auth.admin.cacert }}
+    {{- end }}
+
+    [amqp]
+    host={{ .Values.conf.endpoints.rabbit.rabbit_host }}
+    port={{ .Values.conf.endpoints.rabbit.rabbit_port }}
+    user_id={{ .Values.conf.endpoints.rabbit.rabbit_userid }}
+    password={{ .Values.conf.endpoints.rabbit.rabbit_password }}
+    virt_host={{ .Values.conf.endpoints.rabbit.rabbit_virtual_host }}
+  keyring: |
+    [backend]
+    default-keyring=keyrings.alt.file.EncryptedKeyring
+  host:
+    mount_path:
+      pci_devices: /compute/sys/bus/pci/devices
+      irq: /compute/proc/irq
+
+secrets:
+  tls:
+    pci_irq_affinity_agent:
+      agent:
+        public: nova-tls-public
+
+tolerations: []
+
+manifests:
+  certificates: false
+  configmap_bin: true
+  configmap_etc: true
+  daemonset: true

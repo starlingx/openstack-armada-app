@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -29,6 +29,7 @@ HELM_CHART_NEUTRON = 'neutron'
 HELM_CHART_NGINX_PORTS_CONTROL = "nginx-ports-control"
 HELM_CHART_NOVA = 'nova'
 HELM_CHART_NOVA_API_PROXY = 'nova-api-proxy'
+HELM_CHART_PCI_IRQ_AFFINITY_AGENT = 'pci-irq-affinity-agent'
 HELM_CHART_OPENVSWITCH = 'openvswitch'
 HELM_CHART_PANKO = 'panko'
 HELM_CHART_PLACEMENT = 'placement'

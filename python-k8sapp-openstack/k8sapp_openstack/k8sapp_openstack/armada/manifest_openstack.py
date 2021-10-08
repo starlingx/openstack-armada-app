@@ -1,6 +1,6 @@
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -33,6 +33,7 @@ from k8sapp_openstack.helm.neutron import NeutronHelm
 from k8sapp_openstack.helm.nginx_ports_control import NginxPortsControlHelm
 from k8sapp_openstack.helm.nova import NovaHelm
 from k8sapp_openstack.helm.nova_api_proxy import NovaApiProxyHelm
+from k8sapp_openstack.helm.pci_irq_affinity_agent import PciIrqAffinityAgentHelm
 from k8sapp_openstack.helm.openvswitch import OpenvswitchHelm
 from k8sapp_openstack.helm.panko import PankoHelm
 from k8sapp_openstack.helm.placement import PlacementHelm
@@ -94,6 +95,7 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
         NginxPortsControlHelm.CHART: CHART_GROUP_INGRESS_OS,
         NovaHelm.CHART: CHART_GROUP_COMPUTE_KIT,
         NovaApiProxyHelm.CHART: CHART_GROUP_COMPUTE_KIT,
+        PciIrqAffinityAgentHelm.CHART: CHART_GROUP_COMPUTE_KIT,
         OpenvswitchHelm.CHART: CHART_GROUP_COMPUTE_KIT,
         PankoHelm.CHART: CHART_GROUP_TELEMETRY,
         PlacementHelm.CHART: CHART_GROUP_COMPUTE_KIT,
@@ -126,6 +128,7 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
         NginxPortsControlHelm.CHART: 'openstack-nginx-ports-control',
         NovaHelm.CHART: 'openstack-nova',
         NovaApiProxyHelm.CHART: 'openstack-nova-api-proxy',
+        PciIrqAffinityAgentHelm.CHART: 'openstack-pci-irq-affinity-agent',
         OpenvswitchHelm.CHART: 'openstack-openvswitch',
         PankoHelm.CHART: 'openstack-panko',
         PSPRolebindingHelm.CHART: 'openstack-psp-rolebinding',

@@ -17,7 +17,7 @@ diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulse
 index e0e61e6..f71dc3e 100644
 --- a/rabbitmq/templates/statefulset.yaml
 +++ b/rabbitmq/templates/statefulset.yaml
-@@ -200,14 +200,16 @@ spec:
+@@ -225,14 +225,16 @@ spec:
                value: {{ $envAll.Values.io_thread_pool.size | quote }}
  {{- end }}
            readinessProbe:
@@ -30,7 +30,7 @@ index e0e61e6..f71dc3e 100644
                command:
                - /tmp/rabbitmq-readiness.sh
            livenessProbe:
--            initialDelaySeconds: 30
+-            initialDelaySeconds: 60
 -            timeoutSeconds: 10
 +            initialDelaySeconds: {{ $envAll.Values.pod.probes.liveness.initialDelaySeconds }}
 +            periodSeconds: {{ $envAll.Values.pod.probes.liveness.periodSeconds }}

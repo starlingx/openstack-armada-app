@@ -1,6 +1,6 @@
 %global sha 34a7533b6484a157c8725889d0d68e792e13fc8d
 %global helm_folder  /usr/lib/helm
-%global toolkit_version 0.1.0
+%global toolkit_version 0.2.19
 %global helmchart_version 0.1.0
 %global _default_patch_flags --no-backup-if-mismatch --prefix=/tmp/junk
 
@@ -30,6 +30,7 @@ Patch08: 0008-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
 Patch09: 0009-Wrong-usage-of-rbd_store_chunk_size.patch
 Patch10: 0010-Add-stx_admin-account.patch
 Patch11: 0011-Trust-public-ingress-certificate.patch
+Patch12: 0012-Update-helm-tookit-dependencies-to-0.2.19.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -52,6 +53,7 @@ Openstack Helm charts
 %patch09 -p1
 %patch10 -p1
 %patch11 -p1
+%patch12 -p1
 
 %build
 # Stage helm-toolkit in the local repo

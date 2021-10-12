@@ -1,4 +1,4 @@
-%global sha 34d54f2812b7d54431d548cff08fe8da7f838124
+%global sha 8351fdd0f1228717342c2accc96977b0cdc36dc3
 %global helm_folder  /usr/lib/helm
 
 Summary: Openstack-Helm-Infra charts
@@ -16,21 +16,17 @@ Source1: repositories.yaml
 BuildArch:     noarch
 
 Patch01: 0001-Add-imagePullSecrets-in-service-account.patch
-Patch02: 0002-Set-Min-NGINX-handles.patch
 Patch03: 0003-Partial-revert-of-31e3469d28858d7b5eb6355e88b6f49fd6.patch
 Patch04: 0004-Fix-pod-restarts-on-all-workers-when-worker-added-re.patch
 Patch05: 0005-Add-io_thread_pool-for-rabbitmq.patch
 Patch06: 0006-Enable-override-of-rabbitmq-probe-parameters.patch
-Patch07: 0007-Fix-ipv6-address-issue-causing-mariadb-ingress-not-ready.patch
-Patch08: 0008-Fix-rabbitmq-could-not-bind-port-to-ipv6-address-iss.patch
 Patch09: 0009-Enable-override-of-mariadb-server-probe-parameters.patch
-Patch10: 0010-Mariadb-use-utf8_general_ci-collation-as-default.patch
 Patch11: 0011-Add-mariadb-database-config-override-to-support-ipv6.patch
 Patch12: 0012-enable-Values.conf.database.config_override-for-mari.patch
 Patch13: 0013-Allow-set-public-endpoint-url-for-all-openstack-types.patch
 Patch14: 0014-Add-tolerations-to-rabbitmq-chart.patch
 Patch15: 0015-Add-tolerations-to-mariadb-chart.patch
-Patch16: 0016-Add-Trust-ingress-support-to-helm-toolkit.patch
+Patch16: 0016-Disabling-helm3_hooks.patch
 
 BuildRequires: helm
 BuildRequires: chartmuseum
@@ -41,15 +37,11 @@ Openstack Helm Infra charts
 %prep
 %setup -n openstack-helm-infra
 %patch01 -p1
-%patch02 -p1
 %patch03 -p1
 %patch04 -p1
 %patch05 -p1
 %patch06 -p1
-%patch07 -p1
-%patch08 -p1
 %patch09 -p1
-%patch10 -p1
 %patch11 -p1
 %patch12 -p1
 %patch13 -p1

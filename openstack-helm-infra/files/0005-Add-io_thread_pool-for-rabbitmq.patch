@@ -24,32 +24,32 @@ index 41dc198..e0e61e6 100644
            volumeMounts:
              - name: pod-tmp
                mountPath: /tmp
-@@ -191,6 +195,10 @@ spec:
-               value: "{{ tuple "oslo_messaging" "internal" "amqp" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
-             - name: PORT_CLUSTERING
-               value: "{{ add (tuple "oslo_messaging" "internal" "amqp" . | include "helm-toolkit.endpoints.endpoint_port_lookup") 20000 }}"
+@@ -215,6 +219,10 @@ spec:
+ {{- if ne (.Values.conf.feature_flags | default "") "default" }}
+             - name: RABBITMQ_FEATURE_FLAGS
+               value: "{{ .Values.conf.feature_flags }}"
++{{- end }}
 +{{- if $envAll.Values.io_thread_pool.enabled }}
 +            - name: RABBITMQ_IO_THREAD_POOL_SIZE
 +              value: {{ $envAll.Values.io_thread_pool.size | quote }}
-+{{- end }}
+ {{- end }}
            readinessProbe:
              initialDelaySeconds: 10
-             timeoutSeconds: 10
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
 index 6c95787..9cd3a91 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
-@@ -334,6 +334,10 @@ volume:
-   class_name: general
-   size: 256Mi
- 
+@@ -375,6 +375,10 @@ volume:
+ # Set helm3_hook to false while using helm2
+ helm3_hook: true
+
 +io_thread_pool:
 +  enabled: false
 +  size: 64
 +
  manifests:
+   certificates: false
    configmap_bin: true
-   configmap_etc: true
--- 
+--
 2.7.4
 

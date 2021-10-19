@@ -4040,7 +4040,7 @@ data:
 schema: armada/Manifest/v1
 metadata:
   schema: metadata/Document/v1
-  name: armada-manifest
+  name: openstack-manifest
 data:
   release_prefix: osh
   chart_groups:

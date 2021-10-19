@@ -51,7 +51,7 @@ LOG = logging.getLogger(__name__)
 class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
 
     APP = constants.HELM_APP_OPENSTACK
-    ARMADA_MANIFEST = 'armada-manifest'
+    ARMADA_MANIFEST = 'openstack-manifest'
 
     CHART_GROUP_PSP_ROLEBINDING = 'openstack-psp-rolebinding'
     CHART_GROUP_INGRESS_OS = 'openstack-ingress'

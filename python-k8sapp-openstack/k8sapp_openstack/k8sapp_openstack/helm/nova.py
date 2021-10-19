@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -174,8 +174,12 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     def _get_compute_ironic_manifests(self):
         ironic_operator = self._operator.chart_operators[
             app_constants.HELM_CHART_IRONIC]
-        enabled = ironic_operator._is_enabled(constants.HELM_APP_OPENSTACK,
-                app_constants.HELM_CHART_IRONIC, common.HELM_NS_OPENSTACK)
+        openstack_app = utils.find_openstack_app(self.dbapi)
+        enabled = ironic_operator._is_enabled(
+            openstack_app.name,
+            app_constants.HELM_CHART_IRONIC,
+            common.HELM_NS_OPENSTACK
+        )
         return {
             'statefulset_compute_ironic': enabled
         }

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -20,6 +20,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import kubernetes
+from sysinv.common import utils
 from sysinv.common.storage_backend_conf import K8RbdProvisioner
 from sysinv.helm import base
 from sysinv.helm import common
@@ -164,7 +165,7 @@ class OpenstackBaseHelm(base.BaseHelm):
             return None
 
         try:
-            app = self.dbapi.kube_app_get(constants.HELM_APP_OPENSTACK)
+            app = utils.find_openstack_app(self.dbapi)
             override = self.dbapi.helm_override_get(app_id=app.id,
                                                     name=chart,
                                                     namespace=namespace)
@@ -188,8 +189,8 @@ class OpenstackBaseHelm(base.BaseHelm):
         # The password is not present, dump from inactive app if available,
         # otherwise generate one and store it to the override
         try:
-            inactive_apps = self.dbapi.kube_app_get_inactive(
-                constants.HELM_APP_OPENSTACK)
+            openstack_app = utils.find_openstack_app(self.dbapi)
+            inactive_apps = self.dbapi.kube_app_get_inactive(openstack_app.name)
             app_override = self.dbapi.helm_override_get(app_id=inactive_apps[0].id,
                                                         name=chart,
                                                         namespace=namespace)
@@ -376,7 +377,7 @@ class OpenstackBaseHelm(base.BaseHelm):
 
     def _get_or_generate_ssh_keys(self, chart, namespace):
         try:
-            app = self.dbapi.kube_app_get(constants.HELM_APP_OPENSTACK)
+            app = utils.find_openstack_app(self.dbapi)
             override = self.dbapi.helm_override_get(app_id=app.id,
                                                     name=chart,
                                                     namespace=namespace)
@@ -400,8 +401,8 @@ class OpenstackBaseHelm(base.BaseHelm):
         newprivatekey = None
         newpublickey = None
         try:
-            inactive_apps = self.dbapi.kube_app_get_inactive(
-                constants.HELM_APP_OPENSTACK)
+            openstack_app = utils.find_openstack_app(self.dbapi)
+            inactive_apps = self.dbapi.kube_app_get_inactive(openstack_app.name)
             app_override = self.dbapi.helm_override_get(app_id=inactive_apps[0].id,
                                                         name=chart,
                                                         namespace=namespace)

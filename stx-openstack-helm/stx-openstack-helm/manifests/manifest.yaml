@@ -2128,7 +2128,7 @@ data:
         force_public_endpoint: true
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/gnocchi-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/gnocchi-0.1.2.tgz
     subpath: gnocchi
     reference: master
   dependencies:

@@ -1,0 +1,28 @@
+#!/bin/bash
+set -x
+
+PKG_BUILD_NAME=$1
+PKG_BUILD_ROOT=$(realpath `pwd`/${PKG_BUILD_NAME})
+PKG_DIR="stx-openstack-helm"
+
+STX_BASE=$(realpath ${MY_REPO}/stx)
+SRC=$(realpath ${STX_BASE}/openstack-armada-app/${PKG_DIR}/${PKG_DIR})
+
+FM_CHART_PKG="fm-rest-api"
+FM_HELM_CHARTS=$(realpath ${STX_BASE}/helm-charts/${FM_CHART_PKG}/${FM_CHART_PKG}/helm-charts)
+
+PSP_CHART_PKG="psp-rolebinding"
+PSP_HELM_CHARTS=$(realpath ${STX_BASE}/helm-charts/${PSP_CHART_PKG}/${PSP_CHART_PKG}/helm-charts)
+
+mkdir -p ${PKG_BUILD_ROOT}
+
+# Copy fm-rest-api helm charts to the build directory.
+cp -pr ${FM_HELM_CHARTS} ${PKG_BUILD_ROOT}
+
+# Copy psp-rolebinding helm charts to the build directory.
+cp -pr ${PSP_HELM_CHARTS} ${PKG_BUILD_ROOT}
+
+# Copy source files to the build directory.
+cp -pr ${SRC}/files ${PKG_BUILD_ROOT}
+cp -pr ${SRC}/helm-charts/* ${PKG_BUILD_ROOT}/helm-charts
+cp -pr ${SRC}/manifests ${PKG_BUILD_ROOT}

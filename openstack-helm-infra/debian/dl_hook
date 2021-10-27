@@ -1,0 +1,26 @@
+#!/bin/bash
+set -x
+
+PKG_BUILD_NAME=$1
+PKG_BUILD_ROOT=$(realpath `pwd`/${PKG_BUILD_NAME})
+PKG_DIR="openstack-helm-infra"
+STX_BASE=$(realpath ${MY_REPO}/stx)
+SRC=$(realpath ${STX_BASE}/openstack-armada-app/${PKG_DIR})
+
+mkdir -p ${PKG_BUILD_ROOT}
+pushd ${PKG_BUILD_ROOT}
+
+# Local mirror workaround until CGCS_BASE mirror is supported.
+STX_MIRROR=$(realpath "/import/mirrors/starlingx")
+
+# Download openstack-helm-infra source package.
+SHA="8351fdd0f1228717342c2accc96977b0cdc36dc3"
+OPENSTACK_PKG="openstack-helm-infra-${SHA}.tar.gz"
+OPENSTACK_SRC_PATH=$(realpath ${STX_MIRROR}/downloads/${OPENSTACK_PKG})
+cp ${OPENSTACK_SRC_PATH} ${PKG_BUILD_ROOT}
+
+# Extract the openstack-helm-infra tar file.
+tar xfz ${OPENSTACK_PKG}
+
+# Copy source files to the build directory.
+cp -pr ${SRC}/files/* ${PKG_BUILD_ROOT}

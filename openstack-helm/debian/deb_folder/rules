@@ -1,0 +1,60 @@
+#!/usr/bin/make -f
+# export DH_VERBOSE = 1
+
+export ROOT = debian/tmp
+export APP_FOLDER = $(ROOT)/usr/lib/helm
+
+export HELM_FOLDER=/usr/lib/helm
+export TOOLKIT_VERSION = 0.2.19
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Move the source files from the extracted root directory to build root.
+	mv openstack-helm/* .
+	# Stage helm-toolkit in the local repo.
+	cp $(HELM_FOLDER)/helm-toolkit-$(TOOLKIT_VERSION).tgz .
+	# Apply the openstack-helm patches.
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0001-Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0002-Nova-console-ip-address-search-optionality.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0003-Nova-chart-Support-ephemeral-pool-creation.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0004-Support-ingress-creation-for-keystone-admin-endpoint.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0005-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0006-Wrong-usage-of-rbd_store_chunk_size.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0007-Add-stx_admin-account.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0008-Disabling-helm3_hook.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0009-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0010-Enable-taint-toleration-for-Openstack-services.patch
+	# Host a server for the helm charts.
+	chartmuseum --debug --port=8879 --context-path='/charts' --storage="local" \
+		--storage-local-rootdir="." &
+	sleep 2
+	helm repo add local http://localhost:8879/charts
+	# Create the chart TGZ files.
+	make aodh
+	make barbican
+	make ceilometer
+	make cinder
+	make glance
+	make heat
+	make horizon
+	make ironic
+	make keystone
+	make magnum
+	make neutron
+	make nova
+	make placement
+	# Terminate the helm chart server.
+	pkill chartmuseum
+	# Remove the helm-toolkit tarball
+	rm helm-toolkit-$(TOOLKIT_VERSION).tgz
+
+override_dh_auto_install:
+	# Install the chart tar files.
+	install -d -m 755 $(APP_FOLDER)
+	install -p -D -m 755 *.tgz $(APP_FOLDER)
+
+override_dh_auto_test:
+
+override_dh_usrlocal:

@@ -3023,6 +3023,8 @@ data:
             keystone_multidomain_support: 'False'
             # OpenStack Help Documentation URL
             help_url: 'http://docs.openstack.org/ussuri/'
+            # Pass any settings to the end of local_settings.py
+            raw: { }
           template: |
             import os
 
@@ -3763,6 +3765,10 @@ data:
                 'enable_user_pass': False,
             }
             HORIZON_CONFIG["password_autocomplete"] = "off"
+
+            {{- range $option, $value := .Values.conf.horizon.local_settings.config.raw }}
+            {{ $option }} = {{ toJson $value }}
+            {{- end }}
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/horizon-0.1.0.tgz

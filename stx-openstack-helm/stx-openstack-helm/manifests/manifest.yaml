@@ -765,6 +765,26 @@ data:
       identity:
         force_public_endpoint: true
     conf:
+      extra_metadata:
+        pci_irq_affinity:
+          description: Properties for the handling of PCI IRQ Affinity. These properties may be specified to flavor, image and/or volume (refer to metadata description).
+          display_name: PCI IRQ Affinity
+          namespace: OS::Compute::PCIIRQAffinity
+          properties:
+            pci_irq_affinity_mask:
+              description: The metadata hw:pci_irq_affinity_mask specifies which CPU cores are interrupted due to PCI IRQ requests. It can be set as a compute flavor extra spec.
+              title: PCI IRQ Affinity Mask
+              type: string
+          protected: true
+          resource_type_associations:
+            - name: OS::Nova::Flavor
+              prefix: 'hw:'
+            - name: OS::Glance::Image
+              prefix: 'hw_'
+            - name: OS::Cinder::Volume
+              prefix: 'hw_'
+              properties_target: image
+          visibility: public
       glance:
         DEFAULT:
           bind_host: "::"

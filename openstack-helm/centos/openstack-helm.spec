@@ -28,6 +28,7 @@ Patch06: 0006-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
 Patch07: 0007-Wrong-usage-of-rbd_store_chunk_size.patch
 Patch08: 0008-Add-stx_admin-account.patch
 Patch09: 0009-Disabling-helm3_hook.patch
+Patch10: 0010-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -48,6 +49,7 @@ Openstack Helm charts
 %patch07 -p1
 %patch08 -p1
 %patch09 -p1
+%patch10 -p1
 
 %build
 # Stage helm-toolkit in the local repo

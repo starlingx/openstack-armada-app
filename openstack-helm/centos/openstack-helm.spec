@@ -1,4 +1,4 @@
-%global sha 34a7533b6484a157c8725889d0d68e792e13fc8d
+%global sha 7803000a545687ec40b0ddc41d46a6b377dea45f
 %global helm_folder  /usr/lib/helm
 %global toolkit_version 0.2.19
 %global helmchart_version 0.1.0
@@ -23,14 +23,11 @@ Patch01: 0001-Ceilometer-chart-add-the-ability-to-publish-events-t.patch
 Patch02: 0002-Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
 Patch03: 0003-Nova-console-ip-address-search-optionality.patch
 Patch04: 0004-Nova-chart-Support-ephemeral-pool-creation.patch
-Patch05: 0005-Nova-Add-support-for-disabling-Readiness-Liveness-pr.patch
-Patch06: 0006-Support-ingress-creation-for-keystone-admin-endpoint.patch
-Patch07: 0007-Allow-more-generic-overrides-for-placeme.patch
-Patch08: 0008-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
-Patch09: 0009-Wrong-usage-of-rbd_store_chunk_size.patch
-Patch10: 0010-Add-stx_admin-account.patch
-Patch11: 0011-Trust-public-ingress-certificate.patch
-Patch12: 0012-Update-helm-tookit-dependencies-to-0.2.19.patch
+Patch05: 0005-Support-ingress-creation-for-keystone-admin-endpoint.patch
+Patch06: 0006-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
+Patch07: 0007-Wrong-usage-of-rbd_store_chunk_size.patch
+Patch08: 0008-Add-stx_admin-account.patch
+Patch09: 0009-Disabling-helm3_hook.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -51,9 +48,6 @@ Openstack Helm charts
 %patch07 -p1
 %patch08 -p1
 %patch09 -p1
-%patch10 -p1
-%patch11 -p1
-%patch12 -p1
 
 %build
 # Stage helm-toolkit in the local repo
@@ -95,4 +89,3 @@ install -p -D -m 755 *.tgz ${RPM_BUILD_ROOT}%{helm_folder}
 #helm_folder is owned by openstack-helm-infra
 %defattr(-,root,root,-)
 %{helm_folder}/*
-

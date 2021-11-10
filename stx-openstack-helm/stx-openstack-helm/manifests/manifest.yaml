@@ -485,7 +485,7 @@ data:
         curl -X PATCH -H "X-Auth-Token: ${TOKEN}" -H "Content-Type: application/json" -d "${DATA_JSON}" "${REQ_URL}"
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/keystone-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/keystone-0.2.13.tgz
     subpath: keystone
     reference: master
   dependencies:
@@ -609,7 +609,7 @@ data:
           auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/barbican-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/barbican-0.2.7.tgz
     subpath: barbican
     reference: master
   dependencies:
@@ -779,7 +779,7 @@ data:
           auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/glance-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/glance-0.2.9.tgz
     subpath: glance
     reference: master
   dependencies:
@@ -876,7 +876,7 @@ data:
     storage: rbd
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/cinder-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/cinder-0.2.10.tgz
     subpath: cinder
     reference: master
   dependencies:
@@ -1228,7 +1228,7 @@ data:
 
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/nova-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/nova-0.2.21.tgz
     subpath: nova
     reference: master
   dependencies:
@@ -1327,7 +1327,7 @@ data:
         </Location>
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/placement-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/placement-0.2.4.tgz
     subpath: placement
     reference: master
   dependencies:
@@ -1645,7 +1645,7 @@ data:
             firewall_driver: openvswitch
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/neutron-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/neutron-0.2.9.tgz
     subpath: neutron
     reference: master
   dependencies:
@@ -1765,7 +1765,7 @@ data:
         force_public_endpoint: true
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/ironic-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/ironic-0.2.1.tgz
     subpath: ironic
     reference: master
   dependencies:
@@ -1871,7 +1871,7 @@ data:
             default: requiredDuringSchedulingIgnoredDuringExecution
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/heat-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/heat-0.2.7.tgz
     subpath: heat
     reference: master
   dependencies:
@@ -1972,7 +1972,7 @@ data:
         </VirtualHost>
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/aodh-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/aodh-0.2.1.tgz
     subpath: aodh
     reference: master
   dependencies:
@@ -2825,7 +2825,7 @@ data:
             default: requiredDuringSchedulingIgnoredDuringExecution
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/ceilometer-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/ceilometer-0.2.1.tgz
     subpath: ceilometer
     reference: master
   dependencies:
@@ -3771,7 +3771,7 @@ data:
             {{- end }}
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/horizon-0.1.0.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/horizon-0.2.10.tgz
     subpath: horizon
     reference: master
   dependencies:

@@ -18,11 +18,10 @@ diff --git a/keystone/templates/ingress-api.yaml b/keystone/templates/ingress-ap
 index de36571..37c3013 100644
 --- a/keystone/templates/ingress-api.yaml
 +++ b/keystone/templates/ingress-api.yaml
-@@ -18,3 +18,12 @@ limitations under the License.
- {{- $ingressOpts := dict "envAll" . "backendServiceType" "identity" "backendPort" "ks-pub" -}}
+@@ -21,3 +21,11 @@ limitations under the License.
+ {{- end -}}
  {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
  {{- end }}
-+
 +{{- if and .Values.manifests.ingress_api .Values.network.api.ingress.admin }}
 +{{ $ingressNamePublic := tuple "identity" "public" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
 +{{ $ingressNameAdmin := tuple "identity" "admin" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
@@ -33,4 +32,3 @@ index de36571..37c3013 100644
 +{{- end }}
 -- 
 1.8.3.1
-

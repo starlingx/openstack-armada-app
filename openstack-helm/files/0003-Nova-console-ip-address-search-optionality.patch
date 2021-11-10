@@ -45,15 +45,15 @@ diff --git a/nova/values.yaml b/nova/values.yaml
 index 6fb6237..ca92907 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -512,6 +512,7 @@ console:
+@@ -527,6 +527,7 @@ console:
      vncproxy:
        # IF blank, search default routing interface
        vncserver_proxyclient_interface:
 +  address_search_enabled: true
- 
- ssh:
-   key_types:
-@@ -1658,6 +1659,7 @@ conf:
+
+ ceph_client:
+   configmap: ceph-etc
+@@ -1666,6 +1666,7 @@ conf:
      # If this option is set to None, the hostname of the migration target compute node will be used.
      live_migration_interface:
    hypervisor:

@@ -11,9 +11,11 @@ import tsconfig.tsconfig as tsc
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import utils
-from sysinv.common.storage_backend_conf import StorageBackendConfig
-
+from sysinv.common import storage_backend_conf
 from sysinv.helm import common
+
+
+ROOK_CEPH_BACKEND_NAME = 'ceph-store'
 
 
 class CinderHelm(openstack.OpenstackBaseHelm):
@@ -45,10 +47,12 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             cinder_override = self._get_conf_rook_cinder_overrides()
             ceph_override = self._get_conf_rook_ceph_overrides()
             backend_override = self._get_conf_rook_backends_overrides()
+            ceph_client_override = self._get_ceph_client_rook_overrides()
         else:
             cinder_override = self._get_conf_cinder_overrides()
             ceph_override = self._get_conf_ceph_overrides()
             backend_override = self._get_conf_backends_overrides()
+            ceph_client_override = self._get_ceph_client_overrides()
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -71,7 +75,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                     'backends': backend_override,
                 },
                 'endpoints': self._get_endpoints_overrides(),
-                'ceph_client': self._get_ceph_client_overrides()
+                'ceph_client': ceph_client_override
             }
         }
 
@@ -91,8 +95,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         primary_tier_name =\
             constants.SB_TIER_DEFAULT_NAMES[constants.SB_TIER_TYPE_CEPH]
 
-        replication, min_replication =\
-            StorageBackendConfig.get_ceph_pool_replication(self.dbapi)
+        replication, min_replication = storage_backend_conf\
+            .StorageBackendConfig.get_ceph_pool_replication(self.dbapi)
 
         pools = {}
         for backend in self.dbapi.storage_ceph_get_list():
@@ -325,9 +329,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             'volume_driver': ''
         }
 
-        conf_backends['ceph-store'] = {
+        conf_backends[ROOK_CEPH_BACKEND_NAME] = {
             'image_volume_cache_enabled': 'True',
-            'volume_backend_name': 'ceph-store',
+            'volume_backend_name': ROOK_CEPH_BACKEND_NAME,
             'volume_driver': 'cinder.volume.drivers.rbd.RBDDriver',
             'rbd_pool': 'cinder-volumes',
             'rbd_user': 'cinder',
@@ -336,3 +340,20 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                  constants.SB_TYPE_CEPH_CONF_FILENAME),
         }
         return conf_backends
+
+    def _get_ceph_client_rook_overrides(self):
+        return {
+            'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
+            'internal_ceph_backend': ROOK_CEPH_BACKEND_NAME,
+        }
+
+    def _get_ceph_client_overrides(self):
+        # A secret is required by the chart for ceph client access. Use the
+        # secret for the kube-rbd pool associated with the primary ceph tier
+        ceph_backend_name = constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH]
+        user_secret_name = storage_backend_conf.K8RbdProvisioner\
+            .get_user_secret_name({'name': ceph_backend_name})
+        return {
+            'user_secret_name': user_secret_name,
+            'internal_ceph_backend': ceph_backend_name,
+        }

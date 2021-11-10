@@ -169,17 +169,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             return overrides
 
     def _get_mount_overrides(self):
-        overrides = self._get_mount_uefi_overrides()
-        # mount /dev/pts in order to get console log
-        overrides['volumes'].append({
-            'name': 'dev-pts',
-            'hostPath': {'path': '/dev/pts'}
-        })
-        overrides['volumeMounts'].append({
-            'name': 'dev-pts',
-            'mountPath': '/dev/pts'
-        })
-        return overrides
+        return self._get_mount_uefi_overrides()
 
     def _get_compute_ironic_manifests(self):
         ironic_operator = self._operator.chart_operators[

@@ -292,6 +292,7 @@ secrets:
     compute:
       api_proxy:
         public: nova-tls-public
+        internal: nova-tls-api
 
 manifests:
   configmap_bin: true

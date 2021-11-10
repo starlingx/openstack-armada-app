@@ -108,10 +108,13 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             rule_name = "{0}{1}{2}".format(
                 backend.tier_name, constants.CEPH_CRUSH_TIER_SUFFIX,
                 "-ruleset").replace('-', '_')
+
+            chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
+
             pool = {
                 'replication': replication,
                 'crush_rule': rule_name.encode('utf8', 'strict'),
-                'chunk_size': app_constants.CEPH_POOL_VOLUMES_CHUNK_SIZE,
+                'chunk_size': min(chunk_size, app_constants.CEPH_POOL_VOLUMES_CHUNK_SIZE),
                 'app_name': app_constants.CEPH_POOL_VOLUMES_APP_NAME
             }
             pools[pool_name.encode('utf8', 'strict')] = pool
@@ -121,7 +124,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 pool_backup = {
                     'replication': replication,
                     'crush_rule': rule_name.encode('utf8', 'strict'),
-                    'chunk_size': app_constants.CEPH_POOL_BACKUP_CHUNK_SIZE,
+                    'chunk_size': min(chunk_size, app_constants.CEPH_POOL_BACKUP_CHUNK_SIZE),
                     'app_name': app_constants.CEPH_POOL_BACKUP_APP_NAME
                 }
                 pools['backup'] = dict(pool_backup)

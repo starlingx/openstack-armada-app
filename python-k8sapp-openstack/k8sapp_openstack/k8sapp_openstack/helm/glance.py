@@ -141,6 +141,8 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         else:
             rule_name = "storage_tier_ruleset"
 
+        chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
+
         conf = {
             'glance': {
                 'DEFAULT': {
@@ -148,7 +150,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     'show_image_direct_url': True,
                 },
                 'glance_store': {
-                    'chunk_size': app_constants.CEPH_POOL_IMAGES_CHUNK_SIZE,
+                    'chunk_size': min(chunk_size, app_constants.CEPH_POOL_IMAGES_CHUNK_SIZE),
                     'filesystem_store_datadir': constants.GLANCE_IMAGE_PATH,
                     'rbd_store_pool': rbd_store_pool,
                     'rbd_store_user': rbd_store_user,

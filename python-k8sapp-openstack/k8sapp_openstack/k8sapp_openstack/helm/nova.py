@@ -786,6 +786,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             constants.CEPH_CRUSH_TIER_SUFFIX,
             "-ruleset").replace('-', '_')
 
+        chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
+
         # Form the dictionary with the info for the ephemeral pool.
         # If needed, multiple pools can be specified.
         ephemeral_pool = {
@@ -793,7 +795,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             'rbd_user': RBD_POOL_USER,
             'rbd_crush_rule': rule_name,
             'rbd_replication': replication,
-            'rbd_chunk_size': app_constants.CEPH_POOL_EPHEMERAL_CHUNK_SIZE
+            'rbd_chunk_size': min(chunk_size, app_constants.CEPH_POOL_EPHEMERAL_CHUNK_SIZE)
         }
         ephemeral_pools.append(ephemeral_pool)
 

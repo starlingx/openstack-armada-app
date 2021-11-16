@@ -1395,6 +1395,45 @@ data:
 schema: armada/Chart/v1
 metadata:
   schema: metadata/Document/v1
+  name: openstack-pci-irq-affinity-agent
+data:
+  chart_name: pci-irq-affinity-agent
+  release: openstack-pci-irq-affinity-agent
+  namespace: openstack
+  wait:
+    timeout: 1800
+    labels:
+      release_group: osh-openstack-pci-irq-affinity-agent
+  test:
+    enabled: false
+  install:
+    no_hooks: false
+  upgrade:
+    no_hooks: false
+    pre:
+      delete:
+        - type: job
+          labels:
+            release_group: osh-openstack-pci-irq-affinity-agent
+  values:
+    images:
+      tags:
+        pci_irq_affinity_agent: docker.io/starlingx/stx-pci-irq-affinity-agent:master-centos-stable-latest
+    tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+  source:
+    type: tar
+    location: http://172.17.0.1/helm_charts/starlingx/pci-irq-affinity-agent-0.1.0.tgz
+    subpath: pci-irq-affinity-agent
+    reference: master
+  dependencies:
+    - helm-toolkit
+---
+schema: armada/Chart/v1
+metadata:
+  schema: metadata/Document/v1
   name: openstack-neutron
 data:
   chart_name: neutron
@@ -3930,6 +3969,7 @@ data:
     - openstack-libvirt
     - openstack-nova
     - openstack-nova-api-proxy
+    - openstack-pci-irq-affinity-agent
     - openstack-neutron
     - openstack-placement
 ---

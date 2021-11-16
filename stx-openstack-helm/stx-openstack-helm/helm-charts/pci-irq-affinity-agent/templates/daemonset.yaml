@@ -1,0 +1,140 @@
+{{/*
+#
+# Copyright (c) 2021 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+*/}}
+
+{{- if .Values.manifests.daemonset }}
+{{- $daemonset := "pci-irq-affinity-agent" }}
+{{- $configMapName := "pci-irq-affinity-agent-etc" }}
+{{- $binConfigMapName := "pci-irq-affinity-agent-bin" }}
+{{- $envAll := . }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $daemonset }}
+  annotations:
+    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+  labels:
+{{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+{{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
+  template:
+    metadata:
+      labels:
+{{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+    spec:
+      nodeSelector:
+        {{ .Values.labels.agent.pci_irq_affinity_agent.node_selector_key }}: {{ .Values.labels.agent.pci_irq_affinity_agent.node_selector_value }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+      containers:
+        - name: pci-irq-affinity-agent
+          image: {{ .Values.images.tags.pci_irq_affinity_agent }}
+          imagePullPolicy: {{ .Values.images.pull_policy }}
+          command:
+            - /tmp/start.sh
+          {{- if .Values.pod.probes.readiness.pci_irq_affinity_agent.enabled }}
+          env:
+            - name: COMPUTE_HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: COMPUTE_PCI_DEVICES
+              value: {{ .Values.conf.host.mount_path.pci_devices }}
+            - name: COMPUTE_IRQ
+              value: {{ .Values.conf.host.mount_path.irq }}
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+            initialDelaySeconds: 30
+            periodSeconds: 180
+            timeoutSeconds: 165
+          {{- end }}
+          {{- if .Values.pod.probes.liveness.pci_irq_affinity_agent.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - /tmp/health-probe.py
+                - --liveness-probe
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 55
+          {{- end }}
+          volumeMounts:
+          - name: {{ $configMapName }}
+            mountPath: /etc/pci_irq_affinity/config.ini
+            subPath: config.ini
+            readOnly: true
+          - name: {{ $configMapName }}
+            mountPath: /root/.local/share/python_keyring/keyringrc.cfg
+            subPath: keyringrc.cfg
+            readOnly: true
+          - name: keyring
+            mountPath: /root/.local/share/python_keyring/crypted_pass.cfg
+            readOnly: true
+          - name: libvirt-sock-ro
+            mountPath: /var/run/libvirt/libvirt-sock-ro
+            readOnly: true
+          - name: compute-pci-devices
+            mountPath: {{ .Values.conf.host.mount_path.pci_devices }}
+            readOnly: false
+          - name: compute-irq
+            mountPath: {{ .Values.conf.host.mount_path.irq }}
+            readOnly: false
+          - name: {{ $binConfigMapName }}
+            mountPath: /tmp/start.py
+            subPath: start.py
+            readOnly: true
+          - name: {{ $binConfigMapName }}
+            mountPath: /tmp/patch_keyring.sh
+            subPath: patch_keyring.sh
+            readOnly: true
+          - name: {{ $binConfigMapName }}
+            mountPath: /tmp/start.sh
+            subPath: start.sh
+            readOnly: true
+          - name: {{ $binConfigMapName }}
+            mountPath: /tmp/health-probe.py
+            subPath: health-probe.py
+            readOnly: true
+{{- if .Values.manifests.certificates }}
+{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.pci_irq_affinity_agent.agent.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 10 }}
+{{- end }}
+      volumes:
+      - name: {{ $configMapName }}
+        secret:
+          defaultMode: 0644
+          secretName: {{ $configMapName }}
+      - name: keyring
+        hostPath:
+          path: /opt/platform/.keyring/21.12/python_keyring/crypted_pass.cfg # TODO (hmatsui): dynamically get version (e.g. 21.12)
+          type: File
+      - name: libvirt-sock-ro
+        hostPath:
+          path: /var/run/libvirt/libvirt-sock-ro
+          type: Socket
+      - name: compute-pci-devices
+        hostPath:
+          path: /sys/bus/pci/devices
+          type: Directory
+      - name: compute-irq
+        hostPath:
+          path: /proc/irq
+          type: Directory
+      - name: {{ $binConfigMapName }}
+        configMap:
+          defaultMode: 0555
+          name: {{ $binConfigMapName }}
+{{- if .Values.manifests.certificates }}
+{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.pci_irq_affinity_agent.agent.public | include "helm-toolkit.snippets.tls_volume" | indent 6 }}
+{{- end }}
+{{- end }}

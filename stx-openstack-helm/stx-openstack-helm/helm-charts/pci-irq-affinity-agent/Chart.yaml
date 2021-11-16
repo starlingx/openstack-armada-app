@@ -1,0 +1,4 @@
+apiVersion: v1
+description: PCI IRQ Affinity Agent
+name: pci-irq-affinity-agent
+version: 0.1.0

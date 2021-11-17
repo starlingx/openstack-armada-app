@@ -11,6 +11,8 @@
 {{- $configMapName := "pci-irq-affinity-agent-etc" }}
 {{- $binConfigMapName := "pci-irq-affinity-agent-bin" }}
 {{- $envAll := . }}
+
+{{- tuple $envAll "agent" $daemonset | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -29,6 +31,7 @@ spec:
       labels:
 {{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
     spec:
+      serviceAccountName: {{ $daemonset | quote }}
       nodeSelector:
         {{ .Values.labels.agent.pci_irq_affinity_agent.node_selector_key }}: {{ .Values.labels.agent.pci_irq_affinity_agent.node_selector_value }}
       tolerations:

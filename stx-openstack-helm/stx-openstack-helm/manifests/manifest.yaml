@@ -1272,6 +1272,7 @@ data:
       tags:
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        db_migrate: quay.io/airshipit/porthole-mysqlclient-utility:179e19a91fc75052da2f5d1de5c1a273d5407c3b-ubuntu_bionic
         image_repo_sync: null
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest

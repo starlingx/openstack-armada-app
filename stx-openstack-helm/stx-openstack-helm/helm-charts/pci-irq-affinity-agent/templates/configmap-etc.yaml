@@ -17,5 +17,4 @@ metadata:
 type: Opaque
 data:
 {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.template "key" "config.ini" "format" "Secret") | indent 2 }}
-{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.keyring "key" "keyringrc.cfg" "format" "Secret") | indent 2 }}
 {{- end }}

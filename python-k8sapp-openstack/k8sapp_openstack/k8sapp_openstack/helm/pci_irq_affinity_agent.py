@@ -18,6 +18,8 @@ class PciIrqAffinityAgentHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the PCI IRQ affinity agent chart"""
 
     CHART = app_constants.HELM_CHART_PCI_IRQ_AFFINITY_AGENT
+    AUTH_USERS = ['pci-irq-affinity-agent']
+    SERVICE_NAME = app_constants.HELM_CHART_PCI_IRQ_AFFINITY_AGENT
 
     def __init__(self, operator):
         super(PciIrqAffinityAgentHelm, self).__init__(operator)
@@ -46,6 +48,12 @@ class PciIrqAffinityAgentHelm(openstack.OpenstackBaseHelm):
         )['nova']
 
         overrides = {
+            'identity': {
+              'auth': self._get_endpoints_identity_overrides(
+                  self.SERVICE_NAME,
+                  self.AUTH_USERS
+              ),
+            },
             'rabbit': {
                 'rabbit_userid': nova_oslo_messaging_data['username'],
                 'rabbit_password': nova_oslo_messaging_data['password'],

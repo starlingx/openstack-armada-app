@@ -10,9 +10,10 @@
 {{- $daemonset := "pci-irq-affinity-agent" }}
 {{- $configMapName := "pci-irq-affinity-agent-etc" }}
 {{- $binConfigMapName := "pci-irq-affinity-agent-bin" }}
+{{- $mounts_pci_irq_affinity_agent_init := .Values.pod.mounts.pci_irq_affinity_agent.init_container }}
 {{- $envAll := . }}
 
-{{- tuple $envAll "agent" $daemonset | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+{{- tuple $envAll "pci_irq_affinity_agent" $daemonset | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -36,6 +37,8 @@ spec:
         {{ .Values.labels.agent.pci_irq_affinity_agent.node_selector_key }}: {{ .Values.labels.agent.pci_irq_affinity_agent.node_selector_value }}
       tolerations:
 {{ toYaml .Values.tolerations | indent 8 }}
+      initContainers:
+{{ tuple $envAll "pci_irq_affinity_agent" $mounts_pci_irq_affinity_agent_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
       containers:
         - name: pci-irq-affinity-agent
           image: {{ .Values.images.tags.pci_irq_affinity_agent }}
@@ -77,13 +80,6 @@ spec:
             mountPath: /etc/pci_irq_affinity/config.ini
             subPath: config.ini
             readOnly: true
-          - name: {{ $configMapName }}
-            mountPath: /root/.local/share/python_keyring/keyringrc.cfg
-            subPath: keyringrc.cfg
-            readOnly: true
-          - name: keyring
-            mountPath: /root/.local/share/python_keyring/crypted_pass.cfg
-            readOnly: true
           - name: libvirt-sock-ro
             mountPath: /var/run/libvirt/libvirt-sock-ro
             readOnly: true
@@ -96,10 +92,6 @@ spec:
           - name: {{ $binConfigMapName }}
             mountPath: /tmp/start.py
             subPath: start.py
-            readOnly: true
-          - name: {{ $binConfigMapName }}
-            mountPath: /tmp/patch_keyring.sh
-            subPath: patch_keyring.sh
             readOnly: true
           - name: {{ $binConfigMapName }}
             mountPath: /tmp/start.sh
@@ -117,10 +109,6 @@ spec:
         secret:
           defaultMode: 0644
           secretName: {{ $configMapName }}
-      - name: keyring
-        hostPath:
-          path: /opt/platform/.keyring/21.12/python_keyring/crypted_pass.cfg # TODO (hmatsui): dynamically get version (e.g. 21.12)
-          type: File
       - name: libvirt-sock-ro
         hostPath:
           path: /var/run/libvirt/libvirt-sock-ro

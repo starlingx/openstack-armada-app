@@ -7,5 +7,4 @@
 #
 
 # Script to encapsulate the starting routines
-sh -c /tmp/patch_keyring.sh
 python /tmp/start.py

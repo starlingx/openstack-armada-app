@@ -30,15 +30,20 @@ labels:
 dependencies:
   static:
     pci_irq_affinity_agent:
-      services:
-        - endpoint: internal
-          service: keystone
-        - endpoint: internal
-          service: rabbitmq
-        - endpoint: internal
-          service: nova
+      pod:
+        - requireSameNode: true
+          labels:
+            application: libvirt
+            component: libvirt
+        - requireSameNode: true
+          labels:
+            application: nova
+            component: compute
 
 pod:
+  mounts:
+    pci_irq_affinity_agent:
+      init_container: null
   security_context:
     pci_irq_affinity_agent:
       pod:
@@ -60,6 +65,7 @@ conf:
       auth:
         admin:
           username: admin
+          password: password
           project_name: admin
           user_domain_name: default
           project_domain_name: default
@@ -80,6 +86,7 @@ conf:
     [openstack]
     openstack_enabled={{ .Values.conf.endpoints.keystone.openstack_enabled }}
     username={{ .Values.conf.endpoints.identity.auth.admin.username }}
+    password={{ .Values.conf.endpoints.identity.auth.admin.password }}
     tenant={{ .Values.conf.endpoints.identity.auth.admin.username }}
     authorization_protocol={{ .Values.conf.endpoints.keystone.openstack_auth_protocol }}
     authorization_ip={{ .Values.conf.endpoints.keystone.openstack_auth_host }}
@@ -99,9 +106,6 @@ conf:
     user_id={{ .Values.conf.endpoints.rabbit.rabbit_userid }}
     password={{ .Values.conf.endpoints.rabbit.rabbit_password }}
     virt_host={{ .Values.conf.endpoints.rabbit.rabbit_virtual_host }}
-  keyring: |
-    [backend]
-    default-keyring=keyrings.alt.file.EncryptedKeyring
   host:
     mount_path:
       pci_devices: /compute/sys/bus/pci/devices

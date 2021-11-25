@@ -2197,132 +2197,6 @@ data:
 schema: armada/Chart/v1
 metadata:
   schema: metadata/Document/v1
-  name: openstack-panko
-data:
-  chart_name: panko
-  release: openstack-panko
-  namespace: openstack
-  wait:
-    timeout: 1800
-    labels:
-      release_group: osh-openstack-panko
-  test:
-    enabled: false
-  install:
-    no_hooks: false
-  upgrade:
-    no_hooks: false
-    pre:
-      delete:
-        - type: job
-          labels:
-            release_group: osh-openstack-panko
-        - type: pod
-          labels:
-            release_group: osh-openstack-panko
-            component: test
-  values:
-    endpoints:
-      identity:
-        force_public_endpoint: true
-    pod:
-      user:
-        panko:
-          uid: 0
-      affinity:
-        anti:
-          type:
-            default: requiredDuringSchedulingIgnoredDuringExecution
-    images:
-      tags:
-        bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        image_repo_sync: null
-        ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        panko_api: docker.io/starlingx/stx-panko:master-centos-stable-latest
-        panko_db_sync: docker.io/starlingx/stx-panko:master-centos-stable-latest
-        panko_events_cleaner: docker.io/starlingx/stx-panko:master-centos-stable-latest
-        test: null
-    conf:
-      panko:
-        keystone_authtoken:
-          auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-          auth_url: http://keystone.openstack.svc.cluster.local:80/v3
-      paste:
-        composite:panko+noauth:
-          use: egg:Paste#urlmap
-          /: pankoversions_pipeline
-          /v2: pankov2_noauth_pipeline
-        composite:panko+keystone:
-          use: egg:Paste#urlmap
-          /: pankoversions_pipeline
-          /v2: pankov2_keystone_pipeline
-        pipeline:pankoversions_pipeline:
-          pipeline: cors http_proxy_to_wsgi pankoversions
-        app:pankoversions:
-          paste.app_factory: panko.api.app:app_factory
-          root: panko.api.controllers.root.VersionsController
-        pipeline:pankov2_keystone_pipeline:
-          pipeline: cors http_proxy_to_wsgi request_id authtoken pankov2
-        pipeline:pankov2_noauth_pipeline:
-          pipeline: cors http_proxy_to_wsgi request_id pankov2
-        app:pankov2:
-          paste.app_factory: panko.api.app:app_factory
-          root: panko.api.controllers.v2.root.V2Controller
-        filter:authtoken:
-          paste.filter_factory: keystonemiddleware.auth_token:filter_factory
-          oslo_config_project: panko
-        filter:request_id:
-          paste.filter_factory: oslo_middleware:RequestId.factory
-        filter:cors:
-          paste.filter_factory: oslo_middleware.cors:filter_factory
-          oslo_config_project: panko
-        filter:http_proxy_to_wsgi:
-          paste.filter_factory: oslo_middleware.http_proxy_to_wsgi:HTTPProxyToWSGI.factory
-          oslo_config_project: panko
-      wsgi_panko: |
-        Listen :::{{ tuple "event" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
-
-        LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
-        LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
-
-        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
-        CustomLog /dev/stdout combined env=!forwarded
-        CustomLog /dev/stdout proxy env=forwarded
-        WSGISocketPrefix /var/run/httpd/wsgi
-
-        <VirtualHost *:{{ tuple "event" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-            WSGIDaemonProcess panko processes=2 threads=1 user=panko group=panko display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
-            WSGIProcessGroup panko
-            WSGIScriptAlias / /var/www/cgi-bin/panko/panko-api
-            WSGIApplicationGroup %{GLOBAL}
-            <IfVersion >= 2.4>
-              ErrorLogFormat "%{cu}t %M"
-            </IfVersion>
-
-            ErrorLog /dev/stdout
-            SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
-            CustomLog /dev/stdout combined env=!forwarded
-            CustomLog /dev/stdout proxy env=forwarded
-        </VirtualHost>
-    jobs:
-      events_cleaner:
-        # hourly at the 10 minute mark
-        cron: "10 * * * *"
-  source:
-    type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/panko-0.1.0.tgz
-    subpath: panko
-    reference: master
-  dependencies:
-    - helm-toolkit
----
-schema: armada/Chart/v1
-metadata:
-  schema: metadata/Document/v1
   name: openstack-ceilometer
 data:
   chart_name: ceilometer
@@ -2415,21 +2289,6 @@ data:
       oslo_cache:
         hosts:
           default: memcached
-      event:
-        name: panko
-        hosts:
-          default: panko-api
-          public: panko
-        host_fqdn_override:
-          default: null
-        path:
-          default: null
-        scheme:
-          default: 'http'
-        port:
-          api:
-            default: 8977
-            public: 80
     conf:
       ceilometer:
         keystone_authtoken:
@@ -2470,7 +2329,6 @@ data:
         sinks:
           - name: event_sink
             publishers:
-              - panko://
               - gnocchi://
       polling:
         sources:
@@ -4034,7 +3892,6 @@ data:
   chart_group:
     - openstack-aodh
     - openstack-gnocchi
-    - openstack-panko
     - openstack-ceilometer
 ---
 schema: armada/ChartGroup/v1

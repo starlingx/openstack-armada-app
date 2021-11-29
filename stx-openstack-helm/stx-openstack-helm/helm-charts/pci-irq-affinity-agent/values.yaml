@@ -108,7 +108,7 @@ conf:
     virt_host={{ .Values.conf.endpoints.rabbit.rabbit_virtual_host }}
   host:
     mount_path:
-      pci_devices: /compute/sys/bus/pci/devices
+      sys: /compute/sys
       irq: /compute/proc/irq
 
 secrets:

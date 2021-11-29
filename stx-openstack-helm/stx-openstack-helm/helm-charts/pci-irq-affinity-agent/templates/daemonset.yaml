@@ -52,7 +52,7 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
             - name: COMPUTE_PCI_DEVICES
-              value: {{ .Values.conf.host.mount_path.pci_devices }}
+              value: {{ .Values.conf.host.mount_path.sys }}/bus/pci/devices
             - name: COMPUTE_IRQ
               value: {{ .Values.conf.host.mount_path.irq }}
           readinessProbe:
@@ -83,8 +83,8 @@ spec:
           - name: libvirt-sock-ro
             mountPath: /var/run/libvirt/libvirt-sock-ro
             readOnly: true
-          - name: compute-pci-devices
-            mountPath: {{ .Values.conf.host.mount_path.pci_devices }}
+          - name: compute-sys
+            mountPath: {{ .Values.conf.host.mount_path.sys }}
             readOnly: false
           - name: compute-irq
             mountPath: {{ .Values.conf.host.mount_path.irq }}
@@ -113,9 +113,9 @@ spec:
         hostPath:
           path: /var/run/libvirt/libvirt-sock-ro
           type: Socket
-      - name: compute-pci-devices
+      - name: compute-sys
         hostPath:
-          path: /sys/bus/pci/devices
+          path: /sys
           type: Directory
       - name: compute-irq
         hostPath:

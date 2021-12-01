@@ -3,6 +3,7 @@ Enhanced Policies
 
 This repository aims to provide enhanced policies for stx-openstack.
 
+It's important that all the overrides files get applied, some of the rules present in a policy from one service might depend on other services to work (e.g. nova commands might depend on glance/cinder/neutron permissions). They should not be used separately.
 
 |Design|Roles|Permissions summary|
 |:-------------|-------------|:-----|
@@ -73,12 +74,12 @@ Make sure you have access to the Openstack CLI, follow the instructions on [this
     ```
     source /etc/platform/openrc
 
-    system helm-override-update stx-openstack keystone openstack --values=rbac/keystone-policy-overrides.yml
-    system helm-override-update stx-openstack cinder openstack --values=rbac/cinder-policy-overrides.yml
-    system helm-override-update stx-openstack nova openstack --values=rbac/nova-policy-overrides.yml
-    system helm-override-update stx-openstack neutron openstack --values=rbac/neutron-policy-overrides.yml
-    system helm-override-update stx-openstack glance openstack --values=rbac/glance-policy-overrides.yml
-   system helm-override-update stx-openstack horizon openstack --values=rbac/horizon-policy-overrides.yml
+    system helm-override-update stx-openstack keystone openstack --reuse-values --values=rbac/keystone-policy-overrides.yml
+    system helm-override-update stx-openstack cinder openstack --reuse-values --values=rbac/cinder-policy-overrides.yml
+    system helm-override-update stx-openstack nova openstack --reuse-values --values=rbac/nova-policy-overrides.yml
+    system helm-override-update stx-openstack neutron openstack --reuse-values --values=rbac/neutron-policy-overrides.yml
+    system helm-override-update stx-openstack glance openstack --reuse-values --values=rbac/glance-policy-overrides.yml
+    system helm-override-update stx-openstack horizon openstack --reuse-values --values=rbac/horizon-policy-overrides.yml
 
     system application-apply stx-openstack
     ```

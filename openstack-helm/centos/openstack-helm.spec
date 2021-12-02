@@ -19,16 +19,15 @@ Source2: index.yaml
 
 BuildArch:     noarch
 
-Patch01: 0001-Ceilometer-chart-add-the-ability-to-publish-events-t.patch
-Patch02: 0002-Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
-Patch03: 0003-Nova-console-ip-address-search-optionality.patch
-Patch04: 0004-Nova-chart-Support-ephemeral-pool-creation.patch
-Patch05: 0005-Support-ingress-creation-for-keystone-admin-endpoint.patch
-Patch06: 0006-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
-Patch07: 0007-Wrong-usage-of-rbd_store_chunk_size.patch
-Patch08: 0008-Add-stx_admin-account.patch
-Patch09: 0009-Disabling-helm3_hook.patch
-Patch10: 0010-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
+Patch01: 0001-Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
+Patch02: 0002-Nova-console-ip-address-search-optionality.patch
+Patch03: 0003-Nova-chart-Support-ephemeral-pool-creation.patch
+Patch04: 0004-Support-ingress-creation-for-keystone-admin-endpoint.patch
+Patch05: 0005-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
+Patch06: 0006-Wrong-usage-of-rbd_store_chunk_size.patch
+Patch07: 0007-Add-stx_admin-account.patch
+Patch08: 0008-Disabling-helm3_hook.patch
+Patch09: 0009-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -49,7 +48,6 @@ Openstack Helm charts
 %patch07 -p1
 %patch08 -p1
 %patch09 -p1
-%patch10 -p1
 
 %build
 # Stage helm-toolkit in the local repo
@@ -73,7 +71,6 @@ make keystone
 make magnum
 make neutron
 make nova
-make panko
 make placement
 
 # terminate helm server (the last backgrounded task)

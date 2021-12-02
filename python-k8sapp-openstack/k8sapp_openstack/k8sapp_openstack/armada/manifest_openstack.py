@@ -35,7 +35,6 @@ from k8sapp_openstack.helm.nova import NovaHelm
 from k8sapp_openstack.helm.nova_api_proxy import NovaApiProxyHelm
 from k8sapp_openstack.helm.pci_irq_affinity_agent import PciIrqAffinityAgentHelm
 from k8sapp_openstack.helm.openvswitch import OpenvswitchHelm
-from k8sapp_openstack.helm.panko import PankoHelm
 from k8sapp_openstack.helm.placement import PlacementHelm
 from k8sapp_openstack.helm.rabbitmq import RabbitmqHelm
 from k8sapp_openstack.helm.swift import SwiftHelm
@@ -97,7 +96,6 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
         NovaApiProxyHelm.CHART: CHART_GROUP_COMPUTE_KIT,
         PciIrqAffinityAgentHelm.CHART: CHART_GROUP_COMPUTE_KIT,
         OpenvswitchHelm.CHART: CHART_GROUP_COMPUTE_KIT,
-        PankoHelm.CHART: CHART_GROUP_TELEMETRY,
         PlacementHelm.CHART: CHART_GROUP_COMPUTE_KIT,
         PSPRolebindingHelm.CHART: CHART_GROUP_PSP_ROLEBINDING,
         RabbitmqHelm.CHART: CHART_GROUP_RABBITMQ,
@@ -130,7 +128,6 @@ class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
         NovaApiProxyHelm.CHART: 'openstack-nova-api-proxy',
         PciIrqAffinityAgentHelm.CHART: 'openstack-pci-irq-affinity-agent',
         OpenvswitchHelm.CHART: 'openstack-openvswitch',
-        PankoHelm.CHART: 'openstack-panko',
         PSPRolebindingHelm.CHART: 'openstack-psp-rolebinding',
         PlacementHelm.CHART: 'openstack-placement',
         RabbitmqHelm.CHART: 'openstack-rabbitmq',

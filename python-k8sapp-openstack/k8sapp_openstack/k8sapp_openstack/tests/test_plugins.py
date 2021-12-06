@@ -8,9 +8,11 @@ from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
 from sysinv.tests.helm.test_helm import HelmOperatorTestSuiteMixin
 
+from k8sapp_openstack.common import constants as app_constants
+
 
 class K8SAppOpenstackAppMixin(object):
-    app_name = constants.HELM_APP_OPENSTACK
+    app_name = app_constants.HELM_APP_OPENSTACK
     path_name = app_name + '.tgz'
 
     def setUp(self):

@@ -4,6 +4,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from sysinv.common import constants
+
+
+HELM_APP_OPENSTACK = constants.HELM_APP_OPENSTACK
+
 # Helm: Supported charts:
 # These values match the names in the chart package's Chart.yaml
 HELM_CHART_AODH = 'aodh'

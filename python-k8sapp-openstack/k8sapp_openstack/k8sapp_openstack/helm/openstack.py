@@ -12,11 +12,9 @@ import os
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from k8sapp_openstack.common import constants as app_constants
 from oslo_log import log
 from oslo_serialization import jsonutils
 from sqlalchemy.orm.exc import NoResultFound
-
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import kubernetes
@@ -25,18 +23,25 @@ from sysinv.common.storage_backend_conf import K8RbdProvisioner
 from sysinv.helm import base
 from sysinv.helm import common
 
+from k8sapp_openstack.common import constants as app_constants
+
+
 LOG = log.getLogger(__name__)
 
 
-class OpenstackBaseHelm(base.BaseHelm):
-    """Class to encapsulate Openstack service operations for helm"""
+class BaseHelm(base.BaseHelm):
+    """Class to encapsulate Openstack related service operations for helm"""
 
     SUPPORTED_NAMESPACES = \
         base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
     SUPPORTED_APP_NAMESPACES = {
-        constants.HELM_APP_OPENSTACK:
+        app_constants.HELM_APP_OPENSTACK:
             base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
     }
+
+
+class OpenstackBaseHelm(BaseHelm):
+    """Class to encapsulate Openstack service operations for helm"""
 
     SYSTEM_CONTROLLER_SERVICES = [
         app_constants.HELM_CHART_KEYSTONE_API_PROXY,

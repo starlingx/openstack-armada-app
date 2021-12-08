@@ -95,6 +95,9 @@ data:
           - key: node-role.kubernetes.io/master
             operator: Exists
             effect: NoSchedule
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
     conf:
       ingress:
         worker-processes: '4'
@@ -201,6 +204,9 @@ data:
             effect: NoSchedule
           - effect: NoExecute
             operator: Exists
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
     conf:
       ingress_conf:
         worker-processes: '4'
@@ -242,6 +248,14 @@ data:
       server:
         node_selector_key: openstack-compute-node
         node_selector_value: enabled
+    pod:
+      tolerations:
+        garbd:
+          enabled: true
+          tolerations:
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
     images:
       tags:
         garbd: docker.io/starlingx/stx-mariadb:master-centos-stable-latest
@@ -288,6 +302,9 @@ data:
           enabled: true
           tolerations:
           - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+          - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
     monitoring:
@@ -365,6 +382,9 @@ data:
             effect: NoSchedule
           - effect: NoExecute
             operator: Exists
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
       probes:
         readiness:
           periodSeconds: 30
@@ -460,6 +480,9 @@ data:
           enabled: true
           tolerations:
           - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+          - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
       security_context:
@@ -799,6 +822,9 @@ data:
           - key: node-role.kubernetes.io/master
             operator: Exists
             effect: NoSchedule
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
     endpoints:
       oslo_messaging:
         statefulset:
@@ -925,6 +951,9 @@ data:
           - key: node-role.kubernetes.io/master
             operator: Exists
             effect: NoSchedule
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
     endpoints:
       oslo_messaging:
         statefulset:
@@ -989,6 +1018,9 @@ data:
           - key: node-role.kubernetes.io/master
             operator: Exists
             effect: NoSchedule
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
     images:
       tags:
         image_repo_sync: null
@@ -1039,6 +1071,9 @@ data:
           enabled: true
           tolerations:
           - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+          - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
   source:
@@ -1180,6 +1215,9 @@ data:
           enabled: true
           tolerations:
           - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+          - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
       user:
@@ -1384,6 +1422,9 @@ data:
           - key: node-role.kubernetes.io/master
             operator: Exists
             effect: NoSchedule
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
       user:
         placement:
           uid: 42424
@@ -1479,10 +1520,16 @@ data:
           - key: node-role.kubernetes.io/master
             operator: Exists
             effect: NoSchedule
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
         nova:
           enabled: true
           tolerations:
           - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+          - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
     conf:
@@ -1533,6 +1580,9 @@ data:
         pci_irq_affinity_agent: docker.io/starlingx/stx-pci-irq-affinity-agent:master-centos-stable-latest
     tolerations:
       - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
   source:
@@ -1613,6 +1663,9 @@ data:
           enabled: true
           tolerations:
           - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+          - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
       # Probes fail cause a long delay and eventual failure of the armada
@@ -2032,6 +2085,9 @@ data:
           enabled: true
           tolerations:
           - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+          - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
   source:
@@ -2910,6 +2966,9 @@ data:
           - key: node-role.kubernetes.io/master
             operator: Exists
             effect: NoSchedule
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -2986,6 +3045,9 @@ data:
           enabled: true
           tolerations:
           - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+          - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
       mounts:

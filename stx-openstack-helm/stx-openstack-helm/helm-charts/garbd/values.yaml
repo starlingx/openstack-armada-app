@@ -101,6 +101,10 @@ pod:
         default: kubernetes.io/hostname
       type:
         default: preferredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    gardb:
+      enabled: false
+      tolerations: []
   lifecycle:
     upgrades:
       deployments:

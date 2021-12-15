@@ -4,23 +4,17 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from k8sapp_openstack.common import constants as app_constants
-from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.helm import common
-from sysinv.helm import base
+
+from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.helm import openstack
 
 
-class MemcachedHelm(base.BaseHelm):
+class MemcachedHelm(openstack.BaseHelm):
     """Class to encapsulate helm operations for the memcached chart"""
 
     CHART = app_constants.HELM_CHART_MEMCACHED
-    SUPPORTED_NAMESPACES = \
-        base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
-    SUPPORTED_APP_NAMESPACES = {
-        constants.HELM_APP_OPENSTACK:
-            base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
-    }
 
     def get_overrides(self, namespace=None):
         overrides = {

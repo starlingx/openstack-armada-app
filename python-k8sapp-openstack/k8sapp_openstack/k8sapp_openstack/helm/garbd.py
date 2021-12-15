@@ -4,29 +4,23 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from k8sapp_openstack.common import constants as app_constants
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import utils
 from sysinv.helm import common
-from sysinv.helm import base
+
+from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.helm import openstack
 
 
-class GarbdHelm(base.BaseHelm):
+class GarbdHelm(openstack.BaseHelm):
     """Class to encapsulate helm operations for the galera arbitrator chart"""
 
     # The service name is used to build the standard docker image location.
     # It is intentionally "mariadb" and not "garbd" as they both use the
     # same docker image.
     SERVICE_NAME = app_constants.HELM_CHART_MARIADB
-
     CHART = app_constants.HELM_CHART_GARBD
-    SUPPORTED_NAMESPACES = \
-        base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
-    SUPPORTED_APP_NAMESPACES = {
-        constants.HELM_APP_OPENSTACK:
-            base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
-    }
 
     def _is_enabled(self, app_name, chart_name, namespace):
         # First, see if this chart is enabled by the user then adjust based on

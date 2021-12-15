@@ -10,6 +10,7 @@
 """ System inventory Armada manifest operator."""
 
 from oslo_log import log as logging
+from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm.aodh import AodhHelm
 from k8sapp_openstack.helm.barbican import BarbicanHelm
 from k8sapp_openstack.helm.ceilometer import CeilometerHelm
@@ -49,7 +50,7 @@ LOG = logging.getLogger(__name__)
 
 class OpenstackArmadaManifestOperator(base.ArmadaManifestOperator):
 
-    APP = constants.HELM_APP_OPENSTACK
+    APP = app_constants.HELM_APP_OPENSTACK
     ARMADA_MANIFEST = 'openstack-manifest'
 
     CHART_GROUP_PSP_ROLEBINDING = 'openstack-psp-rolebinding'

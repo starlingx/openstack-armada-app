@@ -4,26 +4,24 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from k8sapp_openstack.common import constants as app_constants
-from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.helm import common
-from sysinv.helm import base
+
+from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.helm import openstack
 
 
-class IngressHelm(base.BaseHelm):
+class IngressHelm(openstack.BaseHelm):
     """Class to encapsulate helm operations for the ingress chart"""
 
     CHART = app_constants.HELM_CHART_INGRESS
 
-    SUPPORTED_NAMESPACES = base.BaseHelm.SUPPORTED_NAMESPACES + [
-        common.HELM_NS_KUBE_SYSTEM,
-        common.HELM_NS_OPENSTACK
+    SUPPORTED_NAMESPACES = openstack.BaseHelm.SUPPORTED_NAMESPACES + [
+        common.HELM_NS_KUBE_SYSTEM
     ]
     SUPPORTED_APP_NAMESPACES = {
-        constants.HELM_APP_OPENSTACK:
-            base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_KUBE_SYSTEM,
-                                                  common.HELM_NS_OPENSTACK]
+        app_constants.HELM_APP_OPENSTACK:
+            openstack.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_KUBE_SYSTEM]
     }
 
     def get_overrides(self, namespace=None):

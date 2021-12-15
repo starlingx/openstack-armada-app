@@ -102,7 +102,7 @@ pod:
       type:
         default: preferredDuringSchedulingIgnoredDuringExecution
   tolerations:
-    gardb:
+    garbd:
       enabled: false
       tolerations: []
   lifecycle:

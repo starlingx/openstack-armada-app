@@ -142,12 +142,13 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                             'hosts': self._get_per_host_overrides()
                         }
                     },
-                    'ssh_private': ssh_privatekey,
-                    'ssh_public': ssh_publickey,
                 },
                 'endpoints': self._get_endpoints_overrides(),
                 'network': {
-                    'sshd': {
+                    'ssh': {
+                        'enabled': 'true',
+                        'private_key': ssh_privatekey,
+                        'public_key': ssh_publickey,
                         'from_subnet': self._get_ssh_subnet(),
                     },
                     'novncproxy': {
@@ -159,6 +160,20 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 'ceph_client': self._get_ceph_client_overrides(),
             }
         }
+
+        # https://bugs.launchpad.net/starlingx/+bug/1956229
+        # The volume/volumeMount below are needed if we want to use the root user to ssh to the destiny host during a
+        # migration operation
+        overrides[common.HELM_NS_OPENSTACK]["pod"]["mounts"]["nova_compute"]["nova_compute"]["volumeMounts"].append({
+            "name": "userhome",
+            "mountPath": "/root",
+        })
+        overrides[common.HELM_NS_OPENSTACK]["pod"]["mounts"]["nova_compute"]["nova_compute"]["volumes"].append({
+            "name": "userhome",
+            "hostPath": {
+                "path": "/var/lib/nova-user-home"
+            }
+        })
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]

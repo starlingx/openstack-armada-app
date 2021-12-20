@@ -29,6 +29,7 @@ Patch07: 0007-Add-stx_admin-account.patch
 Patch08: 0008-Disabling-helm3_hook.patch
 Patch09: 0009-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
 Patch10: 0010-Enable-taint-toleration-for-Openstack-services.patch
+Patch11: 0011-Fix-nova-compute-ssh-init-to-execute-as-runAsUser.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -50,6 +51,7 @@ Openstack Helm charts
 %patch08 -p1
 %patch09 -p1
 %patch10 -p1
+%patch11 -p1
 
 %build
 # Stage helm-toolkit in the local repo

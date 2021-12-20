@@ -26,6 +26,7 @@ override_dh_auto_build:
 	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0008-Disabling-helm3_hook.patch
 	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0009-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
 	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0010-Enable-taint-toleration-for-Openstack-services.patch
+	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0011-Fix-nova-compute-ssh-init-to-execute-as-runAsUser.patch
 	# Host a server for the helm charts.
 	chartmuseum --debug --port=8879 --context-path='/charts' --storage="local" \
 		--storage-local-rootdir="." &

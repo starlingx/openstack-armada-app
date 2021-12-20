@@ -1220,12 +1220,10 @@ data:
           - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
-      user:
-        nova:
-          uid: 0
       security_context:
         nova:
           pod:
+            # https://bugs.launchpad.net/starlingx/+bug/1956229
             runAsUser: 0
       probes:
         readiness:
@@ -1349,8 +1347,13 @@ data:
           enable_numa_live_migration: true
       hypervisor:
         address_search_enabled: false
+      ssh: |
+        Host *
+          StrictHostKeyChecking no
+          UserKnownHostsFile /dev/null
+          Port {{ .Values.network.ssh.port }}
     network:
-      sshd:
+      ssh:
         enabled: true
     console:
       address_search_enabled: false

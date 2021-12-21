@@ -82,6 +82,12 @@ conf:
       rabbit_userid: nova
       rabbit_password: password
       rabbit_virtual_host: nova
+  parameters:
+    pci_affine_interval: 60
+    msi_irq_timeout: 45
+    msi_irq_since: 6
+    msi_irq_check_interval: 2
+    log_level: 20
   template: |
     [openstack]
     openstack_enabled={{ .Values.conf.endpoints.keystone.openstack_enabled }}
@@ -106,6 +112,13 @@ conf:
     user_id={{ .Values.conf.endpoints.rabbit.rabbit_userid }}
     password={{ .Values.conf.endpoints.rabbit.rabbit_password }}
     virt_host={{ .Values.conf.endpoints.rabbit.rabbit_virtual_host }}
+
+    [parameters]
+    pci_affine_interval={{ .Values.conf.parameters.pci_affine_interval }}
+    msi_irq_timeout={{ .Values.conf.parameters.msi_irq_timeout }}
+    msi_irq_since={{ .Values.conf.parameters.msi_irq_since }}
+    msi_irq_check_interval={{ .Values.conf.parameters.msi_irq_check_interval }}
+    log_level={{ .Values.conf.parameters.log_level }}
   host:
     mount_path:
       sys: /compute/sys

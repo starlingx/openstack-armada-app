@@ -808,12 +808,12 @@ data:
     conf:
       extra_metadata:
         pci_irq_affinity:
-          description: Properties for the handling of PCI IRQ Affinity. These properties may be specified to flavor, image and/or volume (refer to metadata description).
+          description: "This provides the possibility to set custom PCI IRQ Affinity configuration for instances with dedicated vCPUs."
           display_name: PCI IRQ Affinity
           namespace: OS::Compute::PCIIRQAffinity
           properties:
             pci_irq_affinity_mask:
-              description: The metadata hw:pci_irq_affinity_mask specifies which CPU cores are interrupted due to PCI IRQ requests. It can be set as a compute flavor extra spec.
+              description: "Determines which vCPUs assigned to the instance must handle the interrupts from the PCI devices. The expected mask is a comma-separated list of values that can be expressed as: a single vCPU index (int), a closed interval of vCPU indexes (int1-int2), and a negation expressing that the vCPU index will not be assigned (^int). Note: int must be an integer between 0 and flavor.vcpus - 1. Example: 0-3,^2,6 means that vCPUs with indexes 0,1,3 and 6 will be assigned."
               title: PCI IRQ Affinity Mask
               type: string
           protected: true

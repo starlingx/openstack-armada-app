@@ -31,6 +31,8 @@ Patch09: 0009-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
 Patch10: 0010-Enable-taint-toleration-for-Openstack-services.patch
 Patch11: 0011-Fix-nova-compute-ssh-init-to-execute-as-runAsUser.patch
 Patch12: 0012-Replace-deprecated-Nova-VNC-configurations.patch
+Patch13: 0013-Remove-TLS-from-openstack-services.patch
+Patch14: 0014-Remove-mariadb-and-rabbit-tls.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -54,6 +56,8 @@ Openstack Helm charts
 %patch10 -p1
 %patch11 -p1
 %patch12 -p1
+%patch13 -p1
+%patch14 -p1
 
 %build
 # Stage helm-toolkit in the local repo

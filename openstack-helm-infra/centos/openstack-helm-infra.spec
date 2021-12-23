@@ -28,6 +28,9 @@ Patch16: 0016-Disabling-helm3_hooks.patch
 Patch17: 0017-Enable-taint-toleration-for-Openstack-services.patch
 Patch18: 0018-Add-GaleraDB-Secure-Replica-Traffic.patch
 Patch19: 0019-Add-force_boot-command-to-rabbit-start-template.patch
+Patch20: 0020-Fix-tls-in-openstack-helm-infra.patch
+Patch21: 0021-Remove-mariadb-tls.patch
+Patch22: 0022-Remove-rabbitmq-tls.patch
 
 BuildRequires: helm
 BuildRequires: chartmuseum
@@ -50,6 +53,9 @@ Openstack Helm Infra charts
 %patch17 -p1
 %patch18 -p1
 %patch19 -p1
+%patch20 -p1
+%patch21 -p1
+%patch22 -p1
 
 %build
 # Host a server for the charts

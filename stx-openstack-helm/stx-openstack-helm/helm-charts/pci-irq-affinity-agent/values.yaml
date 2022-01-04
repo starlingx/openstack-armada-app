@@ -82,6 +82,7 @@ conf:
       rabbit_userid: nova
       rabbit_password: password
       rabbit_virtual_host: nova
+      rabbit_topic: notifications
   parameters:
     pci_affine_interval: 60
     msi_irq_timeout: 45
@@ -112,6 +113,7 @@ conf:
     user_id={{ .Values.conf.endpoints.rabbit.rabbit_userid }}
     password={{ .Values.conf.endpoints.rabbit.rabbit_password }}
     virt_host={{ .Values.conf.endpoints.rabbit.rabbit_virtual_host }}
+    topic={{ .Values.conf.endpoints.rabbit.rabbit_topic }}
 
     [parameters]
     pci_affine_interval={{ .Values.conf.parameters.pci_affine_interval }}

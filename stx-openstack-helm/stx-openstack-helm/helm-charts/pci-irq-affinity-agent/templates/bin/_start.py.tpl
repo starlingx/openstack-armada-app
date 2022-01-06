@@ -10,7 +10,7 @@
 Startup script for PCI IRQ Affinity Agent.
 
 Usage example:
-# python start.py
+# python start.py --config-file /etc/pci_irq_affinity/config.ini
 
 """
 

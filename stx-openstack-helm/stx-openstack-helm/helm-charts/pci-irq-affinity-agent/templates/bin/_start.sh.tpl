@@ -7,4 +7,4 @@
 #
 
 # Script to encapsulate the starting routines
-python /tmp/start.py
+python /tmp/start.py --config-file=/etc/pci_irq_affinity/config.ini

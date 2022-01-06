@@ -60,6 +60,7 @@ spec:
               command:
                 - python
                 - /tmp/health-probe.py
+                - --config-file=/etc/pci_irq_affinity/config.ini
             initialDelaySeconds: 30
             periodSeconds: 180
             timeoutSeconds: 165
@@ -70,6 +71,7 @@ spec:
               command:
                 - python
                 - /tmp/health-probe.py
+                - --config-file=/etc/pci_irq_affinity/config.ini
                 - --liveness-probe
             initialDelaySeconds: 60
             periodSeconds: 60

@@ -443,6 +443,39 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             addresses[address.ifname].append(address)
         return addresses
 
+    def _get_cluster_host_iface(self, host):
+        """
+        Returns the host cluster interface.
+        """
+        cluster_host_iface = None
+        for iface in self.interfaces_by_hostid.get(host.id, []):
+            try:
+                self._get_interface_network_query(iface.id, self.cluster_host_network.id)
+                cluster_host_iface = iface
+            except exception.InterfaceNetworkNotFoundByHostInterfaceNetwork:
+                pass
+
+        LOG.debug("Host: {} Interface: {}".format(host.id, cluster_host_iface))
+        return cluster_host_iface
+
+    def _get_cluster_host_ip(self, host):
+        """
+        Returns the host cluster IP.
+        """
+        cluster_host_iface = self._get_cluster_host_iface(host)
+
+        if cluster_host_iface is None:
+            return
+
+        cluster_host_ip = None
+
+        for addr in self.addresses_by_hostid.get(host.id, []):
+            if addr.interface_id == cluster_host_iface.id:
+                cluster_host_ip = addr.address
+
+        LOG.debug("Host: {} Host IP: {}".format(host.id, cluster_host_ip))
+        return cluster_host_ip
+
     def _update_host_pci_whitelist(self, host, pci_config):
         """
         Generate multistring values containing PCI passthrough
@@ -488,28 +521,10 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             libvirt_config.update({'images_type': 'default'})
 
     def _update_host_addresses(self, host, default_config, vnc_config, libvirt_config):
-        cluster_host_iface = None
-        for iface in self.interfaces_by_hostid.get(host.id, []):
-            try:
-                self._get_interface_network_query(iface.id, self.cluster_host_network.id)
-                cluster_host_iface = iface
-            except exception.InterfaceNetworkNotFoundByHostInterfaceNetwork:
-                pass
-
-        if cluster_host_iface is None:
-            return
-        cluster_host_ip = None
-        ip_family = None
-        for addr in self.addresses_by_hostid.get(host.id, []):
-            if addr.interface_id == cluster_host_iface.id:
-                cluster_host_ip = addr.address
-                ip_family = addr.family
+        cluster_host_ip = self._get_cluster_host_ip(host)
 
         default_config.update({'my_ip': cluster_host_ip})
-        if ip_family == 4:
-            vnc_config.update({'server_listen': '0.0.0.0'})
-        elif ip_family == 6:
-            vnc_config.update({'server_listen': '::0'})
+        vnc_config.update({'server_listen': cluster_host_ip})
 
         libvirt_config.update({'live_migration_inbound_addr': cluster_host_ip})
         vnc_config.update({'server_proxyclient_address': cluster_host_ip})

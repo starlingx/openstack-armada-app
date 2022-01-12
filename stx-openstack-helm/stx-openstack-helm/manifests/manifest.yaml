@@ -1275,7 +1275,7 @@ data:
           auth_url: http://keystone.openstack.svc.cluster.local:80/v3
         vnc:
           novncproxy_host: "::"
-          vncserver_listen: "::"
+          server_listen: "::"
         spice:
           html5proxy_host: "::"
           server_listen: "::"

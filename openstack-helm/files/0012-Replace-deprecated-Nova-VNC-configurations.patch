@@ -1,0 +1,70 @@
+From 1cf04aef5dcfec540b71f5ccb2b9702d81ca0184 Mon Sep 17 00:00:00 2001
+From: Iago Estrela <IagoFilipe.EstrelaBarros@windriver.com>
+Date: Wed, 12 Jan 2022 17:46:10 -0300
+Subject: [PATCH] Replace deprecated Nova VNC configurations
+
+Replace deprecated opts of Nova VNC Server configurations.
+
+Signed-off-by: Iago Estrela <IagoFilipe.EstrelaBarros@windriver.com>
+Change-Id: I7103d2ae77bec442790a0bbed3aac53fe1e7641e
+---
+ nova/templates/bin/_nova-console-compute-init.sh.tpl | 2 +-
+ nova/templates/bin/_nova-console-proxy-init.sh.tpl   | 8 ++++----
+ nova/values.yaml                                     | 2 +-
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/nova/templates/bin/_nova-console-compute-init.sh.tpl b/nova/templates/bin/_nova-console-compute-init.sh.tpl
+index 6718fabb..cb333305 100644
+--- a/nova/templates/bin/_nova-console-compute-init.sh.tpl
++++ b/nova/templates/bin/_nova-console-compute-init.sh.tpl
+@@ -53,7 +53,7 @@ if [ "${console_kind}" == "novnc" ] ; then
+   cat > /tmp/pod-shared/nova-console.conf <<EOF
+ [vnc]
+ server_proxyclient_address = $client_address
+-vncserver_listen = $listen_ip
++server_listen = $listen_ip
+ EOF
+ elif [ "${console_kind}" == "spice" ] ; then
+   cat > /tmp/pod-shared/nova-console.conf <<EOF
+diff --git a/nova/templates/bin/_nova-console-proxy-init.sh.tpl b/nova/templates/bin/_nova-console-proxy-init.sh.tpl
+index 6218d295..310df591 100644
+--- a/nova/templates/bin/_nova-console-proxy-init.sh.tpl
++++ b/nova/templates/bin/_nova-console-proxy-init.sh.tpl
+@@ -19,9 +19,9 @@ set -ex
+ console_kind="{{- .Values.console.console_kind -}}"
+
+ if [ "${console_kind}" == "novnc" ] ; then
+-    client_address="{{- .Values.conf.nova.vnc.vncserver_proxyclient_address -}}"
++    client_address="{{- .Values.conf.nova.vnc.server_proxyclient_address -}}"
+     client_interface="{{- .Values.console.novnc.vncproxy.vncserver_proxyclient_interface -}}"
+-    listen_ip="{{- .Values.conf.nova.vnc.vncserver_listen -}}"
++    listen_ip="{{- .Values.conf.nova.vnc.server_listen -}}"
+ elif [ "${console_kind}" == "spice" ] ; then
+     client_address="{{- .Values.conf.nova.spice.server_proxyclient_address -}}"
+     client_interface="{{- .Values.console.spice.proxy.server_proxyclient_interface -}}"
+@@ -49,8 +49,8 @@ fi
+ if [ "${console_kind}" == "novnc" ] ; then
+ cat <<EOF>/tmp/pod-shared/nova-vnc.ini
+ [vnc]
+-vncserver_proxyclient_address = $client_address
+-vncserver_listen = $listen_ip
++server_proxyclient_address = $client_address
++server_listen = $listen_ip
+ EOF
+ elif [ "${console_kind}" == "spice" ] ; then
+ cat <<EOF>/tmp/pod-shared/nova-spice.ini
+diff --git a/nova/values.yaml b/nova/values.yaml
+index cdb14575..f663c805 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -1446,7 +1446,7 @@ conf:
+       resume_guests_state_on_host_boot: True
+     vnc:
+       novncproxy_host: 0.0.0.0
+-      vncserver_listen: 0.0.0.0
++      server_listen: 0.0.0.0
+       # This would be set by each compute nodes's ip
+       # server_proxyclient_address: 127.0.0.1
+     spice:
+--
+2.17.1

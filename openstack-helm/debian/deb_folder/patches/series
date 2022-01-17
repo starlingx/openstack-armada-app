@@ -1,0 +1,11 @@
+0001-Remove-stale-Apache2-service-pids-when-a-POD-starts.patch
+0002-Nova-console-ip-address-search-optionality.patch
+0003-Nova-chart-Support-ephemeral-pool-creation.patch
+0004-Support-ingress-creation-for-keystone-admin-endpoint.patch
+0005-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
+0006-Wrong-usage-of-rbd_store_chunk_size.patch
+0007-Add-stx_admin-account.patch
+0008-Disabling-helm3_hook.patch
+0009-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
+0010-Enable-taint-toleration-for-Openstack-services.patch
+0011-Fix-nova-compute-ssh-init-to-execute-as-runAsUser.patch

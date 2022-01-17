@@ -1,0 +1,75 @@
+From 6d54af3aa180b3b82614ebc0cedd8b4d7d9f5db6 Mon Sep 17 00:00:00 2001
+From: rferraz <RogerioOliveira.Ferraz@windriver.com>
+Date: Wed, 17 Nov 2021 11:32:23 -0300
+Subject: [PATCH] Add-flavor-extra-spec-hw-pci_irq_affinity_mask
+
+---
+ glance/templates/configmap-etc.yaml     | 3 +++
+ glance/templates/deployment-api.yaml    | 6 ++++++
+ glance/templates/job-metadefs-load.yaml | 6 ++++++
+ glance/values.yaml                      | 1 +
+ 4 files changed, 16 insertions(+)
+
+diff --git a/glance/templates/configmap-etc.yaml b/glance/templates/configmap-etc.yaml
+index 97f19fbc..f9be6bfb 100644
+--- a/glance/templates/configmap-etc.yaml
++++ b/glance/templates/configmap-etc.yaml
+@@ -195,6 +195,9 @@ data:
+   glance-api-paste.ini: {{ include "helm-toolkit.utils.to_ini" .Values.conf.paste | b64enc }}
+   glance-registry.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.glance_registry | b64enc }}
+   glance-registry-paste.ini: {{ include "helm-toolkit.utils.to_ini" .Values.conf.paste_registry | b64enc }}
++{{- range $key, $val := .Values.conf.extra_metadata }}
++  compute_{{ $key }}.json: {{ toJson $val | b64enc }}
++{{- end }}
+   policy.yaml: {{ toYaml .Values.conf.policy | b64enc }}
+   api_audit_map.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.api_audit_map | b64enc }}
+ {{- include "helm-toolkit.snippets.values_template_renderer" ( dict "envAll" $envAll "template" .Values.conf.swift_store "key" "swift-store.conf" "format" "Secret" ) | indent 2 }}
+diff --git a/glance/templates/deployment-api.yaml b/glance/templates/deployment-api.yaml
+index 78e16715..81711967 100644
+--- a/glance/templates/deployment-api.yaml
++++ b/glance/templates/deployment-api.yaml
+@@ -183,6 +183,12 @@ spec:
+               mountPath: /etc/glance/glance-api.conf
+               subPath: glance-api.conf
+               readOnly: true
++            {{- range $key, $val := .Values.conf.extra_metadata }}
++            - name: glance-etc
++              mountPath: /var/lib/openstack/etc/glance/metadefs/compute_{{ $key }}.json
++              subPath: compute_{{ $key }}.json
++              readOnly: true
++            {{- end }}
+             {{- if .Values.conf.glance.DEFAULT.log_config_append }}
+             - name: glance-etc
+               mountPath: {{ .Values.conf.glance.DEFAULT.log_config_append }}
+diff --git a/glance/templates/job-metadefs-load.yaml b/glance/templates/job-metadefs-load.yaml
+index 5c162a5f..47c4286a 100644
+--- a/glance/templates/job-metadefs-load.yaml
++++ b/glance/templates/job-metadefs-load.yaml
+@@ -64,6 +64,12 @@ spec:
+               mountPath: /tmp/metadefs-load.sh
+               subPath: metadefs-load.sh
+               readOnly: true
++            {{- range $key, $val := .Values.conf.extra_metadata }}
++            - name: glance-etc
++              mountPath: /var/lib/openstack/etc/glance/metadefs/compute_{{ $key }}.json
++              subPath: compute_{{ $key }}.json
++              readOnly: true
++            {{- end }}
+             - name: etcglance
+               mountPath: /etc/glance
+             - name: glance-etc
+diff --git a/glance/values.yaml b/glance/values.yaml
+index 459f04bc..0d1c2fdb 100644
+--- a/glance/values.yaml
++++ b/glance/values.yaml
+@@ -193,6 +193,7 @@ conf:
+       oslo_config_program: glance-api
+     filter:http_proxy_to_wsgi:
+       paste.filter_factory: oslo_middleware:HTTPProxyToWSGI.factory
++  extra_metadata: {}
+   policy:
+     metadef_default: ''
+     metadef_admin: 'role:admin'
+-- 
+2.17.1
+

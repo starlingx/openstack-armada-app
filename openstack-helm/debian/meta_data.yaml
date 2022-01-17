@@ -1,7 +1,13 @@
 ---
 debname: openstack-helm
 debver: 1.0-1
-dl_hook: dl_hook
+dl_path:
+  name: openstack-helm-7803000a545687ec40b0ddc41d46a6b377dea45f.tar.gz
+  url: https://github.com/openstack/openstack-helm/archive/7803000a545687ec40b0ddc41d46a6b377dea45f.tar.gz
+  md5sum: 52ec52b5c7c04211596c730651b4deac
+src_files:
+  - files/index.yaml
+  - files/repositories.yaml
 revision:
   dist: $STX_DIST
   PKG_GITREVCOUNT: true

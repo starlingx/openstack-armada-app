@@ -1,7 +1,12 @@
 ---
 debname: openstack-helm-infra
 debver: 1.0-1
-dl_hook: dl_hook
+dl_path:
+  name: openstack-helm-infra-8351fdd0f1228717342c2accc96977b0cdc36dc3.tar.gz
+  url: https://github.com/openstack/openstack-helm-infra/archive/8351fdd0f1228717342c2accc96977b0cdc36dc3.tar.gz
+  md5sum: 2f02e67fbc216e2de1d95d7a67b4731a
+src_files:
+  - files/repositories.yaml
 revision:
   dist: $STX_DIST
   PKG_GITREVCOUNT: true

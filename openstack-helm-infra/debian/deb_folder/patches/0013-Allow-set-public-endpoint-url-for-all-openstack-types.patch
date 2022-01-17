@@ -1,0 +1,29 @@
+From 7fd9d60e124868f277a1f2b0e86296dc50dd07ec Mon Sep 17 00:00:00 2001
+From: Angie Wang <angie.wang@windriver.com>
+Date: Mon, 31 Aug 2020 23:51:06 -0400
+Subject: [PATCH 1/1] Allow set public endpoint url for all openstack
+ endpoint types
+
+---
+ helm-toolkit/templates/manifests/_job-ks-endpoints.tpl | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl b/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
+index 02f2013..39766f4 100644
+--- a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
++++ b/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
+@@ -84,7 +84,11 @@ spec:
+             - name: OS_SERVICE_TYPE
+               value: {{ $osServiceType | quote }}
+             - name: OS_SERVICE_ENDPOINT
++              {{- if and (hasKey $envAll.Values.endpoints.identity "force_public_endpoint") $envAll.Values.endpoints.identity.force_public_endpoint }}
++              value: {{ tuple $osServiceType "public" "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | quote }}
++              {{- else }}
+               value: {{ tuple $osServiceType $osServiceEndPoint "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | quote }}
++              {{- end }}
+ {{- end }}
+ {{- end }}
+       volumes:
+-- 
+1.8.3.1
+

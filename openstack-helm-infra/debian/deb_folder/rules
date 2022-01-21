@@ -8,20 +8,6 @@ export HELM_FOLDER = $(ROOT)/usr/lib/helm
 	dh $@
 
 override_dh_auto_build:
-	# Move the source files from the extracted root directory to build root.
-	mv openstack-helm-infra/* .
-	# Apply the openstack-helm-infra patches.
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0001-Add-imagePullSecrets-in-service-account.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0003-Partial-revert-of-31e3469d28858d7b5eb6355e88b6f49fd6.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0004-Fix-pod-restarts-on-all-workers-when-worker-added-re.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0005-Add-io_thread_pool-for-rabbitmq.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0006-Enable-override-of-rabbitmq-probe-parameters.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0009-Enable-override-of-mariadb-server-probe-parameters.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0011-Add-mariadb-database-config-override-to-support-ipv6.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0012-enable-Values.conf.database.config_override-for-mari.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0013-Allow-set-public-endpoint-url-for-all-openstack-types.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0016-Disabling-helm3_hooks.patch
-	patch --no-backup-if-mismatch --fuzz=0 -p1 < 0017-Enable-taint-toleration-for-Openstack-services.patch
 	# Host a server for the helm charts.
 	chartmuseum --debug --port=8879 --context-path='/charts' --storage="local" --storage-local-rootdir="." &
 	sleep 2

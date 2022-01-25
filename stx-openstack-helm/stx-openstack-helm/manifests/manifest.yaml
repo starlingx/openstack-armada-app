@@ -178,8 +178,9 @@ data:
         image_repo_sync: null
         prometheus_mysql_exporter: null
         prometheus_mysql_exporter_helm_tests: null
-        mariadb_backup: docker.io/openstackhelm/mariadb:10.2.18
+        ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
         mariadb: docker.io/openstackhelm/mariadb:ubuntu_xenial-20200303
+        mariadb_backup: docker.io/openstackhelm/mariadb:10.2.18
         scripted_test: null
     pod:
       probes:
@@ -727,6 +728,7 @@ data:
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+        rgw_placement_targets: docker.io/starlingx/ceph-config-helper:v1.15.0
         rgw_s3_admin: docker.io/starlingx/ceph-config-helper:v1.15.0
     labels:
       api:
@@ -1023,9 +1025,9 @@ data:
             effect: NoSchedule
     images:
       tags:
+        ceph_config_helper: docker.io/starlingx/ceph-config-helper:v1.15.0
         image_repo_sync: null
         libvirt: docker.io/starlingx/stx-libvirt:master-centos-stable-latest
-        ceph_config_helper: docker.io/starlingx/ceph-config-helper:v1.15.0
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/libvirt-0.1.7.tgz
@@ -1173,10 +1175,11 @@ data:
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
         db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
         image_repo_sync: null
+        ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         nova_api: docker.io/starlingx/stx-nova:master-centos-stable-latest
+        nova_archive_deleted_rows: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_cell_setup: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_cell_setup_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
         nova_compute: docker.io/starlingx/stx-nova:master-centos-stable-latest

@@ -1,0 +1,65 @@
+From eac757e4a8ffd0e5db0bc1c9c2a652f65fd90353 Mon Sep 17 00:00:00 2001
+From: Maik Catrinque <maik.wandercatrinqueandrade@windriver.com>
+Date: Fri, 14 Jan 2022 15:07:40 -0300
+Subject: [PATCH] Add force_boot command to rabbit start template
+
+Currently, if a multi-node cluster is shut down unexpectedly,
+RabbitMQ is not able to boot and sync with the other nodes.
+
+The purpose of this change is to add the possibility to use the
+rabbitmqctl force_boot command to recover RabbitMQ from an
+unexpected cluster shut down.
+
+Test plan:
+PASS: Shutdown and start a multi-node RabbitMQ cluster
+
+Regression:
+PASS: OpenStack can be applied successfully
+PASS: RabbitMQ nodes can join the RabbitMQ cluster
+
+Story: 2009784
+Task: 44290
+
+Ref:
+[0] https://www.rabbitmq.com/rabbitmqctl.8.html#force_boot
+
+Signed-off-by: Maik Catrinque <maik.wandercatrinqueandrade@windriver.com>
+Co-authored-by: Andrew Martins Carletti <Andrew.MartinsCarletti@windriver.com>
+Change-Id: I56e966ea64e8881ba436213f0c9e1cbe547098e3
+---
+ rabbitmq/templates/bin/_rabbitmq-start.sh.tpl | 3 +++
+ rabbitmq/values.yaml                          | 6 ++++++
+ 4 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl b/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl
+index 794f0919..58eb5fc0 100644
+--- a/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl
++++ b/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl
+@@ -94,4 +94,7 @@ if ! [ "${POD_INCREMENT}" -eq "0" ] && ! [ -d "/var/lib/rabbitmq/mnesia" ] ; the
+   rm -fv /tmp/rabbit-disable-readiness /tmp/rabbit-disable-liveness-probe
+ fi
+ 
++{{- if .Values.forceBoot.enabled }}
++if [ -d "/var/lib/rabbitmq/mnesia/${RABBITMQ_NODENAME}" ]; then rabbitmqctl force_boot; fi
++{{- end}}
+ exec rabbitmq-server
+diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
+index c593966f..8eb51c64 100644
+--- a/rabbitmq/values.yaml
++++ b/rabbitmq/values.yaml
+@@ -46,6 +46,12 @@ images:
+       - dep_check
+       - image_repo_sync
+ 
++# forceBoot: executes 'rabbitmqctl force_boot' to force boot on
++# cluster shut down unexpectedly in an unknown order.
++# ref: https://www.rabbitmq.com/rabbitmqctl.8.html#force_boot
++forceBoot:
++  enabled: false
++
+ pod:
+   probes:
+     prometheus_rabbitmq_exporter:
+-- 
+2.25.1
+

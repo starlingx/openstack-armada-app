@@ -10,3 +10,4 @@
 0016-Disabling-helm3_hooks.patch
 0017-Enable-taint-toleration-for-Openstack-services.patch
 0018-Add-GaleraDB-Secure-Replica-Traffic.patch
+0019-Add-force_boot-command-to-rabbit-start-template.patch

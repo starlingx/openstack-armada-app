@@ -9,3 +9,4 @@
 0009-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
 0010-Enable-taint-toleration-for-Openstack-services.patch
 0011-Fix-nova-compute-ssh-init-to-execute-as-runAsUser.patch
+0012-Replace-deprecated-Nova-VNC-configurations.patch

@@ -507,12 +507,12 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
         default_config.update({'my_ip': cluster_host_ip})
         if ip_family == 4:
-            vnc_config.update({'vncserver_listen': '0.0.0.0'})
+            vnc_config.update({'server_listen': '0.0.0.0'})
         elif ip_family == 6:
-            vnc_config.update({'vncserver_listen': '::0'})
+            vnc_config.update({'server_listen': '::0'})
 
         libvirt_config.update({'live_migration_inbound_addr': cluster_host_ip})
-        vnc_config.update({'vncserver_proxyclient_address': cluster_host_ip})
+        vnc_config.update({'server_proxyclient_address': cluster_host_ip})
 
     def _get_ssh_subnet(self):
         address_pool = self.dbapi.address_pool_get(self.cluster_host_network.pool_uuid)

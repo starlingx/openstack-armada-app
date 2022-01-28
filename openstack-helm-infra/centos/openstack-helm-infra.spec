@@ -27,6 +27,7 @@ Patch13: 0013-Allow-set-public-endpoint-url-for-all-openstack-types.patch
 Patch16: 0016-Disabling-helm3_hooks.patch
 Patch17: 0017-Enable-taint-toleration-for-Openstack-services.patch
 Patch18: 0018-Add-GaleraDB-Secure-Replica-Traffic.patch
+Patch19: 0019-Add-force_boot-command-to-rabbit-start-template.patch
 
 BuildRequires: helm
 BuildRequires: chartmuseum
@@ -48,6 +49,7 @@ Openstack Helm Infra charts
 %patch16 -p1
 %patch17 -p1
 %patch18 -p1
+%patch19 -p1
 
 %build
 # Host a server for the charts

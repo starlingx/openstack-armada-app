@@ -26,7 +26,7 @@ import sys
 
 import psutil
 
-from pci_irq_affinity.nova_provider import novaClient
+from pci_irq_affinity import nova_provider
 
 
 def test_rabbit_connection():
@@ -42,8 +42,9 @@ def test_rabbit_connection():
 
 def test_nova_availability():
     try:
-        novaClient.get_nova()
-        novaClient.get_instances({})
+        nova_client = nova_provider.get_nova_client()
+        nova_client.get_nova()
+        nova_client.get_instances({})
     except:
         return False
     return True

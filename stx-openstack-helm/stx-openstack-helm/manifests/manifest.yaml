@@ -351,6 +351,8 @@ data:
             release_group: osh-openstack-rabbitmq
             component: test
   values:
+    forceBoot:
+      enabled: true
     monitoring:
       prometheus:
         enabled: false

@@ -10,3 +10,5 @@
 0010-Enable-taint-toleration-for-Openstack-services.patch
 0011-Fix-nova-compute-ssh-init-to-execute-as-runAsUser.patch
 0012-Replace-deprecated-Nova-VNC-configurations.patch
+0013-Remove-TLS-from-openstack-services.patch
+0014-Remove-mariadb-and-rabbit-tls.patch

@@ -11,3 +11,6 @@
 0017-Enable-taint-toleration-for-Openstack-services.patch
 0018-Add-GaleraDB-Secure-Replica-Traffic.patch
 0019-Add-force_boot-command-to-rabbit-start-template.patch
+0020-Fix-tls-in-openstack-helm-infra.patch
+0021-Remove-mariadb-tls.patch
+0022-Remove-rabbitmq-tls.patch

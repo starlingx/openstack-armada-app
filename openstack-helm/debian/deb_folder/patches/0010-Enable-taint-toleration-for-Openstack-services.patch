@@ -1,4 +1,4 @@
-From afa951333e70f1771683d4c51edba1a9c4eeed8a Mon Sep 17 00:00:00 2001
+From 768dd45d75528f81d23ed5adc303eb760e69d9aa Mon Sep 17 00:00:00 2001
 From: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Date: Wed, 6 Oct 2021 14:49:17 -0300
 Subject: [PATCH] Enable taint toleration for Openstack services
@@ -12,6 +12,52 @@ Task: 43531
 Change-Id: I8f63c285cb53090cd7eb0b663bb94fc892dc1a3f
 Depends-On: I1c731c94e58895bd8bfc26d4300aac40a9111f12
 ---
+ aodh/templates/cron-job-alarms-cleaner.yaml              | 3 +++
+ aodh/templates/deployment-api.yaml                       | 3 +++
+ aodh/templates/deployment-evaluator.yaml                 | 3 +++
+ aodh/templates/deployment-listener.yaml                  | 3 +++
+ aodh/templates/deployment-notifier.yaml                  | 3 +++
+ aodh/templates/job-bootstrap.yaml                        | 3 +++
+ aodh/templates/job-db-drop.yaml                          | 3 +++
+ aodh/templates/job-db-init.yaml                          | 3 +++
+ aodh/templates/job-db-sync.yaml                          | 3 +++
+ aodh/templates/job-image-repo-sync.yaml                  | 3 +++
+ aodh/templates/job-ks-endpoints.yaml                     | 3 +++
+ aodh/templates/job-ks-service.yaml                       | 3 +++
+ aodh/templates/job-ks-user.yaml                          | 3 +++
+ aodh/templates/job-rabbit-init.yaml                      | 3 +++
+ aodh/templates/pod-aodh-test.yaml                        | 3 +++
+ aodh/values.yaml                                         | 7 +++++++
+ barbican/templates/deployment-api.yaml                   | 3 +++
+ barbican/templates/job-bootstrap.yaml                    | 3 +++
+ barbican/templates/job-db-drop.yaml                      | 3 +++
+ barbican/templates/job-db-init.yaml                      | 3 +++
+ barbican/templates/job-db-sync.yaml                      | 3 +++
+ barbican/templates/job-image-repo-sync.yaml              | 3 +++
+ barbican/templates/job-ks-endpoints.yaml                 | 3 +++
+ barbican/templates/job-ks-service.yaml                   | 3 +++
+ barbican/templates/job-ks-user.yaml                      | 3 +++
+ barbican/templates/job-rabbit-init.yaml                  | 3 +++
+ barbican/templates/pod-test.yaml                         | 3 +++
+ barbican/values.yaml                                     | 7 +++++++
+ ceilometer/templates/daemonset-compute.yaml              | 3 +++
+ ceilometer/templates/daemonset-ipmi.yaml                 | 3 +++
+ ceilometer/templates/deployment-api.yaml                 | 3 +++
+ ceilometer/templates/deployment-central.yaml             | 3 +++
+ ceilometer/templates/deployment-collector.yaml           | 3 +++
+ ceilometer/templates/deployment-notification.yaml        | 3 +++
+ ceilometer/templates/job-bootstrap.yaml                  | 3 +++
+ ceilometer/templates/job-db-drop.yaml                    | 3 +++
+ ceilometer/templates/job-db-init-mongodb.yaml            | 3 +++
+ ceilometer/templates/job-db-init.yaml                    | 3 +++
+ ceilometer/templates/job-db-sync.yaml                    | 3 +++
+ ceilometer/templates/job-image-repo-sync.yaml            | 3 +++
+ ceilometer/templates/job-ks-endpoints.yaml               | 7 +++++--
+ ceilometer/templates/job-ks-service.yaml                 | 3 +++
+ ceilometer/templates/job-ks-user.yaml                    | 3 +++
+ ceilometer/templates/job-rabbit-init.yaml                | 3 +++
+ ceilometer/templates/pod-rally-test.yaml                 | 3 +++
+ ceilometer/values.yaml                                   | 7 +++++++
  cinder/templates/cron-job-cinder-volume-usage-audit.yaml | 3 +++
  cinder/templates/deployment-api.yaml                     | 3 +++
  cinder/templates/deployment-backup.yaml                  | 3 +++
@@ -75,6 +121,19 @@ Depends-On: I1c731c94e58895bd8bfc26d4300aac40a9111f12
  horizon/templates/job-image-repo-sync.yaml               | 3 +++
  horizon/templates/pod-helm-tests.yaml                    | 3 +++
  horizon/values.yaml                                      | 7 +++++++
+ ironic/templates/deployment-api.yaml                     | 3 +++
+ ironic/templates/job-bootstrap.yaml                      | 3 +++
+ ironic/templates/job-db-drop.yaml                        | 3 +++
+ ironic/templates/job-db-init.yaml                        | 3 +++
+ ironic/templates/job-db-sync.yaml                        | 3 +++
+ ironic/templates/job-image-repo-sync.yaml                | 3 +++
+ ironic/templates/job-ks-endpoints.yaml                   | 7 +++++--
+ ironic/templates/job-ks-service.yaml                     | 3 +++
+ ironic/templates/job-ks-user.yaml                        | 3 +++
+ ironic/templates/job-manage-cleaning-network.yaml        | 3 +++
+ ironic/templates/job-rabbit-init.yaml                    | 3 +++
+ ironic/templates/statefulset-conductor.yaml              | 3 +++
+ ironic/values.yaml                                       | 7 +++++++
  keystone/templates/cron-job-credential-rotate.yaml       | 3 +++
  keystone/templates/cron-job-fernet-rotate.yaml           | 3 +++
  keystone/templates/deployment-api.yaml                   | 3 +++
@@ -148,8 +207,640 @@ Depends-On: I1c731c94e58895bd8bfc26d4300aac40a9111f12
  placement/templates/job-ks-service.yaml                  | 3 +++
  placement/templates/job-ks-user.yaml                     | 3 +++
  placement/values.yaml                                    | 7 +++++++
- 138 files changed, 440 insertions(+)
+ 195 files changed, 637 insertions(+), 4 deletions(-)
 
+diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
+index ae39e7a1..a9b2f62f 100644
+--- a/aodh/templates/cron-job-alarms-cleaner.yaml
++++ b/aodh/templates/cron-job-alarms-cleaner.yaml
+@@ -48,6 +48,9 @@ spec:
+           restartPolicy: OnFailure
+           nodeSelector:
+             {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.aodh.enabled }}
++{{ tuple $envAll "aodh" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 10 }}
++{{ end }}
+           initContainers:
+ {{ tuple $envAll "alarms_cleaner" $mounts_aodh_alarms_cleaner_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 12 }}
+           containers:
+diff --git a/aodh/templates/deployment-api.yaml b/aodh/templates/deployment-api.yaml
+index c4ae5efd..8ddeb980 100644
+--- a/aodh/templates/deployment-api.yaml
++++ b/aodh/templates/deployment-api.yaml
+@@ -52,6 +52,9 @@ spec:
+ {{ tuple $envAll "aodh" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.api.node_selector_key }}: {{ .Values.labels.api.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.aodh.enabled }}
++{{ tuple $envAll "aodh" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.api.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "api" $mounts_aodh_api_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+diff --git a/aodh/templates/deployment-evaluator.yaml b/aodh/templates/deployment-evaluator.yaml
+index b44aae2e..4dd9b46b 100644
+--- a/aodh/templates/deployment-evaluator.yaml
++++ b/aodh/templates/deployment-evaluator.yaml
+@@ -52,6 +52,9 @@ spec:
+ {{ tuple $envAll "aodh" "evaluator" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.evaluator.node_selector_key }}: {{ .Values.labels.evaluator.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.aodh.enabled }}
++{{ tuple $envAll "aodh" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "evaluator" $mounts_aodh_evaluator_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/aodh/templates/deployment-listener.yaml b/aodh/templates/deployment-listener.yaml
+index db137f6a..9d765087 100644
+--- a/aodh/templates/deployment-listener.yaml
++++ b/aodh/templates/deployment-listener.yaml
+@@ -52,6 +52,9 @@ spec:
+ {{ tuple $envAll "aodh" "listener" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.listener.node_selector_key }}: {{ .Values.labels.listener.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.aodh.enabled }}
++{{ tuple $envAll "aodh" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "listener" $mounts_aodh_listener_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/aodh/templates/deployment-notifier.yaml b/aodh/templates/deployment-notifier.yaml
+index 7ee8d866..37930a5c 100644
+--- a/aodh/templates/deployment-notifier.yaml
++++ b/aodh/templates/deployment-notifier.yaml
+@@ -52,6 +52,9 @@ spec:
+ {{ tuple $envAll "aodh" "notifier" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.notifier.node_selector_key }}: {{ .Values.labels.notifier.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.aodh.enabled }}
++{{ tuple $envAll "aodh" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "notifier" $mounts_aodh_notifier_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/aodh/templates/job-bootstrap.yaml b/aodh/templates/job-bootstrap.yaml
+index e6b6f7a7..9ec2874c 100644
+--- a/aodh/templates/job-bootstrap.yaml
++++ b/aodh/templates/job-bootstrap.yaml
+@@ -16,5 +16,8 @@ limitations under the License.
+
+ {{- if and .Values.manifests.job_bootstrap .Values.bootstrap.enabled }}
+ {{- $bootstrapJob := dict "envAll" . "serviceName" "aodh" "keystoneUser" .Values.bootstrap.ks_user -}}
++{{- if .Values.pod.tolerations.aodh.enabled -}}
++{{- $_ := set $bootstrapJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $bootstrapJob | include "helm-toolkit.manifests.job_bootstrap" }}
+ {{- end }}
+diff --git a/aodh/templates/job-db-drop.yaml b/aodh/templates/job-db-drop.yaml
+index 5f5129a3..2cb1b1f7 100644
+--- a/aodh/templates/job-db-drop.yaml
++++ b/aodh/templates/job-db-drop.yaml
+@@ -16,5 +16,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "aodh" -}}
++{{- if .Values.pod.tolerations.aodh.enabled -}}
++{{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbDropJob | include "helm-toolkit.manifests.job_db_drop_mysql" }}
+ {{- end }}
+diff --git a/aodh/templates/job-db-init.yaml b/aodh/templates/job-db-init.yaml
+index 8d0fddeb..4119c0e4 100644
+--- a/aodh/templates/job-db-init.yaml
++++ b/aodh/templates/job-db-init.yaml
+@@ -16,5 +16,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "aodh" -}}
++{{- if .Values.pod.tolerations.aodh.enabled -}}
++{{- $_ := set $dbInitJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbInitJob | include "helm-toolkit.manifests.job_db_init_mysql" }}
+ {{- end }}
+diff --git a/aodh/templates/job-db-sync.yaml b/aodh/templates/job-db-sync.yaml
+index 11f14fa3..25b3c063 100644
+--- a/aodh/templates/job-db-sync.yaml
++++ b/aodh/templates/job-db-sync.yaml
+@@ -17,5 +17,8 @@ limitations under the License.
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "aodh" -}}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "aodh" "podVolMounts" .Values.pod.mounts.aodh_db_sync.aodh_db_sync.volumeMounts "podVols" .Values.pod.mounts.aodh_db_sync.aodh_db_sync.volumes -}}
++{{- if .Values.pod.tolerations.aodh.enabled -}}
++{{- $_ := set $dbSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbSyncJob | include "helm-toolkit.manifests.job_db_sync" }}
+ {{- end }}
+diff --git a/aodh/templates/job-image-repo-sync.yaml b/aodh/templates/job-image-repo-sync.yaml
+index ebab594f..f3190039 100644
+--- a/aodh/templates/job-image-repo-sync.yaml
++++ b/aodh/templates/job-image-repo-sync.yaml
+@@ -16,5 +16,8 @@ limitations under the License.
+
+ {{- if and .Values.manifests.job_image_repo_sync .Values.images.local_registry.active }}
+ {{- $imageRepoSyncJob := dict "envAll" . "serviceName" "aodh" -}}
++{{- if .Values.pod.tolerations.aodh.enabled -}}
++{{- $_ := set $imageRepoSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $imageRepoSyncJob | include "helm-toolkit.manifests.job_image_repo_sync" }}
+ {{- end }}
+diff --git a/aodh/templates/job-ks-endpoints.yaml b/aodh/templates/job-ks-endpoints.yaml
+index 61819c83..f77c0b13 100644
+--- a/aodh/templates/job-ks-endpoints.yaml
++++ b/aodh/templates/job-ks-endpoints.yaml
+@@ -16,5 +16,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_ks_endpoints }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "aodh" "serviceTypes" ( tuple "alarming" ) -}}
++{{- if .Values.pod.tolerations.aodh.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
+ {{- end }}
+diff --git a/aodh/templates/job-ks-service.yaml b/aodh/templates/job-ks-service.yaml
+index 2c14e1a4..1679c7e9 100644
+--- a/aodh/templates/job-ks-service.yaml
++++ b/aodh/templates/job-ks-service.yaml
+@@ -16,5 +16,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_ks_service }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "aodh" "serviceTypes" ( tuple "alarming" ) -}}
++{{- if .Values.pod.tolerations.aodh.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_service" }}
+ {{- end }}
+diff --git a/aodh/templates/job-ks-user.yaml b/aodh/templates/job-ks-user.yaml
+index d529fa3f..1bb2327d 100644
+--- a/aodh/templates/job-ks-user.yaml
++++ b/aodh/templates/job-ks-user.yaml
+@@ -16,5 +16,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_ks_user }}
+ {{- $ksUserJob := dict "envAll" . "serviceName" "aodh" -}}
++{{- if .Values.pod.tolerations.aodh.enabled -}}
++{{- $_ := set $ksUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
+ {{- end }}
+diff --git a/aodh/templates/job-rabbit-init.yaml b/aodh/templates/job-rabbit-init.yaml
+index 866cbbd4..fc4a42bf 100644
+--- a/aodh/templates/job-rabbit-init.yaml
++++ b/aodh/templates/job-rabbit-init.yaml
+@@ -16,5 +16,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "aodh" -}}
++{{- if .Values.pod.tolerations.aodh.enabled -}}
++{{- $_ := set $rmqUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $rmqUserJob | include "helm-toolkit.manifests.job_rabbit_init" }}
+ {{- end }}
+diff --git a/aodh/templates/pod-aodh-test.yaml b/aodh/templates/pod-aodh-test.yaml
+index 6e627b83..4a4d5b5a 100644
+--- a/aodh/templates/pod-aodh-test.yaml
++++ b/aodh/templates/pod-aodh-test.yaml
+@@ -36,6 +36,9 @@ spec:
+   restartPolicy: Never
+   nodeSelector:
+     {{ .Values.labels.test.node_selector_key }}: {{ .Values.labels.test.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.aodh.enabled }}
++{{ tuple $envAll "aodh" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 2 }}
++{{ end }}
+   serviceAccountName: {{ $serviceAccountName }}
+   initContainers:
+ {{ tuple $envAll "tests" $mounts_tests_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 4 }}
+diff --git a/aodh/values.yaml b/aodh/values.yaml
+index 6ed0434c..c584d10f 100644
+--- a/aodh/values.yaml
++++ b/aodh/values.yaml
+@@ -98,6 +98,13 @@ pod:
+         default: kubernetes.io/hostname
+       weight:
+         default: 10
++  tolerations:
++    aodh:
++      enabled: false
++      tolerations:
++        - key: node-role.kubernetes.io/master
++          operator: Exists
++          effect: NoSchedule
+   mounts:
+     aodh_api:
+       init_container: null
+diff --git a/barbican/templates/deployment-api.yaml b/barbican/templates/deployment-api.yaml
+index 4a3a6ea0..2386d359 100644
+--- a/barbican/templates/deployment-api.yaml
++++ b/barbican/templates/deployment-api.yaml
+@@ -51,6 +51,9 @@ spec:
+ {{ tuple $envAll "barbican" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.api.node_selector_key }}: {{ .Values.labels.api.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.barbican.enabled }}
++{{ tuple $envAll "barbican" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "api" $mounts_barbican_api_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/barbican/templates/job-bootstrap.yaml b/barbican/templates/job-bootstrap.yaml
+index a98148ed..ced8bc3e 100644
+--- a/barbican/templates/job-bootstrap.yaml
++++ b/barbican/templates/job-bootstrap.yaml
+@@ -21,5 +21,8 @@ helm.sh/hook-weight: "5"
+
+ {{- if and .Values.manifests.job_bootstrap .Values.bootstrap.enabled }}
+ {{- $bootstrapJob := dict "envAll" . "serviceName" "barbican" "keystoneUser" .Values.bootstrap.ks_user "logConfigFile" .Values.conf.barbican.DEFAULT.log_config_append "jobAnnotations" (include "metadata.annotations.job.bootstrap" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.barbican.enabled -}}
++{{- $_ := set $bootstrapJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $bootstrapJob | include "helm-toolkit.manifests.job_bootstrap" }}
+ {{- end }}
+diff --git a/barbican/templates/job-db-drop.yaml b/barbican/templates/job-db-drop.yaml
+index 82fa3f45..b6f0a6fa 100644
+--- a/barbican/templates/job-db-drop.yaml
++++ b/barbican/templates/job-db-drop.yaml
+@@ -19,5 +19,8 @@ limitations under the License.
+ {{- if .Values.manifests.certificates -}}
+ {{- $_ := set $dbToDrop "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+ {{- end -}}
++{{- if .Values.pod.tolerations.barbican.enabled -}}
++{{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbDropJob | include "helm-toolkit.manifests.job_db_drop_mysql" }}
+ {{- end }}
+diff --git a/barbican/templates/job-db-init.yaml b/barbican/templates/job-db-init.yaml
+index 7e9fab03..1d1f3a50 100644
+--- a/barbican/templates/job-db-init.yaml
++++ b/barbican/templates/job-db-init.yaml
+@@ -26,5 +26,8 @@ helm.sh/hook-weight: "-5"
+ {{- if .Values.manifests.certificates -}}
+ {{- $_ := set $dbInitJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+ {{- end -}}
++{{- if .Values.pod.tolerations.barbican.enabled -}}
++{{- $_ := set $dbInitJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbInitJob | include "helm-toolkit.manifests.job_db_init_mysql" }}
+ {{- end }}
+diff --git a/barbican/templates/job-db-sync.yaml b/barbican/templates/job-db-sync.yaml
+index 8ec6e85b..587be68a 100644
+--- a/barbican/templates/job-db-sync.yaml
++++ b/barbican/templates/job-db-sync.yaml
+@@ -28,5 +28,8 @@ helm.sh/hook-weight: "-4"
+ {{- if .Values.manifests.certificates -}}
+ {{- $_ := set $dbSyncJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+ {{- end -}}
++{{- if .Values.pod.tolerations.barbican.enabled -}}
++{{- $_ := set $dbSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbSyncJob | include "helm-toolkit.manifests.job_db_sync" }}
+ {{- end }}
+diff --git a/barbican/templates/job-image-repo-sync.yaml b/barbican/templates/job-image-repo-sync.yaml
+index 0181de3a..5faccb13 100644
+--- a/barbican/templates/job-image-repo-sync.yaml
++++ b/barbican/templates/job-image-repo-sync.yaml
+@@ -20,5 +20,8 @@ helm.sh/hook: post-install,post-upgrade
+
+ {{- if and .Values.manifests.job_image_repo_sync .Values.images.local_registry.active }}
+ {{- $imageRepoSyncJob := dict "envAll" . "serviceName" "barbican" "jobAnnotations" (include "metadata.annotations.job.repo_sync" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.barbican.enabled -}}
++{{- $_ := set $imageRepoSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $imageRepoSyncJob | include "helm-toolkit.manifests.job_image_repo_sync" }}
+ {{- end }}
+diff --git a/barbican/templates/job-ks-endpoints.yaml b/barbican/templates/job-ks-endpoints.yaml
+index e8ec4c5a..023f58e1 100644
+--- a/barbican/templates/job-ks-endpoints.yaml
++++ b/barbican/templates/job-ks-endpoints.yaml
+@@ -21,5 +21,8 @@ helm.sh/hook-weight: "-2"
+
+ {{- if .Values.manifests.job_ks_endpoints }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "barbican" "serviceTypes" ( tuple "key-manager" ) "jobAnnotations" (include "metadata.annotations.job.ks_endpoints" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.barbican.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
+ {{- end }}
+diff --git a/barbican/templates/job-ks-service.yaml b/barbican/templates/job-ks-service.yaml
+index a86c1bcb..c0e06830 100644
+--- a/barbican/templates/job-ks-service.yaml
++++ b/barbican/templates/job-ks-service.yaml
+@@ -21,5 +21,8 @@ helm.sh/hook-weight: "-3"
+
+ {{- if .Values.manifests.job_ks_service }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "barbican" "serviceTypes" ( tuple "key-manager" ) "jobAnnotations" (include "metadata.annotations.job.ks_service" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.barbican.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_service" }}
+ {{- end }}
+diff --git a/barbican/templates/job-ks-user.yaml b/barbican/templates/job-ks-user.yaml
+index ab5ac9a8..e16e0338 100644
+--- a/barbican/templates/job-ks-user.yaml
++++ b/barbican/templates/job-ks-user.yaml
+@@ -21,5 +21,8 @@ helm.sh/hook-weight: "-1"
+
+ {{- if .Values.manifests.job_ks_user }}
+ {{- $ksUserJob := dict "envAll" . "serviceName" "barbican" "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.barbican.enabled -}}
++{{- $_ := set $ksUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
+ {{- end }}
+diff --git a/barbican/templates/job-rabbit-init.yaml b/barbican/templates/job-rabbit-init.yaml
+index 702bcaea..75bb5fc1 100644
+--- a/barbican/templates/job-rabbit-init.yaml
++++ b/barbican/templates/job-rabbit-init.yaml
+@@ -21,5 +21,8 @@ helm.sh/hook-weight: "-4"
+
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "barbican" "jobAnnotations" (include "metadata.annotations.job.rabbit_init" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.barbican.enabled -}}
++{{- $_ := set $rmqUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $rmqUserJob | include "helm-toolkit.manifests.job_rabbit_init" }}
+ {{- end }}
+diff --git a/barbican/templates/pod-test.yaml b/barbican/templates/pod-test.yaml
+index c44a95e5..14a2270f 100644
+--- a/barbican/templates/pod-test.yaml
++++ b/barbican/templates/pod-test.yaml
+@@ -37,6 +37,9 @@ spec:
+ {{ dict "envAll" $envAll "application" "test" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 2 }}
+   nodeSelector:
+     {{ .Values.labels.test.node_selector_key }}: {{ .Values.labels.test.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.barbican.enabled }}
++{{ tuple $envAll "barbican" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 2 }}
++{{ end }}
+   restartPolicy: Never
+   initContainers:
+ {{ tuple $envAll "tests" $mounts_barbican_tests_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 4 }}
+diff --git a/barbican/values.yaml b/barbican/values.yaml
+index 8d567eda..9e9f65a2 100644
+--- a/barbican/values.yaml
++++ b/barbican/values.yaml
+@@ -78,6 +78,13 @@ pod:
+         default: kubernetes.io/hostname
+       weight:
+         default: 10
++  tolerations:
++    barbican:
++      enabled: false
++      tolerations:
++        - key: node-role.kubernetes.io/master
++          operator: Exists
++          effect: NoSchedule
+   mounts:
+     barbican_api:
+       init_container: null
+diff --git a/ceilometer/templates/daemonset-compute.yaml b/ceilometer/templates/daemonset-compute.yaml
+index d7047381..b96b7e76 100644
+--- a/ceilometer/templates/daemonset-compute.yaml
++++ b/ceilometer/templates/daemonset-compute.yaml
+@@ -51,6 +51,9 @@ spec:
+       dnsPolicy: ClusterFirstWithHostNet
+       nodeSelector:
+         {{ .Values.labels.compute.node_selector_key }}: {{ .Values.labels.compute.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ceilometer.enabled }}
++{{ tuple $envAll "ceilometer" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "compute" $mounts_ceilometer_compute_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/ceilometer/templates/daemonset-ipmi.yaml b/ceilometer/templates/daemonset-ipmi.yaml
+index 58f0e40b..374ff645 100644
+--- a/ceilometer/templates/daemonset-ipmi.yaml
++++ b/ceilometer/templates/daemonset-ipmi.yaml
+@@ -51,6 +51,9 @@ spec:
+       dnsPolicy: ClusterFirstWithHostNet
+       nodeSelector:
+         {{ .Values.labels.ipmi.node_selector_key }}: {{ .Values.labels.ipmi.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ceilometer.enabled }}
++{{ tuple $envAll "ceilometer" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "ipmi" $mounts_ceilometer_ipmi_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/ceilometer/templates/deployment-api.yaml b/ceilometer/templates/deployment-api.yaml
+index 1cc3a2fc..ab88748f 100644
+--- a/ceilometer/templates/deployment-api.yaml
++++ b/ceilometer/templates/deployment-api.yaml
+@@ -49,6 +49,9 @@ spec:
+ {{ tuple $envAll "ceilometer" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.api.node_selector_key }}: {{ .Values.labels.api.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ceilometer.enabled }}
++{{ tuple $envAll "ceilometer" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.api.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "api" $mounts_ceilometer_api_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+diff --git a/ceilometer/templates/deployment-central.yaml b/ceilometer/templates/deployment-central.yaml
+index 12efc64e..e2c34d1b 100644
+--- a/ceilometer/templates/deployment-central.yaml
++++ b/ceilometer/templates/deployment-central.yaml
+@@ -49,6 +49,9 @@ spec:
+ {{ tuple $envAll "ceilometer" "central" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.central.node_selector_key }}: {{ .Values.labels.central.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ceilometer.enabled }}
++{{ tuple $envAll "ceilometer" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "central" $mounts_ceilometer_central_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/ceilometer/templates/deployment-collector.yaml b/ceilometer/templates/deployment-collector.yaml
+index a5b31172..0fb1f604 100644
+--- a/ceilometer/templates/deployment-collector.yaml
++++ b/ceilometer/templates/deployment-collector.yaml
+@@ -49,6 +49,9 @@ spec:
+ {{ tuple $envAll "ceilometer" "collector" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.collector.node_selector_key }}: {{ .Values.labels.collector.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ceilometer.enabled }}
++{{ tuple $envAll "ceilometer" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "collector" $mounts_ceilometer_collector_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/ceilometer/templates/deployment-notification.yaml b/ceilometer/templates/deployment-notification.yaml
+index 1f65ad21..0803f905 100644
+--- a/ceilometer/templates/deployment-notification.yaml
++++ b/ceilometer/templates/deployment-notification.yaml
+@@ -49,6 +49,9 @@ spec:
+ {{ tuple $envAll "ceilometer" "notification" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.notification.node_selector_key }}: {{ .Values.labels.notification.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ceilometer.enabled }}
++{{ tuple $envAll "ceilometer" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "notification" $mounts_ceilometer_notification_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/ceilometer/templates/job-bootstrap.yaml b/ceilometer/templates/job-bootstrap.yaml
+index 8572a797..cc72fb44 100644
+--- a/ceilometer/templates/job-bootstrap.yaml
++++ b/ceilometer/templates/job-bootstrap.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+
+ {{- if and .Values.manifests.job_bootstrap .Values.bootstrap.enabled }}
+ {{- $bootstrapJob := dict "envAll" . "serviceName" "ceilometer" "keystoneUser" .Values.bootstrap.ks_user -}}
++{{- if .Values.pod.tolerations.ceilometer.enabled -}}
++{{- $_ := set $bootstrapJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $bootstrapJob | include "helm-toolkit.manifests.job_bootstrap" }}
+ {{- end }}
+diff --git a/ceilometer/templates/job-db-drop.yaml b/ceilometer/templates/job-db-drop.yaml
+index 6e819b61..981792e1 100644
+--- a/ceilometer/templates/job-db-drop.yaml
++++ b/ceilometer/templates/job-db-drop.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "ceilometer" -}}
++{{- if .Values.pod.tolerations.ceilometer.enabled -}}
++{{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbDropJob | include "helm-toolkit.manifests.job_db_drop_mysql" }}
+ {{- end }}
+diff --git a/ceilometer/templates/job-db-init-mongodb.yaml b/ceilometer/templates/job-db-init-mongodb.yaml
+index 60f2974a..aeed1628 100644
+--- a/ceilometer/templates/job-db-init-mongodb.yaml
++++ b/ceilometer/templates/job-db-init-mongodb.yaml
+@@ -31,6 +31,9 @@ spec:
+       restartPolicy: OnFailure
+       nodeSelector:
+         {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ceilometer.enabled }}
++{{ tuple $envAll "ceilometer" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 10 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "db_init_mongodb" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/ceilometer/templates/job-db-init.yaml b/ceilometer/templates/job-db-init.yaml
+index 3912f400..a578a887 100644
+--- a/ceilometer/templates/job-db-init.yaml
++++ b/ceilometer/templates/job-db-init.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "ceilometer" -}}
++{{- if .Values.pod.tolerations.ceilometer.enabled -}}
++{{- $_ := set $dbInitJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbInitJob | include "helm-toolkit.manifests.job_db_init_mysql" }}
+ {{- end }}
+diff --git a/ceilometer/templates/job-db-sync.yaml b/ceilometer/templates/job-db-sync.yaml
+index bc5882bd..dc04c4d8 100644
+--- a/ceilometer/templates/job-db-sync.yaml
++++ b/ceilometer/templates/job-db-sync.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "ceilometer" "podVolMounts" .Values.pod.mounts.ceilometer_db_sync.ceilometer_db_sync.volumeMounts "podVols" .Values.pod.mounts.ceilometer_db_sync.ceilometer_db_sync.volumes -}}
++{{- if .Values.pod.tolerations.ceilometer.enabled -}}
++{{- $_ := set $dbSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbSyncJob | include "helm-toolkit.manifests.job_db_sync" }}
+ {{- end }}
+diff --git a/ceilometer/templates/job-image-repo-sync.yaml b/ceilometer/templates/job-image-repo-sync.yaml
+index a1a8a49a..9cb0112b 100644
+--- a/ceilometer/templates/job-image-repo-sync.yaml
++++ b/ceilometer/templates/job-image-repo-sync.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+
+ {{- if and .Values.manifests.job_image_repo_sync .Values.images.local_registry.active }}
+ {{- $imageRepoSyncJob := dict "envAll" . "serviceName" "ceilometer" -}}
++{{- if .Values.pod.tolerations.ceilometer.enabled -}}
++{{- $_ := set $imageRepoSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $imageRepoSyncJob | include "helm-toolkit.manifests.job_image_repo_sync" }}
+ {{- end }}
+diff --git a/ceilometer/templates/job-ks-endpoints.yaml b/ceilometer/templates/job-ks-endpoints.yaml
+index 9421c2e7..fd7b3e26 100644
+--- a/ceilometer/templates/job-ks-endpoints.yaml
++++ b/ceilometer/templates/job-ks-endpoints.yaml
+@@ -13,6 +13,9 @@ limitations under the License.
+ */}}
+
+ {{- if .Values.manifests.job_ks_endpoints }}
+-{{- $ksServiceJob := dict "envAll" . "serviceName" "ceilometer" "serviceTypes" ( tuple "metering" ) -}}
+-{{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
++{{- $ksEndpointsJob := dict "envAll" . "serviceName" "ceilometer" "serviceTypes" ( tuple "metering" ) -}}
++{{- if .Values.pod.tolerations.ceilometer.enabled -}}
++{{- $_ := set $ksEndpointsJob "tolerationsEnabled" true -}}
++{{- end -}}
++{{ $ksEndpointsJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
+ {{- end }}
+diff --git a/ceilometer/templates/job-ks-service.yaml b/ceilometer/templates/job-ks-service.yaml
+index 38b57342..78643764 100644
+--- a/ceilometer/templates/job-ks-service.yaml
++++ b/ceilometer/templates/job-ks-service.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_ks_service }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "ceilometer" "serviceTypes" ( tuple "metering" ) -}}
++{{- if .Values.pod.tolerations.ceilometer.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_service" }}
+ {{- end }}
+diff --git a/ceilometer/templates/job-ks-user.yaml b/ceilometer/templates/job-ks-user.yaml
+index 2f5be60e..d7da2bf1 100644
+--- a/ceilometer/templates/job-ks-user.yaml
++++ b/ceilometer/templates/job-ks-user.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_ks_user }}
+ {{- $ksUserJob := dict "envAll" . "serviceName" "ceilometer" -}}
++{{- if .Values.pod.tolerations.ceilometer.enabled -}}
++{{- $_ := set $ksUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
+ {{- end }}
+diff --git a/ceilometer/templates/job-rabbit-init.yaml b/ceilometer/templates/job-rabbit-init.yaml
+index 71661784..0130e635 100644
+--- a/ceilometer/templates/job-rabbit-init.yaml
++++ b/ceilometer/templates/job-rabbit-init.yaml
+@@ -13,5 +13,8 @@ limitations under the License.
+ */}}
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "ceilometer" -}}
++{{- if .Values.pod.tolerations.ceilometer.enabled -}}
++{{- $_ := set $rmqUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $rmqUserJob | include "helm-toolkit.manifests.job_rabbit_init" }}
+ {{- end }}
+diff --git a/ceilometer/templates/pod-rally-test.yaml b/ceilometer/templates/pod-rally-test.yaml
+index f2538173..1f47b5f6 100644
+--- a/ceilometer/templates/pod-rally-test.yaml
++++ b/ceilometer/templates/pod-rally-test.yaml
+@@ -32,6 +32,9 @@ spec:
+   restartPolicy: Never
+   nodeSelector:
+     {{ .Values.labels.test.node_selector_key }}: {{ .Values.labels.test.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ceilometer.enabled }}
++{{ tuple $envAll "ceilometer" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 2 }}
++{{ end }}
+   serviceAccountName: {{ $serviceAccountName }}
+   initContainers:
+ {{ tuple $envAll "tests" $mounts_tests_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 4 }}
+diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
+index a6c1b2c8..3abd3c0b 100644
+--- a/ceilometer/values.yaml
++++ b/ceilometer/values.yaml
+@@ -1921,6 +1921,13 @@ pod:
+         default: kubernetes.io/hostname
+       weight:
+         default: 10
++  tolerations:
++    ceilometer:
++      enabled: false
++      tolerations:
++        - key: node-role.kubernetes.io/master
++          operator: Exists
++          effect: NoSchedule
+   mounts:
+     ceilometer_tests:
+       init_container: null
 diff --git a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
 index 3d13af36..4b152081 100644
 --- a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
@@ -919,7 +1610,7 @@ index 58f786b6..36017d63 100644
      heat_api:
        init_container: null
 diff --git a/horizon/templates/deployment.yaml b/horizon/templates/deployment.yaml
-index 1922423f..b7c24836 100644
+index dd20a76f..20bc3951 100644
 --- a/horizon/templates/deployment.yaml
 +++ b/horizon/templates/deployment.yaml
 @@ -51,6 +51,9 @@ spec:
@@ -977,7 +1668,7 @@ index 37b14a8c..e98bbb24 100644
 --- a/horizon/templates/job-image-repo-sync.yaml
 +++ b/horizon/templates/job-image-repo-sync.yaml
 @@ -14,5 +14,8 @@ limitations under the License.
- 
+
  {{- if and .Values.manifests.job_image_repo_sync .Values.images.local_registry.active }}
  {{- $imageRepoSyncJob := dict "envAll" . "serviceName" "horizon" -}}
 +{{- if .Values.pod.tolerations.horizon.enabled -}}
@@ -1000,10 +1691,10 @@ index 76f5b353..dbcb9a3c 100644
      {{ .Values.labels.test.node_selector_key }}: {{ .Values.labels.test.node_selector_value }}
    initContainers:
 diff --git a/horizon/values.yaml b/horizon/values.yaml
-index 9b138c0c..f2bc5b9f 100644
+index a20dca46..3dc85f10 100644
 --- a/horizon/values.yaml
 +++ b/horizon/values.yaml
-@@ -1116,6 +1116,13 @@ pod:
+@@ -1125,6 +1125,13 @@ pod:
          default: kubernetes.io/hostname
        weight:
          default: 10
@@ -1016,6 +1707,187 @@ index 9b138c0c..f2bc5b9f 100644
 +        effect: NoSchedule
    mounts:
      horizon_db_init:
+       init_container: null
+diff --git a/ironic/templates/deployment-api.yaml b/ironic/templates/deployment-api.yaml
+index 76f15655..606a5fe9 100644
+--- a/ironic/templates/deployment-api.yaml
++++ b/ironic/templates/deployment-api.yaml
+@@ -49,6 +49,9 @@ spec:
+ {{ tuple $envAll "ironic" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.api.node_selector_key }}: {{ .Values.labels.api.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ironic.enabled }}
++{{ tuple $envAll "ironic" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 10 }}
++{{ end }}
+       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.api.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "api" $mounts_ironic_api_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+diff --git a/ironic/templates/job-bootstrap.yaml b/ironic/templates/job-bootstrap.yaml
+index 94221860..190d412d 100644
+--- a/ironic/templates/job-bootstrap.yaml
++++ b/ironic/templates/job-bootstrap.yaml
+@@ -20,6 +20,9 @@ helm.sh/hook-weight: "5"
+ {{- if and .Values.manifests.job_bootstrap .Values.bootstrap.image.enabled }}
+ {{- if .Values.bootstrap.image.openstack.enabled }}
+ {{- $bootstrapJob := dict "envAll" . "serviceName" "ironic" "keystoneUser" .Values.bootstrap.image.openstack.ks_user "logConfigFile" .Values.conf.ironic.DEFAULT.log_config_append "jobAnnotations" (include "metadata.annotations.job.bootstrap" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.ironic.enabled -}}
++{{- $_ := set $bootstrapJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $bootstrapJob | include "helm-toolkit.manifests.job_bootstrap" }}
+ {{- else }}
+ {{ include "helm-toolkit.manifests.job_bootstrap" }}
+diff --git a/ironic/templates/job-db-drop.yaml b/ironic/templates/job-db-drop.yaml
+index 6566b5cb..1154db9e 100644
+--- a/ironic/templates/job-db-drop.yaml
++++ b/ironic/templates/job-db-drop.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "ironic" -}}
++{{- if .Values.pod.tolerations.ironic.enabled -}}
++{{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbDropJob | include "helm-toolkit.manifests.job_db_drop_mysql" }}
+ {{- end }}
+diff --git a/ironic/templates/job-db-init.yaml b/ironic/templates/job-db-init.yaml
+index e2fd27d7..22c071d5 100644
+--- a/ironic/templates/job-db-init.yaml
++++ b/ironic/templates/job-db-init.yaml
+@@ -19,5 +19,8 @@ helm.sh/hook-weight: "-5"
+
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "ironic" "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.ironic.enabled -}}
++{{- $_ := set $dbInitJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbInitJob | include "helm-toolkit.manifests.job_db_init_mysql" }}
+ {{- end }}
+diff --git a/ironic/templates/job-db-sync.yaml b/ironic/templates/job-db-sync.yaml
+index 00bf4df2..c397bcf2 100644
+--- a/ironic/templates/job-db-sync.yaml
++++ b/ironic/templates/job-db-sync.yaml
+@@ -19,5 +19,8 @@ helm.sh/hook-weight: "-4"
+
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "ironic" "podVolMounts" .Values.pod.mounts.ironic_db_sync.ironic_db_sync.volumeMounts "podVols" .Values.pod.mounts.ironic_db_sync.ironic_db_sync.volumes "jobAnnotations" (include "metadata.annotations.job.db_sync" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.ironic.enabled -}}
++{{- $_ := set $dbSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbSyncJob | include "helm-toolkit.manifests.job_db_sync" }}
+ {{- end }}
+diff --git a/ironic/templates/job-image-repo-sync.yaml b/ironic/templates/job-image-repo-sync.yaml
+index 8399f6dd..e83bac91 100644
+--- a/ironic/templates/job-image-repo-sync.yaml
++++ b/ironic/templates/job-image-repo-sync.yaml
+@@ -18,5 +18,8 @@ helm.sh/hook: post-install,post-upgrade
+
+ {{- if and .Values.manifests.job_image_repo_sync .Values.images.local_registry.active }}
+ {{- $imageRepoSyncJob := dict "envAll" . "serviceName" "ironic" "jobAnnotations" (include "metadata.annotations.job.repo_sync" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.ironic.enabled -}}
++{{- $_ := set $imageRepoSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $imageRepoSyncJob | include "helm-toolkit.manifests.job_image_repo_sync" }}
+ {{- end }}
+diff --git a/ironic/templates/job-ks-endpoints.yaml b/ironic/templates/job-ks-endpoints.yaml
+index 73b2fa63..940e13ce 100644
+--- a/ironic/templates/job-ks-endpoints.yaml
++++ b/ironic/templates/job-ks-endpoints.yaml
+@@ -18,6 +18,9 @@ helm.sh/hook-weight: "-2"
+ {{- end }}
+
+ {{- if .Values.manifests.job_ks_endpoints }}
+-{{- $ksServiceJob := dict "envAll" . "serviceName" "ironic" "serviceTypes" ( tuple "baremetal" ) "jobAnnotations" (include "metadata.annotations.job.ks_endpoints" . | fromYaml) -}}
+-{{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
++{{- $ksEndpointsJob := dict "envAll" . "serviceName" "ironic" "serviceTypes" ( tuple "baremetal" ) "jobAnnotations" (include "metadata.annotations.job.ks_endpoints" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.ironic.enabled -}}
++{{- $_ := set $ksEndpointsJob "tolerationsEnabled" true -}}
++{{- end -}}
++{{ $ksEndpointsJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
+ {{- end }}
+diff --git a/ironic/templates/job-ks-service.yaml b/ironic/templates/job-ks-service.yaml
+index c4c64e1d..40cc9786 100644
+--- a/ironic/templates/job-ks-service.yaml
++++ b/ironic/templates/job-ks-service.yaml
+@@ -19,5 +19,8 @@ helm.sh/hook-weight: "-3"
+
+ {{- if .Values.manifests.job_ks_service }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "ironic" "serviceTypes" ( tuple "baremetal" ) "jobAnnotations" (include "metadata.annotations.job.ks_service" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.ironic.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_service" }}
+ {{- end }}
+diff --git a/ironic/templates/job-ks-user.yaml b/ironic/templates/job-ks-user.yaml
+index 8f277b37..a09aa9d2 100644
+--- a/ironic/templates/job-ks-user.yaml
++++ b/ironic/templates/job-ks-user.yaml
+@@ -19,5 +19,8 @@ helm.sh/hook-weight: "-1"
+
+ {{- if .Values.manifests.job_ks_user }}
+ {{- $ksUserJob := dict "envAll" . "serviceName" "ironic" "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.ironic.enabled -}}
++{{- $_ := set $ksUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
+ {{- end }}
+diff --git a/ironic/templates/job-manage-cleaning-network.yaml b/ironic/templates/job-manage-cleaning-network.yaml
+index 6ccb2b8a..b1904d4b 100644
+--- a/ironic/templates/job-manage-cleaning-network.yaml
++++ b/ironic/templates/job-manage-cleaning-network.yaml
+@@ -36,6 +36,9 @@ spec:
+       restartPolicy: OnFailure
+       nodeSelector:
+         {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ironic.enabled }}
++{{ tuple $envAll "ironic" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 10 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "manage_cleaning_network" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container"  | indent 8 }}
+       containers:
+diff --git a/ironic/templates/job-rabbit-init.yaml b/ironic/templates/job-rabbit-init.yaml
+index 846cc336..8d80b7c2 100644
+--- a/ironic/templates/job-rabbit-init.yaml
++++ b/ironic/templates/job-rabbit-init.yaml
+@@ -19,5 +19,8 @@ helm.sh/hook-weight: "-4"
+
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "ironic" "jobAnnotations" (include "metadata.annotations.job.rabbit_init" . | fromYaml) -}}
++{{- if .Values.pod.tolerations.ironic.enabled -}}
++{{- $_ := set $rmqUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $rmqUserJob | include "helm-toolkit.manifests.job_rabbit_init" }}
+ {{- end }}
+diff --git a/ironic/templates/statefulset-conductor.yaml b/ironic/templates/statefulset-conductor.yaml
+index c427c4e9..3093a2da 100644
+--- a/ironic/templates/statefulset-conductor.yaml
++++ b/ironic/templates/statefulset-conductor.yaml
+@@ -49,6 +49,9 @@ spec:
+ {{ tuple $envAll "ironic" "conductor" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.conductor.node_selector_key }}: {{ .Values.labels.conductor.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.ironic.enabled }}
++{{ tuple $envAll "ironic" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 10 }}
++{{ end }}
+       securityContext:
+         runAsUser: 0
+       hostNetwork: True
+diff --git a/ironic/values.yaml b/ironic/values.yaml
+index eb29ab7d..0112a80a 100644
+--- a/ironic/values.yaml
++++ b/ironic/values.yaml
+@@ -550,6 +550,13 @@ pod:
+         default: kubernetes.io/hostname
+       weight:
+         default: 10
++  tolerations:
++    ironic:
++      enabled: false
++      tolerations:
++        - key: node-role.kubernetes.io/master
++          operator: Exists
++          effect: NoSchedule
+   mounts:
+     ironic_api:
        init_container: null
 diff --git a/keystone/templates/cron-job-credential-rotate.yaml b/keystone/templates/cron-job-credential-rotate.yaml
 index fd26b230..8e9f82fc 100644
@@ -1046,7 +1918,7 @@ index 8f4f4f9a..96dcc74d 100644
              {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
            containers:
 diff --git a/keystone/templates/deployment-api.yaml b/keystone/templates/deployment-api.yaml
-index b9f5701f..fefbc47f 100644
+index f4154932..94e705b8 100644
 --- a/keystone/templates/deployment-api.yaml
 +++ b/keystone/templates/deployment-api.yaml
 @@ -58,6 +58,9 @@ spec:
@@ -1172,7 +2044,7 @@ index fd301c35..c8cfc5d0 100644
 --- a/keystone/templates/job-image-repo-sync.yaml
 +++ b/keystone/templates/job-image-repo-sync.yaml
 @@ -17,5 +17,8 @@ helm.sh/hook: post-install,post-upgrade
- 
+
  {{- if and .Values.manifests.job_image_repo_sync .Values.images.local_registry.active }}
  {{- $imageRepoSyncJob := dict "envAll" . "serviceName" "keystone" "jobAnnotations" (include "metadata.annotations.job.repo_sync" . | fromYaml) -}}
 +{{- if .Values.pod.tolerations.keystone.enabled -}}
@@ -1194,10 +2066,10 @@ index 2bb258e7..02390adf 100644
  {{ $rmqUserJob | include "helm-toolkit.manifests.job_rabbit_init" }}
  {{- end }}
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index 8031bcea..de450e3a 100644
+index 301ff6fa..d0f66a7b 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
-@@ -219,6 +219,13 @@ pod:
+@@ -217,6 +217,13 @@ pod:
          default: kubernetes.io/hostname
        weight:
          default: 10
@@ -1557,7 +2429,7 @@ index bbe3fabd..9f745ace 100644
  {{ tuple $envAll "service_cleaner" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 12 }}
            containers:
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 4c690d61..927f5ad1 100644
+index e600e587..75289c79 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
 @@ -78,6 +78,9 @@ spec:
@@ -1868,10 +2740,10 @@ index eabe8b6c..019596f1 100644
    serviceAccountName: {{ $serviceAccountName }}
    initContainers:
 diff --git a/nova/values.yaml b/nova/values.yaml
-index cdb14575..4e6ce0ac 100644
+index 72dd0d11..f8ebc9ab 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -2259,6 +2259,13 @@ pod:
+@@ -2261,6 +2261,13 @@ pod:
          default: kubernetes.io/hostname
        weight:
          default: 10

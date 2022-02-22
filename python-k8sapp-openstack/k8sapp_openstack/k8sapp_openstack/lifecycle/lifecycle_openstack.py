@@ -124,7 +124,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # apply any runtime configurations that are needed for
             # stx_openstack application
             conductor_obj._update_config_for_stx_openstack(context)
-            conductor_obj._update_pciirqaffinity_config(context)
 
             # The radosgw chart may have been enabled/disabled. Regardless of
             # the prior apply state, update the ceph config
@@ -192,9 +191,8 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 "Missing {} {}".format(LifecycleConstants.EXTRA, LifecycleConstants.APP_REMOVED))
 
         if hook_info[LifecycleConstants.EXTRA][LifecycleConstants.APP_REMOVED]:
-            # Update the VIM and PciIrqAffinity configuration.
+            # Update the VIM configuration.
             conductor_obj._update_vim_config(context)
-            conductor_obj._update_pciirqaffinity_config(context)
             conductor_obj._update_radosgw_config(context)
 
     def _delete_app_specific_resources_post_remove(self, app_op, app, hook_info):

@@ -401,7 +401,7 @@ data:
       size: 1Gi
   source:
     type: tar
-    location: http://172.17.0.1/helm_charts/starlingx/rabbitmq-0.1.13.tgz
+    location: http://172.17.0.1/helm_charts/starlingx/rabbitmq-0.1.14.tgz
     subpath: rabbitmq
     reference: master
   dependencies:

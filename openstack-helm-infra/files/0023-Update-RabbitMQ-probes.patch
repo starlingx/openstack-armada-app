@@ -1,0 +1,70 @@
+From 3a76480c003dc6c1a522fba1c70278bad04930c2 Mon Sep 17 00:00:00 2001
+From: Roy Tang <rt7380@att.com>
+Date: Fri, 13 Aug 2021 19:08:21 -0400
+Subject: [PATCH] Update RabbitMQ probes
+
+The current health check that is used for readiness and liveness
+probes is considered intrusive and is prompt to produce false
+positives[0]. The command is also deprecated and will be removed
+in future version.  Updating the probes based on current
+recommenation from community[1].
+
+Ref:
+[0] https://www.rabbitmq.com/monitoring.html#deprecations
+[1] https://www.rabbitmq.com/monitoring.html#health-checks
+
+Change-Id: I83750731150ff9a276f59e3c1288129581fceba5
+---
+ rabbitmq/Chart.yaml                               | 2 +-
+ rabbitmq/templates/bin/_rabbitmq-liveness.sh.tpl  | 3 +--
+ rabbitmq/templates/bin/_rabbitmq-readiness.sh.tpl | 2 +-
+ releasenotes/notes/rabbitmq.yaml                  | 1 +
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/rabbitmq/Chart.yaml b/rabbitmq/Chart.yaml
+index 79b0daff..061ead2d 100644
+--- a/rabbitmq/Chart.yaml
++++ b/rabbitmq/Chart.yaml
+@@ -15,6 +15,6 @@ apiVersion: v1
+ appVersion: v3.7.26
+ description: OpenStack-Helm RabbitMQ
+ name: rabbitmq
+-version: 0.1.13
++version: 0.1.14
+ home: https://github.com/rabbitmq/rabbitmq-server
+ ...
+diff --git a/rabbitmq/templates/bin/_rabbitmq-liveness.sh.tpl b/rabbitmq/templates/bin/_rabbitmq-liveness.sh.tpl
+index 943209aa..d07626b2 100644
+--- a/rabbitmq/templates/bin/_rabbitmq-liveness.sh.tpl
++++ b/rabbitmq/templates/bin/_rabbitmq-liveness.sh.tpl
+@@ -19,6 +19,5 @@ set -e
+ if [ -f /tmp/rabbit-disable-liveness-probe ]; then
+    exit 0
+ else
+-   timeout 5 bash -c "true &>/dev/null </dev/tcp/${MY_POD_IP}/${PORT_AMPQ}"
+-   exec rabbitmqctl node_health_check
++   exec rabbitmq-diagnostics -q check_port_connectivity
+ fi
+diff --git a/rabbitmq/templates/bin/_rabbitmq-readiness.sh.tpl b/rabbitmq/templates/bin/_rabbitmq-readiness.sh.tpl
+index 6184b35c..14ef11cd 100644
+--- a/rabbitmq/templates/bin/_rabbitmq-readiness.sh.tpl
++++ b/rabbitmq/templates/bin/_rabbitmq-readiness.sh.tpl
+@@ -19,5 +19,5 @@ set -e
+ if [ -f /tmp/rabbit-disable-readiness ]; then
+    exit 1
+ else
+-   exec rabbitmqctl node_health_check
++   exec rabbitmq-diagnostics ping
+ fi
+diff --git a/releasenotes/notes/rabbitmq.yaml b/releasenotes/notes/rabbitmq.yaml
+index 95bf38e5..cdc2841d 100644
+--- a/releasenotes/notes/rabbitmq.yaml
++++ b/releasenotes/notes/rabbitmq.yaml
+@@ -13,4 +13,5 @@ rabbitmq:
+   - 0.1.11 Add TLS support for helm test
+   - 0.1.12 Added helm hook post-install and post-upgrade for rabbitmq wait cluster job
+   - 0.1.13 Add prestop action and version 3.8.x upgrade prep
++  - 0.1.14 Update readiness and liveness probes
+ ...
+-- 
+2.17.1

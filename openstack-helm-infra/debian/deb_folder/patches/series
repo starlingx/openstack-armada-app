@@ -14,3 +14,4 @@
 0020-Fix-tls-in-openstack-helm-infra.patch
 0021-Remove-mariadb-tls.patch
 0022-Remove-rabbitmq-tls.patch
+0023-Update-RabbitMQ-probes.patch

@@ -31,6 +31,7 @@ Patch19: 0019-Add-force_boot-command-to-rabbit-start-template.patch
 Patch20: 0020-Fix-tls-in-openstack-helm-infra.patch
 Patch21: 0021-Remove-mariadb-tls.patch
 Patch22: 0022-Remove-rabbitmq-tls.patch
+Patch23: 0023-Update-RabbitMQ-probes.patch
 
 BuildRequires: helm
 BuildRequires: chartmuseum
@@ -56,6 +57,7 @@ Openstack Helm Infra charts
 %patch20 -p1
 %patch21 -p1
 %patch22 -p1
+%patch23 -p1
 
 %build
 # Host a server for the charts

@@ -19,6 +19,8 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
 
     SERVICE_NAME = app_constants.HELM_CHART_HORIZON
 
+    AUTH_USERS = ["admin"]
+
     def get_overrides(self, namespace=None):
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -45,6 +47,10 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -54,6 +60,8 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
             return overrides
 
     def _get_endpoints_overrides(self):
+        horizon_service_name = self._operator.chart_operators[
+            app_constants.HELM_CHART_HORIZON].SERVICE_NAME
         return {
             'dashboard': {
                 'host_fqdn_override':
@@ -66,6 +74,10 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
                 'auth': self._get_endpoints_oslo_db_overrides(
                     self.SERVICE_NAME, [self.SERVICE_NAME])
             },
+            'identity': {
+                'auth': self._get_endpoints_identity_overrides(
+                    horizon_service_name, self.AUTH_USERS),
+            }
         }
 
     def _get_local_settings_config_overrides(self):
@@ -98,7 +110,7 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
             })
 
         # Https & security settings
-        if self._https_enabled():
+        if self._is_openstack_https_ready():
             local_settings_config.update({
                 'https_enabled': 'True',
             })

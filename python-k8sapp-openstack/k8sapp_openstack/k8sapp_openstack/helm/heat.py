@@ -27,6 +27,18 @@ class HeatHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {
+                    'conf': self._get_conf_overrides(),
+                    'secrets': self._get_secrets_overrides(),
+                }
+            )
+
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -77,3 +89,56 @@ class HeatHelm(openstack.OpenstackBaseHelm):
 
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)
+
+    def _get_conf_overrides(self):
+        return {
+            'heat': {
+                'keystone_authtoken': {
+                    'cafile': self.get_ca_file()
+                },
+                'ssl': {
+                    'ca_file': self.get_ca_file()
+                },
+                'clients': {
+                    'ca_file': self.get_ca_file()
+                },
+                'clients_aodh': {
+                    'ca_file': self.get_ca_file()
+                },
+                'clients_neutron': {
+                    'ca_file': self.get_ca_file()
+                },
+                'clients_cinder': {
+                    'ca_file': self.get_ca_file()
+                },
+                'clients_glance': {
+                    'ca_file': self.get_ca_file()
+                },
+                'clients_nova': {
+                    'ca_file': self.get_ca_file()
+                },
+                'clients_swift': {
+                    'ca_file': self.get_ca_file()
+                },
+                'clients_heat': {
+                    'ca_file': self.get_ca_file()
+                },
+                'clients_keystone': {
+                    'ca_file': self.get_ca_file()
+                },
+            }
+        }
+
+    def _get_secrets_overrides(self):
+        return {
+            'tls': {
+                'orchestration': {
+                    'api': {
+                        'internal': 'heat-tls-public'
+                    },
+                    'cfn': {
+                        'internal': 'heat-tls-public'
+                    }
+                }
+            }
+        }

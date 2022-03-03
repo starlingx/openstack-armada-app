@@ -85,9 +85,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
     def get_overrides(self, namespace=None):
         self._rook_ceph = self._is_rook_ceph()
-        admin_keyring = 'null'
-        if self._rook_ceph:
-            admin_keyring = self._get_rook_ceph_admin_keyring()
 
         self.labels_by_hostid = self._get_host_labels()
         self.cpus_by_hostid = self._get_host_cpus()
@@ -123,26 +120,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                         'novncproxy': self._num_provisioned_controllers()
                     }
                 },
-                'conf': {
-                    'ceph': {
-                        'ephemeral_storage': self._get_rbd_ephemeral_storage(),
-                        'admin_keyring': admin_keyring,
-                    },
-                    'nova': {
-                        'libvirt': {
-                            'virt_type': self._get_virt_type(),
-                        },
-                        'vnc': {
-                            'novncproxy_base_url': self._get_novncproxy_base_url(),
-                        },
-                        'pci': self._get_pci_alias(),
-                    },
-                    'overrides': {
-                        'nova_compute': {
-                            'hosts': self._get_per_host_overrides()
-                        }
-                    },
-                },
+                'conf': self._get_conf_overrides(),
                 'endpoints': self._get_endpoints_overrides(),
                 'network': {
                     'ssh': {
@@ -175,6 +153,15 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             }
         })
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {'secrets': self._get_secrets_overrides()}
+            )
+
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -204,7 +191,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             'identity': {
                 'name': 'keystone',
                 'auth': self._get_endpoints_identity_overrides(
-                    self.SERVICE_NAME, self.AUTH_USERS),
+                    self.SERVICE_NAME, self.AUTH_USERS, self.SERVICE_USERS),
             },
             'compute': {
                 'host_fqdn_override':
@@ -239,16 +226,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             'oslo_db_api': copy.deepcopy(db_passwords),
             'oslo_db_cell0': copy.deepcopy(db_passwords),
         })
-
-        # Service user passwords already exist in other chart overrides
-        for user in self.SERVICE_USERS:
-            overrides['identity']['auth'].update({
-                user: {
-                    'region_name': self._region_name(),
-                    'password': self._get_or_generate_password(
-                        user, common.HELM_NS_OPENSTACK, user)
-                }
-            })
 
         return overrides
 
@@ -851,3 +828,69 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             return False
         else:
             return True
+
+    def _get_conf_overrides(self):
+        admin_keyring = 'null'
+        if self._rook_ceph:
+            admin_keyring = self._get_rook_ceph_admin_keyring()
+
+        overrides = {
+            'ceph': {
+                'ephemeral_storage': self._get_rbd_ephemeral_storage(),
+                'admin_keyring': admin_keyring,
+            },
+            'nova': {
+                'libvirt': {
+                    'virt_type': self._get_virt_type(),
+                },
+                'vnc': {
+                    'novncproxy_base_url': self._get_novncproxy_base_url(),
+                },
+                'pci': self._get_pci_alias(),
+            },
+            'overrides': {
+                'nova_compute': {
+                    'hosts': self._get_per_host_overrides()
+                }
+            },
+        }
+
+        if self._is_openstack_https_ready():
+            overrides = self._update_overrides(overrides, {
+                'nova': {
+                    'keystone_authtoken': {
+                        'cafile': self.get_ca_file(),
+                    },
+                    'cinder': {
+                        'cafile': self.get_ca_file(),
+                    },
+                    'glance': {
+                        'cafile': self.get_ca_file(),
+                    },
+                    'keystone': {
+                        'cafile': self.get_ca_file(),
+                    },
+                    'neutron': {
+                        'cafile': self.get_ca_file(),
+                    },
+                    'placement': {
+                        'cafile': self.get_ca_file(),
+                    },
+                    'ironic': {
+                        'cafile': self.get_ca_file(),
+                    },
+                }
+            })
+
+        return overrides
+
+    def _get_secrets_overrides(self):
+        return {
+            'tls': {
+                'compute_metadata': {
+                    'metadata': {
+                        'public': 'nova-tls-public'
+                    }
+                }
+            }
+        }

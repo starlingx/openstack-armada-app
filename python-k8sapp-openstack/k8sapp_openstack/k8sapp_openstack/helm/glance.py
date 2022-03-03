@@ -42,6 +42,10 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -166,6 +170,23 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             conf['ceph'] = {
                 'admin_keyring': self._get_rook_ceph_admin_keyring()
             }
+
+        if self._is_openstack_https_ready():
+            conf = self._update_overrides(conf, {
+                'glance': {
+                    'keystone_authtoken': {
+                        'cafile': self.get_ca_file(),
+                    },
+                    'glance_store': {
+                        'https_ca_certificates_file': self.get_ca_file(),
+                    },
+                },
+                'glance_registry': {
+                    'keystone_authtoken': {
+                        'cafile': self.get_ca_file(),
+                    }
+                },
+            })
 
         return conf
 

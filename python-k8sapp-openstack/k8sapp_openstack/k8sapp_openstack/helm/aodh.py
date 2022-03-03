@@ -28,6 +28,10 @@ class AodhHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -48,13 +52,23 @@ class AodhHelm(openstack.OpenstackBaseHelm):
         return overrides
 
     def _get_conf_overrides(self):
-        return {
+        conf_overrides = {
             'aodh': {
                 'service_credentials': {
                     'region_name': self._region_name()
                 }
             }
         }
+        if self._is_openstack_https_ready():
+            conf_overrides = self._update_overrides(conf_overrides, {
+                'aodh': {
+                    'keystone_authtoken': {
+                        'cafile': self.get_ca_file()
+                    }
+                }
+            })
+
+        return conf_overrides
 
     def _get_endpoints_overrides(self):
         return {

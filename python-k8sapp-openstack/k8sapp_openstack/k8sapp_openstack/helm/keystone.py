@@ -37,6 +37,14 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {'secrets': self._get_secrets_overrides()}
+            )
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -295,3 +303,14 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
 
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)
+
+    def _get_secrets_overrides(self):
+        return {
+            'tls': {
+                'identity': {
+                    'api': {
+                        'internal': 'keystone-tls-public'
+                    }
+                }
+            }
+        }

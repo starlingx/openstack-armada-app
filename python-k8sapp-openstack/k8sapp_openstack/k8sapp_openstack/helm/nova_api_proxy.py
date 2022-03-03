@@ -18,6 +18,7 @@ class NovaApiProxyHelm(openstack.OpenstackBaseHelm):
 
     SERVICE_NAME = app_constants.HELM_CHART_NOVA_API_PROXY
     AUTH_USERS = ['nova']
+    SERVICE_USERS = ['neutron', 'placement']
 
     def get_overrides(self, namespace=None):
 
@@ -44,6 +45,18 @@ class NovaApiProxyHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {
+                    'conf': self._get_conf_overrides(),
+                    'secrets': self._get_secrets_overrides(),
+                }
+            )
+
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -59,7 +72,7 @@ class NovaApiProxyHelm(openstack.OpenstackBaseHelm):
         return {
             'identity': {
                 'auth': self._get_endpoints_identity_overrides(
-                    nova_service_name, self.AUTH_USERS),
+                    nova_service_name, self.AUTH_USERS, self.SERVICE_USERS),
             },
             'compute': {
                 'host_fqdn_override':
@@ -68,4 +81,24 @@ class NovaApiProxyHelm(openstack.OpenstackBaseHelm):
                 'port': self._get_endpoints_port_api_public_overrides(),
                 'scheme': self._get_endpoints_scheme_public_overrides(),
             },
+        }
+
+    def _get_conf_overrides(self):
+        return {
+            'nova_api_proxy': {
+                'keystone_authtoken': {
+                    'cafile': self.get_ca_file(),
+                },
+            }
+        }
+
+    def _get_secrets_overrides(self):
+        return {
+            'tls': {
+                'compute': {
+                    'api_proxy': {
+                        'public': 'nova-tls-public'
+                    }
+                }
+            }
         }

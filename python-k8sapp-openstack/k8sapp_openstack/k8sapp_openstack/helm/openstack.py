@@ -8,6 +8,12 @@ from eventlet.green import subprocess
 import base64
 import keyring
 import os
+# Adding a try-import as six 1.12.0 doesn't have this move and we are pinned
+# at the stein upper-requirements on tox.ini
+try:
+    from collections import abc as collections_abc
+except ImportError:  # Python 2.7-3.2
+    import collections as collections_abc
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -24,6 +30,7 @@ from sysinv.helm import base
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack import utils as app_utils
 
 
 LOG = log.getLogger(__name__)
@@ -218,19 +225,45 @@ class OpenstackBaseHelm(BaseHelm):
 
         return password.encode('utf8', 'strict')
 
-    def _get_endpoints_identity_overrides(self, service_name, users):
+    def _update_overrides(self, dictionary, updates):
+        for key, value in updates.items():
+            if isinstance(value, collections_abc.Mapping):
+                dictionary[key] = self._update_overrides(
+                    dictionary.get(key, {}),
+                    value
+                )
+            else:
+                dictionary[key] = value
+        return dictionary
+
+    def _get_endpoints_identity_overrides(self, service_name, users,
+                                          service_users=()):
         # Returns overrides for admin and individual users
         overrides = {}
         overrides.update(self._get_common_users_overrides(service_name))
 
-        for user in users:
+        for user in users + list(service_users):
             overrides.update({
                 user: {
                     'region_name': self._region_name(),
                     'password': self._get_or_generate_password(
-                        service_name, common.HELM_NS_OPENSTACK, user)
+                        # Service user passwords already exist in other chart overrides
+                        # Notice the use of username as 'chart' on
+                        # self._get_or_generate_password for SERVICE_USERS
+                        chart=user if user in service_users else service_name,
+                        namespace=common.HELM_NS_OPENSTACK,
+                        field=user)
                 }
             })
+
+            if self._is_openstack_https_ready():
+                overrides = self._update_overrides(overrides, {
+                    user: {
+                        'cacert': self.get_ca_file()
+                    }
+                })
+
+
         return overrides
 
     def _get_file_content(self, filename):
@@ -265,14 +298,7 @@ class OpenstackBaseHelm(BaseHelm):
                 'host': service_name + '.' + str(endpoint_domain.value).lower()
             })
 
-        # Get TLS certificate files if installed
-        cert = None
-        try:
-            cert = self.dbapi.certificate_get_by_certtype(
-                constants.CERT_MODE_OPENSTACK)
-        except exception.CertificateTypeNotFound:
-            pass
-        if cert is not None:
+        if self._is_openstack_https_ready():
             tls_overrides = self._get_endpoint_public_tls()
             if tls_overrides:
                 overrides['public'].update({
@@ -288,7 +314,7 @@ class OpenstackBaseHelm(BaseHelm):
 
     def _get_endpoints_scheme_public_overrides(self):
         overrides = {}
-        if self._https_enabled():
+        if self._is_openstack_https_ready():
             overrides = {
                 'public': 'https'
             }
@@ -296,7 +322,7 @@ class OpenstackBaseHelm(BaseHelm):
 
     def _get_endpoints_port_api_public_overrides(self):
         overrides = {}
-        if self._https_enabled():
+        if self._is_openstack_https_ready():
             overrides = {
                 'api': {
                     'public': 443
@@ -367,6 +393,14 @@ class OpenstackBaseHelm(BaseHelm):
                     'password': self._get_identity_password(o_service, o_user)
                 }
             })
+
+            if self._is_openstack_https_ready():
+                overrides = self._update_overrides(overrides, {
+                    user: {
+                        'cacert': self.get_ca_file()
+                    }
+                })
+
         return overrides
 
     def _get_ceph_password(self, service, user):
@@ -467,7 +501,7 @@ class OpenstackBaseHelm(BaseHelm):
         return override
 
     def _get_public_protocol(self):
-        return 'https' if self._https_enabled() else 'http'
+        return 'https' if self._is_openstack_https_ready() else 'http'
 
     def _get_service_default_dns_name(self, service):
         return "{}.{}.svc.{}".format(service, common.HELM_NS_OPENSTACK,
@@ -622,15 +656,16 @@ class OpenstackBaseHelm(BaseHelm):
         Returns true if the https_enabled flag is set to true and if the openstack, openstack_ca
         and ssl_ca certificates are installed in the system.
         """
-        cert_openstack, cert_openstack_ca, cert_ssl_ca = False, False, False
-        if self._https_enabled():
-            certificates = self.dbapi.certificate_get_list()
-            for certificate in certificates:
-                if certificate.certtype == constants.CERT_MODE_OPENSTACK:
-                    cert_openstack = True
-                elif certificate.certtype == constants.CERT_MODE_OPENSTACK_CA:
-                    cert_openstack_ca = True
-                elif certificate.certtype == constants.CERT_MODE_SSL_CA:
-                    cert_ssl_ca = True
+        return app_utils.is_openstack_https_ready(self)
 
-        return cert_openstack and cert_openstack_ca and cert_ssl_ca
+    @staticmethod
+    def get_ca_file():
+        return '/etc/ssl/certs/openstack-helm.crt'
+
+    def _enable_certificates(self, overrides):
+        overrides = self._update_overrides(overrides, {
+            'manifests': {
+                'certificates': True
+            }
+        })
+        return overrides

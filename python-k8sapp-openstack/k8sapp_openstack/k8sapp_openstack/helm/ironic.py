@@ -66,7 +66,14 @@ class IronicHelm(openstack.OpenstackBaseHelm):
         overrides = {
             'identity': {
                 'auth': self._get_endpoints_identity_overrides(
-                    self.SERVICE_NAME, self.AUTH_USERS),
+                    self.SERVICE_NAME, self.AUTH_USERS, self.SERVICE_USERS),
+            },
+            'baremetal': {
+                'host_fqdn_override':
+                    self._get_endpoints_host_fqdn_overrides(
+                        self.SERVICE_NAME),
+                'port': self._get_endpoints_port_api_public_overrides(),
+                'scheme': self._get_endpoints_scheme_public_overrides(),
             },
             'oslo_cache': {
                 'auth': {
@@ -83,16 +90,6 @@ class IronicHelm(openstack.OpenstackBaseHelm):
                     self.SERVICE_NAME, self.AUTH_USERS)
             },
         }
-
-        # Service user passwords already exist in other chart overrides
-        for user in self.SERVICE_USERS:
-            overrides['identity']['auth'].update({
-                user: {
-                    'region_name': self._region_name(),
-                    'password': self._get_or_generate_password(
-                        user, common.HELM_NS_OPENSTACK, user)
-                }
-            })
 
         return overrides
 

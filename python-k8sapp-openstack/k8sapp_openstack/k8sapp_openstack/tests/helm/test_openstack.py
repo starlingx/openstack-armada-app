@@ -8,7 +8,7 @@ import mock
 
 from oslo_utils import uuidutils
 
-from k8sapp_openstack.helm.openstack import OpenstackBaseHelm
+from k8sapp_openstack.helm import openstack
 from sysinv.common import constants
 from sysinv.helm import helm
 
@@ -19,12 +19,11 @@ class OpenstackBaseHelmTest(dbbase.ControllerHostTestCase):
     def setUp(self):
         super(OpenstackBaseHelmTest, self).setUp()
         self.operator = helm.HelmOperator(self.dbapi)
-        self.openstack = OpenstackBaseHelm(self.operator)
+        self.openstack = openstack.OpenstackBaseHelm(self.operator)
 
-    @mock.patch.object(OpenstackBaseHelm, "_https_enabled")
-    def test_is_openstack_https_ready_true(self, _https_enabled_mock):
-        _https_enabled_mock.side_effect = lambda: True
-
+    @mock.patch.object(openstack.OpenstackBaseHelm, "_https_enabled",
+                       return_value=True)
+    def test_is_openstack_https_ready_true(self, _):
         self.dbapi.certificate_create(
             {
                 "id": 1,
@@ -54,10 +53,9 @@ class OpenstackBaseHelmTest(dbbase.ControllerHostTestCase):
 
         self.assertTrue(self.openstack._is_openstack_https_ready())
 
-    @mock.patch.object(OpenstackBaseHelm, "_https_enabled")
-    def test_is_openstack_https_ready_false(self, _https_enabled_mock):
-        _https_enabled_mock.side_effect = lambda: True
-
+    @mock.patch.object(openstack.OpenstackBaseHelm, "_https_enabled",
+                       return_value=True)
+    def test_is_openstack_https_ready_false(self, _):
         self.dbapi.certificate_create(
             {
                 "id": 3,

@@ -84,6 +84,15 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {'conf': self._get_conf_overrides()}
+            )
+
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -311,7 +320,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         overrides = {
             'identity': {
                 'auth': self._get_endpoints_identity_overrides(
-                    self.SERVICE_NAME, self.AUTH_USERS),
+                    self.SERVICE_NAME, self.AUTH_USERS, self.SERVICE_USERS),
             },
             'network': {
                 'host_fqdn_override':
@@ -336,17 +345,24 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
             },
         }
 
-        # Service user passwords already exist in other chart overrides
-        for user in self.SERVICE_USERS:
-            overrides['identity']['auth'].update({
-                user: {
-                    'region_name': self._region_name(),
-                    'password': self._get_or_generate_password(
-                        user, common.HELM_NS_OPENSTACK, user)
-                }
-            })
-
         return overrides
 
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)
+
+    def _get_conf_overrides(self):
+        return {
+            'neutron': {
+                'keystone_authtoken': {
+                    'cafile': self.get_ca_file(),
+                },
+                'nova': {
+                    'cafile': self.get_ca_file(),
+                },
+            },
+            'metadata_agent': {
+                'DEFAULT': {
+                    'auth_ca_cert': self.get_ca_file(),
+                },
+            }
+        }

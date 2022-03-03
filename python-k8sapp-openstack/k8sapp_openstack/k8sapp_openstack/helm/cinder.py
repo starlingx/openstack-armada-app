@@ -79,6 +79,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -169,6 +173,12 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         if default:
             conf_cinder['DEFAULT']['default_volume_type'] = \
                 default.encode('utf8', 'strict')
+
+        if self._is_openstack_https_ready():
+            conf_cinder["keystone_authtoken"] = {
+                'cafile': self.get_ca_file()
+            }
+
 
         return conf_cinder
 
@@ -294,6 +304,11 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 'default_volume_type': 'ceph-store'
             },
         }
+
+        if self._is_openstack_https_ready():
+            conf_cinder["keystone_authtoken"] = {
+                'cafile': self.get_ca_file()
+            }
 
         return conf_cinder
 

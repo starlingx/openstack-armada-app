@@ -44,7 +44,10 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
                     }
                 }
             }
-            overrides[common.HELM_NS_OPENSTACK].update(config_override)
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                config_override
+            )
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]

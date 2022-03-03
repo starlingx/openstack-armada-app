@@ -33,6 +33,15 @@ class PlacementHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {'conf': self._get_conf_overrides()}
+            )
+
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -62,3 +71,12 @@ class PlacementHelm(openstack.OpenstackBaseHelm):
         }
 
         return overrides
+
+    def _get_conf_overrides(self):
+        return {
+            'placement': {
+                'keystone_authtoken': {
+                    'cafile': self.get_ca_file(),
+                },
+            }
+        }

@@ -50,10 +50,14 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
         manifests_overrides = {}
         if utils.is_virtual():
             manifests_overrides.update({'daemonset_ipmi': False})
+
+        if self._is_openstack_https_ready():
+            manifests_overrides.update({'certificates': True})
+
         return manifests_overrides
 
     def _get_conf_overrides(self):
-        return {
+        conf_overrides = {
             'ceilometer': {
                 'notification': {
                     'messaging_urls': {
@@ -65,6 +69,17 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
                 }
             }
         }
+
+        if self._is_openstack_https_ready():
+            conf_overrides = self._update_overrides(conf_overrides, {
+                'ceilometer': {
+                    'keystone_authtoken': {
+                        'cafile': self.get_ca_file(),
+                    },
+                }
+            })
+
+        return conf_overrides
 
     def _get_notification_messaging_urls(self):
         rabbit_user = 'rabbitmq-admin'
@@ -84,6 +99,13 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
             'identity': {
                 'auth': self._get_endpoints_identity_overrides(
                     self.SERVICE_NAME, self.AUTH_USERS),
+            },
+            'metering': {
+                'host_fqdn_override':
+                    self._get_endpoints_host_fqdn_overrides(
+                        self.SERVICE_NAME),
+                'port': self._get_endpoints_port_api_public_overrides(),
+                'scheme': self._get_endpoints_scheme_public_overrides(),
             },
             'oslo_cache': {
                 'auth': {

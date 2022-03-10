@@ -1821,8 +1821,6 @@ data:
           bind_host: "::"
         oslo_concurrency:
           lock_path: /var/run/neutron/lock
-        agent:
-          root_helper: sudo
         vhost:
           vhost_user_enabled: true
         keystone_authtoken:

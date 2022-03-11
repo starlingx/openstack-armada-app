@@ -654,6 +654,16 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        barbican:
+          enabled: true
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+            - key: openstack-compute-node
+              operator: Exists
+              effect: NoSchedule
     endpoints:
       oslo_messaging:
         statefulset:
@@ -750,6 +760,15 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        rgw:
+          tolerations:
+          - key: node-role.kubernetes.io/master
+            operator: Exists
+            effect: NoSchedule
+          - key: openstack-compute-node
+            operator: Exists
+            effect: NoSchedule
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/ceph-rgw-0.1.15.tgz
@@ -1903,6 +1922,16 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        ironic:
+          enabled: true
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+            - key: openstack-compute-node
+              operator: Exists
+              effect: NoSchedule
     labels:
       api:
         node_selector_key: openstack-ironic
@@ -2155,6 +2184,16 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        aodh:
+          enabled: true
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+            - key: openstack-compute-node
+              operator: Exists
+              effect: NoSchedule
     endpoints:
       oslo_messaging:
         statefulset:
@@ -2317,6 +2356,16 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        gnocchi:
+          enabled: true
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+            - key: openstack-compute-node
+              operator: Exists
+              effect: NoSchedule
     dependencies:
       static:
         db_sync:
@@ -2908,6 +2957,16 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      tolerations:
+        ceilometer:
+          enabled: true
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+            - key: openstack-compute-node
+              operator: Exists
+              effect: NoSchedule
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/ceilometer-0.2.1.tgz

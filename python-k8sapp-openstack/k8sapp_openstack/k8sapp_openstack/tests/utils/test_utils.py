@@ -8,22 +8,18 @@ import mock
 
 from oslo_utils import uuidutils
 
-from k8sapp_openstack.helm import openstack
 from sysinv.common import constants
-from sysinv.helm import helm
 
 from sysinv.tests.db import base as dbbase
 
+from k8sapp_openstack import utils as app_utils
 
-class OpenstackBaseHelmTest(dbbase.ControllerHostTestCase):
+
+class UtilsTest(dbbase.ControllerHostTestCase):
     def setUp(self):
-        super(OpenstackBaseHelmTest, self).setUp()
-        self.operator = helm.HelmOperator(self.dbapi)
-        self.openstack = openstack.OpenstackBaseHelm(self.operator)
+        super(UtilsTest, self).setUp()
 
-    @mock.patch.object(openstack.OpenstackBaseHelm, "_https_enabled",
-                       return_value=True)
-    def test_is_openstack_https_ready_true(self, _):
+    def test_is_openstack_https_certificates_ready(self):
         self.dbapi.certificate_create(
             {
                 "id": 1,
@@ -51,11 +47,9 @@ class OpenstackBaseHelmTest(dbbase.ControllerHostTestCase):
             }
         )
 
-        self.assertTrue(self.openstack._is_openstack_https_ready())
+        self.assertTrue(app_utils.is_openstack_https_certificates_ready())
 
-    @mock.patch.object(openstack.OpenstackBaseHelm, "_https_enabled",
-                       return_value=True)
-    def test_is_openstack_https_ready_false(self, _):
+    def test_is_openstack_https_certificates_ready_false(self):
         self.dbapi.certificate_create(
             {
                 "id": 3,
@@ -65,4 +59,14 @@ class OpenstackBaseHelmTest(dbbase.ControllerHostTestCase):
             }
         )
 
-        self.assertFalse(self.openstack._is_openstack_https_ready())
+        self.assertFalse(app_utils.is_openstack_https_certificates_ready())
+
+    @mock.patch('k8sapp_openstack.utils.https_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_certificates_ready', return_value=True)
+    def test_is_openstack_https_ready_true(self, *_):
+        self.assertTrue(app_utils.is_openstack_https_ready())
+
+    @mock.patch('k8sapp_openstack.utils.https_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_certificates_ready', return_value=False)
+    def test_is_openstack_https_ready_false(self, *_):
+        self.assertFalse(app_utils.is_openstack_https_ready())

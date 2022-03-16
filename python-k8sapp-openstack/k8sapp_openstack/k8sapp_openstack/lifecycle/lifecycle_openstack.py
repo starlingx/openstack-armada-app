@@ -19,6 +19,8 @@ from sysinv.helm import lifecycle_utils as lifecycle_utils
 from sysinv.helm import utils as helm_utils
 from sysinv.helm.lifecycle_constants import LifecycleConstants
 
+from k8sapp_openstack import utils as app_utils
+
 LOG = logging.getLogger(__name__)
 
 
@@ -287,6 +289,12 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                         trigger[LifecycleConstants.TRIGGER_TYPE],
                         LifecycleConstants.TRIGGER_CONFIGURE_REQUIRED))
 
+        # Evaluate https reapply semantic check
+        if self._semantic_check_openstack_https_not_ready():
+            raise exception.LifecycleSemanticCheckException(
+                "Https semantic check failed."
+            )
+
     def _pre_manual_apply_check(self, conductor_obj, app, hook_info):
         """Semantic check for evaluating app manual apply
 
@@ -307,3 +315,11 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 "Application-apply rejected: operation is not allowed "
                 "while the node {} not in {} state.".format(
                     active_controller.hostname, constants.VIM_SERVICES_ENABLED))
+
+    def _semantic_check_openstack_https_not_ready(self):
+        """Return True if OpenStack HTTPS is not ready for reapply.
+
+        :return: True when https flag is True and certificates are
+        not installed. Otherwise, False.
+        """
+        return app_utils.https_enabled() and not app_utils.is_openstack_https_certificates_ready()

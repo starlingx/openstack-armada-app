@@ -59,7 +59,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
-    @mock.patch.object(cinder.CinderHelm, "_https_enabled", return_value=True)
+    @mock.patch('k8sapp_openstack.utils.https_enabled', return_value=True)
     def test_cinder_overrides_https_enabled(self, *_):
         dbutils.create_test_host_fs(name='image-conversion',
                                     forihostid=self.host.id)

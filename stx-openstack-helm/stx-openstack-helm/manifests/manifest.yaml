@@ -733,15 +733,15 @@ data:
             public: 7480
     images:
       tags:
-        ceph_config_helper: docker.io/starlingx/ceph-config-helper:v1.15.0
+        ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
         ceph_rgw: null
         image_repo_sync: null
         ceph_bootstrap: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
-        rgw_placement_targets: docker.io/starlingx/ceph-config-helper:v1.15.0
-        rgw_s3_admin: docker.io/starlingx/ceph-config-helper:v1.15.0
+        rgw_placement_targets: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+        rgw_s3_admin: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -823,7 +823,7 @@ data:
         glance_api: docker.io/starlingx/stx-glance:master-centos-stable-latest
         glance_db_sync: docker.io/starlingx/stx-glance:master-centos-stable-latest
         glance_registry: docker.io/starlingx/stx-glance:master-centos-stable-latest
-        glance_storage_init: docker.io/starlingx/ceph-config-helper:v1.15.0
+        glance_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
         image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
@@ -944,10 +944,10 @@ data:
         bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
         cinder_api: docker.io/starlingx/stx-cinder:master-centos-stable-latest
         cinder_backup: docker.io/starlingx/stx-cinder:master-centos-stable-latest
-        cinder_backup_storage_init: docker.io/starlingx/ceph-config-helper:v1.15.0
+        cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
         cinder_db_sync: docker.io/starlingx/stx-cinder:master-centos-stable-latest
         cinder_scheduler: docker.io/starlingx/stx-cinder:master-centos-stable-latest
-        cinder_storage_init: docker.io/starlingx/ceph-config-helper:v1.15.0
+        cinder_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
         cinder_volume: docker.io/starlingx/stx-cinder:master-centos-stable-latest
         cinder_volume_usage_audit: docker.io/starlingx/stx-cinder:master-centos-stable-latest
         db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
@@ -1046,7 +1046,7 @@ data:
             effect: NoSchedule
     images:
       tags:
-        ceph_config_helper: docker.io/starlingx/ceph-config-helper:v1.15.0
+        ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
         image_repo_sync: null
         libvirt: docker.io/starlingx/stx-libvirt:master-centos-stable-latest
   source:
@@ -1213,10 +1213,10 @@ data:
         nova_novncproxy_assets: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_placement: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_scheduler: docker.io/starlingx/stx-nova:master-centos-stable-latest
-        nova_service_cleaner: docker.io/starlingx/ceph-config-helper:v1.15.0
+        nova_service_cleaner: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
         nova_spiceproxy: docker.io/starlingx/stx-nova:master-centos-stable-latest
         nova_spiceproxy_assets: docker.io/starlingx/stx-nova:master-centos-stable-latest
-        nova_storage_init: docker.io/starlingx/ceph-config-helper:v1.15.0
+        nova_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
         test: null
     pod:
       useHostNetwork:
@@ -2281,7 +2281,7 @@ data:
         gnocchi_metricd: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
         gnocchi_resources_cleaner: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
         gnocchi_statsd: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
-        gnocchi_storage_init: docker.io/starlingx/ceph-config-helper:v1.15.0
+        gnocchi_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
         image_repo_sync: null
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
         ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest

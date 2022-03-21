@@ -134,10 +134,12 @@ class HeatHelm(openstack.OpenstackBaseHelm):
             'tls': {
                 'orchestration': {
                     'api': {
-                        'internal': 'heat-tls-public'
+                        'internal': 'heat-tls-public',
                     },
+                },
+                'cloudformation': {
                     'cfn': {
-                        'internal': 'heat-tls-public'
+                        'internal': 'cloudformation-tls-public',
                     }
                 }
             }

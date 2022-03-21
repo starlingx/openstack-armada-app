@@ -175,6 +175,20 @@ class HeatGetOverrideTest(HeatHelmTestCase,
                     },
                 },
             },
+            'secrets': {
+                'tls': {
+                    'orchestration': {
+                        'api': {
+                            'internal': 'heat-tls-public',
+                        },
+                    },
+                    'cloudformation': {
+                        'cfn': {
+                            'internal': 'cloudformation-tls-public',
+                        },
+                    },
+                },
+            },
             'manifests': {
                 'certificates': True,
             },

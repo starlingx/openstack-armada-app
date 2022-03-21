@@ -47,8 +47,7 @@ class FmRestApiGetOverrideTest(FmRestApiHelmTestCase,
 
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
-    @mock.patch.object(fm_rest_api.FmRestApiHelm, "_https_enabled",
-                       return_value=True)
+    @mock.patch('k8sapp_openstack.utils.https_enabled', return_value=True)
     def test_fm_overrides_https_enabled(self, *_):
         self.dbapi.certificate_create(
             {

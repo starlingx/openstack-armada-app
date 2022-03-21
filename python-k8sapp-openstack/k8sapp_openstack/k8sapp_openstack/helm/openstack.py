@@ -656,7 +656,7 @@ class OpenstackBaseHelm(BaseHelm):
         Returns true if the https_enabled flag is set to true and if the openstack, openstack_ca
         and ssl_ca certificates are installed in the system.
         """
-        return app_utils.is_openstack_https_ready(self)
+        return app_utils.is_openstack_https_ready()
 
     @staticmethod
     def get_ca_file():

@@ -309,7 +309,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             'tls': {
                 'identity': {
                     'api': {
-                        'internal': 'keystone-tls-public'
+                        'internal': 'keystone-tls-public',
                     }
                 }
             }

@@ -1,0 +1,56 @@
+From 3b780510bee6e4af0e2ab98ca37202ec788b736a Mon Sep 17 00:00:00 2001
+From: Arthur Luz de Avila <arthur.luzdeavila@windriver.com>
+Date: Mon, 4 Apr 2022 09:44:44 -0300
+Subject: [PATCH] Decrease terminationGracePeriodSeconds on glance-api
+
+The glance-api pod has a terminationGracePeriodSeconds
+of 600s(10min) and the others services has 30s. This high
+terminationGracePeriodSeconds may cause timeout in some
+cases and there is no reason for this high
+terminationGracePeriodSeconds.
+The terminationGracePeriodSeconds has been introduced on
+https://review.opendev.org/c/openstack/openstack-helm/+/469974
+but there is no explanation why it is too high.
+
+Story: 2009959
+Task: 44926
+
+Signed-off-by: Arthur Luz de Avila <arthur.luzdeavila@windriver.com>
+Change-Id: I9f9092e48c4f4ecf5a145dc42dbafe4f96cfa91c
+---
+ glance/templates/deployment-api.yaml | 2 +-
+ glance/values.yaml                   | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/glance/templates/deployment-api.yaml b/glance/templates/deployment-api.yaml
+index 78e16715..360e8a88 100644
+--- a/glance/templates/deployment-api.yaml
++++ b/glance/templates/deployment-api.yaml
+@@ -54,7 +54,7 @@ spec:
+ {{ end }}
+       nodeSelector:
+         {{ .Values.labels.api.node_selector_key }}: {{ .Values.labels.api.node_selector_value }}
+-      terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.api.timeout | default "600" }}
++      terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.api.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "api" $mounts_glance_api_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+         - name: glance-perms
+diff --git a/glance/values.yaml b/glance/values.yaml
+index ea3dd8e5..b84b49eb 100644
+--- a/glance/values.yaml
++++ b/glance/values.yaml
+@@ -945,9 +945,9 @@ pod:
+         min_available: 0
+     termination_grace_period:
+       api:
+-        timeout: 600
++        timeout: 30
+       registry:
+-        timeout: 600
++        timeout: 30
+   resources:
+     enabled: false
+     api:
+-- 
+2.17.1
+

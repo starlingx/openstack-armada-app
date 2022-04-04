@@ -12,3 +12,4 @@
 0012-Replace-deprecated-Nova-VNC-configurations.patch
 0013-Remove-TLS-from-openstack-services.patch
 0014-Remove-mariadb-and-rabbit-tls.patch
+0015-Decrease-terminationGracePeriodSeconds-on-glance-api.patch

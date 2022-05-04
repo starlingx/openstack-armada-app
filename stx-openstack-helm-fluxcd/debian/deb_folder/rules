@@ -1,0 +1,42 @@
+#!/usr/bin/make -f
+# export DH_VERBOSE = 1
+
+export ROOT = debian/tmp
+export APP_FOLDER = $(ROOT)/usr/lib/application
+export FLUXCD_FOLDER = $(ROOT)/usr/lib/fluxcd
+export HELM_FOLDER = /usr/lib/helm
+export TOOLKIT_VERSION = 0.2.19
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Stage helm-toolkit in the local repo.
+	cp $(HELM_FOLDER)/helm-toolkit-$(TOOLKIT_VERSION).tgz helm-charts/
+	# Host a server for the helm charts.
+	chartmuseum --debug --port=8879 --context-path='/charts' --storage="local" \
+		--storage-local-rootdir="./helm-charts" &
+	sleep 2
+	helm repo add local http://localhost:8879/charts
+	# Create the TGZ file.
+	cd helm-charts && make nova-api-proxy
+	cd helm-charts && make pci-irq-affinity-agent
+	cd helm-charts && make garbd
+	cd helm-charts && make keystone-api-proxy
+	cd helm-charts && make fm-rest-api
+	cd helm-charts && make nginx-ports-control
+	cd helm-charts && make dcdbsync
+	cd helm-charts && make psp-rolebinding
+	# Terminate the helm chart server.
+	pkill chartmuseum
+	# Remove helm-toolkit. This will be packaged with openstack-helm-infra.
+	rm  helm-charts/helm-toolkit-$(TOOLKIT_VERSION).tgz
+
+override_dh_auto_install:
+	# Install the app tar file.
+	install -d -m 755 $(APP_FOLDER)
+	install -p -D -m 755 files/metadata.yaml $(APP_FOLDER)
+	install -d -m 755 $(ROOT)$(HELM_FOLDER)
+	install -p -D -m 755 helm-charts/*.tgz $(ROOT)$(HELM_FOLDER)
+	install -d -m 755 $(FLUXCD_FOLDER)
+	cp -p  manifests/* $(FLUXCD_FOLDER)

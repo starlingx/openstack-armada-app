@@ -3,7 +3,7 @@
 
 export ROOT = debian/tmp
 export APP_FOLDER = $(ROOT)/usr/lib/application
-export ARMADA_FOLDER = $(ROOT)/usr/lib/armada
+export FLUXCD_FOLDER = $(ROOT)/usr/lib/fluxcd
 export HELM_FOLDER = /usr/lib/helm
 export TOOLKIT_VERSION = 0.2.19
 
@@ -38,5 +38,5 @@ override_dh_auto_install:
 	install -p -D -m 755 files/metadata.yaml $(APP_FOLDER)
 	install -d -m 755 $(ROOT)$(HELM_FOLDER)
 	install -p -D -m 755 helm-charts/*.tgz $(ROOT)$(HELM_FOLDER)
-	install -d -m 755 $(ARMADA_FOLDER)
-	cp -pR manifests/*.yaml $(ARMADA_FOLDER)
+	install -d -m 755 $(FLUXCD_FOLDER)
+	cp -pR  manifests/* $(FLUXCD_FOLDER)

@@ -1,0 +1,42 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+kind: HelmRelease
+metadata:
+  name: ingress
+  labels:
+    chart_group: openstack-ingress
+spec:
+  releaseName: osh-openstack-ingress
+  chart:
+    spec:
+      chart: ingress
+      version: 0.2.3
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+      interval: 1m
+  interval: 5m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  dependsOn:
+    - name: openstack-psp-rolebinding
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: ingress-static-overrides
+      valuesKey: ingress-static-overrides.yaml
+    - kind: Secret
+      name: ingress-system-overrides
+      valuesKey: ingress-system-overrides.yaml
+...

@@ -1,0 +1,22 @@
+disabled_charts:
+- aodh
+- barbican
+- ceilometer
+- ceph-rgw
+- gnocchi
+- ironic
+behavior:
+  platform_managed_app: yes
+  evaluate_reapply:
+    after:
+      - platform-integ-apps
+    triggers:
+      - type: unlock
+      - type: force-unlock
+      - type: runtime-apply-puppet
+      - type: host-availability-updated
+        filters:
+          - availability: services-enabled
+      - type: host-delete
+        filters:
+          - openstack_worker: True

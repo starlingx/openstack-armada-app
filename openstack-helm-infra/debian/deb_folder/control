@@ -11,7 +11,7 @@ Homepage: https://www.starlingx.io
 
 Package: openstack-helm-infra
 Section: libs
-Architecture: any
+Architecture: all
 Depends: ${misc:Depends}
 Description: StarlingX Openstack Helm Infrastructure
  This package contains a patched version of the openstack-helm-infra

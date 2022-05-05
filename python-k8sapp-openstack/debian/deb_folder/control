@@ -13,7 +13,7 @@ Homepage: https://www.starlingx.io
 
 Package: python3-k8sapp-openstack
 Section: libs
-Architecture: any
+Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends}
 Description: StarlingX Sysinv Openstack Extensions
  This package contains sysinv plugins for the Openstack armada
@@ -21,7 +21,7 @@ Description: StarlingX Sysinv Openstack Extensions
 
 Package: python3-k8sapp-openstack-wheels
 Section: libs
-Architecture: any
+Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends}, python3-wheel
 Description: StarlingX Sysinv Openstack Extension Wheels
  This package contains python wheels for the Openstack armada

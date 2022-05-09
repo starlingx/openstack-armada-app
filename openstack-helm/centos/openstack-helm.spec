@@ -34,6 +34,7 @@ Patch12: 0012-Replace-deprecated-Nova-VNC-configurations.patch
 Patch13: 0013-Remove-TLS-from-openstack-services.patch
 Patch14: 0014-Remove-mariadb-and-rabbit-tls.patch
 Patch15: 0015-Decrease-terminationGracePeriodSeconds-on-glance-api.patch
+Patch16: 0016-Network-Resources-Cleanup-before-OpenStack-Removal.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -60,6 +61,7 @@ Openstack Helm charts
 %patch13 -p1
 %patch14 -p1
 %patch15 -p1
+%patch16 -p1
 
 %build
 # Stage helm-toolkit in the local repo

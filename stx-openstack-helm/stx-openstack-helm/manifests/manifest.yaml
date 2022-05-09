@@ -1636,6 +1636,8 @@ data:
     enabled: false
   install:
     no_hooks: false
+  delete:
+    timeout: 1800
   upgrade:
     no_hooks: false
     pre:
@@ -1791,6 +1793,7 @@ data:
         neutron_bagpipe_bgp: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_ironic_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
         neutron_netns_cleanup_cron: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+        neutron_resources_cleanup: docker.io/starlingx/stx-heat:master-centos-stable-latest
     network:
       interface:
         tunnel: docker0
@@ -4090,12 +4093,14 @@ data:
   description: "Deploy nova and neutron, as well as supporting services"
   sequenced: false
   chart_group:
-    - openstack-libvirt
-    - openstack-nova
-    - openstack-nova-api-proxy
-    - openstack-pci-irq-affinity-agent
-    - openstack-neutron
-    - openstack-placement
+  # Keep this sequence, because OpenStack is deleted on reverse deployment-sequence.
+  # The Neutron chart is the first one to be deleted due to the neutron resources cleanup job.
+  - openstack-libvirt
+  - openstack-placement
+  - openstack-nova
+  - openstack-nova-api-proxy
+  - openstack-pci-irq-affinity-agent
+  - openstack-neutron
 ---
 schema: armada/ChartGroup/v1
 metadata:

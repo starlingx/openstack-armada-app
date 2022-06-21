@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import mock
 
+import mock
 from oslo_utils import uuidutils
 from sysinv.common import constants
 from sysinv.helm import common
@@ -53,11 +53,11 @@ class NovaApiProxyGetOverrideTest(NovaApiProxyHelmTestCase,
             app_constants.HELM_CHART_NOVA_API_PROXY,
             cnamespace=common.HELM_NS_OPENSTACK)
 
-        self.assertEquals(
+        self.assertEqual(
             overrides_n_api_prx["endpoints"]["identity"]["auth"]["neutron"],
             overrides_neutron["endpoints"]["identity"]["auth"]["neutron"],
         )
-        self.assertEquals(
+        self.assertEqual(
             overrides_n_api_prx["endpoints"]["identity"]["auth"]["placement"],
             overrides_placement["endpoints"]["identity"]["auth"]["placement"],
         )

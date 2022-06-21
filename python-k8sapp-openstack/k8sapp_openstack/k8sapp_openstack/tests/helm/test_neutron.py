@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import mock
 
+import mock
 from oslo_utils import uuidutils
 from sysinv.common import constants
 from sysinv.helm import common
@@ -50,7 +50,7 @@ class NeutronGetOverrideTest(NeutronHelmTestCase,
             app_constants.HELM_CHART_NEUTRON,
             cnamespace=common.HELM_NS_OPENSTACK)
 
-        self.assertEquals(
+        self.assertEqual(
             overrides_nova["endpoints"]["identity"]["auth"]["nova"],
             overrides_neutron["endpoints"]["identity"]["auth"]["nova"],
         )

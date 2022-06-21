@@ -4,15 +4,15 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from k8sapp_openstack.common import constants as app_constants
-from k8sapp_openstack.helm import openstack
-
-import tsconfig.tsconfig as tsc
 from sysinv.common import constants
 from sysinv.common import exception
-from sysinv.common import utils
 from sysinv.common import storage_backend_conf
+from sysinv.common import utils
 from sysinv.helm import common
+from tsconfig import tsconfig as tsc
+
+from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.helm import openstack
 
 
 ROOK_CEPH_BACKEND_NAME = 'ceph-store'
@@ -178,7 +178,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             conf_cinder["keystone_authtoken"] = {
                 'cafile': self.get_ca_file()
             }
-
 
         return conf_cinder
 

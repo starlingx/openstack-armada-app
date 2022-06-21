@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import mock
 
+import mock
 from oslo_utils import uuidutils
 from sysinv.common import constants
 from sysinv.helm import common

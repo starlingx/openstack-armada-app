@@ -5,10 +5,9 @@
 #
 
 import mock
+from sysinv.tests.db import base as dbbase
 
 from k8sapp_openstack.lifecycle import lifecycle_openstack
-
-from sysinv.tests.db import base as dbbase
 
 
 class OpenstackAppLifecycleOperatorTest(dbbase.ControllerHostTestCase):

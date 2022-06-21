@@ -4,9 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from eventlet.green import subprocess
 import base64
-import keyring
 import os
 # Adding a try-import as six 1.12.0 doesn't have this move and we are pinned
 # at the stein upper-requirements on tox.ini
@@ -18,6 +16,8 @@ except ImportError:  # Python 2.7-3.2
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from eventlet.green import subprocess
+import keyring
 from oslo_log import log
 from oslo_serialization import jsonutils
 from sqlalchemy.orm.exc import NoResultFound
@@ -29,8 +29,8 @@ from sysinv.common.storage_backend_conf import K8RbdProvisioner
 from sysinv.helm import base
 from sysinv.helm import common
 
-from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack import utils as app_utils
+from k8sapp_openstack.common import constants as app_constants
 
 
 LOG = log.getLogger(__name__)
@@ -262,7 +262,6 @@ class OpenstackBaseHelm(BaseHelm):
                         'cacert': self.get_ca_file()
                     }
                 })
-
 
         return overrides
 

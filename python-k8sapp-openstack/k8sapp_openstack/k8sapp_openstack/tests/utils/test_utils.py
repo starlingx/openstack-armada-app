@@ -5,11 +5,8 @@
 #
 
 import mock
-
 from oslo_utils import uuidutils
-
 from sysinv.common import constants
-
 from sysinv.tests.db import base as dbbase
 
 from k8sapp_openstack import utils as app_utils

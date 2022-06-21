@@ -2,12 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# fmt:off
 import mock
-
-from k8sapp_openstack.armada.manifest_openstack import \
-    OpenstackArmadaManifestOperator
-from k8sapp_openstack.common import constants as app_constants
 from sysinv.common import constants
 from sysinv.helm import common
 from sysinv.tests.db import base as dbbase
@@ -15,7 +10,9 @@ from sysinv.tests.db import utils as dbutils
 from sysinv.tests.helm import base
 from sysinv.tests.helm.test_helm import HelmOperatorTestSuiteMixin
 
-# fmt:on
+from k8sapp_openstack.armada.manifest_openstack import OpenstackArmadaManifestOperator
+from k8sapp_openstack.common import constants as app_constants
+
 
 KEY_SCHEMA = "schema"
 KEY_METADATA = "metadata"

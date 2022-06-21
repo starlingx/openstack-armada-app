@@ -5,11 +5,11 @@
 #
 
 from oslo_log import log as logging
-from k8sapp_openstack.common import constants as app_constants
-from k8sapp_openstack.helm import openstack
-
 from sysinv.common import exception
 from sysinv.helm import common
+
+from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.helm import openstack
 
 LOG = logging.getLogger(__name__)
 
@@ -49,10 +49,10 @@ class PciIrqAffinityAgentHelm(openstack.OpenstackBaseHelm):
 
         overrides = {
             'identity': {
-              'auth': self._get_endpoints_identity_overrides(
-                  self.SERVICE_NAME,
-                  self.AUTH_USERS
-              ),
+                'auth': self._get_endpoints_identity_overrides(
+                    self.SERVICE_NAME,
+                    self.AUTH_USERS
+                ),
             },
             'rabbit': {
                 'rabbit_userid': nova_oslo_messaging_data['username'],

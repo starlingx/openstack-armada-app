@@ -7,6 +7,7 @@
         - k8sapp-openstack-tox-py36
         - k8sapp-openstack-tox-py39
         - k8sapp-openstack-tox-pylint
+        - k8sapp-openstack-tox-pep8
     gate:
       jobs:
         - openstack-tox-linters
@@ -96,6 +97,23 @@
       - python-k8sapp-openstack/*
     vars:
       tox_envlist: pylint
+      tox_extra_args: -c python-k8sapp-openstack/k8sapp_openstack/tox.ini
+
+- job:
+    name: k8sapp-openstack-tox-pep8
+    parent: tox
+    description: |
+      Run pep8 tests for k8sapp_openstack
+    nodeset: ubuntu-bionic
+    required-projects:
+      - starlingx/config
+      - starlingx/fault
+      - starlingx/update
+      - starlingx/utilities
+    files:
+      - python-k8sapp-openstack/*
+    vars:
+      tox_envlist: pep8
       tox_extra_args: -c python-k8sapp-openstack/k8sapp_openstack/tox.ini
 
 - secret:

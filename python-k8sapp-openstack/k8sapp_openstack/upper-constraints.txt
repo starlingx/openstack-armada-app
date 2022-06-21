@@ -1,4 +1,4 @@
-# Override upstream constraints based on StarlingX load
+# Override upstream constraints based on StarlingX CentOS load, do not use for Debian
 iso8601==0.1.12
 openstacksdk==0.27.1
 os-client-config==1.32.0

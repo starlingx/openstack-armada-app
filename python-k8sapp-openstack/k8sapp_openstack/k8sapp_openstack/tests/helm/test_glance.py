@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-import mock
 
+import mock
 from oslo_utils import uuidutils
 from sysinv.common import constants
 from sysinv.helm import common
@@ -40,9 +40,9 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
                 },
             },
             'storage': {},
-            'conf':  {},
-            'bootstrap':  {},
-            'ceph_client':  {},
+            'conf': {},
+            'bootstrap': {},
+            'ceph_client': {},
         })
 
     @mock.patch('os.path.exists', return_value=True)

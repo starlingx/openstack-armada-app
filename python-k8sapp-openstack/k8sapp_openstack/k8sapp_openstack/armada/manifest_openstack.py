@@ -1,4 +1,3 @@
-# vim: tabstop=4 shiftwidth=4 softtabstop=4
 #
 # Copyright (c) 2019-2021 Wind River Systems, Inc.
 #
@@ -9,11 +8,15 @@
 
 """ System inventory Armada manifest operator."""
 
-# fmt:off
-import os
 from copy import deepcopy
+import os
 
+from oslo_log import log as logging
 import ruamel.yaml as yaml
+from sysinv.common import constants
+from sysinv.common import exception
+from sysinv.helm import manifest_base as base
+
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm.aodh import AodhHelm
 from k8sapp_openstack.helm.barbican import BarbicanHelm
@@ -39,17 +42,12 @@ from k8sapp_openstack.helm.nginx_ports_control import NginxPortsControlHelm
 from k8sapp_openstack.helm.nova import NovaHelm
 from k8sapp_openstack.helm.nova_api_proxy import NovaApiProxyHelm
 from k8sapp_openstack.helm.openvswitch import OpenvswitchHelm
-from k8sapp_openstack.helm.pci_irq_affinity_agent import \
-    PciIrqAffinityAgentHelm
+from k8sapp_openstack.helm.pci_irq_affinity_agent import PciIrqAffinityAgentHelm
 from k8sapp_openstack.helm.placement import PlacementHelm
 from k8sapp_openstack.helm.psp_rolebinding import PSPRolebindingHelm
 from k8sapp_openstack.helm.rabbitmq import RabbitmqHelm
 from k8sapp_openstack.helm.swift import SwiftHelm
-from oslo_log import log as logging
-from sysinv.common import constants, exception
-from sysinv.helm import manifest_base as base
 
-# fmt:on
 
 KEY_SCHEMA = "schema"
 VAL_SCHEMA_CHART_GROUP = "armada/ChartGroup/v"

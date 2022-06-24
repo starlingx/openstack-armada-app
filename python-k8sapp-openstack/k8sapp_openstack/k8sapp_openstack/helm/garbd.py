@@ -21,6 +21,7 @@ class GarbdHelm(openstack.BaseHelm):
     # same docker image.
     SERVICE_NAME = app_constants.HELM_CHART_MARIADB
     CHART = app_constants.HELM_CHART_GARBD
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_GARBD
 
     def _is_enabled(self, app_name, chart_name, namespace):
         # First, see if this chart is enabled by the user then adjust based on
@@ -45,6 +46,12 @@ class GarbdHelm(openstack.BaseHelm):
             operator.chart_group_chart_delete(
                 operator.CHART_GROUPS_LUT[self.CHART],
                 operator.CHARTS_LUT[self.CHART])
+
+    def execute_kustomize_updates(self, operator):
+        # On application load this chart is enabled
+        if not self._is_enabled(operator.APP, self.CHART,
+                                common.HELM_NS_OPENSTACK):
+            operator.helm_release_resource_delete(self.CHART)
 
     def get_overrides(self, namespace=None):
         overrides = {

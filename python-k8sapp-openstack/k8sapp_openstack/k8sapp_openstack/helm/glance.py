@@ -23,6 +23,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the glance chart"""
 
     CHART = app_constants.HELM_CHART_GLANCE
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_GLANCE
 
     SERVICE_NAME = app_constants.HELM_CHART_GLANCE
     SERVICE_TYPE = 'image'

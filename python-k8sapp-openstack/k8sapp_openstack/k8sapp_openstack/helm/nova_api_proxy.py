@@ -15,6 +15,7 @@ class NovaApiProxyHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the nova chart"""
 
     CHART = app_constants.HELM_CHART_NOVA_API_PROXY
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_NOVA_API_PROXY
 
     SERVICE_NAME = app_constants.HELM_CHART_NOVA_API_PROXY
     AUTH_USERS = ['nova']

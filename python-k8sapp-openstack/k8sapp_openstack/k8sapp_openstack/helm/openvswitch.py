@@ -17,6 +17,7 @@ class OpenvswitchHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the openvswitch chart"""
 
     CHART = app_constants.HELM_CHART_OPENVSWITCH
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_OPENVSWITCH
 
     def _is_enabled(self, app_name, chart_name, namespace):
         # First, see if this chart is enabled by the user then adjust based on
@@ -37,6 +38,11 @@ class OpenvswitchHelm(openstack.OpenstackBaseHelm):
                 operator.CHART_GROUPS_LUT[self.CHART],
                 operator.CHARTS_LUT[self.CHART],
                 before_chart=operator.CHARTS_LUT[app_constants.HELM_CHART_NOVA])
+
+    def execute_kustomize_updates(self, operator):
+        if not self._is_enabled(operator.APP, self.CHART,
+                            common.HELM_NS_OPENSTACK):
+            operator.helm_release_resource_delete(self.CHART)
 
     def get_overrides(self, namespace=None):
         overrides = {

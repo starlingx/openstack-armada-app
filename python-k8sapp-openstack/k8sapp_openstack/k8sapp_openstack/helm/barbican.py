@@ -15,6 +15,7 @@ class BarbicanHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the barbican chart"""
 
     CHART = app_constants.HELM_CHART_BARBICAN
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_BARBICAN
     AUTH_USERS = ['barbican']
     SERVICE_NAME = app_constants.HELM_CHART_BARBICAN
 

@@ -16,6 +16,7 @@ class NginxPortsControlHelm(base.BaseHelm):
     """Class to encapsulate helm operations for nginx-ports-control chart"""
 
     CHART = app_constants.HELM_CHART_NGINX_PORTS_CONTROL
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_NGINX_PORTS_CONTROL
     SUPPORTED_NAMESPACES = \
         base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
 

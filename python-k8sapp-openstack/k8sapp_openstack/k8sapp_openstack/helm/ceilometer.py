@@ -16,6 +16,7 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the ceilometer chart"""
 
     CHART = app_constants.HELM_CHART_CEILOMETER
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_CEILOMETER
 
     SERVICE_NAME = app_constants.HELM_CHART_CEILOMETER
     AUTH_USERS = ['ceilometer']

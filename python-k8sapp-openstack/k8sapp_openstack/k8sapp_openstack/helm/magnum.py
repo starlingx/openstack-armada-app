@@ -15,6 +15,7 @@ class MagnumHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the magnum chart"""
 
     CHART = app_constants.HELM_CHART_MAGNUM
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_MAGNUM
 
     SERVICE_NAME = app_constants.HELM_CHART_MAGNUM
 

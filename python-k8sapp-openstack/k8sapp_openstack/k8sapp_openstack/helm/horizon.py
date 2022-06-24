@@ -18,6 +18,7 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
     CHART = app_constants.HELM_CHART_HORIZON
 
     SERVICE_NAME = app_constants.HELM_CHART_HORIZON
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_HORIZON
 
     AUTH_USERS = ["admin"]
 

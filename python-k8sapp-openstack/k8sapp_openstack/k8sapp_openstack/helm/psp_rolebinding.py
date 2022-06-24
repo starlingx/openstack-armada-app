@@ -15,6 +15,7 @@ class PSPRolebindingHelm(openstack.BaseHelm):
     """Class to encapsulate helm operations for the psp rolebinding chart"""
 
     CHART = app_constants.HELM_CHART_PSP_ROLEBINDING
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_PSP_ROLEBINDING
     SERVICE_NAME = 'psp-rolebinding'
 
     def get_overrides(self, namespace=None):

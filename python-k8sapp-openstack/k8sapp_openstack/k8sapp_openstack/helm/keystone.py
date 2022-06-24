@@ -21,6 +21,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the keystone chart"""
 
     CHART = app_constants.HELM_CHART_KEYSTONE
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_KEYSTONE
 
     SERVICE_NAME = app_constants.HELM_CHART_KEYSTONE
     SERVICE_PATH = '/v3'

@@ -15,6 +15,7 @@ class SwiftHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the swift chart"""
 
     CHART = app_constants.HELM_CHART_SWIFT
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_SWIFT
 
     SERVICE_NAME = 'swift'
     SERVICE_TYPE = 'object-store'

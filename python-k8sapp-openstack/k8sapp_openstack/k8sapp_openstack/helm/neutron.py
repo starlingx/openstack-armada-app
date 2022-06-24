@@ -23,6 +23,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the neutron chart"""
 
     CHART = app_constants.HELM_CHART_NEUTRON
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_NEUTRON
 
     SERVICE_NAME = app_constants.HELM_CHART_NEUTRON
     AUTH_USERS = ['neutron']

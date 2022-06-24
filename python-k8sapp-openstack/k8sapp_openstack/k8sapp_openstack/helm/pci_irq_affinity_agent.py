@@ -18,6 +18,7 @@ class PciIrqAffinityAgentHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the PCI IRQ affinity agent chart"""
 
     CHART = app_constants.HELM_CHART_PCI_IRQ_AFFINITY_AGENT
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_PCI_IRQ_AFFINITY_AGENT
     AUTH_USERS = ['pci-irq-affinity-agent']
     SERVICE_NAME = app_constants.HELM_CHART_PCI_IRQ_AFFINITY_AGENT
 

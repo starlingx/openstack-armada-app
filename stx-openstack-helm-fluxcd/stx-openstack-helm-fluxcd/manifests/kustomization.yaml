@@ -23,4 +23,11 @@ resources:
   - glance
   - cinder
   - ceph-rgw
+  - placement
+  - nova
+  - nova-api-proxy
+  - neutron
+  - libvirt
+  - pci-irq-affinity-agent
+  - openvswitch
 ...

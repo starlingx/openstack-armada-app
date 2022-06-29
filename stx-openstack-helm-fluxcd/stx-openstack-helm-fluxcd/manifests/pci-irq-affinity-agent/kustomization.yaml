@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: pci-irq-affinity-agent-static-overrides
+    files:
+      - pci-irq-affinity-agent-static-overrides.yaml
+  - name: pci-irq-affinity-agent-system-overrides
+    files:
+      - pci-irq-affinity-agent-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

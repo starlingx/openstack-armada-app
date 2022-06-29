@@ -1,0 +1,41 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+kind: HelmRelease
+metadata:
+  name: libvirt
+  labels:
+    chart_group: openstack-libvirt
+spec:
+  releaseName: osh-openstack-libvirt
+  chart:
+    spec:
+      chart: libvirt
+      version: 0.1.7
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 5m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  dependsOn:
+    - name: placement
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: libvirt-static-overrides
+      valuesKey: libvirt-static-overrides.yaml
+    - kind: Secret
+      name: libvirt-system-overrides
+      valuesKey: libvirt-system-overrides.yaml
+...

@@ -28,6 +28,11 @@ resources:
   - nova-api-proxy
   - neutron
   - libvirt
-  - pci-irq-affinity-agent
   - openvswitch
+  - pci-irq-affinity-agent
+  - heat
+  - fm-rest-api
+  - horizon
+  - dcdbsync
+  - ironic
 ...

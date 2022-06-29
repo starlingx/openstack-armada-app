@@ -1,0 +1,41 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+kind: HelmRelease
+metadata:
+  name: horizon
+  labels:
+    chart_group: openstack-horizon
+spec:
+  releaseName: osh-openstack-horizon
+  chart:
+    spec:
+      chart: horizon
+      version: 0.2.10
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 5m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  dependsOn:
+    - name: fm-rest-api
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: horizon-static-overrides
+      valuesKey: horizon-static-overrides.yaml
+    - kind: Secret
+      name: horizon-system-overrides
+      valuesKey: horizon-system-overrides.yaml
+...

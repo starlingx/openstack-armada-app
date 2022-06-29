@@ -1,0 +1,139 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-gnocchi
+images:
+  tags:
+    db_init: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
+    db_init_indexer: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
+    db_sync: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
+    gnocchi_api: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
+    gnocchi_metricd: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
+    gnocchi_resources_cleaner: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
+    gnocchi_statsd: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
+    gnocchi_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    image_repo_sync: null
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+conf:
+  gnocchi:
+    indexer:
+      driver: mariadb
+    keystone_authtoken:
+      interface: internal
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+  apache: |
+    Listen :::{{ tuple "metric" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+    SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+    CustomLog /dev/stdout combined env=!forwarded
+    CustomLog /dev/stdout proxy env=forwarded
+    WSGISocketPrefix /var/run/httpd/wsgi
+
+    <VirtualHost *:{{ tuple "metric" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+        WSGIDaemonProcess gnocchi processes=1 threads=2 user=gnocchi group=gnocchi display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
+        WSGIProcessGroup gnocchi
+        WSGIScriptAlias / "/var/lib/openstack/bin/gnocchi-api"
+        WSGIApplicationGroup %{GLOBAL}
+
+        ErrorLog /dev/stdout
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+
+        <Directory "/var/lib/openstack/bin">
+              Require all granted
+        </Directory>
+    </VirtualHost>
+  paste:
+    composite:gnocchi+basic:
+      use: egg:Paste#urlmap
+      /: gnocchiversions_pipeline
+      /v1: gnocchiv1+noauth
+      /healthcheck: healthcheck
+    composite:gnocchi+keystone:
+      use: egg:Paste#urlmap
+      /: gnocchiversions_pipeline
+      /v1: gnocchiv1+keystone
+      /healthcheck: healthcheck
+    composite:gnocchi+remoteuser:
+      use: egg:Paste#urlmap
+      /: gnocchiversions_pipeline
+      /v1: gnocchiv1+noauth
+      /healthcheck: healthcheck
+    pipeline:gnocchiv1+noauth:
+      pipeline: gnocchiv1
+    pipeline:gnocchiv1+keystone:
+      pipeline: keystone_authtoken gnocchiv1
+    pipeline:gnocchiversions_pipeline:
+      pipeline: gnocchiversions
+    app:gnocchiversions:
+      paste.app_factory: gnocchi.rest.app:app_factory
+      root: gnocchi.rest.api.VersionsController
+    app:gnocchiv1:
+      paste.app_factory: gnocchi.rest.app:app_factory
+      root: gnocchi.rest.api.V1Controller
+    filter:keystone_authtoken:
+      use: egg:keystonemiddleware#auth_token
+      oslo_config_project: gnocchi
+    app:healthcheck:
+      use: egg:oslo.middleware#healthcheck
+      oslo_config_project: gnocchi
+pod:
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    gnocchi:
+      enabled: true
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: openstack-compute-node
+          operator: Exists
+          effect: NoSchedule
+dependencies:
+  static:
+    db_sync:
+      jobs:
+        - gnocchi-storage-init
+        - gnocchi-db-init
+      services:
+        - endpoint: internal
+          service: oslo_db
+    metricd:
+      services:
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: oslo_cache
+        - endpoint: internal
+          service: metric
+    tests:
+      services:
+        - endpoint: internal
+          service: identity
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: metric
+manifests:
+  daemonset_statsd: false
+  job_db_init_indexer: false
+  secret_db_indexer: false
+  service_statsd: false
+endpoints:
+  oslo_cache:
+    hosts:
+      default: memcached
+  identity:
+    force_public_endpoint: true
+...

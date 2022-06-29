@@ -1,0 +1,41 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+kind: HelmRelease
+metadata:
+  name: ceilometer
+  labels:
+    chart_group: openstack-ceilometer
+spec:
+  releaseName: osh-openstack-ceilometer
+  chart:
+    spec:
+      chart: ceilometer
+      version: 0.2.1
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 5m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  dependsOn:
+    - name: horizon
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: ceilometer-static-overrides
+      valuesKey: ceilometer-static-overrides.yaml
+    - kind: Secret
+      name: ceilometer-system-overrides
+      valuesKey: ceilometer-system-overrides.yaml
+...

@@ -1,0 +1,41 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+kind: HelmRelease
+metadata:
+  name: aodh
+  labels:
+    chart_group: openstack-aodh
+spec:
+  releaseName: osh-openstack-aodh
+  chart:
+    spec:
+      chart: aodh
+      version: 0.2.1
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 5m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  dependsOn:
+    - name: horizon
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: aodh-static-overrides
+      valuesKey: aodh-static-overrides.yaml
+    - kind: Secret
+      name: aodh-system-overrides
+      valuesKey: aodh-system-overrides.yaml
+...

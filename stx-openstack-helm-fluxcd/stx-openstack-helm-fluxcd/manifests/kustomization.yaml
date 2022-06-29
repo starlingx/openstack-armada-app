@@ -20,4 +20,7 @@ resources:
   - barbican
   - keystone
   - keystone-api-proxy
+  - glance
+  - cinder
+  - ceph-rgw
 ...

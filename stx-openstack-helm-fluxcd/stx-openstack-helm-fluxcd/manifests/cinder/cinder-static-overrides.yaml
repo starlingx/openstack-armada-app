@@ -1,0 +1,80 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-cinder
+labels:
+  api:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  backup:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  scheduler:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  volume:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+images:
+  tags:
+    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    cinder_api: docker.io/starlingx/stx-cinder:master-centos-stable-latest
+    cinder_backup: docker.io/starlingx/stx-cinder:master-centos-stable-latest
+    cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    cinder_db_sync: docker.io/starlingx/stx-cinder:master-centos-stable-latest
+    cinder_scheduler: docker.io/starlingx/stx-cinder:master-centos-stable-latest
+    cinder_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    cinder_volume: docker.io/starlingx/stx-cinder:master-centos-stable-latest
+    cinder_volume_usage_audit: docker.io/starlingx/stx-cinder:master-centos-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    image_repo_sync: null
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    test: null
+pod:
+  replicas:
+    api: 2
+    volume: 1
+    scheduler: 1
+    backup: 1
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    cinder:
+      enabled: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+endpoints:
+  oslo_messaging:
+    statefulset:
+      name: osh-openstack-rabbitmq-rabbitmq
+  identity:
+    force_public_endpoint: true
+conf:
+  cinder:
+    DEFAULT:
+      backup_driver: cinder.backup.drivers.ceph.CephBackupDriver
+      osapi_volume_listen: "::"
+      glance_api_servers: http://glance.openstack.svc.cluster.local:80/
+    keystone_authtoken:
+      interface: internal
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+storage: rbd
+...

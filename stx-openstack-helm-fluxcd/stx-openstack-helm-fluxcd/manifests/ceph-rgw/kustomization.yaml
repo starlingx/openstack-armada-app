@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: ceph-rgw-static-overrides
+    files:
+      - ceph-rgw-static-overrides.yaml
+  - name: ceph-rgw-system-overrides
+    files:
+      - ceph-rgw-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

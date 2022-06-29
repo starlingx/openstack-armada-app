@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: barbican-static-overrides
+    files:
+      - barbican-static-overrides.yaml
+  - name: barbican-system-overrides
+    files:
+      - barbican-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

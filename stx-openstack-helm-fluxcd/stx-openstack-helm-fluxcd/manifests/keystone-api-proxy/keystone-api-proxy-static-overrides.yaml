@@ -1,0 +1,22 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-keystone-api-proxy
+endpoints:
+  identity:
+    force_public_endpoint: true
+images:
+  tags:
+    keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+conf:
+  keystone_api_proxy:
+    identity:
+      bind_host: "::"
+      remote_host: keystone.openstack.svc.cluster.local
+      remote_port: 80
+...

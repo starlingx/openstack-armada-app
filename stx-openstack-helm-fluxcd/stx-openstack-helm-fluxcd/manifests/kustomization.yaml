@@ -17,4 +17,7 @@ resources:
   - garbd
   - memcached
   - rabbitmq
+  - barbican
+  - keystone
+  - keystone-api-proxy
 ...

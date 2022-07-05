@@ -1,0 +1,49 @@
+From 9d324a8f04154ad5f2a5f0271b62d6a6f6f5686b Mon Sep 17 00:00:00 2001
+From: Rafael Falcao <rafael.vieirafalcao@windriver.com>
+Date: Mon, 18 Jul 2022 11:26:46 -0300
+Subject: [PATCH] Update RBAC authorization api to v1
+
+This change patches the correct apiVersion for RBAC authorization resources
+to work correctly when stx-openstack is applied on stx with kubernetes 1.22+
+running [1]. This fix is part of the solution of the problem described in [2].
+
+Test Plan:
+PASS - Build stx-openstack armada tarball (CentOS)
+PASS - Upload stx-openstack on Stx7.0/master build
+PASS - Apply stx-openstck on a Stx7.0/master build
+PASS - Ensure that nova related pods are up
+
+[1] https://kubernetes.io/docs/reference/using-api/deprecation-guide/#rbac-resources-v122
+[2] https://bugs.launchpad.net/starlingx/+bug/1980397
+
+Signed-off-by: Rafael Falcao <rafael.vieirafalcao@windriver.com>
+Change-Id: I1c62e24d6baf34953770336f18b4f185cdf33139
+---
+ nova/templates/job-storage-init.yaml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/nova/templates/job-storage-init.yaml b/nova/templates/job-storage-init.yaml
+index f3850b4b..e79b05ea 100644
+--- a/nova/templates/job-storage-init.yaml
++++ b/nova/templates/job-storage-init.yaml
+@@ -18,7 +18,7 @@ limitations under the License.
+ {{- $serviceAccountName := "nova-storage-init" }}
+ {{ tuple $envAll "storage_init" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+ ---
+-apiVersion: rbac.authorization.k8s.io/v1beta1
++apiVersion: rbac.authorization.k8s.io/v1
+ kind: Role
+ metadata:
+   name: {{ $serviceAccountName }}
+@@ -33,7 +33,7 @@ rules:
+       - update
+       - patch
+ ---
+-apiVersion: rbac.authorization.k8s.io/v1beta1
++apiVersion: rbac.authorization.k8s.io/v1
+ kind: RoleBinding
+ metadata:
+   name: {{ $serviceAccountName }}
+-- 
+2.25.1
+

@@ -32,6 +32,7 @@ Patch20: 0020-Fix-tls-in-openstack-helm-infra.patch
 Patch21: 0021-Remove-mariadb-tls.patch
 Patch22: 0022-Remove-rabbitmq-tls.patch
 Patch23: 0023-Update-RabbitMQ-probes.patch
+Patch24: 0024-Update-openstack-Ingress-for-networking-api-v1.patch
 
 BuildRequires: helm
 BuildRequires: chartmuseum
@@ -58,6 +59,7 @@ Openstack Helm Infra charts
 %patch21 -p1
 %patch22 -p1
 %patch23 -p1
+%patch24 -p1
 
 %build
 # Host a server for the charts

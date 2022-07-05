@@ -1,0 +1,604 @@
+From 04ef9a7ff789aeda4e2e80ae6bc70beb80507d6b Mon Sep 17 00:00:00 2001
+From: Rafael Falcao <rafael.vieirafalcao@windriver.com>
+Date: Mon, 18 Jul 2022 09:42:01 -0300
+Subject: [PATCH] Update openstack Ingress for networking api v1
+
+This change patches the correct apiVersion for Ingress resources created
+by the openstack ingress chart to work correctly when stx-openstack is
+applied on stx with kubernetes 1.22+ running, fixing the problem
+described in [1].
+
+Same applies to spec changes that need to be done according to
+io.k8s.api.networking.v1.IngressBackend documentation.
+
+It could be done by upversioning openstack-helm-infra to its latest
+commit (currently 1147988b8eba6ab7d1e7af262843f641be6657ff) but this
+upversion has a different series of complications that are being
+discussed in [2]
+
+[1] https://bugs.launchpad.net/starlingx/+bug/1980397
+[2] https://review.opendev.org/c/starlingx/openstack-armada-app/+/848336
+
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+Co-authored-by: Rafael Falcao <rafael.vieirafalcao@windriver.com>
+Change-Id: I0bbecc097fdafdf5ebbc3a164b80ba903b5623f2
+---
+ helm-toolkit/templates/manifests/_ingress.tpl | 180 ++++++++++++------
+ ingress/templates/deployment-ingress.yaml     |   3 +-
+ ingress/templates/ingress.yaml                |  18 +-
+ ingress/values.yaml                           |   2 +-
+ mariadb/files/nginx.tmpl                      |  38 ++--
+ mariadb/templates/deployment-ingress.yaml     |   4 +-
+ mariadb/values.yaml                           |   2 +-
+ 7 files changed, 172 insertions(+), 75 deletions(-)
+
+diff --git a/helm-toolkit/templates/manifests/_ingress.tpl b/helm-toolkit/templates/manifests/_ingress.tpl
+index 2d62a170..c1693aa4 100644
+--- a/helm-toolkit/templates/manifests/_ingress.tpl
++++ b/helm-toolkit/templates/manifests/_ingress.tpl
+@@ -62,7 +62,7 @@ examples:
+       {{- include "helm-toolkit.manifests.ingress" ( dict "envAll" . "backendServiceType" "key-manager" "backendPort" "b-api" "endpoint" "public" ) -}}
+     return: |
+       ---
+-      apiVersion: networking.k8s.io/v1beta1
++      apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+         name: barbican
+@@ -76,25 +76,34 @@ examples:
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+           - host: barbican.default
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+           - host: barbican.default.svc.cluster.local
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+       ---
+-      apiVersion: networking.k8s.io/v1beta1
++      apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+         name: barbican-namespace-fqdn
+@@ -112,11 +121,14 @@ examples:
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+       ---
+-      apiVersion: networking.k8s.io/v1beta1
++      apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+         name: barbican-cluster-fqdn
+@@ -134,9 +146,12 @@ examples:
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+   - values: |
+       network:
+         api:
+@@ -182,7 +197,7 @@ examples:
+       {{- include "helm-toolkit.manifests.ingress" ( dict "envAll" . "backendServiceType" "key-manager" "backendPort" "b-api" "endpoint" "public" ) -}}
+     return: |
+       ---
+-      apiVersion: networking.k8s.io/v1beta1
++      apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+         name: barbican
+@@ -202,23 +217,32 @@ examples:
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+           - host: barbican.default
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+           - host: barbican.default.svc.cluster.local
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+   - values: |
+       cert_issuer_type: issuer
+       network:
+@@ -273,7 +297,7 @@ examples:
+       {{- include "helm-toolkit.manifests.ingress" ( dict "envAll" . "backendServiceType" "key-manager" "backendPort" "b-api" "endpoint" "public" "certIssuer" "ca-issuer" ) -}}
+     return: |
+       ---
+-      apiVersion: networking.k8s.io/v1beta1
++      apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+         name: barbican
+@@ -295,23 +319,32 @@ examples:
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+           - host: barbican.default
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+           - host: barbican.default.svc.cluster.local
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+ 
+   - values: |
+       network:
+@@ -366,7 +399,7 @@ examples:
+       {{- include "helm-toolkit.manifests.ingress" ( dict "envAll" . "backendServiceType" "key-manager" "backendPort" "b-api" "endpoint" "public" "certIssuer" "ca-issuer") -}}
+     return: |
+       ---
+-      apiVersion: networking.k8s.io/v1beta1
++      apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+         name: barbican
+@@ -388,23 +421,32 @@ examples:
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+           - host: barbican.default
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+           - host: barbican.default.svc.cluster.local
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: barbican-api
+-                    servicePort: b-api
++                    service:
++                      name: barbican-api
++                      port:
++                        name: b-api
+   # Sample usage for multiple DNS names associated with the same public
+   # endpoint and certificate
+   - values: |
+@@ -441,7 +483,7 @@ examples:
+       {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
+     return: |
+       ---
+-      apiVersion: networking.k8s.io/v1beta1
++      apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+         name: grafana
+@@ -455,25 +497,34 @@ examples:
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: grafana-dashboard
+-                    servicePort: dashboard
++                    service:
++                      name: grafana-dashboard
++                      port:
++                        name: dashboard
+           - host: grafana.default
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: grafana-dashboard
+-                    servicePort: dashboard
++                    service:
++                      name: grafana-dashboard
++                      port:
++                        name: dashboard
+           - host: grafana.default.svc.cluster.local
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: grafana-dashboard
+-                    servicePort: dashboard
++                    service:
++                      name: grafana-dashboard
++                      port:
++                        name: dashboard
+       ---
+-      apiVersion: networking.k8s.io/v1beta1
++      apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+         name: grafana-namespace-fqdn
+@@ -492,18 +543,24 @@ examples:
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: grafana-dashboard
+-                    servicePort: dashboard
++                    service:
++                      name: grafana-dashboard
++                      port:
++                        name: dashboard
+           - host: grafana-alt.openstackhelm.example
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: grafana-dashboard
+-                    servicePort: dashboard
++                    service:
++                      name: grafana-dashboard
++                      port:
++                        name: dashboard
+       ---
+-      apiVersion: networking.k8s.io/v1beta1
++      apiVersion: networking.k8s.io/v1
+       kind: Ingress
+       metadata:
+         name: grafana-cluster-fqdn
+@@ -522,16 +579,22 @@ examples:
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: grafana-dashboard
+-                    servicePort: dashboard
++                    service:
++                      name: grafana-dashboard
++                      port:
++                        name: dashboard
+           - host: grafana-alt.openstackhelm.example
+             http:
+               paths:
+                 - path: /
++                  pathType: ImplementationSpecific
+                   backend:
+-                    serviceName: grafana-dashboard
+-                    servicePort: dashboard
++                    service:
++                      name: grafana-dashboard
++                      port:
++                        name: dashboard
+ 
+ */}}
+ 
+@@ -543,9 +606,16 @@ examples:
+   http:
+     paths:
+       - path: /
++        pathType: ImplementationSpecific
+         backend:
+-          serviceName: {{ $backendName }}
+-          servicePort: {{ $backendPort }}
++          service:
++            name: {{ $backendName }}
++            port:
++{{- if or (kindIs "int" $backendPort) (regexMatch "^[0-9]{1,5}$" $backendPort) }}
++              number: {{ $backendPort | int }}
++{{- else }}
++              name: {{ $backendPort | quote }}
++{{- end }}
+ {{- end }}
+ 
+ {{- define "helm-toolkit.manifests.ingress" -}}
+@@ -564,7 +634,7 @@ examples:
+ {{- $certIssuerType = $envAll.Values.cert_issuer_type }}
+ {{- end }}
+ ---
+-apiVersion: networking.k8s.io/v1beta1
++apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+   name: {{ $ingressName }}
+@@ -618,7 +688,7 @@ spec:
+ {{- range $key2, $ingressController := tuple "namespace" "cluster" }}
+ {{- $vHosts := list $hostNameFull }}
+ ---
+-apiVersion: networking.k8s.io/v1beta1
++apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+   name: {{ printf "%s-%s-%s" $ingressName $ingressController "fqdn" }}
+diff --git a/ingress/templates/deployment-ingress.yaml b/ingress/templates/deployment-ingress.yaml
+index 780af3a3..508e58ed 100644
+--- a/ingress/templates/deployment-ingress.yaml
++++ b/ingress/templates/deployment-ingress.yaml
+@@ -68,6 +68,7 @@ rules:
+       - "networking.k8s.io"
+     resources:
+       - ingresses
++      - ingressclasses
+     verbs:
+       - get
+       - list
+@@ -113,7 +114,7 @@ rules:
+     resources:
+       - configmaps
+     resourceNames:
+-      - {{ printf "%s-%s" .Release.Name .Values.conf.controller.INGRESS_CLASS | quote }}
++      - {{ printf "%s" .Release.Name | quote }}
+     verbs:
+       - get
+       - update
+diff --git a/ingress/templates/ingress.yaml b/ingress/templates/ingress.yaml
+index ecc275e8..3c39f180 100644
+--- a/ingress/templates/ingress.yaml
++++ b/ingress/templates/ingress.yaml
+@@ -16,10 +16,13 @@ limitations under the License.
+ {{- $envAll := . }}
+ {{- if eq .Values.deployment.mode "namespace" }}
+ {{- if empty (index .Values.network.ingress.annotations "kubernetes.io/ingress.class") -}}
+-{{- $_ := set .Values.network.ingress.annotations "kubernetes.io/ingress.class" .Values.deployment.cluster.class -}}
++{{- $ingressClassName := "nginx" -}}
++{{- $_ := set .Values.network.ingress.annotations "kubernetes.io/ingress.class" $ingressClassName -}}
+ {{- end -}}
++{{- $serviceName := tuple "ingress" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" -}}
++{{- $servicePort := tuple "ingress" "internal" "http" . | include "helm-toolkit.endpoints.endpoint_port_lookup" -}}
+ ---
+-apiVersion: networking.k8s.io/v1beta1
++apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
+   name: {{ .Release.Namespace }}-{{ .Release.Name }}
+@@ -31,8 +34,15 @@ spec:
+     http:
+       paths:
+       - path: /
++        pathType: ImplementationSpecific
+         backend:
+-          serviceName: {{ tuple "ingress" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
+-          servicePort: {{ tuple "ingress" "internal" "http" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++          service:
++            name: {{ $serviceName }}
++            port:
++{{- if or (kindIs "int" $servicePort) (regexMatch "^[0-9]{1,5}$" $servicePort) }}
++              number: {{ $servicePort | int }}
++{{- else }}
++              name: {{ $servicePort | quote }}
++{{- end }}
+ {{- end }}
+ {{- end }}
+diff --git a/ingress/values.yaml b/ingress/values.yaml
+index c326c15a..d966f7f3 100644
+--- a/ingress/values.yaml
++++ b/ingress/values.yaml
+@@ -25,7 +25,7 @@ deployment:
+ images:
+   tags:
+     entrypoint: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
+-    ingress: k8s.gcr.io/ingress-nginx/controller:v0.42.0
++    ingress: k8s.gcr.io/ingress-nginx/controller:v1.1.1
+     ingress_module_init: docker.io/openstackhelm/neutron:stein-ubuntu_bionic
+     ingress_routed_vip: docker.io/openstackhelm/neutron:stein-ubuntu_bionic
+     error_pages: k8s.gcr.io/defaultbackend:1.4
+diff --git a/mariadb/files/nginx.tmpl b/mariadb/files/nginx.tmpl
+index fc069b2f..aec6efa3 100644
+--- a/mariadb/files/nginx.tmpl
++++ b/mariadb/files/nginx.tmpl
+@@ -280,12 +280,21 @@ http {
+     client_header_buffer_size       {{ $cfg.ClientHeaderBufferSize }};
+     client_header_timeout           {{ $cfg.ClientHeaderTimeout }}s;
+     large_client_header_buffers     {{ $cfg.LargeClientHeaderBuffers }};
+-    client_body_buffer_size         {{ $cfg.ClientBodyBufferSize }};
++    # NOTE: obsolete directive. removed.
++    #client_body_buffer_size         {{ $cfg.ClientBodyBufferSize }};
+     client_body_timeout             {{ $cfg.ClientBodyTimeout }}s;
+ 
+-    http2_max_field_size            {{ $cfg.HTTP2MaxFieldSize }};
+-    http2_max_header_size           {{ $cfg.HTTP2MaxHeaderSize }};
+-    http2_max_requests              {{ $cfg.HTTP2MaxRequests }};
++    # NOTE: the "http2_max_field_size" directive is obsolete,
++    # use the "large_client_header_buffers" directive instead
++    #http2_max_field_size            {{ $cfg.HTTP2MaxFieldSize }};
++
++    # NOTE: the "http2_max_header_size" directive is obsolete,
++    # use the "large_client_header_buffers" directive instead
++    #http2_max_header_size           {{ $cfg.HTTP2MaxHeaderSize }};
++
++    # NOTE: the "http2_max_requests" directive is obsolete,
++    # use the "keepalive_requests" directive instead
++    #http2_max_requests              {{ $cfg.HTTP2MaxRequests }};
+     http2_max_concurrent_streams    {{ $cfg.HTTP2MaxConcurrentStreams }};
+ 
+     types_hash_max_size             2048;
+@@ -669,8 +678,11 @@ http {
+         }
+ 
+         location /configuration {
+-            client_max_body_size                    {{ luaConfigurationRequestBodySize $cfg }}m;
+-            client_body_buffer_size                 {{ luaConfigurationRequestBodySize $cfg }}m;
++            # NOTE: obsolete directive. removed.
++            #client_max_body_size                    {{ luaConfigurationRequestBodySize $cfg }}m;
++
++            # NOTE: obsolete directive. removed.
++            #client_body_buffer_size                 {{ luaConfigurationRequestBodySize $cfg }}m;
+             proxy_buffering                         off;
+ 
+             content_by_lua_block {
+@@ -1053,10 +1065,12 @@ stream {
+             proxy_ssl_server_name       on;
+             proxy_pass_request_headers  on;
+             {{ if isValidByteSize $location.Proxy.BodySize true }}
+-            client_max_body_size        {{ $location.Proxy.BodySize }};
++            # NOTE: obsolete directive. removed.
++            #client_max_body_size        {{ $location.Proxy.BodySize }};
+             {{ end }}
+             {{ if isValidByteSize $location.ClientBodyBufferSize false }}
+-            client_body_buffer_size     {{ $location.ClientBodyBufferSize }};
++            # NOTE: obsolete directive. removed.
++            #client_body_buffer_size     {{ $location.ClientBodyBufferSize }};
+             {{ end }}
+ 
+             # Pass the extracted client certificate to the auth provider
+@@ -1102,7 +1116,7 @@ stream {
+             set $service_port   {{ $ing.ServicePort | quote }};
+             set $location_path  {{ $ing.Path | escapeLiteralDollar | quote }};
+ 
+-            {{ buildOpentracingForLocation $all.Cfg.EnableOpentracing $location }}
++            {{ buildOpentracingForLocation $all.Cfg.EnableOpentracing true $location }}
+ 
+             {{ if $location.Mirror.Source }}
+             mirror {{ $location.Mirror.Source }};
+@@ -1217,10 +1231,12 @@ stream {
+             {{ buildInfluxDB $location.InfluxDB }}
+ 
+             {{ if isValidByteSize $location.Proxy.BodySize true }}
+-            client_max_body_size                    {{ $location.Proxy.BodySize }};
++            # NOTE: obsolete directive. removed.
++            #client_max_body_size                    {{ $location.Proxy.BodySize }};
+             {{ end }}
+             {{ if isValidByteSize $location.ClientBodyBufferSize false }}
+-            client_body_buffer_size                 {{ $location.ClientBodyBufferSize }};
++            # NOTE: obsolete directive. removed.
++            #client_body_buffer_size                 {{ $location.ClientBodyBufferSize }};
+             {{ end }}
+ 
+             {{/* By default use vhost as Host to upstream, but allow overrides */}}
+diff --git a/mariadb/templates/deployment-ingress.yaml b/mariadb/templates/deployment-ingress.yaml
+index a9fc9896..9834c64f 100644
+--- a/mariadb/templates/deployment-ingress.yaml
++++ b/mariadb/templates/deployment-ingress.yaml
+@@ -15,7 +15,7 @@ limitations under the License.
+ {{- if .Values.manifests.deployment_ingress }}
+ {{- $envAll := . }}
+ 
+-{{- $ingressClass := printf "%s-%s" .Release.Name "mariadb-ingress" }}
++{{- $ingressClass := printf "%s" "mariadb-ingress" }}
+ 
+ {{- $serviceAccountName := printf "%s-%s" .Release.Name "ingress" }}
+ {{ tuple $envAll "ingress" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+@@ -156,7 +156,7 @@ rules:
+   - apiGroups:
+       - ""
+     resourceNames:
+-      - {{ printf "%s-%s" .Release.Name $ingressClass | quote }}
++      - {{ printf "%s" .Release.Name | quote }}
+     resources:
+       - configmaps
+     verbs:
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index df6b9f84..dcef171e 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -21,7 +21,7 @@ release_group: null
+ images:
+   tags:
+     mariadb: docker.io/openstackhelm/mariadb:latest-ubuntu_focal
+-    ingress: k8s.gcr.io/ingress-nginx/controller:v0.42.0
++    ingress: k8s.gcr.io/ingress-nginx/controller:v1.1.1
+     error_pages: k8s.gcr.io/defaultbackend:1.4
+     prometheus_create_mysql_user: docker.io/library/mariadb:10.5.9-focal
+     prometheus_mysql_exporter: docker.io/prom/mysqld-exporter:v0.12.1
+-- 
+2.25.1
+

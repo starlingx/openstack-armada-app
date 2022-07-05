@@ -14,3 +14,4 @@
 0014-Remove-mariadb-and-rabbit-tls.patch
 0015-Decrease-terminationGracePeriodSeconds-on-glance-api.patch
 0016-Network-Resources-Cleanup-before-OpenStack-Removal.patch
+0017-Update-RBAC-authorization-api-to-v1.patch

@@ -1831,7 +1831,7 @@ data:
           enable_proxy_headers_parsing: true
           log_format: '[%(name)s] %(message)s'
           policy_file: /etc/neutron/policy.json
-          service_plugins: router,network_segment_range
+          service_plugins: router,network_segment_range,trunk
           dns_domain: openstacklocal
           enable_new_agents: false
           allow_automatic_dhcp_failover: true

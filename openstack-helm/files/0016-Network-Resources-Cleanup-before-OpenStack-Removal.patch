@@ -350,7 +350,7 @@ index 00000000..9870305f
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume"  | indent 8 }}
 +{{- end }}
 diff --git a/neutron/values.yaml b/neutron/values.yaml
-index 29917a59..2dc95d43 100644
+index dc73b68a..4be350e8 100644
 --- a/neutron/values.yaml
 +++ b/neutron/values.yaml
 @@ -42,6 +42,7 @@ images:
@@ -415,7 +415,7 @@ index 29917a59..2dc95d43 100644
        - {}
  
 +helm2_hook: true
- helm3_hook: false
+ helm3_hook: true
  
  manifests:
 @@ -2549,6 +2579,7 @@ manifests:
@@ -427,5 +427,5 @@ index 29917a59..2dc95d43 100644
    pod_rally_test: true
    network_policy: false
 -- 
-2.17.1
+2.25.1
 

@@ -24,7 +24,6 @@ Patch09: 0009-Enable-override-of-mariadb-server-probe-parameters.patch
 Patch11: 0011-Add-mariadb-database-config-override-to-support-ipv6.patch
 Patch12: 0012-enable-Values.conf.database.config_override-for-mari.patch
 Patch13: 0013-Allow-set-public-endpoint-url-for-all-openstack-types.patch
-Patch16: 0016-Disabling-helm3_hooks.patch
 Patch17: 0017-Enable-taint-toleration-for-Openstack-services.patch
 Patch18: 0018-Add-GaleraDB-Secure-Replica-Traffic.patch
 Patch19: 0019-Add-force_boot-command-to-rabbit-start-template.patch
@@ -51,7 +50,6 @@ Openstack Helm Infra charts
 %patch11 -p1
 %patch12 -p1
 %patch13 -p1
-%patch16 -p1
 %patch17 -p1
 %patch18 -p1
 %patch19 -p1

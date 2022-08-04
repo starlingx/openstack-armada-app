@@ -26,7 +26,6 @@ Patch04: 0004-Support-ingress-creation-for-keystone-admin-endpoint.patch
 Patch05: 0005-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
 Patch06: 0006-Wrong-usage-of-rbd_store_chunk_size.patch
 Patch07: 0007-Add-stx_admin-account.patch
-Patch08: 0008-Disabling-helm3_hook.patch
 Patch09: 0009-Add-flavor-extra-spec-hw-pci_irq_affinity_mask.patch
 Patch10: 0010-Enable-taint-toleration-for-Openstack-services.patch
 Patch11: 0011-Fix-nova-compute-ssh-init-to-execute-as-runAsUser.patch
@@ -54,7 +53,6 @@ Openstack Helm charts
 %patch05 -p1
 %patch06 -p1
 %patch07 -p1
-%patch08 -p1
 %patch09 -p1
 %patch10 -p1
 %patch11 -p1

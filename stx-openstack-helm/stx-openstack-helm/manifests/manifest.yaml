@@ -161,6 +161,7 @@ data:
           labels:
             release_group: osh-openstack-mariadb
   values:
+    helm3_hook: false
     manifests:
       pod_test: false
     monitoring:
@@ -351,6 +352,7 @@ data:
             release_group: osh-openstack-rabbitmq
             component: test
   values:
+    helm3_hook: false
     forceBoot:
       enabled: true
     monitoring:
@@ -435,6 +437,7 @@ data:
             release_group: osh-openstack-keystone
             component: test
   values:
+    helm3_hook: false
     manifests:
       job_credential_cleanup: false
     endpoints:
@@ -628,6 +631,7 @@ data:
             release_group: osh-openstack-barbican
             component: test
   values:
+    helm3_hook: false
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -805,6 +809,7 @@ data:
             release_group: osh-openstack-glance
             component: test
   values:
+    helm3_hook: false
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -923,6 +928,7 @@ data:
             release_group: osh-openstack-cinder
             component: test
   values:
+    helm3_hook: false
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -1131,6 +1137,7 @@ data:
           labels:
             release_group: osh-openstack-nova
   values:
+    helm3_hook: false
     endpoints:
       oslo_messaging:
         statefulset:
@@ -1414,6 +1421,7 @@ data:
           labels:
             release_group: osh-openstack-placement
   values:
+    helm3_hook: false
     endpoints:
       identity:
         force_public_endpoint: true
@@ -1646,6 +1654,7 @@ data:
           labels:
             release_group: osh-openstack-neutron
   values:
+    helm3_hook: false
     endpoints:
       oslo_messaging:
         statefulset:
@@ -2047,6 +2056,7 @@ data:
             release_group: osh-openstack-heat
             component: test
   values:
+    helm3_hook: false
     endpoints:
       oslo_messaging:
         statefulset:

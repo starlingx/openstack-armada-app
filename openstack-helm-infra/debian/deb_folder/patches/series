@@ -15,3 +15,4 @@
 0022-Remove-rabbitmq-tls.patch
 0023-Update-RabbitMQ-probes.patch
 0024-Update-openstack-Ingress-for-networking-api-v1.patch
+0025-Update-templates-syntax-for-fluxcd-helm-v3.patch

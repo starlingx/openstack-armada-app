@@ -88,6 +88,11 @@ data:
         anti:
           type:
             default: requiredDuringSchedulingIgnoredDuringExecution
+      resources:
+        enabled: true
+        ingress:
+          requests:
+            ephemeral-storage: "2000Ki"
       tolerations:
         ingress:
           enabled: true
@@ -208,6 +213,11 @@ data:
           - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
+      resources:
+        enabled: true
+        ingress:
+          requests:
+            ephemeral-storage: "500Ki"
     conf:
       ingress_conf:
         worker-processes: '4'
@@ -1244,6 +1254,11 @@ data:
           - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
+      resources:
+        enabled: true
+        conductor:
+          requests:
+            ephemeral-storage: "100Ki"
       security_context:
         nova:
           pod:
@@ -1452,6 +1467,11 @@ data:
           - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
+      resources:
+        enabled: true
+        api:
+          requests:
+            ephemeral-storage: "250Ki"
       user:
         placement:
           uid: 42424
@@ -1559,6 +1579,11 @@ data:
           - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
+      resources:
+        enabled: true
+        api_proxy:
+          requests:
+            ephemeral-storage: "10000Ki"
     conf:
       nova_api_proxy:
         DEFAULT:
@@ -2969,6 +2994,11 @@ data:
             - key: openstack-compute-node
               operator: Exists
               effect: NoSchedule
+      resources:
+        enabled: true
+        central:
+          requests:
+            ephemeral-storage: "20000Ki"
   source:
     type: tar
     location: http://172.17.0.1/helm_charts/starlingx/ceilometer-0.2.1.tgz
@@ -3036,6 +3066,11 @@ data:
           - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
+      resources:
+        enabled: true
+        fm:
+          requests:
+            ephemeral-storage: "20000Ki"
     labels:
       api:
         node_selector_key: openstack-control-plane
@@ -3117,6 +3152,11 @@ data:
           - key: openstack-compute-node
             operator: Exists
             effect: NoSchedule
+      resources:
+        enabled: true
+        server:
+          requests:
+            ephemeral-storage: "25000Ki"
       mounts:
         horizon:
           horizon:

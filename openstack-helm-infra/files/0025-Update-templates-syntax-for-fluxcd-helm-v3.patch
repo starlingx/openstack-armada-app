@@ -1,0 +1,29 @@
+From cd93bff5ca808e5a58c10f5f7e9b882357188923 Mon Sep 17 00:00:00 2001
+From: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+Date: Mon, 8 Aug 2022 16:42:03 -0300
+Subject: [PATCH] Update templates syntax for fluxcd helm v3
+
+The code changes here are needed in order for the stx-openstack
+application to work after the FluxCD migration.
+Some parsing/rendering differences were noticed between
+Armada (helmv2) and FluxCD (helmv3).
+
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+---
+ mariadb/templates/configmap-services-tcp.yaml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mariadb/templates/configmap-services-tcp.yaml b/mariadb/templates/configmap-services-tcp.yaml
+index 5b3a7afd..0cd6cb1e 100644
+--- a/mariadb/templates/configmap-services-tcp.yaml
++++ b/mariadb/templates/configmap-services-tcp.yaml
+@@ -20,5 +20,5 @@ kind: ConfigMap
+ metadata:
+   name: mariadb-services-tcp
+ data:
+-  {{ tuple "oslo_db" "internal" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}: "{{ .Release.Namespace }}/{{ tuple "oslo_db" "direct" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}:{{ tuple "oslo_db" "direct" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
++  {{ tuple "oslo_db" "internal" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | quote }}: "{{ .Release.Namespace }}/{{ tuple "oslo_db" "direct" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}:{{ tuple "oslo_db" "direct" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
+ {{- end }}
+-- 
+2.25.1
+

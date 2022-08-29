@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: mariadb-static-overrides
+    files:
+      - mariadb-static-overrides.yaml
+  - name: mariadb-system-overrides
+    files:
+      - mariadb-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

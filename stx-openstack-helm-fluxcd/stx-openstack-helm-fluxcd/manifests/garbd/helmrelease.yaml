@@ -1,0 +1,43 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+kind: HelmRelease
+metadata:
+  name: garbd
+  labels:
+    chart_group: openstack-garbd
+spec:
+  releaseName: osh-openstack-garbd
+  chart:
+    spec:
+      chart: garbd
+      version: 0.1.0
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 5m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: False
+  upgrade:
+    disableHooks: False
+  dependsOn:
+    - name: ingress
+      namespace: openstack
+    - name: nginx-ports-control
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: garbd-static-overrides
+      valuesKey: garbd-static-overrides.yaml
+    - kind: Secret
+      name: garbd-system-overrides
+      valuesKey: garbd-system-overrides.yaml
+...

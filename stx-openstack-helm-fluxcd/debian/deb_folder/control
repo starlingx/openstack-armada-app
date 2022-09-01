@@ -1,4 +1,4 @@
-Source: stx-openstack-helm
+Source: stx-openstack-helm-fluxcd
 Section: libs
 Priority: optional
 Maintainer: StarlingX Developers <starlingx-discuss@lists.starlingx.io>
@@ -12,10 +12,10 @@ Build-Depends: debhelper-compat (= 13),
 Standards-Version: 4.5.1
 Homepage: https://www.starlingx.io
 
-Package: stx-openstack-helm
+Package: stx-openstack-helm-fluxcd
 Section: libs
 Architecture: all
 Depends: ${misc:Depends}
-Description: StarlingX Openstack Armada Helm Charts
- This package contains Armada helm charts for the Openstack armada
+Description: StarlingX Openstack FluxCD application
+ This package contains the components needed for the Openstack FluxCD
  application.

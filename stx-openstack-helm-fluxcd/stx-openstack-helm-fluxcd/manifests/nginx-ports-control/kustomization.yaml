@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: nginx-ports-control-static-overrides
+    files:
+      - nginx-ports-control-static-overrides.yaml
+  - name: nginx-ports-control-system-overrides
+    files:
+      - nginx-ports-control-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

@@ -1,0 +1,3 @@
+usr/lib/application/*
+usr/lib/fluxcd/*
+usr/lib/helm/*

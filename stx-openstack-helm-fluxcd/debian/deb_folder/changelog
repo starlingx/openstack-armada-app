@@ -1,0 +1,5 @@
+stx-openstack-helm-fluxcd (1.0-1) unstable; urgency=medium
+
+  * Initial release.
+
+ --  Robert Church <robert.church@windriver.com>  Mon, 2 May 2022 21:50:42 +0000

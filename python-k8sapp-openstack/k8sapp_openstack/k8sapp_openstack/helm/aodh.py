@@ -15,6 +15,7 @@ class AodhHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the aodh chart"""
 
     CHART = app_constants.HELM_CHART_AODH
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_AODH
 
     SERVICE_NAME = app_constants.HELM_CHART_AODH
     AUTH_USERS = ['aodh']

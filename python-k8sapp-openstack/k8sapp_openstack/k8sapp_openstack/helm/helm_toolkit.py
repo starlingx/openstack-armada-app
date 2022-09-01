@@ -15,6 +15,7 @@ class HelmToolkitHelm(base.BaseHelm):
     """Class to encapsulate helm operations for the helm toolkit"""
 
     CHART = app_constants.HELM_CHART_HELM_TOOLKIT
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_HELM_TOOLKIT
     SUPPORTED_NAMESPACES = [
         common.HELM_NS_HELM_TOOLKIT,
     ]

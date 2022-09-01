@@ -16,6 +16,7 @@ class PlacementHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the placement chart"""
 
     CHART = app_constants.HELM_CHART_PLACEMENT
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_PLACEMENT
 
     SERVICE_NAME = app_constants.HELM_CHART_PLACEMENT
     AUTH_USERS = ['placement']

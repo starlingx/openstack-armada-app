@@ -15,6 +15,7 @@ class RabbitmqHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the rabbitmq chart"""
 
     CHART = app_constants.HELM_CHART_RABBITMQ
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_RABBITMQ
 
     def get_overrides(self, namespace=None):
         limit_enabled, limit_cpus, limit_mem_mib = self._get_platform_res_limit()

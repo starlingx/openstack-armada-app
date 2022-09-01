@@ -16,6 +16,7 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the mariadb chart"""
 
     CHART = app_constants.HELM_CHART_MARIADB
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_MARIADB
 
     def _num_server_replicas(self):
         return self._num_controllers()

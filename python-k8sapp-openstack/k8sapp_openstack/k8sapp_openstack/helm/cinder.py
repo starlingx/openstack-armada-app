@@ -22,6 +22,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the cinder chart"""
 
     CHART = app_constants.HELM_CHART_CINDER
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_CINDER
 
     SERVICE_NAME = app_constants.HELM_CHART_CINDER
     SERVICE_TYPE = 'volume'

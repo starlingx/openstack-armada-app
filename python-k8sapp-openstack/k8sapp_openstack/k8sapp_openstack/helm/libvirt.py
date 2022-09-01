@@ -15,6 +15,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the libvirt chart"""
 
     CHART = app_constants.HELM_CHART_LIBVIRT
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_LIBVIRT
 
     SERVICE_NAME = app_constants.HELM_CHART_LIBVIRT
 

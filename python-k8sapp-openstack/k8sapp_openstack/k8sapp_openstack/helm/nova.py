@@ -60,6 +60,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the nova chart"""
 
     CHART = app_constants.HELM_CHART_NOVA
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_NOVA
 
     # (lcavalca): 'nova' is used as ingress fqdn by nova-api-proxy
     SERVICE_FQDN = 'nova-api-internal'

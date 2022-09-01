@@ -17,6 +17,7 @@ class KeystoneApiProxyHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the keystone api proxy chart"""
 
     CHART = app_constants.HELM_CHART_KEYSTONE_API_PROXY
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_KEYSTONE
 
     SERVICE_NAME = app_constants.HELM_CHART_KEYSTONE_API_PROXY
     DCORCH_SERVICE_NAME = 'dcorch'
@@ -39,6 +40,11 @@ class KeystoneApiProxyHelm(openstack.OpenstackBaseHelm):
             operator.manifest_chart_groups_insert(
                 operator.ARMADA_MANIFEST,
                 operator.CHART_GROUPS_LUT[self.CHART])
+
+    def execute_kustomize_updates(self, operator):
+        if not self._is_enabled(operator.APP, self.CHART,
+                            common.HELM_NS_OPENSTACK):
+            operator.helm_release_resource_delete(self.CHART)
 
     def get_overrides(self, namespace=None):
         overrides = {

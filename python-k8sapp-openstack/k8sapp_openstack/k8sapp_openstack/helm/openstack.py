@@ -47,18 +47,23 @@ class BaseHelm(base.BaseHelm):
     }
 
 
-class OpenstackBaseHelm(BaseHelm):
+class FluxCDBaseHelm(base.FluxCDBaseHelm):
+    """Class to encapsulate Openstack related service operations for helm"""
+
+    SUPPORTED_NAMESPACES = \
+        base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
+    SUPPORTED_APP_NAMESPACES = {
+        app_constants.HELM_APP_OPENSTACK:
+            base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
+    }
+
+
+class OpenstackBaseHelm(FluxCDBaseHelm):
     """Class to encapsulate Openstack service operations for helm"""
 
     SYSTEM_CONTROLLER_SERVICES = [
         app_constants.HELM_CHART_KEYSTONE_API_PROXY,
     ]
-
-    @property
-    def CHART(self):
-        # subclasses must define the property: CHART='name of chart'
-        # if an author of a new chart forgets this, NotImplementedError is raised
-        raise NotImplementedError
 
     def _get_service_config(self, service):
         configs = self.context.setdefault('_service_configs', {})
@@ -609,6 +614,23 @@ class OpenstackBaseHelm(BaseHelm):
             operator.chart_group_chart_delete(
                 operator.CHART_GROUPS_LUT[self.CHART],
                 operator.CHARTS_LUT[self.CHART])
+
+    def execute_kustomize_updates(self, operator):
+        """
+        Update the elements of FluxCD kustomize manifests.
+
+        This allows a helm chart plugin to use the FluxCDKustomizeOperator to
+        make dynamic structural changes to the application manifest based on the
+        current conditions in the platform
+
+        Changes currenty include updates to the top level kustomize manifest to
+        disable helm releases.
+
+        :param operator: an instance of the FluxCDKustomizeOperator
+        """
+        if not self._is_enabled(operator.APP, self.CHART,
+                                common.HELM_NS_OPENSTACK):
+            operator.helm_release_resource_delete(self.HELM_RELEASE)
 
     def _is_enabled(self, app_name, chart_name, namespace):
         """

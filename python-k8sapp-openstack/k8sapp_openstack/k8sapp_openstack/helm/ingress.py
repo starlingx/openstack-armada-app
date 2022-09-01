@@ -15,6 +15,7 @@ class IngressHelm(openstack.BaseHelm):
     """Class to encapsulate helm operations for the ingress chart"""
 
     CHART = app_constants.HELM_CHART_INGRESS
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_INGRESS
 
     SUPPORTED_NAMESPACES = openstack.BaseHelm.SUPPORTED_NAMESPACES + [
         common.HELM_NS_KUBE_SYSTEM

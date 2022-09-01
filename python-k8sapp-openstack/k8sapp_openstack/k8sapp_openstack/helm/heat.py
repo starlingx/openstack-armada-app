@@ -15,6 +15,7 @@ class HeatHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the heat chart"""
 
     CHART = app_constants.HELM_CHART_HEAT
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_HEAT
 
     SERVICE_NAME = app_constants.HELM_CHART_HEAT
     AUTH_USERS = ['heat', 'heat_trustee', 'heat_stack_user']

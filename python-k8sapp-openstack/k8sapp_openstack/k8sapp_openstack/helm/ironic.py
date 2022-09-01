@@ -16,6 +16,7 @@ class IronicHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the ironic chart"""
 
     CHART = app_constants.HELM_CHART_IRONIC
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_IRONIC
 
     SERVICE_NAME = app_constants.HELM_CHART_IRONIC
     SERVICE_USERS = ['glance']
@@ -38,6 +39,11 @@ class IronicHelm(openstack.OpenstackBaseHelm):
             operator.chart_group_chart_insert(
                 operator.CHART_GROUPS_LUT[self.CHART],
                 operator.CHARTS_LUT[self.CHART])
+
+    def execute_kustomize_updates(self, operator):
+        if not self._is_enabled(operator.APP, self.CHART,
+                            common.HELM_NS_OPENSTACK):
+            operator.helm_release_resource_delete(self.CHART)
 
     def get_overrides(self, namespace=None):
         overrides = {

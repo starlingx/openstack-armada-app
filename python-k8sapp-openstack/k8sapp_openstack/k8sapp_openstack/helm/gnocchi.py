@@ -15,6 +15,7 @@ class GnocchiHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the gnocchi chart"""
 
     CHART = app_constants.HELM_CHART_GNOCCHI
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_GNOCCHI
 
     SERVICE_NAME = app_constants.HELM_CHART_GNOCCHI
     AUTH_USERS = ['gnocchi']

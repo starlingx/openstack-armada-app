@@ -15,6 +15,7 @@ class MemcachedHelm(openstack.BaseHelm):
     """Class to encapsulate helm operations for the memcached chart"""
 
     CHART = app_constants.HELM_CHART_MEMCACHED
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_MEMCACHED
 
     def get_overrides(self, namespace=None):
         overrides = {

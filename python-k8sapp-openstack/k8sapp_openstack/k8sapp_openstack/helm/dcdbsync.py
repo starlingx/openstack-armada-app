@@ -16,6 +16,7 @@ class DcdbsyncHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the dcdbsync chart"""
 
     CHART = app_constants.HELM_CHART_DCDBSYNC
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_DCDBSYNC
     AUTH_USERS = ['dcdbsync']
     SERVICE_NAME = app_constants.HELM_CHART_DCDBSYNC
 
@@ -36,6 +37,11 @@ class DcdbsyncHelm(openstack.OpenstackBaseHelm):
             operator.manifest_chart_groups_insert(
                 operator.ARMADA_MANIFEST,
                 operator.CHART_GROUPS_LUT[self.CHART])
+
+    def execute_kustomize_updates(self, operator):
+        if not self._is_enabled(operator.APP, self.CHART,
+                            common.HELM_NS_OPENSTACK):
+            operator.helm_release_resource_delete(self.CHART)
 
     def get_overrides(self, namespace=None):
         overrides = {

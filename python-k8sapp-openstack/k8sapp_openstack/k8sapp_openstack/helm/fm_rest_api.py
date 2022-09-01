@@ -17,6 +17,7 @@ class FmRestApiHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the fm-rest-api chart"""
 
     CHART = app_constants.HELM_CHART_FM_REST_API
+    HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_FM_REST_API
 
     SERVICE_NAME = app_constants.HELM_CHART_FM_REST_API
     AUTH_USERS = ['fm']

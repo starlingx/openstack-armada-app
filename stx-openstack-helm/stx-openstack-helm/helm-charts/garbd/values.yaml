@@ -20,7 +20,7 @@
 conf:
   garbd:
     group_name: mariadb-server_openstack
-    group_address: gcomm://mariadb-server-0.mariadb-discovery.openstack.svc.cluster.local,mariadb-server-1.mariadb-discovery.openstack.svc.cluster.local
+    group_address: gcomm://mariadb-server-0.mariadb-discovery.openstack.svc.cluster.local:4567,mariadb-server-1.mariadb-discovery.openstack.svc.cluster.local:4567
 
 dependencies:
   dynamic:

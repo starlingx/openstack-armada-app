@@ -5,23 +5,25 @@ Subject: [PATCH] Add stx_admin account for host to communicate with openstack
  app
 
 lcavalca: changed content to support tls keystone
+rvieiraf: added helm.sh/hook* annotations
 
 Signed-off-by: Shuicheng Lin <shuicheng.lin@intel.com>
 Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
+Signed-off-by: Rafael Falcao <rafael.vieirafalcao@windriver.com>
 Change-Id: Iedcd131578f4e33efd3c3d7c47cbef83331b143a
 ---
- keystone/templates/job-ks-user.yaml     | 21 +++++++++++++++++++++
+ keystone/templates/job-ks-user.yaml     | 29 +++++++++++++++++++++++++
  keystone/templates/secret-keystone.yaml |  2 +-
- keystone/values.yaml                    | 17 +++++++++++++++++
- 3 files changed, 39 insertions(+), 1 deletion(-)
+ keystone/values.yaml                    | 17 +++++++++++++++
+ 3 files changed, 47 insertions(+), 1 deletion(-)
  create mode 100644 keystone/templates/job-ks-user.yaml
 
 diff --git a/keystone/templates/job-ks-user.yaml b/keystone/templates/job-ks-user.yaml
 new file mode 100644
-index 00000000..91f990f3
+index 00000000..63d6cbb5
 --- /dev/null
 +++ b/keystone/templates/job-ks-user.yaml
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,29 @@
 +{{/*
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -36,8 +38,13 @@ index 00000000..91f990f3
 +limitations under the License.
 +*/}}
 +
++{{- define "metadata.annotations.job.ks_user" }}
++helm.sh/hook: post-install,post-upgrade
++helm.sh/hook-weight: "5"
++{{- end }}
++
 +{{- if .Values.manifests.job_ks_user }}
-+{{- $ksUserJob := dict "envAll" . "serviceName" "keystone" "serviceUser" "stx_admin" -}}
++{{- $ksUserJob := dict "envAll" . "serviceName" "keystone" "serviceUser" "stx_admin" "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) -}}
 +{{- if .Values.manifests.certificates -}}
 +{{- $_ := set $ksUserJob "tlsSecret" .Values.secrets.tls.identity.api.internal -}}
 +{{- end -}}
@@ -109,5 +116,5 @@ index 5f0e7aa1..ff4493f3 100644
    pdb_api: true
    pod_rally_test: true
 -- 
-2.17.1
+2.25.1
 

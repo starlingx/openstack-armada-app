@@ -35,6 +35,7 @@ Patch14: 0014-Remove-mariadb-and-rabbit-tls.patch
 Patch15: 0015-Decrease-terminationGracePeriodSeconds-on-glance-api.patch
 Patch16: 0016-Network-Resources-Cleanup-before-OpenStack-Removal.patch
 Patch17: 0017-Update-RBAC-authorization-api-to-v1.patch
+Patch18: 0018-Fixing-cinder-helm-release-hooks-weights-helmv3.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -62,6 +63,7 @@ Openstack Helm charts
 %patch15 -p1
 %patch16 -p1
 %patch17 -p1
+%patch18 -p1
 
 %build
 # Stage helm-toolkit in the local repo

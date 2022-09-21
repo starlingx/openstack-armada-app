@@ -1,0 +1,114 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-keystone
+manifests:
+  job_credential_cleanup: false
+endpoints:
+  oslo_messaging:
+    statefulset:
+      name: osh-openstack-rabbitmq-rabbitmq
+  identity:
+    name: keystone
+    namespace: openstack
+    force_public_endpoint: true
+labels:
+  api:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+images:
+  tags:
+    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    image_repo_sync: null
+    keystone_api: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    keystone_credential_rotate: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    keystone_credential_setup: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    keystone_credential_cleanup: null
+    keystone_db_sync: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    keystone_domain_manage: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    keystone_fernet_rotate: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    keystone_fernet_setup: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    test: null
+pod:
+  replicas:
+    api: 2
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    keystone:
+      enabled: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+  security_context:
+    keystone:
+      pod:
+        runAsUser: 0
+conf:
+  wsgi_keystone: |
+    {{- $portInt := tuple "identity" "internal" "api" $ | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+    Listen :::{{ $portInt }}
+
+    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+
+    SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+    CustomLog /dev/stdout combined env=!forwarded
+    CustomLog /dev/stdout proxy env=forwarded
+    WSGISocketPrefix /var/run/httpd/wsgi
+
+    <VirtualHost *:{{ $portInt }}>
+        WSGIDaemonProcess keystone-public processes=5 threads=1 user=keystone group=keystone display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
+        WSGIProcessGroup keystone-public
+        WSGIScriptAlias / /var/www/cgi-bin/keystone/keystone-wsgi-public
+        WSGIApplicationGroup %{GLOBAL}
+        WSGIPassAuthorization On
+        <IfVersion >= 2.4>
+          ErrorLogFormat "%{cu}t %M"
+        </IfVersion>
+        ErrorLog /dev/stdout
+
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+    </VirtualHost>
+bootstrap:
+  script: |
+    #NOTE(gagehugo): As of Rocky, keystone creates a member role by default
+    openstack role create --or-show member
+    openstack role add \
+          --user="${OS_USERNAME}" \
+          --user-domain="${OS_USER_DOMAIN_NAME}" \
+          --project-domain="${OS_PROJECT_DOMAIN_NAME}" \
+          --project="${OS_PROJECT_NAME}" \
+          "member"
+    # admin needs the admin role for the default domain
+    openstack role add \
+          --user="${OS_USERNAME}" \
+          --domain="${OS_DEFAULT_DOMAIN}" \
+          "admin"
+
+    #STX: exempt admin from auth faillockout
+    TOKEN=$(openstack token issue -c id -f value)
+    USER_ID=$(openstack user show ${OS_USERNAME} -c id -f value)
+    REQ_URL="http://keystone.openstack.svc.cluster.local/v3/users/${USER_ID}"
+    DATA_JSON="{\"user\": {\"options\": {\"ignore_lockout_failure_attempts\": true}}}"
+    curl -X PATCH -H "X-Auth-Token: ${TOKEN}" -H "Content-Type: application/json" -d "${DATA_JSON}" "${REQ_URL}"
+...

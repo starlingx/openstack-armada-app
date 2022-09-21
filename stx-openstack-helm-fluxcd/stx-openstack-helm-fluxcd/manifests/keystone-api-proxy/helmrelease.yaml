@@ -1,0 +1,41 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+kind: HelmRelease
+metadata:
+  name: keystone-api-proxy
+  labels:
+    chart_group: openstack-keystone-api-proxy
+spec:
+  releaseName: osh-openstack-keystone-api-proxy
+  chart:
+    spec:
+      chart: keystone-api-proxy
+      version: 0.1.0
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 5m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  dependsOn:
+    - name: keystone
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: keystone-api-proxy-static-overrides
+      valuesKey: keystone-api-proxy-static-overrides.yaml
+    - kind: Secret
+      name: keystone-api-proxy-system-overrides
+      valuesKey: keystone-api-proxy-system-overrides.yaml
+...

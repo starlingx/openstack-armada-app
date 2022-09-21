@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: keystone-api-proxy-static-overrides
+    files:
+      - keystone-api-proxy-static-overrides.yaml
+  - name: keystone-api-proxy-system-overrides
+    files:
+      - keystone-api-proxy-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

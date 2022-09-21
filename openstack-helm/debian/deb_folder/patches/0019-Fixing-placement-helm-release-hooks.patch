@@ -1,0 +1,58 @@
+From 37809e14da330e87cb8c855f077a153be23f5aea Mon Sep 17 00:00:00 2001
+From: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+Date: Wed, 21 Sep 2022 19:49:59 -0300
+Subject: [PATCH] Fixing placement helm release hooks
+
+The relation of dependency for placement resources is not working
+with helmv3 since for a couple of jobs the helm-hooks and weights are
+not implement correctly.
+
+This is already implemented on openstack-helm main branch, so this patch
+is simply bringing those updates to openstack-armada-app.
+
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+Change-Id: If69beef1713c60b2da8866907b9cfec081fcbde4
+---
+ placement/templates/job-db-migrate.yaml | 4 ++++
+ placement/templates/job-db-sync.yaml    | 8 ++++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/placement/templates/job-db-migrate.yaml b/placement/templates/job-db-migrate.yaml
+index 6e2c0455..ba1625ac 100644
+--- a/placement/templates/job-db-migrate.yaml
++++ b/placement/templates/job-db-migrate.yaml
+@@ -25,6 +25,10 @@ metadata:
+   labels:
+ {{ tuple $envAll "placement" "db-migrate" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++{{- if .Values.helm3_hook }}
++    helm.sh/hook: post-install,post-upgrade
++    helm.sh/hook-weight: "-4"
++{{- end }}
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ spec:
+   template:
+diff --git a/placement/templates/job-db-sync.yaml b/placement/templates/job-db-sync.yaml
+index 105d354e..53807502 100644
+--- a/placement/templates/job-db-sync.yaml
++++ b/placement/templates/job-db-sync.yaml
+@@ -14,8 +14,16 @@ See the License for the specific language governing permissions and
+ limitations under the License.
+ */}}
+ 
++{{- define "metadata.annotations.job.db_sync" }}
++helm.sh/hook: post-install,post-upgrade
++helm.sh/hook-weight: "-3"
++{{- end }}
++
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "placement" -}}
++{{- if .Values.helm3_hook }}
++{{- $_ := set $dbSyncJob "jobAnnotations" (include "metadata.annotations.job.db_sync" . | fromYaml) }}
++{{- end }}
+ {{- if .Values.pod.tolerations.placement.enabled -}}
+ {{- $_ := set $dbSyncJob "tolerationsEnabled" true -}}
+ {{- end -}}
+-- 
+2.25.1
+

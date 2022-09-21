@@ -15,3 +15,4 @@
 0016-Network-Resources-Cleanup-before-OpenStack-Removal.patch
 0017-Update-RBAC-authorization-api-to-v1.patch
 0018-Fixing-cinder-helm-release-hooks-weights-helmv3.patch
+0019-Fixing-placement-helm-release-hooks.patch

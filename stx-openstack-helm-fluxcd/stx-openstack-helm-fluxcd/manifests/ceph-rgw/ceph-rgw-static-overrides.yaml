@@ -1,0 +1,63 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-ceph-rgw
+conf:
+  ceph:
+    global:
+      cephx: false
+  rgw_ks:
+    enabled: true
+endpoints:
+  object_store:
+    path:
+      default: '/swift/v1'
+    port:
+      api:
+        default: null
+        admin: 7480
+        internal: 7480
+        public: 7480
+images:
+  tags:
+    ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    ceph_rgw: null
+    image_repo_sync: null
+    ceph_bootstrap: null
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    rgw_placement_targets: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    rgw_s3_admin: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+labels:
+  api:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  registry:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+pod:
+  replicas:
+    api: 2
+    registry: 2
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    rgw:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+...

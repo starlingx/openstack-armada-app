@@ -1,0 +1,84 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-placement
+endpoints:
+  identity:
+    force_public_endpoint: true
+labels:
+  placement:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+images:
+  tags:
+    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_migrate: quay.io/airshipit/porthole-mysqlclient-utility:179e19a91fc75052da2f5d1de5c1a273d5407c3b-ubuntu_bionic
+    image_repo_sync: null
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    placement: docker.io/starlingx/stx-placement:master-centos-stable-latest
+    placement_db_sync: docker.io/starlingx/stx-placement:master-centos-stable-latest
+pod:
+  replicas:
+    placement: 1
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    placement:
+      enabled: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+conf:
+  placement:
+    DEFAULT:
+      log_config_append: /etc/placement/logging.conf
+    keystone_authtoken:
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+  wsgi_placement: |
+    Listen :::{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+    SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+    CustomLog /dev/stdout combined env=!forwarded
+    CustomLog /dev/stdout proxy env=forwarded
+    WSGISocketPrefix /var/run/httpd/wsgi
+    <VirtualHost *:{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+        WSGIDaemonProcess placement-api processes=4 threads=1 user=placement group=placement display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
+        WSGIProcessGroup placement-api
+        WSGIScriptAlias / /var/www/cgi-bin/placement/placement-api
+        WSGIApplicationGroup %{GLOBAL}
+        WSGIPassAuthorization On
+        <IfVersion >= 2.4>
+          ErrorLogFormat "%{cu}t %M"
+        </IfVersion>
+        ErrorLog /dev/stdout
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+    </VirtualHost>
+    Alias /placement /var/www/cgi-bin/placement/placement-api
+    <Location /placement>
+        SetHandler wsgi-script
+        Options +ExecCGI
+        WSGIProcessGroup placement-api
+        WSGIApplicationGroup %{GLOBAL}
+        WSGIPassAuthorization On
+    </Location>
+...

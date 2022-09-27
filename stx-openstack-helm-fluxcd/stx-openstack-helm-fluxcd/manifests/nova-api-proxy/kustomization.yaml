@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: nova-api-proxy-static-overrides
+    files:
+      - nova-api-proxy-static-overrides.yaml
+  - name: nova-api-proxy-system-overrides
+    files:
+      - nova-api-proxy-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

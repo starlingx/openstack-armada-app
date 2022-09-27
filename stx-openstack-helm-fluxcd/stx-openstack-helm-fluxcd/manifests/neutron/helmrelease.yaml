@@ -1,0 +1,41 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+kind: HelmRelease
+metadata:
+  name: neutron
+  labels:
+    chart_group: openstack-neutron
+spec:
+  releaseName: osh-openstack-neutron
+  chart:
+    spec:
+      chart: neutron
+      version: 0.2.9
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 5m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  dependsOn:
+    - name: placement
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: neutron-static-overrides
+      valuesKey: neutron-static-overrides.yaml
+    - kind: Secret
+      name: neutron-system-overrides
+      valuesKey: neutron-system-overrides.yaml
+...

@@ -1,0 +1,243 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-neutron
+endpoints:
+  oslo_messaging:
+    statefulset:
+      name: osh-openstack-rabbitmq-rabbitmq
+  identity:
+    force_public_endpoint: true
+pod:
+  replicas:
+    server: 2
+  security_context:
+    neutron_dhcp_agent:
+      pod:
+        runAsUser: 0
+    neutron_l2gw_agent:
+      pod:
+        runAsUser: 0
+    neutron_bagpipe_bgp:
+      pod:
+        runAsUser: 0
+    neutron_l3_agent:
+      pod:
+        runAsUser: 0
+    neutron_lb_agent:
+      pod:
+        runAsUser: 0
+    neutron_metadata_agent:
+      pod:
+        runAsUser: 0
+    neutron_ovs_agent:
+      pod:
+        runAsUser: 0
+    neutron_server:
+      pod:
+        runAsUser: 0
+    neutron_sriov_agent:
+      pod:
+        runAsUser: 0
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    neutron:
+      enabled: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+  # Probes fail cause a long delay and eventual failure of the armada
+  # application apply. Need to determine the fix to re-enable these.
+  probes:
+    dhcp_agent:
+      dhcp_agent:
+        readiness:
+          enabled: false
+        liveness:
+          enabled: false
+    l3_agent:
+      l3_agent:
+        readiness:
+          enabled: false
+        liveness:
+          enabled: false
+    lb_agent:
+      lb_agent:
+        readiness:
+          enabled: false
+        liveness:
+          enabled: false
+    metadata_agent:
+      metadata_agent:
+        readiness:
+          enabled: false
+        liveness:
+          enabled: false
+    ovs_agent:
+      ovs_agent:
+        readiness:
+          enabled: false
+        liveness:
+          enabled: false
+    sriov_agent:
+      sriov_agent:
+        readiness:
+          enabled: false
+        liveness:
+          enabled: false
+labels:
+  agent:
+    dhcp:
+      node_selector_key: openstack-compute-node
+      node_selector_value: enabled
+    l3:
+      node_selector_key: openstack-compute-node
+      node_selector_value: enabled
+    metadata:
+      node_selector_key: openstack-compute-node
+      node_selector_value: enabled
+    l2gw:
+      node_selector_key: openstack-compute-node
+      node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  lb:
+    node_selector_key: linuxbridge
+    node_selector_value: enabled
+  # ovs is a special case, requiring a special
+  # label that can apply to both control hosts
+  # and compute hosts, until we get more sophisticated
+  # with our daemonset scheduling
+  ovs:
+    node_selector_key: openvswitch
+    node_selector_value: enabled
+  server:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  test:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+images:
+  tags:
+    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    image_repo_sync: null
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    neutron_db_sync: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_dhcp: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_l3: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_l2gw: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_openvswitch_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_linuxbridge_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_metadata: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_server: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_sriov_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_sriov_agent_init: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    test: null
+    purge_test: null
+    neutron_bagpipe_bgp: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_ironic_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+    neutron_netns_cleanup_cron: docker.io/starlingx/stx-neutron:master-centos-stable-latest
+network:
+  interface:
+    tunnel: docker0
+  backend:
+    - openvswitch
+    - sriov
+dependencies:
+  static:
+    ovs_agent:
+      pod: null
+conf:
+  neutron:
+    DEFAULT:
+      l3_ha: false
+      min_l3_agents_per_router: 1
+      max_l3_agents_per_router: 1
+      l3_ha_network_type: vxlan
+      dhcp_agents_per_network: 1
+      max_overflow: 64
+      max_pool_size: 1
+      idle_timeout: 60
+      rpc_response_max_timeout: 60
+      router_status_managed: true
+      vlan_transparent: true
+      wsgi_default_pool_size: 100
+      notify_nova_on_port_data_changes: true
+      notify_nova_on_port_status_changes: true
+      control_exchange: neutron
+      core_plugin: neutron.plugins.ml2.plugin.Ml2Plugin
+      state_path: /var/run/neutron
+      syslog_log_facility: local2
+      use_syslog: true
+      pnet_audit_enabled: false
+      driver: messagingv2
+      enable_proxy_headers_parsing: true
+      log_format: '[%(name)s] %(message)s'
+      policy_file: /etc/neutron/policy.json
+      service_plugins: router,network_segment_range
+      dns_domain: openstacklocal
+      enable_new_agents: false
+      allow_automatic_dhcp_failover: true
+      allow_automatic_l3agent_failover: true
+      # Increase from default of 75 seconds to avoid agents being declared
+      # down during controller swacts, reboots, etc...
+      agent_down_time: 180
+      bind_host: "::"
+    oslo_concurrency:
+      lock_path: /var/run/neutron/lock
+    vhost:
+      vhost_user_enabled: true
+    keystone_authtoken:
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    nova:
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+  dhcp_agent:
+    DEFAULT:
+      enable_isolated_metadata: true
+      enable_metadata_network: false
+      interface_driver: openvswitch
+      resync_interval: 30
+  l3_agent:
+    DEFAULT:
+      agent_mode: dvr_snat
+      interface_driver: openvswitch
+      metadata_port: 80
+  plugins:
+    ml2_conf:
+      ml2:
+        mechanism_drivers: openvswitch,sriovnicswitch,l2population
+        path_mtu: 0
+        tenant_network_types: vlan,vxlan
+        type_drivers: flat,vlan,vxlan
+      ml2_type_vxlan:
+        vni_ranges: ''
+        vxlan_group: ''
+      ovs_driver:
+        vhost_user_enabled: true
+      securitygroup:
+        firewall_driver: openvswitch
+    openvswitch_agent:
+      agent:
+        tunnel_types: vxlan
+      ovs:
+        bridge_mappings: public:br-ex
+      securitygroup:
+        firewall_driver: openvswitch
+...

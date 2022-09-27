@@ -1,0 +1,51 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-nova-api-proxy
+images:
+  tags:
+    nova_api_proxy: docker.io/starlingx/stx-nova-api-proxy:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+endpoints:
+  identity:
+    force_public_endpoint: true
+pod:
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    nova_api_proxy:
+      enabled: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+    nova:
+      enabled: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+conf:
+  nova_api_proxy:
+    DEFAULT:
+      osapi_proxy_listen: "::"
+      nfvi_compute_listen: "::"
+      osapi_compute_listen: nova-api-internal.openstack.svc.cluster.local
+      osapi_compute_listen_port: 80
+    keystone_authtoken:
+      interface: internal
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+...

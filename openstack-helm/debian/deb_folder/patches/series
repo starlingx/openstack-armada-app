@@ -12,8 +12,7 @@
 0013-Remove-TLS-from-openstack-services.patch
 0014-Remove-mariadb-and-rabbit-tls.patch
 0015-Decrease-terminationGracePeriodSeconds-on-glance-api.patch
-0016-Network-Resources-Cleanup-before-OpenStack-Removal.patch
-0017-Update-RBAC-authorization-api-to-v1.patch
-0018-Fixing-cinder-helm-release-hooks-weights-helmv3.patch
-0019-Fixing-placement-helm-release-hooks.patch
-0020-Fixing-nova-helm-release-hooks-and-weights.patch
+0016-Update-RBAC-authorization-api-to-v1.patch
+0017-Fixing-cinder-helm-release-hooks-weights-helmv3.patch
+0018-Fixing-placement-helm-release-hooks.patch
+0019-Fixing-nova-helm-release-hooks-and-weights.patch

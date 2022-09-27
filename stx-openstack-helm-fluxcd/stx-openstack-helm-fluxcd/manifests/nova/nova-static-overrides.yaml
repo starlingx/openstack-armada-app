@@ -1,0 +1,259 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-nova
+endpoints:
+  oslo_messaging:
+    statefulset:
+      name: osh-openstack-rabbitmq-rabbitmq
+  compute:
+    hosts:
+      public: nova-api-internal
+manifests:
+  job_ks_endpoints: false
+  ingress_osapi: true
+  service_ingress_osapi: true
+  cron_job_cell_setup: false
+  statefulset_compute_ironic: false
+  deployment_placement: false
+  ingress_placement: false
+  job_db_init_placement: false
+  job_ks_placement_endpoints: false
+  job_ks_placement_service: false
+  job_ks_placement_user: false
+  pdb_placement: false
+  secret_keystone_placement: false
+  service_ingress_placement: false
+  service_placement: false
+  deployment_consoleauth: false
+labels:
+  agent:
+    compute:
+      node_selector_key: openstack-compute-node
+      node_selector_value: enabled
+    compute_ironic:
+      node_selector_key: openstack-ironic
+      node_selector_value: enabled
+  api_metadata:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  conductor:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  consoleauth:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  novncproxy:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  osapi:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  scheduler:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  spiceproxy:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  test:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+images:
+  tags:
+    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    image_repo_sync: null
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    nova_api: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_archive_deleted_rows: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_cell_setup: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_cell_setup_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    nova_compute: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_compute_ironic: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_compute_ssh: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_conductor: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_consoleauth: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_db_sync: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_novncproxy: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_novncproxy_assets: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_placement: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_scheduler: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_service_cleaner: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    nova_spiceproxy: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_spiceproxy_assets: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    test: null
+pod:
+  useHostNetwork:
+    novncproxy: false
+  use_fqdn:
+    compute: false
+  replicas:
+    api_metadata: 1
+    osapi: 1
+    conductor: 1
+    consoleauth: 1
+    scheduler: 1
+    novncproxy: 1
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    nova:
+      enabled: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+  security_context:
+    nova:
+      pod:
+        # https://bugs.launchpad.net/starlingx/+bug/1956229
+        runAsUser: 0
+  probes:
+    readiness:
+      nova_scheduler:
+        enabled: false
+    liveness:
+      nova_scheduler:
+        enabled: false
+conf:
+  ceph:
+    enabled: true
+  policy:
+    os_compute_api:limits: '@'
+    os_compute_api:os-availability-zone:list: '@'
+  nova:
+    DEFAULT:
+      allow_resize_to_same_host: true
+      default_mempages_size: 2048
+      reserved_host_memory_mb: 0
+      compute_monitors: cpu.virt_driver
+      running_deleted_instance_poll_interval: 60
+      mkisofs_cmd: /usr/bin/genisoimage
+      network_allocate_retries: 2
+      # Set number of block device allocate retries and interval
+      # for volume create when VM boots and creates a new volume.
+      # The total block allocate retries time is set to 2 hours
+      # to satisfy the volume allocation time on slow RPM disks
+      # which may take 1 hour and a half per volume when several
+      # volumes are created in parallel.
+      block_device_allocate_retries_interval: 3
+      block_device_allocate_retries: 2400
+      disk_allocation_ratio: 1.0
+      cpu_allocation_ratio: 16.0
+      ram_allocation_ratio: 1.0
+      remove_unused_original_minimum_age_seconds: 3600
+      enable_new_services: false
+      map_new_hosts: false
+      # Increase from default of 60 seconds to avoid services being
+      # declared down during controller swacts, reboots, etc...
+      service_down_time: 90
+      long_rpc_timeout: 400
+      osapi_compute_listen: "::"
+      metadata_listen: "::"
+      metadata_host: "::"
+      my_ip: "::"
+    keystone_authtoken:
+      interface: internal
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    vnc:
+      novncproxy_host: "::"
+      server_listen: "::"
+    spice:
+      html5proxy_host: "::"
+      server_listen: "::"
+    compute:
+      max_concurrent_disk_ops: 2
+    libvirt:
+      cpu_mode: host-model
+      live_migration_completion_timeout: 180
+      live_migration_permit_auto_converge: true
+      mem_stats_period_seconds: 0
+      rbd_user: cinder
+      # Allow up to 1 day for resize conf
+      remove_unused_resized_minimum_age_seconds: 86400
+    database:
+      idle_timeout: 60
+      max_overflow: 64
+      max_pool_size: 1
+    api_database:
+      idle_timeout: 60
+      max_overflow: 64
+      max_pool_size: 1
+    cell0_database:
+      idle_timeout: 60
+      max_overflow: 64
+      max_pool_size: 1
+    glance:
+      api_servers: http://glance.openstack.svc.cluster.local:80/
+    ironic:
+      api_endpoint: http://ironic.openstack.svc.cluster.local:80/
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    placement:
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    neutron:
+      default_floating_pool: public
+      url: http://neutron.openstack.svc.cluster.local:80/
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    notifications:
+      notification_format: unversioned
+    filter_scheduler:
+      build_failure_weight_multiplier: 0.0
+      cpu_weight_multiplier: 0.0
+      disk_weight_multiplier: 0.0
+      enabled_filters:
+        - RetryFilter
+        - ComputeFilter
+        - AvailabilityZoneFilter
+        - AggregateInstanceExtraSpecsFilter
+        - ComputeCapabilitiesFilter
+        - ImagePropertiesFilter
+        - NUMATopologyFilter
+        - ServerGroupAffinityFilter
+        - ServerGroupAntiAffinityFilter
+        - PciPassthroughFilter
+      pci_weight_multiplier: 0.0
+      ram_weight_multiplier: 0.0
+      shuffle_best_same_weighed_hosts: true
+      soft_affinity_weight_multiplier: 20.0
+      soft_anti_affinity_weight_multiplier: 20.0
+    scheduler:
+      workers: 1
+      discover_hosts_in_cells_interval: 30
+      periodic_task_interval: -1
+    service_user:
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+      send_service_user_token: true
+    metrics:
+      required: false
+    workarounds:
+      enable_numa_live_migration: true
+  hypervisor:
+    address_search_enabled: false
+  ssh: |
+    Host *
+      StrictHostKeyChecking no
+      UserKnownHostsFile /dev/null
+      Port {{ .Values.network.ssh.port }}
+network:
+  ssh:
+    enabled: true
+console:
+  address_search_enabled: false
+...

@@ -16,3 +16,4 @@
 0017-Update-RBAC-authorization-api-to-v1.patch
 0018-Fixing-cinder-helm-release-hooks-weights-helmv3.patch
 0019-Fixing-placement-helm-release-hooks.patch
+0020-Fixing-nova-helm-release-hooks-and-weights.patch

@@ -27,6 +27,11 @@ pod:
     anti:
       type:
         default: requiredDuringSchedulingIgnoredDuringExecution
+  resources:
+    enabled: true
+    ingress:
+      requests:
+        ephemeral-storage: "2000Ki"
   tolerations:
     ingress:
       enabled: true

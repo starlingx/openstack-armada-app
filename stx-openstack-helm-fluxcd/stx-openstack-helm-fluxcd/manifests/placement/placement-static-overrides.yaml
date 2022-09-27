@@ -44,6 +44,11 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+  resources:
+    enabled: true
+    api:
+      requests:
+        ephemeral-storage: "250Ki"
 conf:
   placement:
     DEFAULT:

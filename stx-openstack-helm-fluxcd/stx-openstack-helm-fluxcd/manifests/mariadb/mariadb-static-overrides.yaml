@@ -53,6 +53,11 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+  resources:
+    enabled: true
+    ingress:
+      requests:
+        ephemeral-storage: "500Ki"
 conf:
   ingress_conf:
     worker-processes: '4'

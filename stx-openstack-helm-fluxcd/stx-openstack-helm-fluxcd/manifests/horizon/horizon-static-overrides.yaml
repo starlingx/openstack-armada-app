@@ -32,6 +32,11 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+  resources:
+    enabled: true
+    server:
+      requests:
+        ephemeral-storage: "25000Ki"
   mounts:
     horizon:
       horizon:

@@ -37,6 +37,11 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+  resources:
+    enabled: true
+    api_proxy:
+      requests:
+        ephemeral-storage: "10000Ki"
 conf:
   nova_api_proxy:
     DEFAULT:

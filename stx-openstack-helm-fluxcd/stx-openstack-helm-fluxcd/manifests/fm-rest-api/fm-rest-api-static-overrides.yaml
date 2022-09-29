@@ -24,6 +24,11 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+  resources:
+    enabled: true
+    fm:
+      requests:
+        ephemeral-storage: "20000Ki"
 labels:
   api:
     node_selector_key: openstack-control-plane

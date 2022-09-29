@@ -119,6 +119,11 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+  resources:
+    enabled: true
+    conductor:
+      requests:
+        ephemeral-storage: "100Ki"
   security_context:
     nova:
       pod:

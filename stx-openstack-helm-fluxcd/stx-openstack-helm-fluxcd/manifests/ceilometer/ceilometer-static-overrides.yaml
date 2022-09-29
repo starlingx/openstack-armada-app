@@ -535,4 +535,9 @@ pod:
         - key: openstack-compute-node
           operator: Exists
           effect: NoSchedule
+  resources:
+    enabled: true
+    central:
+      requests:
+        ephemeral-storage: "20000Ki"
 ...

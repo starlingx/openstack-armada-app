@@ -35,4 +35,7 @@ resources:
   - horizon
   - dcdbsync
   - ironic
+  - aodh
+  - ceilometer
+  - gnocchi
 ...

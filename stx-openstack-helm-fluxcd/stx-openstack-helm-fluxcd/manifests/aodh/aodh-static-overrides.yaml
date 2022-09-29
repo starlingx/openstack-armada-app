@@ -1,0 +1,81 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-aodh
+images:
+  tags:
+    aodh_alarms_cleaner: docker.io/starlingx/stx-aodh:master-centos-stable-latest
+    aodh_api: docker.io/starlingx/stx-aodh:master-centos-stable-latest
+    aodh_db_sync: docker.io/starlingx/stx-aodh:master-centos-stable-latest
+    aodh_evaluator: docker.io/starlingx/stx-aodh:master-centos-stable-latest
+    aodh_listener: docker.io/starlingx/stx-aodh:master-centos-stable-latest
+    aodh_notifier: docker.io/starlingx/stx-aodh:master-centos-stable-latest
+    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    image_repo_sync: null
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+pod:
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    aodh:
+      enabled: true
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: openstack-compute-node
+          operator: Exists
+          effect: NoSchedule
+endpoints:
+  oslo_messaging:
+    statefulset:
+      name: osh-openstack-rabbitmq-rabbitmq
+  identity:
+    force_public_endpoint: true
+jobs:
+  alarms_cleaner:
+    # daily at the 35 minute mark
+    cron: "35 */24 * * *"
+conf:
+  aodh:
+    keystone_authtoken:
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    service_credentials:
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+  wsgi_aodh: |
+    Listen :::{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+
+    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" proxy
+
+    SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+    CustomLog /dev/stdout combined env=!forwarded
+    CustomLog /dev/stdout proxy env=forwarded
+    WSGISocketPrefix /var/run/httpd/wsgi
+
+    <VirtualHost *:{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
+        WSGIDaemonProcess aodh processes=2 threads=1 user=aodh group=aodh display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
+        WSGIProcessGroup aodh
+        WSGIScriptAlias / /var/www/cgi-bin/aodh/aodh-api
+        WSGIApplicationGroup %{GLOBAL}
+        <IfVersion >= 2.4>
+          ErrorLogFormat "%{cu}t %M"
+        </IfVersion>
+
+        ErrorLog /dev/stdout
+        SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
+        CustomLog /dev/stdout combined env=!forwarded
+        CustomLog /dev/stdout proxy env=forwarded
+    </VirtualHost>
+...

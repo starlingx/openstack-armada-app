@@ -1,0 +1,89 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-heat
+endpoints:
+  oslo_messaging:
+    statefulset:
+      name: osh-openstack-rabbitmq-rabbitmq
+  oslo_cache:
+    hosts:
+      default: heat-memcached
+  identity:
+    force_public_endpoint: true
+labels:
+  api:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  cfn:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  cloudwatch:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  engine:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+images:
+  tags:
+    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    heat_api: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    heat_cfn: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    heat_cloudwatch: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    heat_db_sync: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    heat_engine: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    heat_engine_cleaner: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    heat_purge_deleted: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    image_repo_sync: null
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    test: null
+conf:
+  policy:
+    stacks:global_index: rule:context_is_admin
+    software_configs:global_index: rule:context_is_admin
+  heat:
+    clients_keystone:
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+    keystone_authtoken:
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    trustee:
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    heat_api:
+      bind_host: "::"
+    heat_api_cloudwatch:
+      bind_host: "::"
+    heat_api_cfn:
+      bind_host: "::"
+pod:
+  replicas:
+    api: 2
+    cfn: 2
+    cloudwatch: 2
+    engine: 2
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    heat:
+      enabled: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+...

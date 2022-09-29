@@ -1,0 +1,13 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-dcdbsync
+images:
+  tags:
+    dcdbsync: docker.io/starlingx/stx-keystone:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+...

@@ -1,0 +1,50 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-fm-rest-api
+endpoints:
+  identity:
+    force_public_endpoint: true
+pod:
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    fm:
+      enabled: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: openstack-compute-node
+        operator: Exists
+        effect: NoSchedule
+labels:
+  api:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+images:
+  tags:
+    fm_rest_api: docker.io/starlingx/stx-fm-rest-api:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    fm_db_sync: docker.io/starlingx/stx-fm-rest-api:master-centos-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+conf:
+  fm:
+    api:
+      bind_host: "::"
+    keystone_authtoken:
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+...

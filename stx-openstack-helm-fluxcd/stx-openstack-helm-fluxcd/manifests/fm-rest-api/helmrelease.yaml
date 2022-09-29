@@ -1,0 +1,41 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2beta1"
+kind: HelmRelease
+metadata:
+  name: fm-rest-api
+  labels:
+    chart_group: openstack-fm-rest-api
+spec:
+  releaseName: osh-openstack-fm-rest-api
+  chart:
+    spec:
+      chart: fm-rest-api
+      version: 0.1.0
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 5m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  dependsOn:
+    - name: heat
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: fm-rest-api-static-overrides
+      valuesKey: fm-rest-api-static-overrides.yaml
+    - kind: Secret
+      name: fm-rest-api-system-overrides
+      valuesKey: fm-rest-api-system-overrides.yaml
+...

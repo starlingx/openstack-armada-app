@@ -1,0 +1,107 @@
+#
+# Copyright (c) 2022 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+release_group: osh-openstack-ironic
+pod:
+  replicas:
+    api: 2
+    conductor: 2
+  user:
+    ironic:
+      uid: 0
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+  tolerations:
+    ironic:
+      enabled: true
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: openstack-compute-node
+          operator: Exists
+          effect: NoSchedule
+labels:
+  api:
+    node_selector_key: openstack-ironic
+    node_selector_value: enabled
+  conductor:
+    node_selector_key: openstack-ironic
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-ironic
+    node_selector_value: enabled
+images:
+  tags:
+    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    image_repo_sync: null
+    ironic_api: docker.io/starlingx/stx-ironic:master-centos-stable-latest
+    ironic_conductor: docker.io/starlingx/stx-ironic:master-centos-stable-latest
+    ironic_db_sync: docker.io/starlingx/stx-ironic:master-centos-stable-latest
+    ironic_manage_cleaning_network: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ironic_pxe: docker.io/starlingx/stx-ironic:master-centos-stable-latest
+    ironic_pxe_init: docker.io/starlingx/stx-ironic:master-centos-stable-latest
+    ironic_pxe_http: docker.io/nginx:1.13.3
+    ironic_retrive_cleaning_network: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ironic_retrive_swift_config: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+conf:
+  ironic:
+    DEFAULT:
+      # enabled_drivers is deprecated in stein
+      enabled_drivers: ''
+      enabled_hardware_types: ipmi
+      enabled_bios_interfaces: no-bios
+      enabled_boot_interfaces: pxe,ipxe
+      enabled_console_interfaces: ipmitool-socat
+      enabled_deploy_interfaces: iscsi,direct
+      enabled_inspect_interfaces: no-inspect
+      enabled_management_interfaces: ipmitool
+      enabled_network_interfaces: flat,noop
+      enabled_power_interfaces: ipmitool
+      enabled_raid_interfaces: no-raid
+      enabled_storage_interfaces: cinder,noop
+      enabled_vendor_interfaces: ipmitool,no-vendor
+    keystone_authtoken:
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    glance:
+      glance_host: glance.openstack.svc.cluster.local
+      glance_port: 80
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    inspector:
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    neutron:
+      url: http://neutron.openstack.svc.cluster.local:80/
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    api:
+      port: 6385
+    pxe:
+      pxe_append_params: "nofb nomodeset vga=normal console=ttyS0,115200n8"
+    dhcp:
+      dhcp_provider: neutron
+# Disable ipa image downloading during bootstrap
+bootstrap:
+  image:
+    enabled: false
+endpoints:
+  oslo_messaging:
+    statefulset:
+      name: osh-openstack-rabbitmq-rabbitmq
+  baremetal:
+    port:
+      pxe_http:
+        default: 28080
+  identity:
+    force_public_endpoint: true
+...

@@ -26,8 +26,10 @@ spec:
     enable: false
   install:
     disableHooks: false
+    disableWait: true
   upgrade:
     disableHooks: false
+    disableWait: true
   dependsOn:
     - name: glance
       namespace: openstack

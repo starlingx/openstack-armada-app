@@ -15,7 +15,10 @@ Homepage: https://www.starlingx.io
 Package: stx-openstack-helm-fluxcd
 Section: libs
 Architecture: all
-Depends: ${misc:Depends}
+Depends: ${misc:Depends},
+ openstack-helm-infra,
+ openstack-helm,
+ python3-k8sapp-openstack-wheels
 Description: StarlingX Openstack FluxCD application
  This package contains the components needed for the Openstack FluxCD
  application.

@@ -15,7 +15,10 @@ Homepage: https://www.starlingx.io
 Package: stx-openstack-helm
 Section: libs
 Architecture: all
-Depends: ${misc:Depends}
+Depends: ${misc:Depends},
+ openstack-helm-infra,
+ openstack-helm,
+ python3-k8sapp-openstack-wheels
 Description: StarlingX Openstack Armada Helm Charts
  This package contains Armada helm charts for the Openstack armada
  application.

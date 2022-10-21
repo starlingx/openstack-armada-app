@@ -1,1 +1,1 @@
-plugins/k8sapp-openstack/*.whl
+plugins/*.whl

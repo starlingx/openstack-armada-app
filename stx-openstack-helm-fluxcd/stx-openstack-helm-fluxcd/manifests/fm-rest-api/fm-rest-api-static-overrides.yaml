@@ -38,11 +38,11 @@ labels:
     node_selector_value: enabled
 images:
   tags:
-    fm_rest_api: docker.io/starlingx/stx-fm-rest-api:master-centos-stable-latest
+    fm_rest_api: docker.io/starlingx/stx-fm-rest-api:master-debian-stable-latest
     ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    fm_db_sync: docker.io/starlingx/stx-fm-rest-api:master-centos-stable-latest
+    fm_db_sync: docker.io/starlingx/stx-fm-rest-api:master-debian-stable-latest
     db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
     db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
 conf:

@@ -21,7 +21,7 @@ labels:
 images:
   tags:
     ks_endpoints: docker.io/openstackhelm/heat:pike
-    keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-centos-stable-latest
+    keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-debian-stable-latest
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
   pullPolicy: IfNotPresent
   local_registry:

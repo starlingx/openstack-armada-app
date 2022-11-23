@@ -597,7 +597,7 @@ data:
         force_public_endpoint: true
     images:
       tags:
-        keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-centos-stable-latest
+        keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-debian-stable-latest
         ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
     conf:
       keystone_api_proxy:

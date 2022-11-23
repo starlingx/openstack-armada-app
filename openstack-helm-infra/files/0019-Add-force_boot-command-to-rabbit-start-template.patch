@@ -26,10 +26,11 @@ Ref:
 Signed-off-by: Maik Catrinque <maik.wandercatrinqueandrade@windriver.com>
 Co-authored-by: Andrew Martins Carletti <Andrew.MartinsCarletti@windriver.com>
 Change-Id: I56e966ea64e8881ba436213f0c9e1cbe547098e3
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windrive.com>
 ---
  rabbitmq/templates/bin/_rabbitmq-start.sh.tpl | 3 +++
  rabbitmq/values.yaml                          | 6 ++++++
- 4 files changed, 11 insertions(+), 1 deletion(-)
+ 2 files changed, 9 insertions(+)
 
 diff --git a/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl b/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl
 index 794f0919..4ef849fd 100644
@@ -44,7 +45,7 @@ index 794f0919..4ef849fd 100644
 +{{- end}}
  exec rabbitmq-server
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index c593966f..8eb51c64 100644
+index 90ed6d21..65a9526e 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
 @@ -46,6 +46,12 @@ images:
@@ -59,7 +60,7 @@ index c593966f..8eb51c64 100644
 +
  pod:
    probes:
-     prometheus_rabbitmq_exporter:
+     readiness:
 -- 
 2.25.1
 

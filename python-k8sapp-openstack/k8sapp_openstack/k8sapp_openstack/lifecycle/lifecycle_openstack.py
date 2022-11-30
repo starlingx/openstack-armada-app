@@ -26,6 +26,7 @@ LOG = logging.getLogger(__name__)
 
 class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
     CHARTS_PENDING_INSTALL_ITERATIONS = 60
+    APP_KUBESYSTEM_RESOURCE_CONFIG_MAP = 'ceph-etc-pools-audit'
     APP_OPENSTACK_RESOURCE_CONFIG_MAP = 'ceph-etc'
     WAS_APPLIED = 'was_applied'
 
@@ -231,11 +232,20 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     self.APP_OPENSTACK_RESOURCE_CONFIG_MAP,
                     common.HELM_NS_OPENSTACK)
 
-            # Copy the latest config map
-            app_op._kube.kube_copy_config_map(
-                self.APP_OPENSTACK_RESOURCE_CONFIG_MAP,
-                common.HELM_NS_RBD_PROVISIONER,
-                common.HELM_NS_OPENSTACK)
+            # Read ceph-etc-pools-audit config map and rename it to ceph-etc
+            config_map_body = app_op._kube.kube_read_config_map(
+                self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP,
+                common.HELM_NS_RBD_PROVISIONER)
+
+            config_map_body.metadata.resource_version = None
+            config_map_body.metadata.namespace = common.HELM_NS_OPENSTACK
+            config_map_body.metadata.name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
+
+            # Create configmap with correct name
+            app_op._kube.kube_create_config_map(
+                common.HELM_NS_OPENSTACK,
+                config_map_body)
+
         except Exception as e:
             LOG.error(e)
             raise

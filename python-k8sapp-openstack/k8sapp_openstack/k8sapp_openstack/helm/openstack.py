@@ -126,6 +126,12 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
                 try:
                     cmd = ['ceph-authtool', '--gen-print-key']
                     password = subprocess.check_output(cmd).strip()
+                    # TODO: Remove it when Debian is default for
+                    # at least two STX releases (prob. ~ stx/9.0)
+                    # Python Duck Typing to ensure compatibility with
+                    # both Python 2 (CentOS)  and Python 3 (Debian)
+                    if hasattr(password, "decode"):
+                        password = password.decode()
                 except subprocess.CalledProcessError:
                     raise exception.SysinvException(
                         'Failed to generate ceph key')

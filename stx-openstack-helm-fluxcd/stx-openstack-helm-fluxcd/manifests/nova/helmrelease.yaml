@@ -20,7 +20,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: starlingx
-  interval: 5m
+  interval: 1m
   timeout: 30m
   test:
     enable: false

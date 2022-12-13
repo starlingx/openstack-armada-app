@@ -157,8 +157,6 @@ images:
     neutron_ironic_agent: docker.io/starlingx/stx-neutron:master-centos-stable-latest
     neutron_netns_cleanup_cron: docker.io/starlingx/stx-neutron:master-centos-stable-latest
 network:
-  interface:
-    tunnel: docker0
   backend:
     - openvswitch
     - sriov

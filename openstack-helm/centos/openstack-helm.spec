@@ -37,6 +37,7 @@ Patch16: 0016-Update-RBAC-authorization-api-to-v1.patch
 Patch17: 0017-Fixing-cinder-helm-release-hooks-weights-helmv3.patch
 Patch18: 0018-Fixing-placement-helm-release-hooks.patch
 Patch19: 0019-Fixing-nova-helm-release-hooks-and-weights.patch
+Patch20: 0020-Fixing-keystone-helm-release-hooks-and-weights.patch
 
 BuildRequires: helm
 BuildRequires: openstack-helm-infra
@@ -66,6 +67,7 @@ Openstack Helm charts
 %patch17 -p1
 %patch18 -p1
 %patch19 -p1
+%patch20 -p1
 
 %build
 # Stage helm-toolkit in the local repo

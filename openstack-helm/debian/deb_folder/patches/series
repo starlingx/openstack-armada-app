@@ -16,3 +16,4 @@
 0017-Fixing-cinder-helm-release-hooks-weights-helmv3.patch
 0018-Fixing-placement-helm-release-hooks.patch
 0019-Fixing-nova-helm-release-hooks-and-weights.patch
+0020-Fixing-keystone-helm-release-hooks-and-weights.patch

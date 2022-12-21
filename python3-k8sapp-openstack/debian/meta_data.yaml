@@ -1,0 +1,9 @@
+---
+debname: python3-k8sapp-openstack
+debver: 1.0-1
+src_path: k8sapp_openstack
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app
+    BASE_SRCREV: 301e310b67f608c309a34c7431848f680e2ea827

@@ -3,7 +3,6 @@
     check:
       jobs:
         - openstack-tox-linters
-        - k8sapp-openstack-tox-py27
         - k8sapp-openstack-tox-py36
         - k8sapp-openstack-tox-py39
         - k8sapp-openstack-tox-pylint
@@ -11,7 +10,6 @@
     gate:
       jobs:
         - openstack-tox-linters
-        - k8sapp-openstack-tox-py27
         - k8sapp-openstack-tox-py36
         - k8sapp-openstack-tox-py39
         - k8sapp-openstack-tox-pylint
@@ -19,23 +17,6 @@
       jobs:
         - stx-openstack-armada-app-upload-git-mirror
 
-- job:
-    name: k8sapp-openstack-tox-py27
-    parent: tox-py27
-    description: |
-        Run py27 test for k8app-openstack
-    nodeset: debian-bullseye
-    required-projects:
-      - starlingx/config
-      - starlingx/fault
-      - starlingx/update
-      - starlingx/utilities
-    files:
-        - python-k8sapp-openstack/k8sapp_openstack/*
-    vars:
-        tox_envlist: py27
-        python_version: 2.7
-        tox_extra_args: -c python-k8sapp-openstack/k8sapp_openstack/tox.ini
 - job:
     name: k8sapp-openstack-tox-py36
     parent: tox-py36

@@ -16,3 +16,4 @@
 0023-Update-RabbitMQ-probes.patch
 0024-Update-openstack-Ingress-for-networking-api-v1.patch
 0025-Update-templates-syntax-for-fluxcd-helm-v3.patch
+0026-Update-libvirt-configuration-script-for-Debian.patch

@@ -8,7 +8,7 @@
 release_group: osh-openstack-pci-irq-affinity-agent
 images:
   tags:
-    pci_irq_affinity_agent: docker.io/starlingx/stx-pci-irq-affinity-agent:master-centos-stable-latest
+    pci_irq_affinity_agent: docker.io/starlingx/stx-pci-irq-affinity-agent:master-debian-stable-latest
 tolerations:
   - key: node-role.kubernetes.io/master
     operator: Exists

@@ -13,8 +13,8 @@ labels:
 images:
   tags:
     image_repo_sync: null
-    openvswitch_db_server: docker.io/starlingx/stx-ovs:master-centos-stable-latest
-    openvswitch_vswitchd: docker.io/starlingx/stx-ovs:master-centos-stable-latest
+    openvswitch_db_server: docker.io/starlingx/stx-ovs:master-debian-stable-latest
+    openvswitch_vswitchd: docker.io/starlingx/stx-ovs:master-debian-stable-latest
 pod:
   tolerations:
     openvswitch:

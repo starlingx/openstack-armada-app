@@ -23,6 +23,6 @@ pod:
         effect: NoSchedule
 images:
   tags:
-    garbd: docker.io/starlingx/stx-mariadb:master-centos-stable-latest
+    garbd: docker.io/starlingx/stx-mariadb:master-debian-stable-latest
     image_repo_sync: null
 ...

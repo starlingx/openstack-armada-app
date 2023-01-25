@@ -12,7 +12,7 @@ endpoints:
 images:
   tags:
     keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-debian-stable-latest
-    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
 conf:
   keystone_api_proxy:
     identity:

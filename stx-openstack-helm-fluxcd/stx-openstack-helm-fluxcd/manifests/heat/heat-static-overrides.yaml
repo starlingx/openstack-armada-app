@@ -33,20 +33,20 @@ labels:
     node_selector_value: enabled
 images:
   tags:
-    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    heat_api: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    heat_cfn: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    heat_cloudwatch: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    heat_db_sync: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    heat_engine: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    heat_engine_cleaner: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    heat_purge_deleted: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    heat_api: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    heat_cfn: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    heat_cloudwatch: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    heat_db_sync: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    heat_engine: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    heat_engine_cleaner: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    heat_purge_deleted: docker.io/starlingx/stx-heat:master-debian-stable-latest
     image_repo_sync: null
-    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     test: null
 conf:
   policy:

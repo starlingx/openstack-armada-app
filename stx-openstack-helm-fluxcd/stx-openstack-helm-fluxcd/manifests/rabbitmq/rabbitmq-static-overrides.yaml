@@ -23,7 +23,7 @@ images:
     image_repo_sync: null
     prometheus_rabbitmq_exporter: null
     prometheus_rabbitmq_exporter_helm_tests: null
-    rabbitmq_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    rabbitmq_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     scripted_test: docker.io/rabbitmq:3.9.0-management
     rabbitmq: docker.io/rabbitmq:3.9.0
 pod:

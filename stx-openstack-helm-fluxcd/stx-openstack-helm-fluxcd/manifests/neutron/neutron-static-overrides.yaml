@@ -134,13 +134,13 @@ labels:
     node_selector_value: enabled
 images:
   tags:
-    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
     image_repo_sync: null
-    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
     neutron_db_sync: docker.io/starlingx/stx-neutron:master-debian-stable-latest
     neutron_dhcp: docker.io/starlingx/stx-neutron:master-debian-stable-latest
     neutron_l3: docker.io/starlingx/stx-neutron:master-debian-stable-latest

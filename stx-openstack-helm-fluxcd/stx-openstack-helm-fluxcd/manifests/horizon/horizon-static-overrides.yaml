@@ -8,8 +8,8 @@
 release_group: osh-openstack-horizon
 images:
   tags:
-    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     horizon: docker.io/starlingx/stx-horizon:master-centos-stable-latest
     horizon_db_sync: docker.io/starlingx/stx-horizon:master-centos-stable-latest
     image_repo_sync: null

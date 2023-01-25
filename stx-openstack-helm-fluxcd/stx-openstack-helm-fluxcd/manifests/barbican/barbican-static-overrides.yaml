@@ -17,14 +17,14 @@ images:
   tags:
     barbican_api: docker.io/starlingx/stx-barbican:master-debian-stable-latest
     barbican_db_sync: docker.io/starlingx/stx-barbican:master-debian-stable-latest
-    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     image_repo_sync: null
-    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    scripted_test: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    scripted_test: docker.io/starlingx/stx-heat:master-debian-stable-latest
 pod:
   replicas:
     api: 2

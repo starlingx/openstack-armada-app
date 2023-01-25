@@ -42,22 +42,22 @@ labels:
     node_selector_value: enabled
 images:
   tags:
-    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     image_repo_sync: null
     ironic_api: docker.io/starlingx/stx-ironic:master-centos-stable-latest
     ironic_conductor: docker.io/starlingx/stx-ironic:master-centos-stable-latest
     ironic_db_sync: docker.io/starlingx/stx-ironic:master-centos-stable-latest
-    ironic_manage_cleaning_network: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ironic_manage_cleaning_network: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ironic_pxe: docker.io/starlingx/stx-ironic:master-centos-stable-latest
     ironic_pxe_init: docker.io/starlingx/stx-ironic:master-centos-stable-latest
     ironic_pxe_http: docker.io/nginx:1.13.3
-    ironic_retrive_cleaning_network: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ironic_retrive_swift_config: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ironic_retrive_cleaning_network: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ironic_retrive_swift_config: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
 conf:
   ironic:
     DEFAULT:

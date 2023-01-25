@@ -25,9 +25,9 @@ labels:
     node_selector_value: enabled
 images:
   tags:
-    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     image_repo_sync: null
     keystone_api: docker.io/starlingx/stx-keystone:master-centos-stable-latest
     keystone_credential_rotate: docker.io/starlingx/stx-keystone:master-centos-stable-latest
@@ -37,7 +37,7 @@ images:
     keystone_domain_manage: docker.io/starlingx/stx-keystone:master-centos-stable-latest
     keystone_fernet_rotate: docker.io/starlingx/stx-keystone:master-centos-stable-latest
     keystone_fernet_setup: docker.io/starlingx/stx-keystone:master-centos-stable-latest
-    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     test: null
 pod:
   replicas:

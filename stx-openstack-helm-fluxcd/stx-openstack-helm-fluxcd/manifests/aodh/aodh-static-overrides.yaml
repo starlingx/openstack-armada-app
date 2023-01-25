@@ -14,13 +14,13 @@ images:
     aodh_evaluator: docker.io/starlingx/stx-aodh:master-centos-stable-latest
     aodh_listener: docker.io/starlingx/stx-aodh:master-centos-stable-latest
     aodh_notifier: docker.io/starlingx/stx-aodh:master-centos-stable-latest
-    bootstrap: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    db_init: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     image_repo_sync: null
-    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
 pod:
   affinity:
     anti:

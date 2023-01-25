@@ -23,7 +23,7 @@ images:
     image_repo_sync: null
     prometheus_mysql_exporter: null
     prometheus_mysql_exporter_helm_tests: null
-    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     mariadb: docker.io/openstackhelm/mariadb:ubuntu_xenial-20200303
     mariadb_backup: docker.io/openstackhelm/mariadb:10.2.18
     scripted_test: null

@@ -9,5 +9,5 @@ release_group: osh-openstack-dcdbsync
 images:
   tags:
     dcdbsync: docker.io/starlingx/stx-keystone:master-centos-stable-latest
-    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
 ...

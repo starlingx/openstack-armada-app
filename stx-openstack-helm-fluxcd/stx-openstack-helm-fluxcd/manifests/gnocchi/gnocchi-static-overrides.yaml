@@ -17,9 +17,9 @@ images:
     gnocchi_statsd: docker.io/starlingx/stx-gnocchi:master-centos-stable-latest
     gnocchi_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     image_repo_sync: null
-    ks_endpoints: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-centos-stable-latest
-    ks_user: docker.io/starlingx/stx-heat:master-centos-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
 conf:
   gnocchi:
     indexer:

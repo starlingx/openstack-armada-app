@@ -25,8 +25,8 @@ images:
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    placement: docker.io/starlingx/stx-placement:master-centos-stable-latest
-    placement_db_sync: docker.io/starlingx/stx-placement:master-centos-stable-latest
+    placement: docker.io/starlingx/stx-placement:master-debian-stable-latest
+    placement_db_sync: docker.io/starlingx/stx-placement:master-debian-stable-latest
 pod:
   replicas:
     placement: 1
@@ -66,9 +66,9 @@ conf:
     SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
     CustomLog /dev/stdout combined env=!forwarded
     CustomLog /dev/stdout proxy env=forwarded
-    WSGISocketPrefix /var/run/httpd/wsgi
+    WSGISocketPrefix /var/run/apache2/wsgi
     <VirtualHost *:{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-        WSGIDaemonProcess placement-api processes=4 threads=1 user=placement group=placement display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
+        WSGIDaemonProcess placement-api processes=4 threads=1 user=placement group=placement display-name=%{GROUP} python-home=/var/lib/openstack socket-user=www-data
         WSGIProcessGroup placement-api
         WSGIScriptAlias / /var/www/cgi-bin/placement/placement-api
         WSGIApplicationGroup %{GLOBAL}

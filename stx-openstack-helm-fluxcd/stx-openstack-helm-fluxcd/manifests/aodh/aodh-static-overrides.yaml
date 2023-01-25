@@ -8,12 +8,12 @@
 release_group: osh-openstack-aodh
 images:
   tags:
-    aodh_alarms_cleaner: docker.io/starlingx/stx-aodh:master-centos-stable-latest
-    aodh_api: docker.io/starlingx/stx-aodh:master-centos-stable-latest
-    aodh_db_sync: docker.io/starlingx/stx-aodh:master-centos-stable-latest
-    aodh_evaluator: docker.io/starlingx/stx-aodh:master-centos-stable-latest
-    aodh_listener: docker.io/starlingx/stx-aodh:master-centos-stable-latest
-    aodh_notifier: docker.io/starlingx/stx-aodh:master-centos-stable-latest
+    aodh_alarms_cleaner: docker.io/starlingx/stx-aodh:master-debian-stable-latest
+    aodh_api: docker.io/starlingx/stx-aodh:master-debian-stable-latest
+    aodh_db_sync: docker.io/starlingx/stx-aodh:master-debian-stable-latest
+    aodh_evaluator: docker.io/starlingx/stx-aodh:master-debian-stable-latest
+    aodh_listener: docker.io/starlingx/stx-aodh:master-debian-stable-latest
+    aodh_notifier: docker.io/starlingx/stx-aodh:master-debian-stable-latest
     bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
@@ -65,10 +65,10 @@ conf:
     SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
     CustomLog /dev/stdout combined env=!forwarded
     CustomLog /dev/stdout proxy env=forwarded
-    WSGISocketPrefix /var/run/httpd/wsgi
+    WSGISocketPrefix /var/run/apache2/wsgi
 
     <VirtualHost *:{{ tuple "alarming" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-        WSGIDaemonProcess aodh processes=2 threads=1 user=aodh group=aodh display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
+        WSGIDaemonProcess aodh processes=2 threads=1 user=aodh group=aodh display-name=%{GROUP} python-home=/var/lib/openstack socket-user=www-data
         WSGIProcessGroup aodh
         WSGIScriptAlias / /var/www/cgi-bin/aodh/aodh-api
         WSGIApplicationGroup %{GLOBAL}

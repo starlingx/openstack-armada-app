@@ -10,8 +10,8 @@ images:
   tags:
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    horizon: docker.io/starlingx/stx-horizon:master-centos-stable-latest
-    horizon_db_sync: docker.io/starlingx/stx-horizon:master-centos-stable-latest
+    horizon: docker.io/starlingx/stx-horizon:master-debian-stable-latest
+    horizon_db_sync: docker.io/starlingx/stx-horizon:master-debian-stable-latest
     image_repo_sync: null
     test: null
 manifests:
@@ -68,11 +68,11 @@ conf:
       SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
       CustomLog /dev/stdout combined env=!forwarded
       CustomLog /dev/stdout proxy env=forwarded
-      WSGISocketPrefix /var/run/httpd/wsgi
+      WSGISocketPrefix /var/run/apache2/wsgi
 
       <VirtualHost *:{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
           WSGIScriptReloading On
-          WSGIDaemonProcess horizon-http processes=5 threads=1 user=horizon group=horizon display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
+          WSGIDaemonProcess horizon-http processes=5 threads=1 user=horizon group=horizon display-name=%{GROUP} python-home=/var/lib/openstack socket-user=www-data
           WSGIProcessGroup horizon-http
           WSGIScriptAlias / /var/www/cgi-bin/horizon/django.wsgi
           WSGIPassAuthorization On

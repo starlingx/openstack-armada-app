@@ -8,7 +8,7 @@
 release_group: osh-openstack-nova-api-proxy
 images:
   tags:
-    nova_api_proxy: docker.io/starlingx/stx-nova-api-proxy:master-centos-stable-latest
+    nova_api_proxy: docker.io/starlingx/stx-nova-api-proxy:master-debian-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
 endpoints:
   identity:

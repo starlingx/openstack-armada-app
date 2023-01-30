@@ -8,15 +8,15 @@
 release_group: osh-openstack-ceilometer
 images:
   tags:
-    ceilometer_api: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-    ceilometer_central: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-    ceilometer_collector: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-    ceilometer_compute: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-    ceilometer_db_sync: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-    ceilometer_ipmi: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-    ceilometer_notification: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-    db_init: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
-    db_init_mongodb: docker.io/starlingx/stx-ceilometer:master-centos-stable-latest
+    ceilometer_api: docker.io/starlingx/stx-ceilometer:master-debian-stable-latest
+    ceilometer_central: docker.io/starlingx/stx-ceilometer:master-debian-stable-latest
+    ceilometer_collector: docker.io/starlingx/stx-ceilometer:master-debian-stable-latest
+    ceilometer_compute: docker.io/starlingx/stx-ceilometer:master-debian-stable-latest
+    ceilometer_db_sync: docker.io/starlingx/stx-ceilometer:master-debian-stable-latest
+    ceilometer_ipmi: docker.io/starlingx/stx-ceilometer:master-debian-stable-latest
+    ceilometer_notification: docker.io/starlingx/stx-ceilometer:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-ceilometer:master-debian-stable-latest
+    db_init_mongodb: docker.io/starlingx/stx-ceilometer:master-debian-stable-latest
     image_repo_sync: null
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest

@@ -74,23 +74,23 @@ images:
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    nova_api: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_archive_deleted_rows: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_cell_setup: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_api: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_archive_deleted_rows: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_cell_setup: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_cell_setup_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    nova_compute: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_compute_ironic: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_compute_ssh: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_conductor: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_consoleauth: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_db_sync: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_novncproxy: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_novncproxy_assets: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_placement: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_scheduler: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_compute: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_compute_ironic: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_compute_ssh: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_conductor: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_consoleauth: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_db_sync: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_novncproxy: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_novncproxy_assets: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_placement: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_scheduler: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_service_cleaner: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
-    nova_spiceproxy: docker.io/starlingx/stx-nova:master-centos-stable-latest
-    nova_spiceproxy_assets: docker.io/starlingx/stx-nova:master-centos-stable-latest
+    nova_spiceproxy: docker.io/starlingx/stx-nova:master-debian-stable-latest
+    nova_spiceproxy_assets: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     test: null
 pod:

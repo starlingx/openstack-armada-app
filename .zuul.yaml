@@ -13,6 +13,7 @@
         - k8sapp-openstack-tox-py36
         - k8sapp-openstack-tox-py39
         - k8sapp-openstack-tox-pylint
+        - k8sapp-openstack-tox-pep8
     post:
       jobs:
         - stx-openstack-armada-app-upload-git-mirror
@@ -29,11 +30,11 @@
       - starlingx/update
       - starlingx/utilities
     files:
-        - python3-k8sapp-openstack/k8sapp_openstack/*
+        - python-k8sapp-openstack/k8sapp_openstack/*
     vars:
         tox_envlist: py36
         python_version: 3.6
-        tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
+        tox_extra_args: -c python-k8sapp-openstack/k8sapp_openstack/tox.ini
 - job:
     name: k8sapp-openstack-tox-py39
     parent: tox-py39
@@ -46,11 +47,11 @@
       - starlingx/update
       - starlingx/utilities
     files:
-        - python3-k8sapp-openstack/k8sapp_openstack/*
+        - python-k8sapp-openstack/k8sapp_openstack/*
     vars:
         tox_envlist: py39
         python_version: 3.9
-        tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
+        tox_extra_args: -c python-k8sapp-openstack/k8sapp_openstack/tox.ini
 - job:
     name: stx-openstack-armada-app-upload-git-mirror
     parent: upload-git-mirror
@@ -68,17 +69,17 @@
     parent: tox
     description: |
       Run pylint tests for k8sapp_oidc
-    nodeset: ubuntu-bionic
+    nodeset: debian-bullseye
     required-projects:
       - starlingx/config
       - starlingx/fault
       - starlingx/update
       - starlingx/utilities
     files:
-      - python3-k8sapp-openstack/*
+      - python-k8sapp-openstack/*
     vars:
       tox_envlist: pylint
-      tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
+      tox_extra_args: -c python-k8sapp-openstack/k8sapp_openstack/tox.ini
 
 - job:
     name: k8sapp-openstack-tox-pep8
@@ -92,10 +93,10 @@
       - starlingx/update
       - starlingx/utilities
     files:
-      - python3-k8sapp-openstack/*
+      - python-k8sapp-openstack/*
     vars:
       tox_envlist: pep8
-      tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
+      tox_extra_args: -c python-k8sapp-openstack/k8sapp_openstack/tox.ini
 
 - secret:
     name: stx-openstack-armada-app-github-secret

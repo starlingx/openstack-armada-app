@@ -7,6 +7,4 @@ src_files:
   - ${MY_REPO}/stx/helm-charts/fm-rest-api/fm-rest-api/helm-charts
 revision:
   dist: $STX_DIST
-  GITREVCOUNT:
-    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app
-    BASE_SRCREV: 301e310b67f608c309a34c7431848f680e2ea827
+  PKG_GITREVCOUNT: true

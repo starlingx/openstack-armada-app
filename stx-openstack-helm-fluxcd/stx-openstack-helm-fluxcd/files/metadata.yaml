@@ -15,6 +15,7 @@ behavior:
       - type: force-unlock
       - type: runtime-apply-puppet
       - type: host-availability-updated
+      - type: kube-upgrade-complete
         filters:
           - availability: services-enabled
       - type: host-delete

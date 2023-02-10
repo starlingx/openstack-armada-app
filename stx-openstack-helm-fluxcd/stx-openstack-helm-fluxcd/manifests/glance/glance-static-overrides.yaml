@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,14 +23,15 @@ images:
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     glance_api: docker.io/starlingx/stx-glance:master-debian-stable-latest
     glance_db_sync: docker.io/starlingx/stx-glance:master-debian-stable-latest
+    glance_metadefs_load: docker.io/starlingx/stx-glance:master-debian-stable-latest
     glance_registry: docker.io/starlingx/stx-glance:master-debian-stable-latest
     glance_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     image_repo_sync: null
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    rabbit_init: docker.io/rabbitmq:3.9.0-management
     test: null
-    glance_metadefs_load: docker.io/starlingx/stx-glance:master-debian-stable-latest
 pod:
   replicas:
     api: 2

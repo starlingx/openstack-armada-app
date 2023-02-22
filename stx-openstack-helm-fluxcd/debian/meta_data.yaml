@@ -7,4 +7,6 @@ src_files:
   - ${MY_REPO}/stx/helm-charts/fm-rest-api/fm-rest-api/helm-charts
 revision:
   dist: $STX_DIST
-  PKG_GITREVCOUNT: true
+  GITREVCOUNT:
+    BASE_SRCREV: daef54697f354ca8fda128c46e50771f8ee7eb45
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/stx-openstack-helm-fluxcd

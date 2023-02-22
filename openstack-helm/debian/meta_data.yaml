@@ -11,3 +11,6 @@ src_files:
 revision:
   dist: $STX_DIST
   PKG_GITREVCOUNT: true
+  GITREVCOUNT:
+    BASE_SRCREV: 0a50ff4f895fb2d20122c23019f76d08d885a12f
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/openstack-helm/files

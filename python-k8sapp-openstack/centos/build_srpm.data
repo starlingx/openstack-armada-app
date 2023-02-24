@@ -1,9 +1,0 @@
-SRC_DIR="k8sapp_openstack"
-
-# Bump the version by the previous version value prior to decoupling as this
-# will align the GITREVCOUNT value to increment the version by one. Remove this
-# (i.e. reset to 0) on then next major version changes when TIS_BASE_SRCREV
-# changes. This version should align with the version of the helm charts in
-# stx-openstack-helm
-TIS_BASE_SRCREV=8d3452a5e864339101590e542c24c375bb3808fb
-TIS_PATCH_VER=GITREVCOUNT+20

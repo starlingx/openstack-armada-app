@@ -5,6 +5,10 @@ disabled_charts:
 - ceph-rgw
 - gnocchi
 - ironic
+
+upgrades:
+  auto_update: true
+
 behavior:
   platform_managed_app: yes
   evaluate_reapply:

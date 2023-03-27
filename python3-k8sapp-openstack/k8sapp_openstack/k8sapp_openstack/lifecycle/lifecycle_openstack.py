@@ -8,7 +8,6 @@
 
 """ System inventory App lifecycle operator."""
 
-from eventlet import greenthread
 from oslo_log import log as logging
 from sysinv.api.controllers.v1 import utils
 from sysinv.common import constants
@@ -16,7 +15,6 @@ from sysinv.common import exception
 from sysinv.helm import common
 from sysinv.helm import lifecycle_base as base
 from sysinv.helm import lifecycle_utils as lifecycle_utils
-from sysinv.helm import utils as helm_utils
 from sysinv.helm.lifecycle_constants import LifecycleConstants
 
 from k8sapp_openstack import utils as app_utils
@@ -52,12 +50,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     return self.pre_remove(context, conductor_obj, hook_info)
                 elif hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
                     return self.post_remove(context, conductor_obj, hook_info)
-
-        # Manifest
-        elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_MANIFEST and \
-                hook_info.operation == constants.APP_APPLY_OP and \
-                hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
-            return self.pre_manifest_apply(app, app_op, hook_info)
 
         # Resource
         elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_RESOURCE:
@@ -131,40 +123,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # The radosgw chart may have been enabled/disabled. Regardless of
             # the prior apply state, update the ceph config
             conductor_obj._update_radosgw_config(context)
-
-    def pre_manifest_apply(self, app, app_op, hook_info):
-        """Pre manifest apply actions
-
-        :param app_op: AppOperator object
-        :param app: AppOperator.Application object
-        :param hook_info: LifecycleHookInfo object
-
-        """
-        # For stx-openstack app, if the apply operation was terminated
-        # (e.g. user aborted, controller swacted, sysinv conductor
-        # restarted) while compute-kit charts group was being deployed,
-        # Tiller may still be processing these charts. Issuing another
-        # manifest apply request while there are pending install of libvirt,
-        # neutron and/or nova charts will result in reapply failure.
-        #
-        # Wait up to 10 minutes for Tiller to finish its transaction
-        # from previous apply before making a new manifest apply request.
-        LOG.info("Wait if there are openstack charts in pending install...")
-        for i in range(self.CHARTS_PENDING_INSTALL_ITERATIONS):
-            result = helm_utils.get_openstack_pending_install_charts()
-            if not result:
-                break
-
-            if app_op.is_app_aborted(app.name):
-                raise exception.KubeAppAbort()
-            greenthread.sleep(10)
-        if result:
-            app_op._abort_operation(app, constants.APP_APPLY_OP)
-            raise exception.KubeAppApplyFailure(
-                name=app.name, version=app.version,
-                reason="Timed out while waiting for some charts that "
-                       "are still in pending install in previous application "
-                       "apply to clear. Please try again later.")
 
     def pre_remove(self, context, conductor_obj, hook_info):
         """Pre remove actions

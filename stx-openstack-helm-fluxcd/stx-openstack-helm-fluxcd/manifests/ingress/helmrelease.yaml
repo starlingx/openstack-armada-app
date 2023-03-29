@@ -29,9 +29,6 @@ spec:
     disableHooks: false
   upgrade:
     disableHooks: false
-  dependsOn:
-    - name: openstack-psp-rolebinding
-      namespace: openstack
   valuesFrom:
     - kind: Secret
       name: ingress-static-overrides

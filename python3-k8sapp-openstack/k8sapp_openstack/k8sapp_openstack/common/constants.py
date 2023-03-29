@@ -44,7 +44,6 @@ HELM_CHART_PLACEMENT = 'placement'
 HELM_CHART_RABBITMQ = 'rabbitmq'
 HELM_CHART_SWIFT = 'ceph-rgw'
 HELM_CHART_DCDBSYNC = 'dcdbsync'
-HELM_CHART_PSP_ROLEBINDING = 'openstack-psp-rolebinding'
 
 # Helm Release constants
 FLUXCD_HELMRELEASE_AODH = 'aodh'
@@ -76,7 +75,6 @@ FLUXCD_HELMRELEASE_PLACEMENT = 'placement'
 FLUXCD_HELMRELEASE_RABBITMQ = 'rabbitmq'
 FLUXCD_HELMRELEASE_SWIFT = 'ceph-rgw'
 FLUXCD_HELMRELEASE_DCDBSYNC = 'dcdbsync'
-FLUXCD_HELMRELEASE_PSP_ROLEBINDING = 'openstack-psp-rolebinding'
 
 # Nova PCI Alias types and names
 # NOTE: Generic GPU and QAT definitions reside in sysinv/common/constants.py

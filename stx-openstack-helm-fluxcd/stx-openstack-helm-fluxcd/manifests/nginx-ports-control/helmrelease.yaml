@@ -26,9 +26,6 @@ spec:
     enable: false
   upgrade:
     disableHooks: false
-  dependsOn:
-    - name: openstack-psp-rolebinding
-      namespace: openstack
   valuesFrom:
     - kind: Secret
       name: nginx-ports-control-static-overrides

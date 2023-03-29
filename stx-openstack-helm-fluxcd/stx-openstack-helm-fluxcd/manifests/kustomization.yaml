@@ -10,7 +10,6 @@ kind: Kustomization
 namespace: openstack
 resources:
   - base
-  - psp-rolebinding
   - ingress
   - nginx-ports-control
   - mariadb

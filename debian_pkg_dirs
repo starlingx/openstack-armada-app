@@ -1,5 +1,4 @@
 openstack-helm
 openstack-helm-infra
 python3-k8sapp-openstack
-stx-openstack-helm
 stx-openstack-helm-fluxcd

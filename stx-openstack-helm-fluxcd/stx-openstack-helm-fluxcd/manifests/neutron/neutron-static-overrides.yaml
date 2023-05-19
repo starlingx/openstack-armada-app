@@ -43,6 +43,9 @@ pod:
     neutron_sriov_agent:
       pod:
         runAsUser: 0
+    neutron_netns_cleanup_cron:
+      pod:
+        runAsUser: 0
   affinity:
     anti:
       type:

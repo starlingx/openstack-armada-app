@@ -19,3 +19,4 @@
 0020-Fixing-keystone-helm-release-hooks-and-weights.patch
 0021-Update-user-in-cinder-related-pods.patch
 0022-Fixing-cinder-helm-release-storage-bootstrap-hooks.patch
+0023-Support-ceph-dev-version-during-pool-creation.patch

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2022 Wind River Systems, Inc.
+# Copyright (c) 2019-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -105,6 +105,21 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         keystone_operator = self._operator.chart_operators[
             app_constants.HELM_CHART_KEYSTONE]
         return keystone_operator.get_admin_user_name()
+
+    def _get_admin_project_name(self):
+        keystone_operator = self._operator.chart_operators[
+            app_constants.HELM_CHART_KEYSTONE]
+        return keystone_operator.get_admin_project_name()
+
+    def _get_admin_project_domain(self):
+        keystone_operator = self._operator.chart_operators[
+            app_constants.HELM_CHART_KEYSTONE]
+        return keystone_operator.get_admin_project_domain()
+
+    def _get_admin_user_domain(self):
+        keystone_operator = self._operator.chart_operators[
+            app_constants.HELM_CHART_KEYSTONE]
+        return keystone_operator.get_admin_user_domain()
 
     def _get_identity_password(self, service, user):
         passwords = self.context.setdefault('_service_passwords', {})

@@ -26,6 +26,7 @@ override_dh_auto_build:
 	cd helm-charts && make fm-rest-api
 	cd helm-charts && make nginx-ports-control
 	cd helm-charts && make dcdbsync
+	cd helm-charts && make clients
 	# Terminate the helm chart server.
 	pkill chartmuseum
 	# Remove helm-toolkit. This will be packaged with openstack-helm-infra.

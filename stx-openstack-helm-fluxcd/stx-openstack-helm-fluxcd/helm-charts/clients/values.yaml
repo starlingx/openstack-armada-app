@@ -1,0 +1,100 @@
+#
+# Copyright (c) 2023 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# Default values for clients.
+# This is a YAML-formatted file.
+# Declare name/value pairs to be passed into your templates.
+# name: value
+
+release_group: null
+
+images:
+  tags:
+    openstack_clients: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
+    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+  pull_policy: "IfNotPresent"
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
+
+labels:
+  openstack_clients:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+
+dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
+  static:
+    image_repo_sync:
+      services:
+        - endpoint: internal
+          service: local_image_registry
+    clients:
+      services:
+        - endpoint: internal
+          service: identity
+
+endpoints:
+  cluster_domain_suffix: cluster.local
+  local_image_registry:
+    name: docker-registry
+    namespace: docker-registry
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        node: 5000
+  identity:
+    name: keystone
+    auth:
+      admin:
+        region_name: RegionOne
+        username: admin
+        password: password
+        project_name: admin
+        user_domain_name: default
+        project_domain_name: default
+      nova:
+        role: admin
+        region_name: RegionOne
+        username: nova
+        password: password
+        project_name: service
+        user_domain_name: service
+        project_domain_name: service
+    hosts:
+      default: keystone-api
+      public: keystone
+    host_fqdn_override:
+      default: null
+    path:
+      default: /v3
+    scheme:
+      default: http
+    port:
+      api:
+        default: 80
+        internal: 5000
+
+conf: {}
+
+tolerations: []
+
+manifests:
+  daemonset_clients: true

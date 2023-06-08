@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2023 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: clients-static-overrides
+    files:
+      - clients-static-overrides.yaml
+  - name: clients-system-overrides
+    files:
+      - clients-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

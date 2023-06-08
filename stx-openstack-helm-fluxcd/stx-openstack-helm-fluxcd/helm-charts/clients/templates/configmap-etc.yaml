@@ -1,0 +1,27 @@
+{{/*
+#
+# Copyright (c) 2023 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+*/}}
+
+{{- define "clients.configmap.etc" }}
+{{- $configMapName := index . 0 }}
+{{- $envAll := index . 1 }}
+{{- with $envAll }}
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $configMapName }}
+type: Opaque
+data: {}
+{{- end }}
+{{- end }}
+
+{{- if .Values.manifests.configmap_etc }}
+{{- list "clients-etc" . | include "clients.configmap.etc" }}
+{{- end }}
+

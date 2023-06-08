@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -19,6 +19,7 @@ HELM_CHART_AODH = 'aodh'
 HELM_CHART_BARBICAN = 'barbican'
 HELM_CHART_CEILOMETER = 'ceilometer'
 HELM_CHART_CINDER = 'cinder'
+HELM_CHART_CLIENTS = 'clients'
 HELM_CHART_FM_REST_API = 'fm-rest-api'
 HELM_CHART_GARBD = 'garbd'
 HELM_CHART_GLANCE = 'glance'
@@ -50,6 +51,7 @@ FLUXCD_HELMRELEASE_AODH = 'aodh'
 FLUXCD_HELMRELEASE_BARBICAN = 'barbican'
 FLUXCD_HELMRELEASE_CEILOMETER = 'ceilometer'
 FLUXCD_HELMRELEASE_CINDER = 'cinder'
+FLUXCD_HELMRELEASE_CLIENTS = 'clients'
 FLUXCD_HELMRELEASE_FM_REST_API = 'fm-rest-api'
 FLUXCD_HELMRELEASE_GARBD = 'garbd'
 FLUXCD_HELMRELEASE_GLANCE = 'glance'

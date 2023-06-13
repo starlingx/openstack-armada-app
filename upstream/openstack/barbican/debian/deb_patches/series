@@ -1,0 +1,3 @@
+0001-Remove-dbconfig-and-openstack-pkg-tools-config.patch
+0002-Start-barbican-api-with-gunicorn-during-bootstrap-fo.patch
+0003-Create-barbican-user-group-log-dir.patch

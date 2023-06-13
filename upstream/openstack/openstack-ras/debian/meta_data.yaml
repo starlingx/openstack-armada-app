@@ -1,0 +1,11 @@
+debver: 2012.2~f3-1
+debname: openstack-resource-agents
+dl_path:
+  name: openstack-resource-agents-2012.2~f3-1.tar.gz
+  url: https://github.com/starlingx-staging/stx-openstack-ras/tarball/4ba6047db1b70ee2bb3dd43739de7d2fb4e85ebd
+  md5sum: 58b82fa1d64ea59bad345d01bafb71be
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/openstack-ras

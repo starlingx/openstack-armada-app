@@ -1,0 +1,44 @@
+From 76f568a6d94e798d47d044b2abde8b4a3884657e Mon Sep 17 00:00:00 2001
+From: Fabricio Henrique Ramos <fabriciohenrique.ramos@windriver.com>
+Date: Mon, 4 Oct 2021 23:15:54 -0300
+Subject: [PATCH] CGTS-7947: add --os-keystone-region-name option to openstack
+
+The new option only apply to identity client.
+---
+ osc_lib/clientmanager.py | 1 +
+ osc_lib/shell.py         | 7 +++++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/osc_lib/clientmanager.py b/osc_lib/clientmanager.py
+index 2990c27..38d84c1 100644
+--- a/osc_lib/clientmanager.py
++++ b/osc_lib/clientmanager.py
+@@ -88,6 +88,7 @@ class ClientManager(object):
+         self._app_name = app_name
+         self._app_version = app_version
+         self.region_name = self._cli_options.region_name
++        self.keystone_region_name = self._cli_options.keystone_region_name
+         self.interface = self._cli_options.interface
+ 
+         self.timing = self._cli_options.timing
+diff --git a/osc_lib/shell.py b/osc_lib/shell.py
+index 27c3a57..c2a504a 100644
+--- a/osc_lib/shell.py
++++ b/osc_lib/shell.py
+@@ -205,6 +205,13 @@ class OpenStackShell(app.App):
+             default=utils.env('OS_REGION_NAME'),
+             help=_('Authentication region name (Env: OS_REGION_NAME)'),
+         )
++        parser.add_argument(
++            '--os-keystone-region-name',
++            metavar='<keystone-region-name>',
++            dest='keystone_region_name',
++            default=utils.env('OS_KEYSTONE_REGION_NAME'),
++            help=_('Keystone Authentication region name (Env: OS_KEYSTONE_REGION_NAME)'),
++        )
+         parser.add_argument(
+             '--os-cacert',
+             metavar='<ca-bundle-file>',
+-- 
+2.17.1
+

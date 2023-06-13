@@ -1,0 +1,12 @@
+---
+debver: 0.50.0-6
+debname: python-openstacksdk
+dl_path:
+  name: python-openstacksdk-debian-0.50.0-6.tar.gz
+  url: https://salsa.debian.org/openstack-team/libs/python-openstacksdk/-/archive/debian/0.50.0-6/python-openstacksdk-debian-0.50.0-6.tar.gz
+  md5sum: 66c50e3a9ab9b6d5174ed66dd889e4ed
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-openstacksdk

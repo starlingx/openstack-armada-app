@@ -1,0 +1,12 @@
+---
+debname: python-keystoneclient
+debver: 1:4.1.1-2
+dl_path:
+  name: python-keystoneclient-debian-4.1.1-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-keystoneclient/-/archive/debian/4.1.1-2/python-keystoneclient-debian-4.1.1-2.tar.gz
+  md5sum: 856c51c82e694145279d06e36b8225f4
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-keystoneclient

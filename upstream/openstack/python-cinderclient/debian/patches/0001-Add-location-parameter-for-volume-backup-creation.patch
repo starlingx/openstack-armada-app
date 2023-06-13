@@ -1,0 +1,270 @@
+From b9ea3db2bde72c11b5da6222c57d7ccb80143724 Mon Sep 17 00:00:00 2001
+From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+Date: Mon, 6 Mar 2023 09:25:12 -0300
+Subject: [PATCH] Add location parameter for volume backup creation
+
+This change adds the `location` parameter in python-cinderclient's
+`volume backup create` command to allow the optional specification of
+volume backup locations.
+
+This change also updates the unit tests accordingly.
+
+Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+---
+ cinderclient/tests/unit/v2/test_shell.py      |  5 ++++
+ .../tests/unit/v2/test_volume_backups.py      |  6 ++++
+ cinderclient/tests/unit/v3/test_shell.py      | 20 ++++++++++++-
+ cinderclient/v2/shell.py                      |  7 ++++-
+ cinderclient/v2/volume_backups.py             |  5 ++--
+ cinderclient/v3/shell.py                      |  5 ++++
+ cinderclient/v3/volume_backups.py             | 30 +++++++++++--------
+ 7 files changed, 62 insertions(+), 16 deletions(-)
+
+diff --git a/cinderclient/tests/unit/v2/test_shell.py b/cinderclient/tests/unit/v2/test_shell.py
+index f6f6355..95a3af9 100644
+--- a/cinderclient/tests/unit/v2/test_shell.py
++++ b/cinderclient/tests/unit/v2/test_shell.py
+@@ -379,6 +379,11 @@ class ShellTest(utils.TestCase):
+         self.run_command('backup-create 1234 --snapshot-id 4321')
+         self.assert_called('POST', '/backups')
+ 
++    def test_backup_location(self):
++        self.run_command('backup-create 1234 '
++                         '--location nfs://10.10.10.10:/exports/backups')
++        self.assert_called('POST', '/backups')
++
+     def test_multiple_backup_delete(self):
+         self.run_command('backup-delete 1234 5678')
+         self.assert_called_anytime('DELETE', '/backups/1234')
+diff --git a/cinderclient/tests/unit/v2/test_volume_backups.py b/cinderclient/tests/unit/v2/test_volume_backups.py
+index 700c440..09f1c0e 100644
+--- a/cinderclient/tests/unit/v2/test_volume_backups.py
++++ b/cinderclient/tests/unit/v2/test_volume_backups.py
+@@ -52,6 +52,12 @@ class VolumeBackupsTest(utils.TestCase):
+                           '3c706gbg-c074-51d9-9575-385119gcdfg5')
+         cs.assert_called('POST', '/backups')
+ 
++    def test_create_location(self):
++        cs.backups.create('2b695faf-b963-40c8-8464-274008fbcef4',
++                          None, None, None, False, False, None,
++                          'nfs://10.10.10.10:/exports/backups')
++        cs.assert_called('POST', '/backups')
++
+     def test_get(self):
+         backup_id = '76a17945-3c6f-435c-975b-b5685db10b62'
+         back = cs.backups.get(backup_id)
+diff --git a/cinderclient/tests/unit/v3/test_shell.py b/cinderclient/tests/unit/v3/test_shell.py
+index 0332ae3..6464a73 100644
+--- a/cinderclient/tests/unit/v3/test_shell.py
++++ b/cinderclient/tests/unit/v3/test_shell.py
+@@ -1254,7 +1254,23 @@ class ShellTest(utils.TestCase):
+                                'incremental': False,
+                                'force': False,
+                                'snapshot_id': None,
+-                               }}
++                               'location': None, }}
++        self.assert_called('POST', '/backups', body=expected)
++
++    def test_backup_with_location(self):
++        self.run_command('--os-volume-api-version 3.42 backup-create '
++                         '--name 1234 '
++                         '--location nfs://10.10.10.10:/exports/backups 1234')
++        expected = {
++            'backup': {
++                'volume_id': 1234,
++                'container': None,
++                'name': '1234',
++                'description': None,
++                'incremental': False,
++                'force': False,
++                'snapshot_id': None,
++                'location': 'nfs://10.10.10.10:/exports/backups', }}
+         self.assert_called('POST', '/backups', body=expected)
+ 
+     def test_backup_with_metadata(self):
+@@ -1267,6 +1283,7 @@ class ShellTest(utils.TestCase):
+                                'incremental': False,
+                                'force': False,
+                                'snapshot_id': None,
++                               'location': None,
+                                'metadata': {'foo': 'bar'}, }}
+         self.assert_called('POST', '/backups', body=expected)
+ 
+@@ -1280,6 +1297,7 @@ class ShellTest(utils.TestCase):
+                                'incremental': False,
+                                'force': False,
+                                'snapshot_id': None,
++                               'location': None,
+                                'availability_zone': 'AZ2'}}
+         self.assert_called('POST', '/backups', body=expected)
+ 
+diff --git a/cinderclient/v2/shell.py b/cinderclient/v2/shell.py
+index d41e014..a975f02 100644
+--- a/cinderclient/v2/shell.py
++++ b/cinderclient/v2/shell.py
+@@ -1162,6 +1162,10 @@ def do_retype(cs, args):
+            metavar='<snapshot-id>',
+            default=None,
+            help='ID of snapshot to backup. Default=None.')
++@utils.arg('--location',
++           metavar='<location>',
++           default=None,
++           help='Backup location. Default=None')
+ def do_backup_create(cs, args):
+     """Creates a volume backup."""
+     if args.display_name is not None:
+@@ -1177,7 +1181,8 @@ def do_backup_create(cs, args):
+                                args.description,
+                                args.incremental,
+                                args.force,
+-                               args.snapshot_id)
++                               args.snapshot_id,
++                               args.location)
+ 
+     info = {"volume_id": volume.id}
+     info.update(backup._info)
+diff --git a/cinderclient/v2/volume_backups.py b/cinderclient/v2/volume_backups.py
+index bcf3e01..0a4f1c1 100644
+--- a/cinderclient/v2/volume_backups.py
++++ b/cinderclient/v2/volume_backups.py
+@@ -46,7 +46,7 @@ class VolumeBackupManager(base.ManagerWithFind):
+     def create(self, volume_id, container=None,
+                name=None, description=None,
+                incremental=False, force=False,
+-               snapshot_id=None):
++               snapshot_id=None, location=None):
+         """Creates a volume backup.
+ 
+         :param volume_id: The ID of the volume to backup.
+@@ -66,7 +66,8 @@ class VolumeBackupManager(base.ManagerWithFind):
+                            'description': description,
+                            'incremental': incremental,
+                            'force': force,
+-                           'snapshot_id': snapshot_id, }}
++                           'snapshot_id': snapshot_id,
++                           'location': location, }}
+         return self._create('/backups', body, 'backup')
+ 
+     def get(self, backup_id):
+diff --git a/cinderclient/v3/shell.py b/cinderclient/v3/shell.py
+index eaded7e..cfafe87 100644
+--- a/cinderclient/v3/shell.py
++++ b/cinderclient/v3/shell.py
+@@ -2466,6 +2466,10 @@ def do_service_get_log(cs, args):
+            metavar='<snapshot-id>',
+            default=None,
+            help='ID of snapshot to backup. Default=None.')
++@utils.arg('--location',
++           metavar='<location>',
++           default=None,
++           help='Backup location. Default=None')
+ @utils.arg('--metadata',
+            nargs='*',
+            metavar='<key=value>',
+@@ -2500,6 +2504,7 @@ def do_backup_create(cs, args):
+                                args.incremental,
+                                args.force,
+                                args.snapshot_id,
++                               location=args.location,
+                                **kwargs)
+     info = {"volume_id": volume.id}
+     info.update(backup._info)
+diff --git a/cinderclient/v3/volume_backups.py b/cinderclient/v3/volume_backups.py
+index 7dd8560..66525af 100644
+--- a/cinderclient/v3/volume_backups.py
++++ b/cinderclient/v3/volume_backups.py
+@@ -43,7 +43,7 @@ class VolumeBackupManager(volume_backups.VolumeBackupManager):
+     def create(self, volume_id, container=None,
+                name=None, description=None,
+                incremental=False, force=False,
+-               snapshot_id=None):
++               snapshot_id=None, location=None):
+         """Creates a volume backup.
+ 
+         :param volume_id: The ID of the volume to backup.
+@@ -55,17 +55,19 @@ class VolumeBackupManager(volume_backups.VolumeBackupManager):
+         :param snapshot_id: The ID of the snapshot to backup. This should
+                             be a snapshot of the src volume, when specified,
+                             the new backup will be based on the snapshot.
++        :param location: The backup location.
+         :rtype: :class:`VolumeBackup`
+         """
+         return self._create_backup(volume_id, container, name, description,
+-                                   incremental, force, snapshot_id)
++                                   incremental, force, snapshot_id,
++                                   location=location)
+ 
+     @api_versions.wraps("3.43")  # noqa: F811
+     def create(self, volume_id, container=None,  # noqa
+                name=None, description=None,
+                incremental=False, force=False,
+-               snapshot_id=None,
+-               metadata=None):
++               snapshot_id=None, metadata=None,
++               location=None):
+         """Creates a volume backup.
+ 
+         :param volume_id: The ID of the volume to backup.
+@@ -74,28 +76,30 @@ class VolumeBackupManager(volume_backups.VolumeBackupManager):
+         :param description: The description of the backup.
+         :param incremental: Incremental backup.
+         :param force: If True, allows an in-use volume to be backed up.
+-        :param metadata: Key Value pairs
+         :param snapshot_id: The ID of the snapshot to backup. This should
+                             be a snapshot of the src volume, when specified,
+                             the new backup will be based on the snapshot.
++        :param metadata: Key Value pairs
++        :param location: The backup location.
+         :rtype: :class:`VolumeBackup`
+         """
+         # pylint: disable=function-redefined
+         return self._create_backup(volume_id, container, name, description,
+-                                   incremental, force, snapshot_id, metadata)
++                                   incremental, force, snapshot_id, metadata,
++                                   location=location)
+ 
+     @api_versions.wraps("3.51")  # noqa: F811
+     def create(self, volume_id, container=None, name=None, description=None,  # noqa
+                incremental=False, force=False, snapshot_id=None, metadata=None,
+-               availability_zone=None):
++               availability_zone=None, location=None):
+         return self._create_backup(volume_id, container, name, description,
+                                    incremental, force, snapshot_id, metadata,
+-                                   availability_zone)
++                                   availability_zone, location=location)
+ 
+     def _create_backup(self, volume_id, container=None, name=None,
+                        description=None, incremental=False, force=False,
+-                       snapshot_id=None, metadata=None,
+-                       availability_zone=None):
++                       snapshot_id=None, metadata=None, availability_zone=None,
++                       location=None):
+         """Creates a volume backup.
+ 
+         :param volume_id: The ID of the volume to backup.
+@@ -104,10 +108,11 @@ class VolumeBackupManager(volume_backups.VolumeBackupManager):
+         :param description: The description of the backup.
+         :param incremental: Incremental backup.
+         :param force: If True, allows an in-use volume to be backed up.
+-        :param metadata: Key Value pairs
+         :param snapshot_id: The ID of the snapshot to backup. This should
+                             be a snapshot of the src volume, when specified,
+                             the new backup will be based on the snapshot.
++        :param location: The backup location.
++        :param metadata: Key Value pairs
+         :param availability_zone: The AZ where we want the backup stored.
+         :rtype: :class:`VolumeBackup`
+         """
+@@ -118,7 +123,8 @@ class VolumeBackupManager(volume_backups.VolumeBackupManager):
+                            'description': description,
+                            'incremental': incremental,
+                            'force': force,
+-                           'snapshot_id': snapshot_id, }}
++                           'snapshot_id': snapshot_id,
++                           'location': location, }}
+         if metadata:
+             body['backup']['metadata'] = metadata
+         if availability_zone:
+-- 
+2.25.1
+

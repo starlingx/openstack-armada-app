@@ -1,0 +1,94 @@
+---
+ ocf/nova-api         |    3 +++
+ ocf/nova-cert        |    3 +++
+ ocf/nova-conductor   |    3 +++
+ ocf/nova-consoleauth |    3 +++
+ ocf/nova-network     |    3 +++
+ ocf/nova-novnc       |    3 +++
+ ocf/nova-scheduler   |    3 +++
+ 7 files changed, 21 insertions(+)
+
+--- a/ocf/nova-api
++++ b/ocf/nova-api
+@@ -272,6 +272,9 @@ nova_api_start() {
+         return $OCF_SUCCESS
+     fi
+ 
++    # Change the working dir to /, to be sure it's accesible
++    cd /
++
+     # run the actual nova-api daemon. Don't use ocf_run as we're sending the tool's output
+     # straight to /dev/null anyway and using ocf_run would break stdout-redirection here.
+     su ${OCF_RESKEY_user} -s /bin/sh -c "${OCF_RESKEY_binary} --config-file=$OCF_RESKEY_config \
+--- a/ocf/nova-cert
++++ b/ocf/nova-cert
+@@ -285,6 +285,9 @@ nova_cert_start() {
+         return $OCF_SUCCESS
+     fi
+ 
++    # Change the working dir to /, to be sure it's accesible
++    cd /
++
+     # run the actual nova-cert daemon. Don't use ocf_run as we're sending the tool's output
+     # straight to /dev/null anyway and using ocf_run would break stdout-redirection here.
+     su ${OCF_RESKEY_user} -s /bin/sh -c "${OCF_RESKEY_binary} --config-file=$OCF_RESKEY_config \
+--- a/ocf/nova-conductor
++++ b/ocf/nova-conductor
+@@ -284,6 +284,9 @@ nova_conductor_start() {
+         return $OCF_SUCCESS
+     fi
+ 
++    # Change the working dir to /, to be sure it's accesible
++    cd /
++
+     # run the actual nova-conductor daemon. Don't use ocf_run as we're sending the tool's output
+     # straight to /dev/null anyway and using ocf_run would break stdout-redirection here.
+     su ${OCF_RESKEY_user} -s /bin/sh -c "${OCF_RESKEY_binary} --config-file=$OCF_RESKEY_config \
+--- a/ocf/nova-consoleauth
++++ b/ocf/nova-consoleauth
+@@ -285,6 +285,9 @@ nova_consoleauth_start() {
+         return $OCF_SUCCESS
+     fi
+ 
++    # Change the working dir to /, to be sure it's accesible
++    cd /
++
+     # run the actual nova-consoleauth daemon. Don't use ocf_run as we're sending the tool's output
+     # straight to /dev/null anyway and using ocf_run would break stdout-redirection here.
+     su ${OCF_RESKEY_user} -s /bin/sh -c "${OCF_RESKEY_binary} --config-file=$OCF_RESKEY_config \
+--- a/ocf/nova-network
++++ b/ocf/nova-network
+@@ -264,6 +264,9 @@ nova_network_start() {
+         return $OCF_SUCCESS
+     fi
+ 
++    # Change the working dir to /, to be sure it's accesible
++    cd /
++
+     # run the actual nova-network daemon. Don't use ocf_run as we're sending the tool's output
+     # straight to /dev/null anyway and using ocf_run would break stdout-redirection here.
+     su ${OCF_RESKEY_user} -s /bin/sh -c "${OCF_RESKEY_binary} --config-file=$OCF_RESKEY_config \
+--- a/ocf/nova-novnc
++++ b/ocf/nova-novnc
+@@ -235,6 +235,9 @@ nova_vnc_console_start() {
+         return $OCF_SUCCESS
+     fi
+ 
++    # Change the working dir to /, to be sure it's accesible
++    cd /
++
+     # run the actual nova-novncproxy daemon. Don't use ocf_run as we're sending the tool's output
+     # straight to /dev/null anyway and using ocf_run would break stdout-redirection here.
+     su ${OCF_RESKEY_user} -s /bin/sh -c "${OCF_RESKEY_binary} --config-file=$OCF_RESKEY_config --web /usr/share/novnc/ \
+--- a/ocf/nova-scheduler
++++ b/ocf/nova-scheduler
+@@ -284,6 +284,9 @@ nova_scheduler_start() {
+         return $OCF_SUCCESS
+     fi
+ 
++    # Change the working dir to /, to be sure it's accesible
++    cd /
++
+     # run the actual nova-scheduler daemon. Don't use ocf_run as we're sending the tool's output
+     # straight to /dev/null anyway and using ocf_run would break stdout-redirection here.
+     su ${OCF_RESKEY_user} -s /bin/sh -c "${OCF_RESKEY_binary} --config-file=$OCF_RESKEY_config \

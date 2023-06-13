@@ -1,0 +1,23 @@
+---
+debname: horizon
+debver: 18.6.2-5
+dl_path:
+  name: horizon-debian-18.6.2-5.tar.gz
+  url: https://salsa.debian.org/openstack-team/services/horizon/-/archive/debian/18.6.2-5/horizon-debian-18.6.2-5.tar.gz
+  md5sum: 9c41bd3d52c5d5466e622ef8014da0fa
+src_files:
+  - centos/files/guni_config.py
+  - centos/files/horizon-assets-compress
+  - centos/files/horizon-clearsessions
+  - centos/files/horizon.init
+  - centos/files/horizon.logrotate
+  - centos/files/horizon-patching-restart
+  - centos/files/openstack-dashboard-httpd-2.4.conf
+  - centos/files/openstack-dashboard-httpd-logging.conf
+  - centos/files/python-django-horizon-logrotate.conf
+  - centos/files/python-django-horizon-systemd.conf
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-horizon

@@ -1,0 +1,29 @@
+From 05a9cb2d2c40aae1061191cd1f8627a7f8986fee Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Mon, 29 Nov 2021 20:54:00 +0000
+Subject: [PATCH] Remove openstackclient
+
+Remove build-Depends-Indep for python-openstackclient as it is
+not being used and it is causing problems with the build-pkgs
+tool.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+---
+ debian/control | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index ac5fc13..097dadf 100644
+--- a/debian/control
++++ b/debian/control
+@@ -22,7 +22,6 @@ Build-Depends-Indep:
+  python3-keystoneauth1,
+  python3-keystoneclient,
+  python3-netaddr,
+- python3-openstackclient,
+  python3-openstackdocstheme,
+  python3-os-client-config,
+  python3-osc-lib,
+-- 
+2.30.2
+

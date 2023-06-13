@@ -1,0 +1,64 @@
+---
+ ocf/nova-novnc |   23 ++++++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+--- a/ocf/nova-novnc
++++ b/ocf/nova-novnc
+@@ -139,7 +139,7 @@ Additional parameters to pass on to the
+ 
+ <actions>
+ <action name="start" timeout="10" />
+-<action name="stop" timeout="10" />
++<action name="stop" timeout="15" />
+ <action name="status" timeout="10" />
+ <action name="monitor" timeout="5" interval="10" />
+ <action name="validate-all" timeout="5" />
+@@ -260,6 +260,23 @@ nova_vnc_console_start() {
+     return $OCF_SUCCESS
+ }
+ 
++nova_vnc_console_stop_all() {
++    # Make sure nova-novncproxy and all the children are stopped.
++    for sig in TERM KILL
++    do
++        for pid in $(ps -eo pid,cmd | grep python |\
++                     grep "nova-novncproxy" | \
++                     grep -v grep | awk '{print $1}')
++        do
++            ocf_log info "Manually killing $pid with $sig"
++            kill -$sig $pid
++        done
++        sleep 1
++    done
++
++    return $OCF_SUCCESS
++}
++
+ nova_vnc_console_stop() {
+     local rc
+     local pid
+@@ -268,6 +285,7 @@ nova_vnc_console_stop() {
+     rc=$?
+     if [ $rc -eq $OCF_NOT_RUNNING ]; then
+         ocf_log info "OpenStack Nova VNC Console (nova-novncproxy) already stopped"
++        nova_vnc_console_stop_all
+         return $OCF_SUCCESS
+     fi
+ 
+@@ -277,6 +295,7 @@ nova_vnc_console_stop() {
+     rc=$?
+     if [ $rc -ne 0 ]; then
+         ocf_log err "OpenStack Nova VNC Console (nova-novncproxy) couldn't be stopped"
++        nova_vnc_console_stop_all
+         exit $OCF_ERR_GENERIC
+     fi
+ 
+@@ -310,6 +329,8 @@ nova_vnc_console_stop() {
+ 
+     rm -f $OCF_RESKEY_pid
+ 
++    nova_vnc_console_stop_all
++
+     return $OCF_SUCCESS
+ }
+ 

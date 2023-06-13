@@ -1,0 +1,53 @@
+From 59078d1ddd3f5f58007973615a67b6f136831823 Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Wed, 27 Oct 2021 16:46:26 +0000
+Subject: [PATCH] Add wheel package
+
+Add python3-aodhclient-wheel.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+---
+ debian/control | 16 ++++++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index df1f5e0..0ae5339 100644
+--- a/debian/control
++++ b/debian/control
+@@ -78,3 +78,19 @@ Description: OpenStack Alarming as a Service - Python 3.x client
+  for more than 10 min.
+  .
+  This package contains the Python 3.x module.
++
++Package: python3-aodhclient-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: OpenStack Alarming as a Service - Python 3.x client
++ Aodh provides alarming for OpenStack. The alarming component of Aodh, first
++ delivered in the Havana version, allows you to set alarms based on threshold
++ evaluation for a collection of samples. An alarm can be set on a single meter,
++ or on a combination. For example, you may want to trigger an alarm when the
++ memory consumption reaches 70% on a given instance if the instance has been up
++ for more than 10 min.
++ .
++ This package contains the Python wheel.
+diff --git a/debian/rules b/debian/rules
+index 42e437f..3795caf 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -13,7 +13,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2
++	pkgos-dh_auto_install --no-py2 --wheel
+ 
+ override_dh_auto_test:
+ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+-- 
+2.30.2
+

@@ -1,0 +1,14 @@
+BUILDER=loci
+LABEL=stx-aodh
+PROJECT=aodh
+PROJECT_REPO=https://opendev.org/openstack/aodh.git
+PROJECT_REF=4366d6eae1aad4e15aeca4bc7e8b5e757c7601e8
+PROJECT_UID=42425
+PROJECT_GID=42425
+PIP_PACKAGES="pylint SQLAlchemy gnocchiclient aodhclient"
+DIST_REPOS="OS"
+PROFILES="apache"
+CUSTOMIZATION="\
+    ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \
+    ln -s /etc/apache2/mods-available/wsgi.conf /etc/apache2/mods-enabled/wsgi.conf
+"

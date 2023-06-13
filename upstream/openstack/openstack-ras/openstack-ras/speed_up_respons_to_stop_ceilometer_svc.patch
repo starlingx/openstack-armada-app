@@ -1,0 +1,87 @@
+---
+ ocf/ceilometer-agent-notification |    4 ++--
+ ocf/ceilometer-api                |    4 ++--
+ ocf/ceilometer-collector          |    4 ++--
+ ocf/ceilometer-mem-db             |    4 ++--
+ 4 files changed, 8 insertions(+), 8 deletions(-)
+
+--- a/ocf/ceilometer-api
++++ b/ocf/ceilometer-api
+@@ -11,7 +11,7 @@
+ # Support: openstack@lists.launchpad.net
+ # License: Apache Software License (ASL) 2.0
+ #
+-# Copyright (c) 2014 Wind River Systems, Inc.
++# Copyright (c) 2014-2016 Wind River Systems, Inc.
+ #
+ # SPDX-License-Identifier: Apache-2.0
+ #
+@@ -324,7 +324,7 @@ ceilometer_api_stop() {
+     fi
+ 
+     # stop waiting
+-    shutdown_timeout=15
++    shutdown_timeout=2
+     if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+         shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+     fi
+--- a/ocf/ceilometer-agent-notification
++++ b/ocf/ceilometer-agent-notification
+@@ -11,7 +11,7 @@
+ # Support: openstack@lists.launchpad.net
+ # License: Apache Software License (ASL) 2.0
+ #
+-# Copyright (c) 2014 Wind River Systems, Inc.
++# Copyright (c) 2014-2016 Wind River Systems, Inc.
+ #
+ # SPDX-License-Identifier: Apache-2.0
+ #
+@@ -314,7 +314,7 @@ ceilometer_agent_notification_stop() {
+     fi
+ 
+     # stop waiting
+-    shutdown_timeout=15
++    shutdown_timeout=2
+     if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+         shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+     fi
+--- a/ocf/ceilometer-collector
++++ b/ocf/ceilometer-collector
+@@ -11,7 +11,7 @@
+ # Support: openstack@lists.launchpad.net
+ # License: Apache Software License (ASL) 2.0
+ #
+-# Copyright (c) 2014 Wind River Systems, Inc.
++# Copyright (c) 2014-2016 Wind River Systems, Inc.
+ #
+ # SPDX-License-Identifier: Apache-2.0
+ #
+@@ -313,7 +313,7 @@ ceilometer_collector_stop() {
+     fi
+ 
+     # stop waiting
+-    shutdown_timeout=15
++    shutdown_timeout=2
+     if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+         shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+     fi
+--- a/ocf/ceilometer-mem-db
++++ b/ocf/ceilometer-mem-db
+@@ -11,7 +11,7 @@
+ # Support: openstack@lists.launchpad.net
+ # License: Apache Software License (ASL) 2.0
+ #
+-# Copyright (c) 2014 Wind River Systems, Inc.
++# Copyright (c) 2014-2016 Wind River Systems, Inc.
+ #
+ # SPDX-License-Identifier: Apache-2.0
+ #
+@@ -312,7 +312,7 @@ ceilometer_mem_db_stop() {
+     fi
+ 
+     # stop waiting
+-    shutdown_timeout=15
++    shutdown_timeout=2
+     if [ -n "$OCF_RESKEY_CRM_meta_timeout" ]; then
+         shutdown_timeout=$((($OCF_RESKEY_CRM_meta_timeout/1000)-5))
+     fi

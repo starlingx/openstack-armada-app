@@ -1,0 +1,95 @@
+From 3ba260dbc2d69a797c8deb55ff0871e752dddebd Mon Sep 17 00:00:00 2001
+From: Chris Friesen <chris.friesen@windriver.com>
+Date: Tue, 11 Aug 2015 18:48:45 -0400
+Subject: [PATCH] CGTS-1851: enable multiple nova-conductor workers
+
+Enable multiple nova-conductor workers by properly handling
+the fact that when there are multiple workers the first one just
+coordinates the others and doesn't itself connect to AMQP or the DB.
+
+This also fixes up a bunch of whitespace issues, replacing a number
+of hard tabs with spaces to make it easier to follow the code.
+---
+ ocf/nova-conductor | 58 ++++++++++++++++++++++++++++++++++++++----------------
+ 1 file changed, 41 insertions(+), 17 deletions(-)
+
+diff --git a/ocf/nova-conductor b/ocf/nova-conductor
+index aa1ee2a..25e5f8f 100644
+--- a/ocf/nova-conductor
++++ b/ocf/nova-conductor
+@@ -239,6 +239,18 @@ nova_conductor_status() {
+     fi
+ }
+ 
++check_port() {
++    local port=$1
++    local pid=$2
++    netstat -punt | grep -s "$port" | grep -s "$pid" | grep -qs "ESTABLISHED"
++    rc=$?
++    if [ $rc -eq 0 ]; then
++        return 0
++    else
++        return 1
++    fi
++}
++
+ nova_conductor_monitor() {
+     local rc
+     local pid
+@@ -258,24 +270,36 @@ nova_conductor_monitor() {
+     # Check the connections according to the PID.
+     # We are sure to hit the conductor process and not other nova process with the same connection behavior (for example nova-cert)
+     if ocf_is_true "$OCF_RESKEY_zeromq"; then
+-	    pid=`cat $OCF_RESKEY_pid`
+-	    conductor_db_check=`netstat -punt | grep -s "$OCF_RESKEY_database_server_port" | grep -s "$pid" | grep -qs "ESTABLISHED"`
+-	    rc_db=$?
+-	    if [ $rc_db -ne 0 ]; then
+-	        ocf_log err "Nova Conductor is not connected to the database server: $rc_db"
+-	        return $OCF_NOT_RUNNING
+-	    fi
+-	else
+         pid=`cat $OCF_RESKEY_pid`
+-        conductor_db_check=`netstat -punt | grep -s "$OCF_RESKEY_database_server_port" | grep -s "$pid" | grep -qs "ESTABLISHED"`
+-        rc_db=$?
+-        conductor_amqp_check=`netstat -punt | grep -s "$OCF_RESKEY_amqp_server_port" | grep -s "$pid" | grep -qs "ESTABLISHED"`
+-        rc_amqp=$?
+-	    if [ $rc_amqp -ne 0 ] || [ $rc_db -ne 0 ]; then
+-	        ocf_log err "Nova Conductor is not connected to the AMQP server and/or the database server: AMQP connection test returned $rc_amqp and database connection test returned $rc_db"
+-	        return $OCF_NOT_RUNNING
+-	    fi
+-	fi
++        rc_db=`check_port $OCF_RESKEY_database_server_port $pid`
++        if [ $rc_db -ne 0 ]; then
++            ocf_log err "Nova Conductor is not connected to the database server: $rc_db"
++            return $OCF_NOT_RUNNING
++        fi
++    else
++        pid=`cat $OCF_RESKEY_pid`
++        rc_db=`check_port $OCF_RESKEY_database_server_port $pid`
++        rc_amqp=`check_port $OCF_RESKEY_amqp_server_port $pid`
++        if [ $rc_amqp -ne 0 ] || [ $rc_db -ne 0 ]; then
++            # may have multiple workers, in which case $pid is the parent and we want to check the children
++            # If there are no children or at least one child is not connected to both DB and AMQP then we fail.
++            KIDPIDS=`pgrep -P $pid -f nova-conductor`
++            if [ ! -z "$KIDPIDS" ]; then
++                for pid in $KIDPIDS
++                do
++                    rc_db=`check_port $OCF_RESKEY_database_server_port $pid`
++                    rc_amqp=`check_port $OCF_RESKEY_amqp_server_port $pid`
++                    if [ $rc_amqp -ne 0 ] || [ $rc_db -ne 0 ]; then
++                        ocf_log err "Nova Conductor pid $pid is not connected to the AMQP server and/or the database server: AMQP connection test returned $rc_amqp and database connection test returned $rc_db"
++                        return $OCF_NOT_RUNNING
++                    fi
++                done
++            else
++                ocf_log err "Nova Conductor pid $pid is not connected to the AMQP server and/or the database server: AMQP connection test returned $rc_amqp and database connection test returned $rc_db"
++                return $OCF_NOT_RUNNING
++            fi
++        fi
++    fi
+ 
+     ocf_log debug "OpenStack Nova Conductor (nova-conductor) monitor succeeded"
+     return $OCF_SUCCESS
+-- 
+1.9.1
+

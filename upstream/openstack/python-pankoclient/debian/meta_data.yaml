@@ -1,0 +1,12 @@
+---
+debname: python-pankoclient
+debver: 1.1.0-2
+dl_path:
+  name: python-pankoclient-debian-1.1.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-pankoclient/-/archive/debian/1.1.0-2/python-pankoclient-debian-1.1.0-2.tar.gz
+  md5sum: 4b623a6b3ad649b29e05fc83f6f03762
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-pankoclient

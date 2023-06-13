@@ -1,0 +1,55 @@
+From 1cdba6b7884878b91b34321d8e6cb48aadb18165 Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Tue, 26 Oct 2021 23:51:34 +0000
+Subject: [PATCH] Add python3 wheel
+
+Add python3-gnocchiclient-wheel
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+---
+ debian/control | 18 ++++++++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index c80f5f7..e4341b6 100644
+--- a/debian/control
++++ b/debian/control
+@@ -81,3 +81,21 @@ Description: bindings to the OpenStack Gnocchi API - Python 3.x
+  HTTP REST API.
+  .
+  This package contains the Python 3.x module.
++
++Package: python3-gnocchiclient-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: bindings to the OpenStack Gnocchi API - Python 3.x
++ This is a client for OpenStack gnocchi API. There's a Python API (the
++ gnocchiclient module), and a command-line script. Each implements the entire
++ OpenStack Gnocchi API.
++ .
++ Gnocchi is a service for managing a set of resources and storing metrics about
++ them, in a scalable and resilient way. Its functionalities are exposed over an
++ HTTP REST API.
++ .
++ This package contains the Python wheel.
++ 
+diff --git a/debian/rules b/debian/rules
+index df1b32a..0cee15d 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -13,7 +13,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2
++	pkgos-dh_auto_install --no-py2 --wheel
+ 
+ 	# Generate bash completion
+ 	mkdir -p $(CURDIR)/debian/python3-gnocchiclient/usr/share/bash-completion/completions
+-- 
+2.30.2
+

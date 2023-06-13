@@ -1,0 +1,26 @@
+From 254b2348d105c86438bf4057a4d428c67d51ed37 Mon Sep 17 00:00:00 2001
+From: Fabricio Henrique Ramos <fabriciohenrique.ramos@windriver.com>
+Date: Fri, 5 Nov 2021 11:45:54 -0300
+Subject: [PATCH] update package dependencies
+
+Signed-off-by: Fabricio Henrique Ramos <fabriciohenrique.ramos@windriver.com>
+---
+ debian/control | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index 1e4f8c5..ffeb41e 100644
+--- a/debian/control
++++ b/debian/control
+@@ -9,7 +9,7 @@ Homepage: http://github.com/madkiss/openstack-resource-agents
+ 
+ Package: openstack-resource-agents
+ Architecture: all
+-Depends: ${misc:Depends}, netstat, python-keystoneclient, python-glanceclient, python-novaclient, curl
++Depends: ${misc:Depends}, net-tools, python3-keystoneclient, python3-glanceclient, python3-novaclient, curl
+ Description: pacemaker resource agents for OpenStack
+  This package contains resource agents to run most of the OpenStack
+  components inside a pacemaker-controlled high availability cluster. 
+-- 
+2.17.1
+

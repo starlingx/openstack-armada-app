@@ -1,0 +1,54 @@
+From 4c5368b6f9811e195dc12d1a3cecccb176cf720e Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Tue, 26 Oct 2021 23:35:45 +0000
+Subject: [PATCH] Add support for wheel
+
+Add support for python3 wheels.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+---
+ debian/control | 17 +++++++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index 742257e..f2c1648 100644
+--- a/debian/control
++++ b/debian/control
+@@ -84,3 +84,20 @@ Description: Client library for Openstack glance server - Python 3.x
+  Python API (the "glanceclient" module), and a command-line script ("glance").
+  .
+  This package provides the Python 3.x module.
++
++Package: python3-glanceclient-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: Client library for Openstack Glance server - Python 3.x
++ The Glance project provides services for discovering, registering, and
++ retrieving virtual machine images over the cloud. They may be stand-alone
++ services, or may be used to deliver images from object stores, such as
++ OpenStack's Swift service, to Nova's compute nodes.
++ .
++ This is a client for the Glance which uses the OpenStack Image API. There's a
++ Python API (the "glanceclient" module), and a command-line script ("glance").
++ .
++ This package contains the Python wheel.
+diff --git a/debian/rules b/debian/rules
+index d5d2b14..459f08c 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -12,7 +12,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2
++	pkgos-dh_auto_install --no-py2 --wheel
+ 
+ override_dh_python3:
+ 	dh_python3 --shebang=/usr/bin/python3
+-- 
+2.30.2
+

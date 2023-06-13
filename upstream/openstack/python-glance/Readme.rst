@@ -1,0 +1,1 @@
+This repo is for the stx-glance image, build on top of https://opendev.org/openstack/glance/

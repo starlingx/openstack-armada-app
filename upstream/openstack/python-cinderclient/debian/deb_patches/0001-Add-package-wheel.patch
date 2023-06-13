@@ -1,0 +1,29 @@
+From 5c420535f8b04efda7a9fac27eeaafde961db6aa Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Wed, 27 Oct 2021 17:28:06 +0000
+Subject: [PATCH] Add package wheel
+
+Add python3-cinderclient-wheel.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+---
+ debian/rules | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/debian/rules b/debian/rules
+index 8acee49..0d8778c 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -15,6 +15,9 @@ override_dh_auto_install:
+ 	for i in $(PYTHON3S) ; do \
+ 		python3 setup.py install -f --install-layout=deb --root=$(CURDIR)/debian/tmp ; \
+ 	done
++	for i in $(PYTHON3S) ; do \
++		python3 setup.py bdist_wheel --universal -d $(CURDIR)/debian/python3-cinderclient-wheel/usr/share/python3-wheel ; \
++	done
+ ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+ 	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages pkgos-dh_auto_test --no-py2
+ endif
+-- 
+2.30.2
+

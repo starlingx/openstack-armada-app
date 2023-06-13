@@ -1,0 +1,10 @@
+BUILDER=loci
+LABEL=stx-openstackclients
+PROJECT=infra
+PROJECT_REPO=nil
+DIST_REPOS="OS"
+PIP_PACKAGES="pycryptodomex httplib2 pylint pyopenssl ndg-httpsclient pyasn1 \
+    python-ceilometerclient python-cinderclient python-glanceclient python-heatclient \
+    python-keystoneclient python-neutronclient python-novaclient python-barbicanclient \
+    python-swiftclient python-openstackclient"
+DIST_PACKAGES="python-dev libffi-dev openssl bash-completion"

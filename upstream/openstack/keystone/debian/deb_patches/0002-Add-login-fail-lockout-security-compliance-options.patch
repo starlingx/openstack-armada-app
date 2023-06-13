@@ -1,0 +1,44 @@
+From 8cf5b37f70ade287cb5eaea7dd48d1eeb1ae737d Mon Sep 17 00:00:00 2001
+From: Andy Ning <andy.ning@windriver.com>
+Date: Mon, 14 Mar 2022 10:35:39 -0400
+Subject: [PATCH] Add login fail lockout security compliance options
+
+Added two login fail lockout security compliance options:
+lockout_duration
+lockout_failure_attempts
+
+Signed-off-by: Andy Ning <andy.ning@windriver.com>
+---
+ debian/stx/password-rules.conf | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/debian/stx/password-rules.conf b/debian/stx/password-rules.conf
+index e7ce656..ac18ef9 100644
+--- a/debian/stx/password-rules.conf
++++ b/debian/stx/password-rules.conf
+@@ -32,3 +32,22 @@ password_regex = ^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()<>{}+=_\\\[\]\-?
+ # configuration variable will be returned to users to explain why their
+ # requested password was insufficient. (string value)
+ password_regex_description = Password must have a minimum length of 7 characters, and must contain at least 1 upper case, 1 lower case, 1 digit, and 1 special character
++
++# The number of seconds a user account will be locked when the maximum number
++# of failed authentication attempts (as specified by `[security_compliance]
++# lockout_failure_attempts`) is exceeded. Setting this option will have no
++# effect unless you also set `[security_compliance] lockout_failure_attempts`
++# to a non-zero value. This feature depends on the `sql` backend for the
++# `[identity] driver`. (integer value)
++# Minimum value: 1
++lockout_duration=1800
++
++# The maximum number of times that a user can fail to authenticate before the
++# user account is locked for the number of seconds specified by
++# `[security_compliance] lockout_duration`. This feature is disabled by
++# default. If this feature is enabled and `[security_compliance]
++# lockout_duration` is not set, then users may be locked out indefinitely
++# until the user is explicitly enabled via the API. This feature depends on
++# the `sql` backend for the `[identity] driver`. (integer value)
++# Minimum value: 1
++lockout_failure_attempts=5
+-- 
+2.25.1
+

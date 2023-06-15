@@ -1,10 +1,12 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.common import utils
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
@@ -37,14 +39,20 @@ class SwiftHelm(openstack.OpenstackBaseHelm):
             return overrides
 
     def _get_object_store_overrides(self):
-        return {
+
+        bind_host = (constants.CONTROLLER_FQDN
+                     if utils.is_fqdn_ready_to_use()
+                     else self._get_management_address())
+
+        host_dict = {
             'hosts': {
                 'default': 'null',
-                'admin': self._get_management_address(),
-                'internal': self._get_management_address(),
+                'admin': bind_host,
+                'internal': bind_host,
                 'public': self._get_oam_address()
             },
         }
+        return host_dict
 
     def _get_endpoints_overrides(self):
         return {

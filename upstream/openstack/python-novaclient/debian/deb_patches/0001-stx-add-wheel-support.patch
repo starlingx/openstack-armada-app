@@ -1,0 +1,55 @@
+From 7052e77c581e01a9717ab5307291867a15ac349d Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Tue, 26 Oct 2021 16:59:10 +0000
+Subject: [PATCH 1/1] Add wheel support
+
+Add python3-novaclient-wheel package.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+---
+ debian/control | 18 ++++++++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index 9f941ca3..1092bc00 100644
+--- a/debian/control
++++ b/debian/control
+@@ -96,3 +96,21 @@ Description: client library for OpenStack Compute API - 3.x
+  Compute (Nova) through the OpenStack Compute API.
+  .
+  This package provides the Python 3.x module.
++
++Package: python3-novaclient-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: client library for OpenStack Compute API - 3.x
++ OpenStack Compute, codenamed Nova, is a cloud computing fabric controller
++ designed to be modular and easy to extend and adapt. In addition to its
++ "native" OpenStack API, it also supports the Amazon EC2 API, and it supports
++ many different database backends (including SQLite, MySQL, and PostgreSQL),
++ hypervisors (KVM, Xen), and user directory systems (LDAP, SQL).
++ .
++ Python novaclient library and nova CLI tool for interacting with OpenStack
++ Compute (Nova) through the OpenStack Compute API.
++ .
++ This package contains the Python3 Wheel.
+diff --git a/debian/rules b/debian/rules
+index c6e62433..e1f67507 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -12,7 +12,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2
++	pkgos-dh_auto_install --no-py2 --wheel
+ 	install -D -m 0644 tools/nova.bash_completion $(CURDIR)/debian/python3-novaclient-doc/usr/share/bash-completion/completions/nova
+ 	rm -rf $(CURDIR)/debian/python-novaclient/usr/novaclient
+ 
+-- 
+2.30.2
+

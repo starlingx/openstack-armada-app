@@ -1,0 +1,15 @@
+BUILDER=loci
+LABEL=stx-gnocchi
+PROJECT=gnocchi
+PROJECT_REPO=https://github.com/gnocchixyz/gnocchi.git
+PROJECT_REF=4.3.2
+PROJECT_UID=42425
+PROJECT_GID=42425
+PIP_PACKAGES="pylint SQLAlchemy SQLAlchemy-Utils oslo.db keystonemiddleware gnocchiclient pymemcache psycopg2"
+DIST_REPOS="OS"
+DIST_PACKAGES="python3-rados"
+PROFILES="gnocchi apache"
+CUSTOMIZATION="\
+    ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \
+    ln -s /etc/apache2/mods-available/wsgi.conf /etc/apache2/mods-enabled/wsgi.conf
+"

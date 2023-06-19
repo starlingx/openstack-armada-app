@@ -1,0 +1,24 @@
+From c63d0c06606969ddfb85538706a1665122e69c44 Mon Sep 17 00:00:00 2001
+From: Fabricio Henrique Ramos <fabriciohenrique.ramos@windriver.com>
+Date: Wed, 3 Nov 2021 12:10:34 -0300
+Subject: [PATCH] remove unwanted files
+
+Signed-off-by: Fabricio Henrique Ramos <fabriciohenrique.ramos@windriver.com>
+---
+ Makefile | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/Makefile b/Makefile
+index c95c187..08c9fa6 100644
+--- a/Makefile
++++ b/Makefile
+@@ -26,3 +26,6 @@ install:
+ 	for file in ocf/*; do \
+ 		$(INSTALL) -t $(DESTDIR)/usr/lib/ocf/resource.d/openstack -m 0755 $${file} ; \
+ 	done
++	rm -rf $(DESTDIR)/usr/lib/ocf/resource.d/openstack/ceilometer-agent-central
++	rm -rf $(DESTDIR)/usr/lib/ocf/resource.d/openstack/ceilometer-alarm-evaluator
++	rm -rf $(DESTDIR)/usr/lib/ocf/resource.d/openstack/ceilometer-alarm-notifier
+-- 
+2.17.1
+

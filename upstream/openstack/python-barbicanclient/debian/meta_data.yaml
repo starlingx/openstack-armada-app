@@ -1,0 +1,12 @@
+---
+debname: python-barbicanclient
+debver: 5.0.1-2
+dl_path:
+  name: python-barbicanclient-debian-5.0.1-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-barbicanclient/-/archive/debian/5.0.1-2/python-barbicanclient-debian-5.0.1-2.tar.gz
+  md5sum: 80fe9db068b5ca8638f1ed63dbff7327
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-barbicanclient

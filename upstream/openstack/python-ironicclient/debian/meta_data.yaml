@@ -1,0 +1,12 @@
+---
+debname: python-ironicclient
+debver: 4.4.0-1
+dl_path:
+  name: python-ironicclient-debian-4.4.0-1.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-ironicclient/-/archive/debian/4.4.0-1/python-ironicclient-debian-4.4.0-1.tar.gz
+  md5sum: aad755aa1e4e5942d6fc70b1370cda65
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-ironicclient

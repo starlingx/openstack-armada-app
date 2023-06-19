@@ -1,0 +1,41 @@
+From 511934904b9322e46c0a76b3a073616b4b28a698 Mon Sep 17 00:00:00 2001
+From: lsampaio <luis.sampaio@windriver.com>
+Date: Thu, 12 May 2022 12:04:47 -0300
+Subject: [PATCH 2/2] Horizon service not enabled-active in SM
+
+---
+ debian/openstack-dashboard.install  | 2 +-
+ debian/openstack-dashboard.postinst | 4 ++++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/debian/openstack-dashboard.install b/debian/openstack-dashboard.install
+index 12f33b9eb..fe18ed9c8 100644
+--- a/debian/openstack-dashboard.install
++++ b/debian/openstack-dashboard.install
+@@ -2,7 +2,7 @@ debian/local_settings.d/*	usr/share/openstack-dashboard-debian-settings.d
+ etc/openstack-dashboard
+ etc/httpd/conf.d/openstack-dashboard.conf
+ etc/logrotate.d/openstack-dashboard
+-etc/rc.d/init.d/horizon
++etc/rc.d/init.d/horizon etc/init.d/
+ usr/share/openstack-dashboard
+ usr/share/openstack-dashboard/guni_config.py
+ usr/bin/horizon-clearsessions
+diff --git a/debian/openstack-dashboard.postinst b/debian/openstack-dashboard.postinst
+index d24971322..6b76f2f5d 100644
+--- a/debian/openstack-dashboard.postinst
++++ b/debian/openstack-dashboard.postinst
+@@ -111,6 +111,10 @@ if [ "$1" = "configure" ] ; then
+ 		ln -sf /etc/openstack-dashboard/policy /usr/lib/python3/dist-packages/openstack_dashboard/conf
+ 	fi
+ 
++	if [ ! -L /usr/lib/python3/dist-packages/openstack_dashboard/wsgi.py ]; then
++		ln -sf /usr/share/openstack-dashboard/wsgi.py /usr/lib/python3/dist-packages/openstack_dashboard/wsgi.py
++	fi
++
+ 	# Some dashboard plugins are not deleting their files under
+ 	# /usr/share/openstack-dashboard/openstack_dashboard/{local,enabled}
+ 	#
+-- 
+2.35.1
+

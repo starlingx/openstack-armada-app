@@ -1,0 +1,327 @@
+From 98f5f373e068032ae89d205edb12ab9b62e39d3e Mon Sep 17 00:00:00 2001
+From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+Date: Fri, 24 Feb 2023 08:47:48 -0300
+Subject: [PATCH] Add plugin entry point sorting mechanism
+
+On CentOS, with `python-openstackclient` on version 4.0.0
+(stable/train), the plugin entry point discovery was done by using
+a built-in library called `pkg_resources` ([1], [2], [3]).
+
+On Debian, with `python-openstackclient` on version 5.4.0-4
+(stable/victoria), the discovery process is now performed by using the
+`stevedore` library ([4], [5], [6]).
+
+The problem with this replacement is that, with `stevedore`, there's no
+guarantee that the plugin entry point discovery list will be the same as
+it was with `pkg_resources`. That is, the fetching order of entry points
+may vary.
+
+For most plugins that only add commands to the existing OpenStackClient
+(OSC) CLI, this is fine, as the loading order doesn't matter.
+
+However, for those who also override existing entry points configured by
+other plugins, this may become a problem, because they need to be loaded
+after the original plugins that define the entry points, otherwise the
+overrides will have no effect.
+
+Therefore, this change aims to provide a plugin entry point sorting
+mechanism to keep the discovery process more consistent.
+
+By reading plugin-specific options such as `load_first` or `load_last`
+from a configuration file - that can be specified through command-line
+argument (--os-osc-config-file, defaults to
+/etc/openstackclient/openstackclient.conf) - the plugin entry point
+sorting mechanism can decide where to insert the newly discovered
+plugin: at the beginning, at the end, or where it would be inserted by
+default in the list.
+
+[1] https://opendev.org/starlingx/upstream/src/branch/master/openstack/python-openstackclient/centos/python-openstackclient.spec#L19
+[2] https://opendev.org/openstack/python-openstackclient/src/branch/stable/train/openstackclient/common/clientmanager.py#L146
+[3] https://opendev.org/openstack/cliff/src/branch/stable/train/cliff/commandmanager.py#L61
+[4] https://opendev.org/starlingx/upstream/src/branch/master/openstack/python-openstackclient/debian/meta_data.yaml#L5
+[5] https://opendev.org/openstack/python-openstackclient/src/branch/stable/victoria/openstackclient/common/clientmanager.py#L147
+[6] https://opendev.org/openstack/cliff/src/branch/stable/victoria/cliff/commandmanager.py#L75
+
+Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+---
+ openstackclient/common/clientmanager.py | 173 +++++++++++++++++++++++-
+ openstackclient/shell.py                |  33 ++++-
+ 2 files changed, 202 insertions(+), 4 deletions(-)
+
+diff --git a/openstackclient/common/clientmanager.py b/openstackclient/common/clientmanager.py
+index 36c3ce26..3b859c67 100644
+--- a/openstackclient/common/clientmanager.py
++++ b/openstackclient/common/clientmanager.py
+@@ -19,14 +19,17 @@ import importlib
+ import logging
+ import sys
+ 
++from osc_lib.i18n import _
+ from osc_lib import clientmanager
+ from osc_lib import shell
++from oslo_config import cfg
+ import stevedore
+ 
+ 
+ LOG = logging.getLogger(__name__)
+ 
+ PLUGIN_MODULES = []
++PLUGIN_OPTIONS = {}
+ 
+ USER_AGENT = 'python-openstackclient'
+ 
+@@ -141,11 +144,177 @@ class ClientManager(clientmanager.ClientManager):
+ 
+ # Plugin Support
+ 
++def _get_config_file_sections(config):
++    """Get sections from a configuration file.
++
++    Using oslo.config's cfg.ConfigParser, parses a single configuration file
++    into a dictionary containing sections and their respective options.
++
++    The resulting dictionary has the following structure:
++
++    {
++        "<section>": {
++            "<key>": [<value>, ...],
++            ...
++        },
++        ...
++    }
++
++    :param config: the config file
++    :returns: dict -- the dictionary of config file sections
++    """
++
++    sections = {}
++
++    try:
++        cfg.ConfigParser(config, sections).parse()
++    except cfg.ParseError as e:
++        msg = _(
++            'Error while parsing the configuration file `{}`.\n'
++            'Location: {}'
++        ).format(config, e)
++
++        LOG.error(msg)
++    except FileNotFoundError:
++        msg = _(
++            'No custom config file found for OpenStackClient (OSC). '
++            'Using default configurations.'
++        ).format(config)
++        LOG.debug(msg)
++
++    return sections
++
++
++def _standardize_list_type_options(options, list_opts):
++    """Standardize list-type options.
++
++    With oslo.config's cfg.ConfigParser, depending on how the options are
++    specified, their values can be parsed differently. For example:
++
++        load_first = A,B
++
++     Becomes:
++
++        {"load_first": ["A,B"]}
++
++     While:
++
++        load_first = A
++        load_first = B
++
++     Becomes:
++
++        {"load_first": ["A", "B"]}
++
++    Therefore, this function standardizes the values of list-type options
++    so that they are always presented in the latter format.
++
++    :param options: the options dictionary
++    :param list_opts: the list of options to be standardized
++    """
++
++    for list_opt in list_opts:
++        if list_opt in options:
++            values = [
++                value.strip()
++                for value in ','.join(options[list_opt]).split(',')
++                if value.strip()
++            ]
++            options[list_opt] = values
++
++
++def process_plugin_options(options):
++    """Process plugin-related options.
++
++    :param options: the dictionary of options
++    """
++
++    global PLUGIN_OPTIONS
++
++    # If no configuration file was specified,
++    # there are no plugin options to process.
++    if options.osc_config_file in ['', None]:
++        return
++
++    PLUGIN_OPTIONS = _get_config_file_sections(options.osc_config_file).get(
++        'plugins', {}
++    )
++
++    # Standardizes list-type options' values.
++    LIST_OPTS = [
++        'load_first',
++        'load_last',
++    ]
++
++    _standardize_list_type_options(PLUGIN_OPTIONS, LIST_OPTS)
++
++
++def sort_plugin_entry_points(group):
++    """Sort plugin entry points.
++
++    Given a configuration file specified through command-line argument
++    (--os-osc-config-file) or environment variable (OS_OSC_CONFIG_FILE),
++    this function sorts the plugin entry points based on the `load_first`
++    and `load_last` options (if present).
++
++    By setting:
++
++        [plugins]
++        load_first = A
++
++    This function will ensure that the plugin "A" is loaded before any other
++    plugin. Similarly, by setting:
++
++        [plugins]
++        load_last = A
++
++    It will ensure that the plugin "A" is loaded after any other plugin.
++
++    Multiples plugins are supported (as long as they're separated by commas).
++
++    :param group: the group name for the entry points
++    :returns: list -- list of entry points
++
++    """
++
++    LOAD_FIRST_PLUGINS = PLUGIN_OPTIONS.get('load_first', [])
++    LOAD_LAST_PLUGINS = PLUGIN_OPTIONS.get('load_last', [])
++
++    before_entry_points = []
++    after_entry_points = []
++    entry_points = []
++
++    mgr = stevedore.ExtensionManager(group)
++    for ep in mgr:
++        # Different versions of stevedore use different
++        # implementations of EntryPoint from other libraries, which
++        # are not API-compatible.
++        try:
++            module_name = ep.entry_point.module_name
++        except AttributeError:
++            try:
++                module_name = ep.entry_point.module
++            except AttributeError:
++                module_name = ep.entry_point.value
++
++        # If the module name matches at least one plugin specified in
++        # `load_first` or `load_last`, append the current entry point
++        # to the correspondent list.
++        if any([module_name.startswith(cpm) for cpm in LOAD_FIRST_PLUGINS]):
++            before_entry_points.append(ep)
++        elif any([module_name.startswith(cpm) for cpm in LOAD_LAST_PLUGINS]):
++            after_entry_points.append(ep)
++        else:
++            entry_points.append(ep)
++
++    return before_entry_points + entry_points + after_entry_points
++
++
+ def get_plugin_modules(group):
+     """Find plugin entry points"""
+     mod_list = []
+-    mgr = stevedore.ExtensionManager(group)
+-    for ep in mgr:
++
++    for ep in sort_plugin_entry_points(group):
+         LOG.debug('Found plugin %s', ep.name)
+ 
+         # Different versions of stevedore use different
+diff --git a/openstackclient/shell.py b/openstackclient/shell.py
+index 755af24d..52d50256 100644
+--- a/openstackclient/shell.py
++++ b/openstackclient/shell.py
+@@ -21,7 +21,9 @@ import sys
+ 
+ from osc_lib.api import auth
+ from osc_lib.command import commandmanager
++from osc_lib.i18n import _
+ from osc_lib import shell
++from osc_lib import utils
+ import six
+ 
+ import openstackclient
+@@ -31,14 +33,26 @@ from openstackclient.common import clientmanager
+ DEFAULT_DOMAIN = 'default'
+ 
+ 
+-class OpenStackShell(shell.OpenStackShell):
++class CommandManager(commandmanager.CommandManager):
++    def load_commands(self, namespace):
++        """Load all commands from an entry point."""
++
++        self.group_list.append(namespace)
++        for ep in clientmanager.sort_plugin_entry_points(namespace):
++            cmd_name = (ep.name.replace('_', ' ')
++                        if self.convert_underscores
++                        else ep.name)
++            self.commands[cmd_name] = ep.entry_point
++        return
+ 
++
++class OpenStackShell(shell.OpenStackShell):
+     def __init__(self):
+ 
+         super(OpenStackShell, self).__init__(
+             description=__doc__.strip(),
+             version=openstackclient.__version__,
+-            command_manager=commandmanager.CommandManager('openstack.cli'),
++            command_manager=CommandManager('openstack.cli'),
+             deferred_help=True)
+ 
+         self.api_version = {}
+@@ -52,6 +66,18 @@ class OpenStackShell(shell.OpenStackShell):
+             version)
+         parser = clientmanager.build_plugin_option_parser(parser)
+         parser = auth.build_auth_plugins_option_parser(parser)
++
++        parser.add_argument(
++            '--os-osc-config-file',
++            metavar='<osc-config-file>',
++            dest='osc_config_file',
++            default='/etc/openstackclient/openstackclient.conf',
++            help=_(
++                'OpenStackClient (OSC) configuration file, '
++                'default=/etc/openstackclient/openstackclient.conf'
++            )
++        )
++
+         return parser
+ 
+     def _final_defaults(self):
+@@ -64,6 +90,9 @@ class OpenStackShell(shell.OpenStackShell):
+         else:
+             self._auth_type = 'password'
+ 
++        # Process plugin-related options.
++        clientmanager.process_plugin_options(self.options)
++
+     def _load_plugins(self):
+         """Load plugins via stevedore
+ 
+-- 
+2.25.1
+

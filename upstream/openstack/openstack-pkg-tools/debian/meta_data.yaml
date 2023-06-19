@@ -1,0 +1,12 @@
+---
+debname: openstack-pkg-tools
+debver: 117
+dl_path:
+  name: openstack-pkg-tools-debian-117.tar.gz
+  url: https://salsa.debian.org/openstack-team/debian/openstack-pkg-tools/-/archive/debian/117/openstack-pkg-tools-debian-117.tar.gz
+  md5sum: 6c26ff316b869ca12e09e7f3e77c150e
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/openstack-pkg-tools

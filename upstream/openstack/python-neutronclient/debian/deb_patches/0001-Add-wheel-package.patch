@@ -1,0 +1,52 @@
+From 6586f6e4ae2954382a638f80c8b039c8c446ad58 Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Wed, 27 Oct 2021 13:25:54 +0000
+Subject: [PATCH] Add wheel package
+
+Add python3-neutronclient-wheel package.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+---
+ debian/control | 15 +++++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index 9b81157..6585170 100644
+--- a/debian/control
++++ b/debian/control
+@@ -73,3 +73,18 @@ Description: client API library for Neutron - Python 3.x
+  capabilities (e.g., QoS, ACLs, network monitoring, etc).
+  .
+  This package provides the client and Python 3.x module.
++
++Package: python3-neutronclient-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: client API library for Neutron - Python 3.x
++ Neutron provides an API to dynamically request and configure virtual networks.
++ These networks connect "interfaces" from other OpenStack services (e.g., vNICs
++ from Nova VMs). The Neutron API supports extensions to provide advanced network
++ capabilities (e.g., QoS, ACLs, network monitoring, etc).
++ .
++ This package contains the Python3 wheel.
++ 
+diff --git a/debian/rules b/debian/rules
+index b99f400..9fda3e8 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -12,7 +12,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2
++	pkgos-dh_auto_install --no-py2 --wheel
+ 	install -D -m 0644 tools/neutron.bash_completion $(CURDIR)/debian/python3-neutronclient/usr/share/bash-completion/completions/neutron
+ 
+ ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+-- 
+2.30.2
+

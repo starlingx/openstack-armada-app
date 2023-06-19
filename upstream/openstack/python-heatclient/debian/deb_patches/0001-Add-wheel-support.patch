@@ -1,0 +1,54 @@
+From 9ea6b1a4d02e631efccdde8ed240dc79849159af Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Wed, 27 Oct 2021 12:29:52 +0000
+Subject: [PATCH] Add wheel support
+
+Add python3-heatclient-wheel package.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+---
+ debian/control | 17 +++++++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index f287c45..0598164 100644
+--- a/debian/control
++++ b/debian/control
+@@ -75,3 +75,20 @@ Description: client library and CLI for OpenStack Heat - Python 3.x
+  the OpenStack Heat API.
+  .
+  This package provides the Python 3.x module.
++
++Package: python3-heatclient-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: client library and CLI for OpenStack Heat - Python 3.x
++ Heat is a service to orchestrate multiple composite cloud applications
++ using templates, through both an OpenStack-native ReST API and
++ a CloudFormation-compatible Query API.
++ .
++ This is a client for the OpenStack Heat API. There's a Python API (the
++ heatclient module), and a command-line script (heat). Each implements 100% of
++ the OpenStack Heat API.
++ .
++ This package contains the Python wheel. 
+diff --git a/debian/rules b/debian/rules
+index 70f505c..110310e 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -14,7 +14,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2 --in-tmp
++	pkgos-dh_auto_install --no-py2 --in-tmp --wheel
+ 
+ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+ 	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages pkgos-dh_auto_test --no-py2
+-- 
+2.30.2
+

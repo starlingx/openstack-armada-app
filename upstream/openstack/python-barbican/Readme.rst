@@ -1,0 +1,1 @@
+This repo is for the stx-barbican image, build on top of https://opendev.org/openstack/barbican/

@@ -1,0 +1,151 @@
+From 45b5c5b71b4ad70c5694f06126adfc60a31c51fc Mon Sep 17 00:00:00 2001
+From: Andy Ning <andy.ning@windriver.com>
+Date: Tue, 5 Apr 2022 10:39:32 -0400
+Subject: [PATCH] Support storing users in keyring
+
+This patch added support to store keystone users in keyring in
+"CGCS" service.
+
+Signed-off-by: Andy Ning <andy.ning@windriver.com>
+---
+ keystone/exception.py     |  6 +++++
+ keystone/identity/core.py | 54 +++++++++++++++++++++++++++++++++++++++
+ requirements.txt          |  1 +
+ 3 files changed, 61 insertions(+)
+
+diff --git a/keystone/exception.py b/keystone/exception.py
+index c62338b..3cbddfb 100644
+--- a/keystone/exception.py
++++ b/keystone/exception.py
+@@ -227,6 +227,12 @@ class CredentialLimitExceeded(ForbiddenNotSecurity):
+                        "of %(limit)d already exceeded for user.")
+ 
+ 
++class WRSForbiddenAction(Error):
++    message_format = _("That action is not permitted")
++    code = 403
++    title = 'Forbidden'
++
++
+ class SecurityError(Error):
+     """Security error exception.
+ 
+diff --git a/keystone/identity/core.py b/keystone/identity/core.py
+index 38ebe2f..31d6cd6 100644
+--- a/keystone/identity/core.py
++++ b/keystone/identity/core.py
+@@ -17,6 +17,7 @@
+ import copy
+ import functools
+ import itertools
++import keyring
+ import operator
+ import os
+ import threading
+@@ -54,6 +55,7 @@ MEMOIZE_ID_MAPPING = cache.get_memoization_decorator(group='identity',
+ 
+ DOMAIN_CONF_FHEAD = 'keystone.'
+ DOMAIN_CONF_FTAIL = '.conf'
++KEYRING_CGCS_SERVICE = "CGCS"
+ 
+ # The number of times we will attempt to register a domain to use the SQL
+ # driver, if we find that another process is in the middle of registering or
+@@ -1125,6 +1127,26 @@ class Manager(manager.Manager):
+             if new_ref['domain_id'] != orig_ref['domain_id']:
+                 raise exception.ValidationError(_('Cannot change Domain ID'))
+ 
++    def _update_keyring_password(self, user, new_password):
++        """Update user password in Keyring backend.
++        This method Looks up user entries in Keyring backend
++        and accordingly update the corresponding user password.
++        :param user         : keyring user struct
++        :param new_password : new password to set
++        """
++        if (new_password is not None) and ('name' in user):
++            try:
++                # only update if an entry exists
++                if (keyring.get_password(KEYRING_CGCS_SERVICE, user['name'])):
++                    keyring.set_password(KEYRING_CGCS_SERVICE,
++                                         user['name'], new_password)
++            except (keyring.errors.PasswordSetError, RuntimeError):
++                msg = ('Failed to Update Keyring Password for the user %s')
++                LOG.warning(msg, user['name'])
++                # only raise an exception if this is the admin user
++                if (user['name'] == 'admin'):
++                    raise exception.WRSForbiddenAction(msg % user['name'])
++
+     def _update_user_with_federated_objects(self, user, driver, entity_id):
+         # If the user did not pass a federated object along inside the user
+         # object then we simply update the user as normal and add the
+@@ -1181,6 +1203,17 @@ class Manager(manager.Manager):
+ 
+         ref = self._update_user_with_federated_objects(user, driver, entity_id)
+ 
++        # Certain local Keystone users are stored in Keystone as opposed
++        # to the default SQL Identity backend, such as the admin user.
++        # When its password is updated, we need to update Keyring as well
++        # as certain services retrieve this user context from Keyring and
++        # will get auth failures
++        # Need update password before send out notification. Otherwise,
++        # any process monitor the notification will still get old password
++        # from Keyring.
++        if ('password' in user) and ('name' in ref):
++            self._update_keyring_password(ref, user['password'])
++
+         notifications.Audit.updated(self._USER, user_id, initiator)
+ 
+         enabled_change = ((user.get('enabled') is False) and
+@@ -1210,6 +1243,7 @@ class Manager(manager.Manager):
+         hints.add_filter('user_id', user_id)
+         fed_users = PROVIDERS.shadow_users_api.list_federated_users_info(hints)
+ 
++        username = user_old.get('name', "")
+         driver.delete_user(entity_id)
+         PROVIDERS.assignment_api.delete_user_assignments(user_id)
+         self.get_user.invalidate(self, user_id)
+@@ -1223,6 +1257,18 @@ class Manager(manager.Manager):
+ 
+         PROVIDERS.credential_api.delete_credentials_for_user(user_id)
+         PROVIDERS.id_mapping_api.delete_id_mapping(user_id)
++
++        # Delete the keyring entry associated with this user (if present)
++        try:
++            keyring.delete_password(KEYRING_CGCS_SERVICE, username)
++        except keyring.errors.PasswordDeleteError:
++            LOG.warning(('delete_user: PasswordDeleteError for %s'),
++                        username)
++            pass
++        except exception.UserNotFound:
++            LOG.warning(('delete_user: UserNotFound for %s'),
++                        username)
++            pass
+         notifications.Audit.deleted(self._USER, user_id, initiator)
+ 
+         # Invalidate user role assignments cache region, as it may be caching
+@@ -1475,6 +1521,14 @@ class Manager(manager.Manager):
+         notifications.Audit.updated(self._USER, user_id, initiator)
+         self._persist_revocation_event_for_user(user_id)
+ 
++        user = self.get_user(user_id)
++        # Update Keyring password for the 'user' if it
++        # has an entry in Keyring
++        if (original_password) and ('name' in user):
++            # Change the 'user' password in keyring, provided the user
++            # has an entry in Keyring backend
++            self._update_keyring_password(user, new_password)
++
+     @MEMOIZE
+     def _shadow_nonlocal_user(self, user):
+         try:
+diff --git a/requirements.txt b/requirements.txt
+index 33a2c42..1119c52 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -36,3 +36,4 @@ pycadf!=2.0.0,>=1.1.0 # Apache-2.0
+ msgpack>=0.5.0 # Apache-2.0
+ osprofiler>=1.4.0 # Apache-2.0
+ pytz>=2013.6 # MIT
++keyring>=5.3
+-- 
+2.25.1
+

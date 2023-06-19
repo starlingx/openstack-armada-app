@@ -1,0 +1,11 @@
+BUILDER=loci
+LABEL=stx-glance
+PROJECT=glance
+PROJECT_REPO=https://opendev.org/openstack/glance.git
+PROJECT_REF=6f03ccd47772e02f810de8fa3158afddc4a9c158
+DIST_REPOS="OS"
+UPDATE_SYSTEM_ACCOUNT="yes"
+NON_UNIQUE_SYSTEM_ACCOUNT="yes"
+PIP_PACKAGES="pycryptodomex python-swiftclient psutil pylint "
+DIST_PACKAGES="libpq5"
+PROFILES="fluent glance ceph"

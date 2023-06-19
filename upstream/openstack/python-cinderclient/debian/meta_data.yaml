@@ -1,0 +1,12 @@
+---
+debname: python-cinderclient
+debver: 1:7.2.0-3
+dl_path:
+  name: python-cinderclient-debian-7.2.0-3.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-cinderclient/-/archive/debian/7.2.0-3/python-cinderclient-debian-7.2.0-3.tar.gz
+  md5sum: b2fae10096bc2cf30935afe409ed9b4c
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-cinderclient

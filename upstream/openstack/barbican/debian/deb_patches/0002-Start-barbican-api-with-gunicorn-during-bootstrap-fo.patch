@@ -1,0 +1,83 @@
+From 31cab241e50e2fc99f257c5e9a1a006c66b7041f Mon Sep 17 00:00:00 2001
+From: Andy Ning <andy.ning@windriver.com>
+Date: Thu, 3 Mar 2022 19:34:02 +0000
+Subject: [PATCH] Start barbican-api with gunicorn during bootstrap for Debian
+
+Signed-off-by: Andy Ning <andy.ning@windriver.com>
+---
+ debian/barbican-api.install    |  2 +-
+ debian/barbican-api.service.in | 19 +++++++++++++++++++
+ debian/barbican-common.install |  1 +
+ debian/gunicorn-config.py      | 16 ++++++++++++++++
+ 4 files changed, 37 insertions(+), 1 deletion(-)
+ create mode 100644 debian/barbican-api.service.in
+ create mode 100644 debian/gunicorn-config.py
+
+diff --git a/debian/barbican-api.install b/debian/barbican-api.install
+index 05ddad9..3d8f2b4 100644
+--- a/debian/barbican-api.install
++++ b/debian/barbican-api.install
+@@ -1 +1 @@
+-debian/barbican-api-uwsgi.ini		/etc/barbican
++debian/gunicorn-config.py               /etc/barbican
+diff --git a/debian/barbican-api.service.in b/debian/barbican-api.service.in
+new file mode 100644
+index 0000000..197a281
+--- /dev/null
++++ b/debian/barbican-api.service.in
+@@ -0,0 +1,19 @@
++[Unit]
++Description=Openstack Barbican API server
++After=syslog.target network.target
++Before=httpd.service
++
++[Service]
++PIDFile=/run/barbican/pid
++User=barbican
++Group=barbican
++RuntimeDirectory=barbican
++RuntimeDirectoryMode=770
++ExecStart=/usr/bin/gunicorn --pid /run/barbican/pid -c /etc/barbican/gunicorn-config.py --paste /etc/barbican/barbican-api-paste.ini
++ExecReload=/usr/bin/kill -s HUP $MAINPID
++ExecStop=/usr/bin/kill -s TERM $MAINPID
++StandardError=syslog
++Restart=on-failure
++
++[Install]
++WantedBy=multi-user.target
+diff --git a/debian/barbican-common.install b/debian/barbican-common.install
+index 663fdc8..f1944b5 100644
+--- a/debian/barbican-common.install
++++ b/debian/barbican-common.install
+@@ -1,5 +1,6 @@
+ bin/barbican-api		/usr/bin
+ usr/bin/*
++etc/barbican/api_audit_map.conf etc/barbican
+ etc/barbican/barbican-api-paste.ini etc/barbican
+ etc/barbican/barbican.conf etc/barbican
+ etc/barbican/vassals/barbican-api.ini etc/barbican/vassals
+diff --git a/debian/gunicorn-config.py b/debian/gunicorn-config.py
+new file mode 100644
+index 0000000..c8c1e07
+--- /dev/null
++++ b/debian/gunicorn-config.py
+@@ -0,0 +1,16 @@
++import multiprocessing
++
++bind = '0.0.0.0:9311'
++user = 'barbican'
++group = 'barbican'
++
++timeout = 30
++backlog = 2048
++keepalive = 2
++
++workers = multiprocessing.cpu_count() * 2
++
++loglevel = 'info'
++errorlog = '-'
++accesslog = '-'
++
+-- 
+2.30.2
+

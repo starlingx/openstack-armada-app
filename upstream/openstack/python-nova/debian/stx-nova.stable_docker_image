@@ -1,0 +1,31 @@
+BUILDER=loci
+LABEL=stx-nova
+PROJECT=nova
+PROJECT_REPO=https://opendev.org/openstack/nova.git
+PROJECT_REF=3fe8880d3759cbd7b19d75dcf235dfd5c511be13
+PIP_PACKAGES="\
+  httplib2 \
+  pycryptodomex \
+  python-ironicclient
+"
+DIST_REPOS="OS"
+DIST_PACKAGES="\
+  e2fsprogs \
+  libvirt0 \
+  libvirt-clients \
+  libvirt-daemon \
+  libvirt-daemon-driver-lxc \
+  libvirt-daemon-driver-qemu \
+  libvirt-daemon-driver-storage-gluster \
+  libvirt-login-shell \
+  openssh-client \
+  openssh-server
+"
+PROFILES="fluent nova ceph linuxbridge openvswitch configdrive qemu apache"
+CUSTOMIZATION="\
+    sed -i 's/\(^\s*\)\(import oslo_service\)/\1# \2/' /var/lib/openstack/lib/python3*/site-packages/nova/monkey_patch.py && \
+    sed -i 's/\(^\s*\)\(eventlet.hubs.use_hub(\"oslo_service:service_hub\")\)/\1# \2/' /var/lib/openstack/lib/python3*/site-packages/nova/monkey_patch.py && \
+    mkdir -p /run/sshd
+"
+UPDATE_SYSTEM_ACCOUNT="yes"
+NON_UNIQUE_SYSTEM_ACCOUNT="yes"

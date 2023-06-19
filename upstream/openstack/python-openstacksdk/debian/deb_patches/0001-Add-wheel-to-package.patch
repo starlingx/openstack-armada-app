@@ -1,0 +1,55 @@
+From 0a6a01fffbb31ff735848c5788e45847bd0dff81 Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Thu, 28 Oct 2021 12:40:43 +0000
+Subject: [PATCH] Add wheel to package
+
+Add python-openstacksdk-wheel package.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+---
+ debian/control | 18 ++++++++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index 7d3f8c1a..feae1d8c 100644
+--- a/debian/control
++++ b/debian/control
+@@ -106,3 +106,21 @@ Description: SDK for building applications to work with OpenStack - Python 3.x
+  those provided in future release.
+  .
+  This package contains the Python 3.x module.
++
++Package: python3-openstacksdk-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: SDK for building applications to work with OpenStack - Python 3.x
++ The python-openstacksdk is a collection of libraries for building applications
++ to work with OpenStack clouds. The project aims to provide a consistent and
++ complete set of interactions with OpenStack's many services, along with
++ complete documentation, examples, and tools.
++ .
++ This SDK is under active development, and in the interests of providing a
++ high-quality interface, the APIs provided in this release may differ from
++ those provided in future release.
++ .
++ This package contains the Python wheel. 
+diff --git a/debian/rules b/debian/rules
+index 2f5b087e..d806547d 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -12,7 +12,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2 --in-tmp
++	pkgos-dh_auto_install --no-py2 --in-tmp --wheel
+ ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+ 	OS_LOG_CAPTURE=true pkgos-dh_auto_test --no-py2 'openstack\.tests\.unit\.(?!(.*baremetal\.v1\.test_proxy\.TestWaitForNodesProvisionState\.test_timeout_and_failures_not_fail.*|.*config\.test_loader\.TestLoader\.test__load_yaml_json_file_without_perm.*|.*cloud.test_security_groups\.TestSecurityGroups\.test_update_security_group_bad_kwarg.*|.*cloud\.test_port\.TestPort\.test_create_port_parameters.*))'
+ 
+-- 
+2.30.2
+

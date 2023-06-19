@@ -1,0 +1,12 @@
+---
+debname: python-aodhclient
+debver: 2.1.1-1
+dl_path:
+  name: python-aodhclient-debian-2.1.1-1.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-aodhclient/-/archive/debian/2.1.1-1/python-aodhclient-debian-2.1.1-1.tar.gz
+  md5sum: 86ee75ba3dec6529b48c816c7ddd317e
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-aodhclient

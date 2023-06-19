@@ -1,0 +1,19 @@
+BUILDER=loci
+LABEL=stx-horizon
+PROJECT=horizon
+PROJECT_REPO=https://opendev.org/openstack/horizon.git
+PROJECT_REF=e6f3952b878d6b04fde9742987e0f37a1cfad3e5
+PROJECT_UID=42425
+PROJECT_GID=42425
+PIP_PACKAGES="pycryptodomex python-ceilometerclient \
+              coverage pyudev ldap"
+DIST_REPOS="OS"
+PROFILES="fluent horizon apache"
+CUSTOMIZATION="\
+    ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \
+    ln -s /etc/apache2/mods-available/wsgi.conf /etc/apache2/mods-enabled/wsgi.conf && \
+    ln -s /bin/true /usr/bin/a2enmod && \
+    sed -i -e 's/raise ImproperlyConfigured..mysqlclient 1.3.13 or newer is required.*/pass/' /var/lib/openstack/lib/python3.9/site-packages/django/db/backends/mysql/base.py && \
+    sed -i -e '/query.decode.errors=.replace../s/decode/encode/' /var/lib/openstack/lib/python3.9/site-packages/django/db/backends/mysql/operations.py && \
+    sed -i 's/Listen 80/# Listen 80/' /etc/apache2/ports.conf
+"

@@ -1,0 +1,125 @@
+From fdcd730533f402daa0487995d1fa57b0867bf2b4 Mon Sep 17 00:00:00 2001
+From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+Date: Mon, 6 Mar 2023 09:52:22 -0300
+Subject: [PATCH] Add location parameter for volume backup creation
+
+This change adds the `location` parameter in python-openstackclient's
+`volume backup create` command to allow the optional specification of
+volume backup locations.
+
+This change also updates the unit tests accordingly.
+
+Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+---
+ openstackclient/tests/unit/volume/v2/fakes.py             | 1 +
+ .../tests/unit/volume/v2/test_volume_backup.py            | 8 ++++++++
+ openstackclient/volume/v2/volume_backup.py                | 6 ++++++
+ 3 files changed, 15 insertions(+)
+
+diff --git a/openstackclient/tests/unit/volume/v2/fakes.py b/openstackclient/tests/unit/volume/v2/fakes.py
+index 5f18990e..62b5d5cb 100644
+--- a/openstackclient/tests/unit/volume/v2/fakes.py
++++ b/openstackclient/tests/unit/volume/v2/fakes.py
+@@ -548,6 +548,7 @@ class FakeBackup(object):
+             "size": random.randint(1, 20),
+             "status": "error",
+             "availability_zone": 'zone' + uuid.uuid4().hex,
++            "location": 'location-' + uuid.uuid4().hex,
+         }
+ 
+         # Overwrite default attributes.
+diff --git a/openstackclient/tests/unit/volume/v2/test_volume_backup.py b/openstackclient/tests/unit/volume/v2/test_volume_backup.py
+index 4e1f7ee1..9417fe77 100644
+--- a/openstackclient/tests/unit/volume/v2/test_volume_backup.py
++++ b/openstackclient/tests/unit/volume/v2/test_volume_backup.py
+@@ -49,6 +49,7 @@ class TestBackupCreate(TestBackup):
+         'container',
+         'description',
+         'id',
++        'location',
+         'name',
+         'object_count',
+         'size',
+@@ -61,6 +62,7 @@ class TestBackupCreate(TestBackup):
+         new_backup.container,
+         new_backup.description,
+         new_backup.id,
++        new_backup.location,
+         new_backup.name,
+         new_backup.object_count,
+         new_backup.size,
+@@ -87,6 +89,7 @@ class TestBackupCreate(TestBackup):
+             "--force",
+             "--incremental",
+             "--snapshot", self.new_backup.snapshot_id,
++            "--location", self.new_backup.location,
+             self.new_backup.volume_id,
+         ]
+         verifylist = [
+@@ -96,6 +99,7 @@ class TestBackupCreate(TestBackup):
+             ("force", True),
+             ("incremental", True),
+             ("snapshot", self.new_backup.snapshot_id),
++            ("location", self.new_backup.location),
+             ("volume", self.new_backup.volume_id),
+         ]
+         parsed_args = self.check_parser(self.cmd, arglist, verifylist)
+@@ -110,6 +114,7 @@ class TestBackupCreate(TestBackup):
+             force=True,
+             incremental=True,
+             snapshot_id=self.new_backup.snapshot_id,
++            location=self.new_backup.location,
+         )
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
+@@ -137,6 +142,7 @@ class TestBackupCreate(TestBackup):
+             force=False,
+             incremental=False,
+             snapshot_id=None,
++            location=None,
+         )
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
+@@ -492,6 +498,7 @@ class TestBackupShow(TestBackup):
+         'container',
+         'description',
+         'id',
++        'location',
+         'name',
+         'object_count',
+         'size',
+@@ -504,6 +511,7 @@ class TestBackupShow(TestBackup):
+         backup.container,
+         backup.description,
+         backup.id,
++        backup.location,
+         backup.name,
+         backup.object_count,
+         backup.size,
+diff --git a/openstackclient/volume/v2/volume_backup.py b/openstackclient/volume/v2/volume_backup.py
+index c336f6c9..5de4f7f3 100644
+--- a/openstackclient/volume/v2/volume_backup.py
++++ b/openstackclient/volume/v2/volume_backup.py
+@@ -87,6 +87,11 @@ class CreateVolumeBackup(command.ShowOne):
+             metavar="<snapshot>",
+             help=_("Snapshot to backup (name or ID)")
+         )
++        parser.add_argument(
++            "--location",
++            metavar="<location>",
++            help=_("Optional backup location")
++        )
+         parser.add_argument(
+             '--force',
+             action='store_true',
+@@ -117,6 +122,7 @@ class CreateVolumeBackup(command.ShowOne):
+             force=parsed_args.force,
+             incremental=parsed_args.incremental,
+             snapshot_id=snapshot_id,
++            location=parsed_args.location,
+         )
+         backup._info.pop("links", None)
+         return zip(*sorted(backup._info.items()))
+-- 
+2.25.1
+

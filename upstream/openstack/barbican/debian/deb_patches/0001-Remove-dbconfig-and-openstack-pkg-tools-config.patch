@@ -1,0 +1,297 @@
+From cb87c126b41efdc0956c5e9e9350a9edf8129f3d Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Mon, 22 Nov 2021 14:46:16 +0000
+Subject: [PATCH] Remove dbconfig and openstack-pkg-tools config
+
+Remove the dbconfig and openstack-pkg-tools post configuration
+since we use puppet to configure the services and doing
+both will lead the problems with integration.
+
+Story: 2009101
+Task: 44026
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+diff -Naurp barbican-11.0.0.orig/debian/barbican-api.config.in barbican-11.0.0/debian/barbican-api.config.in
+--- barbican-11.0.0.orig/debian/barbican-api.config.in	2021-04-20 09:59:15.000000000 +0000
++++ barbican-11.0.0/debian/barbican-api.config.in	1970-01-01 00:00:00.000000000 +0000
+@@ -1,12 +0,0 @@
+-#!/bin/sh
+-
+-set -e
+-
+-. /usr/share/debconf/confmodule
+-
+-#PKGOS-INCLUDE#
+-
+-pkgos_register_endpoint_config barbican
+-db_go
+-
+-exit 0
+diff -Naurp barbican-11.0.0.orig/debian/barbican-api.postinst.in barbican-11.0.0/debian/barbican-api.postinst.in
+--- barbican-11.0.0.orig/debian/barbican-api.postinst.in	2021-04-20 09:59:15.000000000 +0000
++++ barbican-11.0.0/debian/barbican-api.postinst.in	1970-01-01 00:00:00.000000000 +0000
+@@ -1,17 +0,0 @@
+-#!/bin/sh
+-
+-set -e
+-
+-#PKGOS-INCLUDE#
+-
+-if [ "$1" = "configure" ] || [ "$1" = "reconfigure" ] ; then
+-	. /usr/share/debconf/confmodule
+-	. /usr/share/dbconfig-common/dpkg/postinst
+-
+-	pkgos_register_endpoint_postinst barbican barbican key-manager "Barbican Key Management Service" 9311 ""
+-	db_stop
+-fi
+-
+-#DEBHELPER#
+-
+-exit 0
+diff -Naurp barbican-11.0.0.orig/debian/barbican-common.config.in barbican-11.0.0/debian/barbican-common.config.in
+--- barbican-11.0.0.orig/debian/barbican-common.config.in	2021-04-20 09:59:15.000000000 +0000
++++ barbican-11.0.0/debian/barbican-common.config.in	1970-01-01 00:00:00.000000000 +0000
+@@ -1,17 +0,0 @@
+-#!/bin/sh
+-
+-set -e
+-
+-. /usr/share/debconf/confmodule
+-CONF=/etc/barbican/barbican.conf
+-API_CONF=/etc/barbican/barbican-api-paste.ini
+-
+-#PKGOS-INCLUDE#
+-
+-pkgos_var_user_group barbican
+-pkgos_dbc_read_conf -pkg barbican-common ${CONF} DEFAULT sql_connection barbican $@
+-pkgos_rabbit_read_conf ${CONF} DEFAULT barbican
+-pkgos_read_admin_creds ${CONF} keystone_authtoken barbican
+-db_go
+-
+-exit 0
+diff -Naurp barbican-11.0.0.orig/debian/barbican-common.install barbican-11.0.0/debian/barbican-common.install
+--- barbican-11.0.0.orig/debian/barbican-common.install	2021-04-20 09:59:15.000000000 +0000
++++ barbican-11.0.0/debian/barbican-common.install	2021-11-26 17:57:04.417749768 +0000
+@@ -1,2 +1,5 @@
+ bin/barbican-api		/usr/bin
+ usr/bin/*
++etc/barbican/barbican-api-paste.ini etc/barbican
++etc/barbican/barbican.conf etc/barbican
++etc/barbican/vassals/barbican-api.ini etc/barbican/vassals
+diff -Naurp barbican-11.0.0.orig/debian/barbican-common.posinst barbican-11.0.0/debian/barbican-common.posinst
+--- barbican-11.0.0.orig/debian/barbican-common.posinst	1970-01-01 00:00:00.000000000 +0000
++++ barbican-11.0.0/debian/barbican-common.posinst	2021-11-26 17:11:12.770838698 +0000
+@@ -0,0 +1,28 @@
++#!/bin/sh
++
++set -e
++
++set -e
++
++if [ "$1" = "configure" ]; then
++    if ! getent group barbican > /dev/null 2>&1; then
++        addgroup --system barbican >/dev/null
++    fi
++
++    if ! getent passwd barbican > /dev/null 2>&1; then
++        adduser --system --home /var/lib/barbican --ingroup barbican --no-create-home --shell /bin/false barbican
++    fi
++
++    chown barbican:adm /var/log/barbican
++    chmod 0750 /var/log/barbican
++
++    find /etc/barbican -exec chown root:barbican "{}" +
++    find /etc/barbican -type f -exec chmod 0640 "{}" + -o -type d -exec chmod 0750 "{}" +
++
++    find /var/lib/barbican -exec chown barbican:barbican "{}" +
++    find /var/lib/barbican -type f -exec chmod 0640 "{}" + -o -type d -exec chmod 0750 "{}" +
++fi
++
++#DEBHELPER#
++
++exit 0
+diff -Naurp barbican-11.0.0.orig/debian/barbican-common.postinst.in barbican-11.0.0/debian/barbican-common.postinst.in
+--- barbican-11.0.0.orig/debian/barbican-common.postinst.in	2021-04-20 09:59:15.000000000 +0000
++++ barbican-11.0.0/debian/barbican-common.postinst.in	1970-01-01 00:00:00.000000000 +0000
+@@ -1,46 +0,0 @@
+-#!/bin/sh
+-
+-set -e
+-
+-CONF=/etc/barbican/barbican.conf
+-API_CONF=/etc/barbican/barbican-api-paste.ini
+-
+-#PKGOS-INCLUDE#
+-
+-if [ "$1" = "configure" ] || [ "$1" = "reconfigure" ] ; then
+-	. /usr/share/debconf/confmodule
+-	. /usr/share/dbconfig-common/dpkg/postinst
+-
+-	pkgos_var_user_group barbican
+-	mkdir -p /var/lib/barbican/temp
+-	chown barbican:barbican /var/lib/barbican/temp
+-
+-	pkgos_write_new_conf barbican api_audit_map.conf
+-	pkgos_write_new_conf barbican barbican-api-paste.ini
+-	pkgos_write_new_conf barbican barbican.conf
+-	pkgos_write_new_conf barbican barbican-functional.conf
+-        if [ -r /etc/barbican/policy.json ] ; then
+-                mv /etc/barbican/policy.json /etc/barbican/disabled.policy.json.old
+-        fi
+-
+-        db_get barbican/configure_db
+-        if [ "$RET" = "true" ]; then
+-                pkgos_dbc_postinst ${CONF} DEFAULT sql_connection barbican $@
+-        fi
+-
+-        pkgos_rabbit_write_conf ${CONF} DEFAULT barbican
+-        pkgos_write_admin_creds ${CONF} keystone_authtoken barbican
+-
+-	db_get barbican/configure_db
+-	if [ "$RET" = "true" ]; then
+-		echo "Now calling barbican-db-manage upgrade: this may take a while..."
+-#		echo "TODO: barbican-db-manage upgrade: Disabled for now..."
+-		su -s /bin/sh -c 'barbican-db-manage upgrade' barbican
+-	fi
+-
+-	db_stop
+-fi
+-
+-#DEBHELPER#
+-
+-exit 0
+diff -Naurp barbican-11.0.0.orig/debian/barbican-common.postrm barbican-11.0.0/debian/barbican-common.postrm
+--- barbican-11.0.0.orig/debian/barbican-common.postrm	1970-01-01 00:00:00.000000000 +0000
++++ barbican-11.0.0/debian/barbican-common.postrm	2021-11-26 17:11:12.774838632 +0000
+@@ -0,0 +1,14 @@
++#!/bin/sh
++
++set -e
++
++if [ "$1" = "purge" ] ; then
++	echo "Purging barbican. Backup of /var/lib/barbican can be found at /var/lib/barbican.tar.bz2" >&2
++	[ -e /var/lib/barbican ] && rm -rf /var/lib/barbican
++	[ -e /var/log/barbican ] && rm -rf /var/log/barbican
++fi
++
++
++#DEBHELPER#
++
++exit 0
+diff -Naurp barbican-11.0.0.orig/debian/barbican-common.postrm.in barbican-11.0.0/debian/barbican-common.postrm.in
+--- barbican-11.0.0.orig/debian/barbican-common.postrm.in	2021-04-20 09:59:15.000000000 +0000
++++ barbican-11.0.0/debian/barbican-common.postrm.in	1970-01-01 00:00:00.000000000 +0000
+@@ -1,25 +0,0 @@
+-#!/bin/sh
+-
+-set -e
+-
+-#PKGOS-INCLUDE#
+-
+-if [ "$1" = "purge" ] ; then
+-	# Purge the db
+-	pkgos_dbc_postrm barbican barbican-common $@
+-
+-	# Purge config files copied in postinst
+-	for i in barbican.conf barbican-admin-paste.ini barbican-api.conf barbican-api-paste.ini barbican-functional.conf policy.json api_audit_map.conf ; do
+-		rm -f /etc/barbican/$i
+-	done
+-	# and the folders
+-	rmdir --ignore-fail-on-non-empty /etc/barbican || true
+-
+-	echo "Purging barbican. Backup of /var/lib/barbican can be found at /var/lib/barbican.tar.bz2" >&2
+-	[ -e /var/lib/barbican ] && rm -rf /var/lib/barbican
+-	[ -e /var/log/barbican ] && rm -rf /var/log/barbican
+-fi
+-
+-#DEBHELPER#
+-
+-exit 0
+diff -Naurp barbican-11.0.0.orig/debian/control barbican-11.0.0/debian/control
+--- barbican-11.0.0.orig/debian/control	2021-04-20 09:59:15.000000000 +0000
++++ barbican-11.0.0/debian/control	2021-11-26 17:11:12.774838632 +0000
+@@ -96,7 +96,6 @@ Package: barbican-common
+ Architecture: all
+ Depends:
+  adduser,
+- dbconfig-common,
+  debconf,
+  python3-barbican (= ${binary:Version}),
+  ${misc:Depends},
+diff -Naurp barbican-11.0.0.orig/debian/rules barbican-11.0.0/debian/rules
+--- barbican-11.0.0.orig/debian/rules	2021-04-20 09:59:15.000000000 +0000
++++ barbican-11.0.0/debian/rules	2021-11-26 17:56:48.926004150 +0000
+@@ -3,22 +3,12 @@
+ include /usr/share/openstack-pkg-tools/pkgos.make
+ 
+ %:
+-	dh $@ --buildsystem=python_distutils --with python3,systemd,sphinxdoc
++	dh $@ --buildsystem=pybuild --with python3,systemd,sphinxdoc
+ 
+ override_dh_auto_clean:
+ 	rm -f debian/*.init debian/*.service debian/*.upstart
+ 	rm -rf build
+ 	rm -rf barbican.sqlite
+-	rm -f debian/barbican-api.postinst debian/barbican-api.config debian/barbican-common.postinst debian/barbican-common.config debian/barbican-common.postrm
+-
+-override_dh_auto_build:
+-	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func barbican-api.postinst
+-	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func barbican-api.config
+-	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func barbican-common.postinst
+-	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_func barbican-common.config
+-	/usr/share/openstack-pkg-tools/pkgos_insert_include pkgos_postrm barbican-common.postrm
+-	pkgos-merge-templates barbican-api barbican endpoint
+-	pkgos-merge-templates barbican-common barbican db rabbit ksat
+ 
+ override_dh_auto_test:
+ 	echo "Do nothing..."
+@@ -35,46 +25,9 @@ ifeq (,$(findstring nocheck, $(DEB_BUILD
+ 	pkgos-dh_auto_test --no-py2 'barbican\.tests\.(?!(.*common.test_utils\.WhenTestingAcceptEncodingGetter\.test_get_correct_fullname_for_class.*|.*common\.test_utils\.WhenTestingGenerateFullClassnameForInstance\.test_returns_qualified_name.*|.*plugin\.interface\.test_certificate_manager\.WhenTestingCertificateEventPluginManager\.test_get_plugin_by_name.*|.*plugin\.interface\.test_certificate_manager\.WhenTestingCertificatePluginManager\.test_get_plugin_by_ca_id.*|.*plugin\.interface\.test_certificate_manager\.WhenTestingCertificatePluginManager\.test_get_plugin_by_name.*|.*plugin\.interface\.test_certificate_manager\.WhenTestingCertificatePluginManager\.test_refresh_ca_list.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_delete_secret_assert_called.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_generate_asymmetric_key_assert_called.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_generate_symmetric_key_assert_called.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_get_secret_opaque.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_get_secret_private_key.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_get_secret_public_key.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_get_secret_symmetric.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_store_private_key_secret_assert_called.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_store_symmetric_secret_assert_called.*|.*tasks\.test_keystone_consumer\.WhenUsingKeystoneEventConsumerProcessMethod\.test_existing_project_entities_cleanup_for_plain_secret.*|.*plugin\.test_kmip\.WhenTestingKMIPSecretStore\.test_credential.*|.*test_hacking\.HackingTestCase\.test_logging_with_tuple_argument.*|.*common\.test_validators\.WhenTestingSecretMetadataValidator\.test_should_validate_all_fields_and_make_key_lowercase.*|.*test_hacking\.HackingTestCase\.test_str_on_exception.*|.*test_hacking\.HackingTestCase\.test_str_on_multiple_exceptions.*|.*test_hacking\.HackingTestCase\.test_str_unicode_on_multiple_exceptions.*|.*test_hacking\.HackingTestCase\.test_unicode_on_exception.*))'
+ 
+ endif
+-
+-	# Generate the barbican.conf config using installed python-barbican files.
+-	mkdir -p $(CURDIR)/debian/barbican-common/usr/share/barbican-common
+-	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages oslo-config-generator \
+-		--output-file $(CURDIR)/debian/barbican-common/usr/share/barbican-common/barbican.conf \
+-		--wrap-width 140 \
+-		--namespace barbican.certificate.plugin \
+-		--namespace barbican.certificate.plugin.snakeoil \
+-		--namespace barbican.common.config \
+-		--namespace barbican.plugin.crypto \
+-		--namespace barbican.plugin.crypto.p11 \
+-		--namespace barbican.plugin.crypto.simple \
+-		--namespace barbican.plugin.dogtag \
+-		--namespace barbican.plugin.secret_store \
+-		--namespace barbican.plugin.secret_store.kmip \
+-		--namespace keystonemiddleware.auth_token \
+-		--namespace oslo.log \
+-		--namespace oslo.messaging \
+-		--namespace oslo.middleware.cors \
+-		--namespace oslo.middleware.http_proxy_to_wsgi \
+-		--namespace oslo.policy \
+-		--namespace oslo.service.periodic_task \
+-		--namespace oslo.service.sslutils \
+-		--namespace oslo.service.wsgi
+-	pkgos-readd-keystone-authtoken-missing-options $(CURDIR)/debian/barbican-common/usr/share/barbican-common/barbican.conf keystone_authtoken barbican
+-
+-	# Same with policy.conf
+-	mkdir -p $(CURDIR)/debian/barbican-common/etc/barbican/policy.d
+-	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages oslopolicy-sample-generator \
+-		--output-file $(CURDIR)/debian/barbican-common/etc/barbican/policy.d/00_default_policy.yaml \
+-		--format yaml \
+-		--namespace barbican
+-
+-	# Use the policy.d folder
+-	pkgos-fix-config-default $(CURDIR)/debian/barbican-common/usr/share/barbican-common/barbican.conf oslo_policy policy_dirs /etc/barbican/policy.d
+-
+-
+-	# Restore sanity...
+-	pkgos-fix-config-default $(CURDIR)/debian/barbican-common/usr/share/barbican-common/barbican.conf keystone_notifications enable True
+-
++	PYTHONPATH=$(CURDIR) oslo-config-generator \
++		--config-file etc/oslo-config-generator/barbican.conf \
++		--output-file etc/barbican/barbican.conf
+ 	dh_install
+ 	rm -rf $(CURDIR)/debian/tmp/usr/etc
+ 	dh_missing --fail-missing

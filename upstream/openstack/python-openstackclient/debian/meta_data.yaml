@@ -8,5 +8,5 @@ dl_path:
 revision:
   dist: $STX_DIST
   GITREVCOUNT:
-    BASE_SRCREV: 5566a41fc0f0be21e2764a9cc0c37823dcae72c8
+    BASE_SRCREV: 27acda9a6b4885a50064cebc0858892e71aa37ce
     SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-openstackclient

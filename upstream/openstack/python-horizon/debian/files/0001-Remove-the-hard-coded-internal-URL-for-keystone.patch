@@ -1,0 +1,27 @@
+From 0887c59ddffa53a8816e7a30f85fa49bdfce1881 Mon Sep 17 00:00:00 2001
+From: Andy Ning <andy.ning@windriver.com>
+Date: Thu, 30 Apr 2020 11:45:55 -0400
+Subject: [PATCH] Remove-the-hard-coded-internal-URL-for-keystone
+
+Signed-off-by: Andy Ning <andy.ning@windriver.com>
+---
+ openstack_dashboard/api/keystone.py | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/openstack_dashboard/api/keystone.py b/openstack_dashboard/api/keystone.py
+index af3d779..e4a9ef7 100644
+--- a/openstack_dashboard/api/keystone.py
++++ b/openstack_dashboard/api/keystone.py
+@@ -79,7 +79,8 @@ class Service(base.APIDictWrapper):
+         super(Service, self).__init__(service, *args, **kwargs)
+         self.public_url = base.get_url_for_service(service, region,
+                                                    'publicURL')
+-        self.url = base.get_url_for_service(service, region, 'internalURL')
++        ep_type = getattr(settings, 'OPENSTACK_ENDPOINT_TYPE', 'internalURL')
++        self.url = base.get_url_for_service(service, region, ep_type)
+         if self.url:
+             self.host = urlparse.urlparse(self.url).hostname
+         else:
+-- 
+1.8.3.1
+

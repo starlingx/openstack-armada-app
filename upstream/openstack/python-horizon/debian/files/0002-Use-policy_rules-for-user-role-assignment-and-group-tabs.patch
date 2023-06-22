@@ -1,0 +1,159 @@
+From 245e2b9b2f18e316410067804c48ae63b0f20320 Mon Sep 17 00:00:00 2001
+From: Takamsa Takenaka <takamasa.takenaka@windriver.com>
+Date: Fri, 12 Nov 2021 12:17:19 -0500
+Subject: [PATCH] Use policy_rules for user role assignment and group tabs
+
+This patch is ported from the following patches:
+- https://review.opendev.org/c/openstack/horizon/+/775014
+- https://review.opendev.org/c/openstack/horizon/+/783307
+
+Signed-off-by: Takamsa Takenaka <takamasa.takenaka@windriver.com>
+---
+ horizon/tabs/base.py                          | 14 +++++++--
+ horizon/test/unit/tabs/test_tabs.py           | 30 +++++++++++++++++--
+ .../dashboards/identity/users/tabs.py         |  2 ++
+ 3 files changed, 40 insertions(+), 6 deletions(-)
+
+diff --git a/horizon/tabs/base.py b/horizon/tabs/base.py
+index 67847bf10..108d35eeb 100644
+--- a/horizon/tabs/base.py
++++ b/horizon/tabs/base.py
+@@ -26,6 +26,7 @@ from django.utils import module_loading
+ 
+ from horizon import exceptions
+ from horizon.utils import html
++from horizon.utils import settings as utils_settings
+ 
+ LOG = logging.getLogger(__name__)
+ 
+@@ -310,8 +311,9 @@ class Tab(html.HTMLElement):
+     preload = True
+     _active = None
+     permissions = []
++    policy_rules = None
+ 
+-    def __init__(self, tab_group, request=None):
++    def __init__(self, tab_group, request=None, policy_rules=None):
+         super(Tab, self).__init__()
+         # Priority: constructor, class-defined, fallback
+         if not self.name:
+@@ -325,6 +327,7 @@ class Tab(html.HTMLElement):
+             self._allowed = self.allowed(request) and (
+                 self._has_permissions(request))
+             self._enabled = self.enabled(request)
++        self.policy_rules = policy_rules or []
+ 
+     def __repr__(self):
+         return "<%s: %s>" % (self.__class__.__name__, self.slug)
+@@ -442,9 +445,14 @@ class Tab(html.HTMLElement):
+ 
+         Tab instances can override this method to specify conditions under
+         which this tab should not be shown at all by returning ``False``.
+-
+-        The default behavior is to return ``True`` for all cases.
+         """
++        if not self.policy_rules:
++            return True
++
++        policy_check = utils_settings.import_setting("POLICY_CHECK_FUNCTION")
++
++        if policy_check:
++            return policy_check(self.policy_rules, request)
+         return True
+ 
+     def post(self, request, *args, **kwargs):
+diff --git a/horizon/test/unit/tabs/test_tabs.py b/horizon/test/unit/tabs/test_tabs.py
+index 6c50e401b..358bf77c9 100644
+--- a/horizon/test/unit/tabs/test_tabs.py
++++ b/horizon/test/unit/tabs/test_tabs.py
+@@ -67,9 +67,16 @@ class TabDisallowed(BaseTestTab):
+         return False
+ 
+ 
++class TabWithPolicy(BaseTestTab):
++    slug = "tab_with_policy"
++    name = "tab only visible to admin"
++    template_name = "_tab.html"
++    policy_rules = (("compute", "role:admin"),)
++
++
+ class Group(horizon_tabs.TabGroup):
+     slug = "tab_group"
+-    tabs = (TabOne, TabDelayed, TabDisabled, TabDisallowed)
++    tabs = (TabOne, TabDelayed, TabDisabled, TabDisallowed, TabWithPolicy)
+     sticky = True
+ 
+     def tabs_not_available(self):
+@@ -128,15 +135,19 @@ class TabWithTableView(horizon_tabs.TabbedTableView):
+ 
+ 
+ class TabTests(test.TestCase):
++    @override_settings(POLICY_CHECK_FUNCTION=lambda *args: True)
+     def test_tab_group_basics(self):
+         tg = Group(self.request)
+ 
+         # Test tab instantiation/attachment to tab group, and get_tabs method
+         tabs = tg.get_tabs()
+         # "tab_disallowed" should NOT be in this list.
++        # "tab_with_policy" should be present, since our policy check
++        #  always passes
+         self.assertQuerysetEqual(tabs, ['<TabOne: tab_one>',
+                                         '<TabDelayed: tab_delayed>',
+-                                        '<TabDisabled: tab_disabled>'])
++                                        '<TabDisabled: tab_disabled>',
++                                        '<TabWithPolicy: tab_with_policy>'])
+         # Test get_id
+         self.assertEqual("tab_group", tg.get_id())
+         # get_default_classes
+@@ -151,6 +162,19 @@ class TabTests(test.TestCase):
+         # Test get_selected_tab is None w/o GET input
+         self.assertIsNone(tg.get_selected_tab())
+ 
++    @override_settings(POLICY_CHECK_FUNCTION=lambda *args: False)
++    def test_failed_tab_policy(self):
++        tg = Group(self.request)
++
++        # Test tab instantiation/attachment to tab group, and get_tabs method
++        tabs = tg.get_tabs()
++        # "tab_disallowed" should NOT be in this list, it's not allowed
++        # "tab_with_policy" should also not be present as its
++        #  policy check failed
++        self.assertQuerysetEqual(tabs, ['<TabOne: tab_one>',
++                                        '<TabDelayed: tab_delayed>',
++                                        '<TabDisabled: tab_disabled>'])
++
+     @test.update_settings(
+         HORIZON_CONFIG={'extra_tabs': {
+             'horizon.test.unit.tabs.test_tabs.GroupWithConfig': (
+@@ -253,7 +277,7 @@ class TabTests(test.TestCase):
+         # tab group
+         output = tg.render()
+         res = http.HttpResponse(output.strip())
+-        self.assertContains(res, "<li", 3)
++        self.assertContains(res, "<li", 4)
+ 
+         # stickiness
+         self.assertContains(res, 'data-sticky-tabs="sticky"', 1)
+diff --git a/openstack_dashboard/dashboards/identity/users/tabs.py b/openstack_dashboard/dashboards/identity/users/tabs.py
+index bd47925a5..828bc51b1 100644
+--- a/openstack_dashboard/dashboards/identity/users/tabs.py
++++ b/openstack_dashboard/dashboards/identity/users/tabs.py
+@@ -91,6 +91,7 @@ class RoleAssignmentsTab(tabs.TableTab):
+     slug = "roleassignments"
+     template_name = "horizon/common/_detail_table.html"
+     preload = False
++    policy_rules = (("identity", "identity:list_role_assignments"),)
+ 
+     def get_roleassignmentstable_data(self):
+         user = self.tab_group.kwargs['user']
+@@ -137,6 +138,7 @@ class GroupsTab(tabs.TableTab):
+     slug = "groups"
+     template_name = "horizon/common/_detail_table.html"
+     preload = False
++    policy_rules = (("identity", "identity:list_groups"),)
+ 
+     def get_groupstable_data(self):
+         user_groups = []
+-- 
+2.29.2
+

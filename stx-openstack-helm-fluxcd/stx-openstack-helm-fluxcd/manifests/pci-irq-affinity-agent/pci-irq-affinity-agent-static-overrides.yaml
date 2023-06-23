@@ -10,6 +10,9 @@ images:
   tags:
     pci_irq_affinity_agent: docker.io/starlingx/stx-pci-irq-affinity-agent:master-debian-stable-latest
 tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
   - key: node-role.kubernetes.io/control-plane
     operator: Exists
     effect: NoSchedule

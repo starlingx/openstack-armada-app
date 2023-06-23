@@ -1,7 +1,7 @@
-From 7c189ae05ef789bf030ddf224934dc804669d256 Mon Sep 17 00:00:00 2001
+From 4e07c23b3d1a3d194545fe2ee4e8ba3281f447a4 Mon Sep 17 00:00:00 2001
 From: Dan Voiculeasa <dan.voiculeasa@windriver.com>
 Date: Thu, 2 Jun 2022 20:20:50 +0300
-Subject: [PATCH 2/2] Allow external bash completion
+Subject: [PATCH] Allow external bash completion
 
 Don't generate the bash completion at build time, as it is different
 than the one generated at runtime. Allow bash completion to be
@@ -16,13 +16,13 @@ Signed-off-by: Dan Voiculeasa <dan.voiculeasa@windriver.com>
 
 diff --git a/debian/python3-openstackclient.dirs b/debian/python3-openstackclient.dirs
 new file mode 100644
-index 0000000..bc3b680
+index 00000000..bc3b6805
 --- /dev/null
 +++ b/debian/python3-openstackclient.dirs
 @@ -0,0 +1 @@
 +etc/bash_completion.d/
 diff --git a/debian/rules b/debian/rules
-index 490e439..1472e19 100755
+index 8c257cd8..9b71b705 100755
 --- a/debian/rules
 +++ b/debian/rules
 @@ -14,9 +14,6 @@ override_dh_auto_build:
@@ -34,7 +34,7 @@ index 490e439..1472e19 100755
 -
  override_dh_auto_test:
  ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
- 	pkgos-dh_auto_test --no-py2 'openstackclient\.tests\.(?!(.*test_shell\.TestShellCli\.test_shell_args_precedence.*|.*test_shell\.TestShellCliEnv\.test_shell_args_precedence_.*))'
+ 	pkgos-dh_auto_test --no-py2 'openstackclient\.tests.*'
 -- 
-2.34.1
+2.25.1
 

@@ -1,10 +1,11 @@
 ---
 debname: python-openstackclient
-debver: 5.4.0-4
+debver: 6.2.0-1
 dl_path:
-  name: python-openstackclient-debian-5.4.0-4.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-openstackclient/-/archive/debian/5.4.0-4/python-openstackclient-debian-5.4.0-4.tar.gz
-  md5sum: 499b5a71ab02769a5706832aa53276a7
+  name: python-openstackclient-debian-6.2.0-1.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-openstackclient/-/archive/debian/6.2.0-1/python-openstackclient-debian-6.2.0-1.tar.gz
+  md5sum: db8235ad534de91738f1dab8e3865a8a
+  sha256sum: 91e35f3e6bc8113cdd228709360b383e0c4e7c7f884bb3ec47e61f37c4110da3
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

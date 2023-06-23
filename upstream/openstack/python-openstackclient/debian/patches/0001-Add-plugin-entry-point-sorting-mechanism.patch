@@ -1,4 +1,4 @@
-From 98f5f373e068032ae89d205edb12ab9b62e39d3e Mon Sep 17 00:00:00 2001
+From ceb23453a2ac814e752393aaef841a1024f243d8 Mon Sep 17 00:00:00 2001
 From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 Date: Fri, 24 Feb 2023 08:47:48 -0300
 Subject: [PATCH] Add plugin entry point sorting mechanism
@@ -45,11 +45,11 @@ default in the list.
 Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 ---
  openstackclient/common/clientmanager.py | 173 +++++++++++++++++++++++-
- openstackclient/shell.py                |  33 ++++-
- 2 files changed, 202 insertions(+), 4 deletions(-)
+ openstackclient/shell.py                |  32 ++++-
+ 2 files changed, 202 insertions(+), 3 deletions(-)
 
 diff --git a/openstackclient/common/clientmanager.py b/openstackclient/common/clientmanager.py
-index 36c3ce26..3b859c67 100644
+index 1ed6aa24..def7f2ca 100644
 --- a/openstackclient/common/clientmanager.py
 +++ b/openstackclient/common/clientmanager.py
 @@ -19,14 +19,17 @@ import importlib
@@ -70,7 +70,7 @@ index 36c3ce26..3b859c67 100644
  
  USER_AGENT = 'python-openstackclient'
  
-@@ -141,11 +144,177 @@ class ClientManager(clientmanager.ClientManager):
+@@ -143,11 +146,177 @@ class ClientManager(clientmanager.ClientManager):
  
  # Plugin Support
  
@@ -251,24 +251,23 @@ index 36c3ce26..3b859c67 100644
  
          # Different versions of stevedore use different
 diff --git a/openstackclient/shell.py b/openstackclient/shell.py
-index 755af24d..52d50256 100644
+index bc88e1f1..1db9eaca 100644
 --- a/openstackclient/shell.py
 +++ b/openstackclient/shell.py
-@@ -21,7 +21,9 @@ import sys
+@@ -20,7 +20,9 @@ import sys
  
  from osc_lib.api import auth
  from osc_lib.command import commandmanager
 +from osc_lib.i18n import _
  from osc_lib import shell
 +from osc_lib import utils
- import six
  
  import openstackclient
-@@ -31,14 +33,26 @@ from openstackclient.common import clientmanager
+ from openstackclient.common import clientmanager
+@@ -29,6 +31,19 @@ from openstackclient.common import clientmanager
  DEFAULT_DOMAIN = 'default'
  
  
--class OpenStackShell(shell.OpenStackShell):
 +class CommandManager(commandmanager.CommandManager):
 +    def load_commands(self, namespace):
 +        """Load all commands from an entry point."""
@@ -280,11 +279,12 @@ index 755af24d..52d50256 100644
 +                        else ep.name)
 +            self.commands[cmd_name] = ep.entry_point
 +        return
- 
 +
-+class OpenStackShell(shell.OpenStackShell):
-     def __init__(self):
++
+ class OpenStackShell(shell.OpenStackShell):
  
+     def __init__(self):
+@@ -36,7 +51,7 @@ class OpenStackShell(shell.OpenStackShell):
          super(OpenStackShell, self).__init__(
              description=__doc__.strip(),
              version=openstackclient.__version__,
@@ -293,7 +293,7 @@ index 755af24d..52d50256 100644
              deferred_help=True)
  
          self.api_version = {}
-@@ -52,6 +66,18 @@ class OpenStackShell(shell.OpenStackShell):
+@@ -50,6 +65,18 @@ class OpenStackShell(shell.OpenStackShell):
              version)
          parser = clientmanager.build_plugin_option_parser(parser)
          parser = auth.build_auth_plugins_option_parser(parser)
@@ -312,7 +312,7 @@ index 755af24d..52d50256 100644
          return parser
  
      def _final_defaults(self):
-@@ -64,6 +90,9 @@ class OpenStackShell(shell.OpenStackShell):
+@@ -62,6 +89,9 @@ class OpenStackShell(shell.OpenStackShell):
          else:
              self._auth_type = 'password'
  

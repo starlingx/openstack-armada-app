@@ -10,6 +10,9 @@ images:
   tags:
     openstack_clients: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
 tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
   - key: node-role.kubernetes.io/control-plane
     operator: Exists
     effect: NoSchedule

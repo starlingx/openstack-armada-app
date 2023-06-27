@@ -1,4 +1,4 @@
-From 26c374cef18537b8c2bd045838f5a4940f43323c Mon Sep 17 00:00:00 2001
+From 6ca9b10ef0714f0e99d45e3068e1890f1c94fda3 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Mon, 29 Nov 2021 20:52:34 +0000
 Subject: [PATCH] Remove openstackclient
@@ -13,17 +13,17 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  1 file changed, 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index 8de0e3e..08a8fe1 100644
+index 7e5a51e..1cc07a9 100644
 --- a/debian/control
 +++ b/debian/control
 @@ -22,7 +22,6 @@ Build-Depends-Indep:
   python3-fixtures,
-  python3-jsonschema (>= 3.2.0),
+  python3-jsonschema,
   python3-keystoneauth1,
 - python3-openstackclient,
   python3-openstackdocstheme,
-  python3-openstacksdk (>= 0.18.0),
+  python3-openstacksdk,
   python3-osc-lib,
 -- 
-2.30.2
+2.25.1
 

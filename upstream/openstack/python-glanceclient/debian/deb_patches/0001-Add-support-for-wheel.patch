@@ -1,4 +1,4 @@
-From 4c5368b6f9811e195dc12d1a3cecccb176cf720e Mon Sep 17 00:00:00 2001
+From 4ed323e3f23cbb2180b29e6da1fd824d7c9d2b41 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Tue, 26 Oct 2021 23:35:45 +0000
 Subject: [PATCH] Add support for wheel
@@ -12,7 +12,7 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  2 files changed, 18 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index 742257e..f2c1648 100644
+index d9921cf..acd2334 100644
 --- a/debian/control
 +++ b/debian/control
 @@ -84,3 +84,20 @@ Description: Client library for Openstack glance server - Python 3.x
@@ -50,5 +50,5 @@ index d5d2b14..459f08c 100755
  override_dh_python3:
  	dh_python3 --shebang=/usr/bin/python3
 -- 
-2.30.2
+2.25.1
 

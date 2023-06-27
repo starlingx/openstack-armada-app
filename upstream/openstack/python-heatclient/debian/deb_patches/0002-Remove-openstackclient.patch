@@ -1,7 +1,7 @@
-From d02fa3227bbf56e4f30d2cf3a21dd5a1d915d96a Mon Sep 17 00:00:00 2001
+From dc1f8711b84ec57b7ef19e4529ddff94a111cf1e Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Mon, 29 Nov 2021 20:51:40 +0000
-Subject: [PATCH] Remove openstackcilent
+Subject: [PATCH] Remove openstackclient
 
 Remove build-Depends-Indep for python-openstackclient as it is
 not being used and it is causing problems with the build-pkgs
@@ -13,7 +13,7 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  1 file changed, 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index f287c45..5aeee36 100644
+index 5994402..f35e853 100644
 --- a/debian/control
 +++ b/debian/control
 @@ -23,7 +23,6 @@ Build-Depends-Indep:
@@ -25,5 +25,5 @@ index f287c45..5aeee36 100644
   python3-osc-lib,
   python3-oslo.i18n,
 -- 
-2.30.2
+2.25.1
 

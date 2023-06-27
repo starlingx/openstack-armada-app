@@ -1,10 +1,11 @@
 ---
 debname: python-aodhclient
-debver: 2.1.1-1
+debver: 3.2.0-4
 dl_path:
-  name: python-aodhclient-debian-2.1.1-1.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-aodhclient/-/archive/debian/2.1.1-1/python-aodhclient-debian-2.1.1-1.tar.gz
-  md5sum: 86ee75ba3dec6529b48c816c7ddd317e
+  name: python-aodhclient-debian-3.2.0-4.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-aodhclient/-/archive/debian/3.2.0-4/python-aodhclient-debian-3.2.0-4.tar.gz
+  md5sum: 81d86a6949b062b30f488f2a77d24e1f
+  sha256sum: 25afa928f457e5cdd213314e58b14b03643994925a8eeb1a0b01eb2406705917
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

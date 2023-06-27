@@ -1,4 +1,4 @@
-From 59078d1ddd3f5f58007973615a67b6f136831823 Mon Sep 17 00:00:00 2001
+From f20a31e3f6bbdb1e79303339a0c1aace544dfe8c Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 16:46:26 +0000
 Subject: [PATCH] Add wheel package
@@ -12,10 +12,10 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  2 files changed, 17 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index df1f5e0..0ae5339 100644
+index 37d8cd8..7caceee 100644
 --- a/debian/control
 +++ b/debian/control
-@@ -78,3 +78,19 @@ Description: OpenStack Alarming as a Service - Python 3.x client
+@@ -84,3 +84,19 @@ Description: OpenStack Alarming as a Service - Python 3.x client
   for more than 10 min.
   .
   This package contains the Python 3.x module.
@@ -49,5 +49,5 @@ index 42e437f..3795caf 100755
  override_dh_auto_test:
  ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 -- 
-2.30.2
+2.25.1
 

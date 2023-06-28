@@ -24,7 +24,7 @@ Signed-off-by: Robert Church <robert.church@windriver.com>
  2 files changed, 6 insertions(+)
 
 diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
-index 23ce347..60b0272 100644
+index 23ce3475..60b0272d 100644
 --- a/nova/templates/bin/_nova-compute.sh.tpl
 +++ b/nova/templates/bin/_nova-compute.sh.tpl
 @@ -18,9 +18,13 @@ set -ex
@@ -42,18 +42,18 @@ index 23ce347..60b0272 100644
        --config-file /tmp/pod-shared/nova-hypervisor.conf
 +{{- end }}
 diff --git a/nova/values.yaml b/nova/values.yaml
-index 6fb6237..ca92907 100644
+index 38f4b518..7aca42ad 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -527,6 +527,7 @@ console:
+@@ -496,6 +496,7 @@ console:
      vncproxy:
        # IF blank, search default routing interface
        vncserver_proxyclient_interface:
 +  address_search_enabled: true
-
+ 
  ceph_client:
    configmap: ceph-etc
-@@ -1666,6 +1666,7 @@ conf:
+@@ -1335,6 +1336,7 @@ conf:
      # If this option is set to None, the hostname of the migration target compute node will be used.
      live_migration_interface:
    hypervisor:
@@ -62,5 +62,5 @@ index 6fb6237..ca92907 100644
      host_interface:
    # This list is the keys to exclude from the config file ingested by nova-compute
 -- 
-1.8.3.1
+2.25.1
 

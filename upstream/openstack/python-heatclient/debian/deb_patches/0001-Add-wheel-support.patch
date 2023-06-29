@@ -1,4 +1,4 @@
-From 9ea6b1a4d02e631efccdde8ed240dc79849159af Mon Sep 17 00:00:00 2001
+From 15f2ba6622dca7503ff0723d7e2b49897a079ea4 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 12:29:52 +0000
 Subject: [PATCH] Add wheel support
@@ -12,10 +12,10 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  2 files changed, 18 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index f287c45..0598164 100644
+index 711e1d1..5994402 100644
 --- a/debian/control
 +++ b/debian/control
-@@ -75,3 +75,20 @@ Description: client library and CLI for OpenStack Heat - Python 3.x
+@@ -73,3 +73,20 @@ Description: client library and CLI for OpenStack Heat - Python 3.x
   the OpenStack Heat API.
   .
   This package provides the Python 3.x module.
@@ -35,7 +35,7 @@ index f287c45..0598164 100644
 + heatclient module), and a command-line script (heat). Each implements 100% of
 + the OpenStack Heat API.
 + .
-+ This package contains the Python wheel. 
++ This package contains the Python wheel.
 diff --git a/debian/rules b/debian/rules
 index 70f505c..110310e 100755
 --- a/debian/rules
@@ -50,5 +50,5 @@ index 70f505c..110310e 100755
  ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
  	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages pkgos-dh_auto_test --no-py2
 -- 
-2.30.2
+2.25.1
 

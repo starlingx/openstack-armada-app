@@ -1,4 +1,4 @@
-From 22953cad51b0b05b8e3ffc5fd420f429c2de35e4 Mon Sep 17 00:00:00 2001
+From da65df2d8211a68f304e1bc423cfd63d86306aab Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 13:06:23 +0000
 Subject: [PATCH] Add wheel package
@@ -12,10 +12,10 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  2 files changed, 24 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index 01934835..b7d9461f 100644
+index 846cac08..324c5305 100644
 --- a/debian/control
 +++ b/debian/control
-@@ -110,3 +110,26 @@ Description: client library for the OpenStack Keystone API - Python 3.x
+@@ -111,3 +111,26 @@ Description: client library for the OpenStack Keystone API - Python 3.x
   the "python3-openstackclient" package.
   .
   This package contains the Python 3.x module.
@@ -56,5 +56,5 @@ index 01ef1e5c..cb9b228f 100755
  ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
  	pkgos-dh_auto_test --no-py2
 -- 
-2.30.2
+2.25.1
 

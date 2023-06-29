@@ -1,0 +1,31 @@
+{{/*
+Copyright (c) 2023 Wind River Systems, Inc.
+
+SPDX-License-Identifier: Apache-2.0
+*/}}
+
+{{- define "clients.configmap.bin" }}
+{{- $configMapName := index . 0 }}
+{{- $envAll := index . 1 }}
+{{- with $envAll }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $configMapName }}
+data:
+  clients-init.sh: |
+{{ tuple "bin/_clients-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  clear-aliases.sh: |
+{{ tuple "bin/_clear-aliases.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  setup-aliases.sh: |
+{{ tuple "bin/_setup-aliases.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  wrapper.sh: |
+{{ tuple "bin/_wrapper.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.manifests.configmap_bin }}
+{{- list "clients-bin" . | include "clients.configmap.bin" }}
+{{- end }}

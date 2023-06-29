@@ -27,6 +27,18 @@ labels:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
 
+pod:
+  mounts:
+    clients:
+      init_container: null
+  security_context:
+    clients:
+      pod:
+        runAsUser: 0
+      container:
+        clients:
+          readOnlyRootFilesystem: false
+
 dependencies:
   dynamic:
     common:
@@ -97,4 +109,6 @@ conf: {}
 tolerations: []
 
 manifests:
+  configmap_bin: true
+  configmap_etc: true
   daemonset_clients: true

@@ -13,6 +13,8 @@
 {{- $envAll := index . 3 }}
 {{- with $envAll }}
 
+{{- $mounts_clients_init := .Values.pod.mounts.clients.init_container }}
+
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -31,17 +33,66 @@ spec:
       labels:
 {{ tuple $envAll "clients" "clients" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
     spec:
+{{ dict "envAll" . "application" "clients" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       serviceAccountName: {{ $serviceAccountName }}
       nodeSelector:
         {{ .Values.labels.openstack_clients.node_selector_key }}: {{ .Values.labels.openstack_clients.node_selector_value }}
       tolerations:
 {{ toYaml .Values.tolerations | indent 8 }}
+      initContainers:
+{{ tuple $envAll "pod_dependency" $mounts_clients_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+        - name: clients-init
+{{ tuple $envAll "openstack_clients" | include "helm-toolkit.snippets.image" | indent 10 }}
+{{ dict "envAll" . "application" "clients" "container" "clients_init" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+          command:
+            - /tmp/clients-init.sh
+          volumeMounts:
+            - name: pod-tmp
+              mountPath: /tmp
+            - name: clients-bin
+              mountPath: /tmp/clients-init.sh
+              subPath: clients-init.sh
+              readOnly: true
+            - name: clients-bin
+              mountPath: /tmp/clear-aliases.sh
+              subPath: clear-aliases.sh
+              readOnly: true
+            - name: clients-bin
+              mountPath: /tmp/setup-aliases.sh
+              subPath: setup-aliases.sh
+              readOnly: true
+            - name: clients-bin
+              mountPath: /tmp/wrapper.sh
+              subPath: wrapper.sh
+              readOnly: true
+            - name: host-var-opt
+              mountPath: /var/opt
       containers:
         - name: clients
+{{ tuple $envAll "openstack_clients" | include "helm-toolkit.snippets.image" | indent 10 }}
+{{ dict "envAll" . "application" "clients" "container" "clients" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
           command:
           - /bin/bash
           stdin: true
-{{ tuple $envAll "openstack_clients" | include "helm-toolkit.snippets.image" | indent 10 }}
+          workingDir: /wd
+          volumeMounts:
+            - name: host-var-opt-openstack
+              mountPath: /wd
+      volumes:
+        - name: pod-tmp
+          emptyDir: {}
+        - name: clients-bin
+          configMap:
+            name: clients-bin
+            defaultMode: 0555
+        - name: host-var-opt
+          hostPath:
+            path: /var/opt
+            type: Directory
+        - name: host-var-opt-openstack
+          hostPath:
+            path: /var/opt/openstack
+            type: DirectoryOrCreate
 {{- end }}
 {{- end }}
 

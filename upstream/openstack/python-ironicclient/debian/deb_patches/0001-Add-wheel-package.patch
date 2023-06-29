@@ -1,4 +1,4 @@
-From 165d7922b14a57bf5f3c3de453c1ebf21f2995ef Mon Sep 17 00:00:00 2001
+From 70ee3f4e6732d6cf55a8744d202e2a3f7b100f45 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 12:49:17 +0000
 Subject: [PATCH] Add wheel package
@@ -12,7 +12,7 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  2 files changed, 24 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index f837496..9dedef0 100644
+index f837496..7e5a51e 100644
 --- a/debian/control
 +++ b/debian/control
 @@ -100,3 +100,26 @@ Description: Client for OpenStack bare metal Service - Python 3.x
@@ -56,5 +56,5 @@ index e69b6fe..40f2b34 100755
  override_dh_auto_test:
  ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
 -- 
-2.30.2
+2.25.1
 

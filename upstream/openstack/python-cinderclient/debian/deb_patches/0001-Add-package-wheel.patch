@@ -1,4 +1,4 @@
-From 5c420535f8b04efda7a9fac27eeaafde961db6aa Mon Sep 17 00:00:00 2001
+From 64b639e6c81a11ecf8c52ae8f331f462cce009aa Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 17:28:06 +0000
 Subject: [PATCH] Add package wheel
@@ -25,5 +25,5 @@ index 8acee49..0d8778c 100755
  	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages pkgos-dh_auto_test --no-py2
  endif
 -- 
-2.30.2
+2.25.1
 

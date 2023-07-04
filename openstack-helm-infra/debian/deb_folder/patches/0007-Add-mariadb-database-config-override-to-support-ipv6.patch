@@ -4,6 +4,7 @@ Date: Thu, 28 May 2020 08:03:42 +0000
 Subject: [PATCH] Add mariadb database config override to support ipv6
 
 Signed-off-by: Liu, ZhipengS <zhipengs.liu@intel.com>
+Change-Id: Ib00ac93863f342d7b8d36d9a2fe5c1e558bcc71d
 ---
  mariadb/templates/configmap-etc.yaml | 8 ++++++++
  mariadb/templates/statefulset.yaml   | 2 +-
@@ -11,10 +12,10 @@ Signed-off-by: Liu, ZhipengS <zhipengs.liu@intel.com>
  3 files changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/mariadb/templates/configmap-etc.yaml b/mariadb/templates/configmap-etc.yaml
-index feb1714..866028d 100644
+index 5367f18d..961cec26 100644
 --- a/mariadb/templates/configmap-etc.yaml
 +++ b/mariadb/templates/configmap-etc.yaml
-@@ -26,6 +26,14 @@ data:
+@@ -24,6 +24,14 @@ data:
  {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "00_base" ) "key" "00-base.cnf" ) | indent 2 }}
  {{- if $envAll.Values.conf.database.config_override }}
  {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "config_override" ) "key" "20-override.cnf" ) | indent 2 }}
@@ -30,10 +31,10 @@ index feb1714..866028d 100644
  {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "99_force" ) "key" "99-force.cnf" ) | indent 2 }}
  {{- end }}
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 83e135f..3ef7383 100644
+index 1185a41c..f08094ef 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -216,7 +216,7 @@ spec:
+@@ -229,7 +229,7 @@ spec:
                mountPath: /etc/mysql/conf.d/00-base.cnf
                subPath: 00-base.cnf
                readOnly: true
@@ -43,15 +44,15 @@ index 83e135f..3ef7383 100644
                mountPath: /etc/mysql/conf.d/20-override.cnf
                subPath: 20-override.cnf
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 444bba3..880b31e 100644
+index 5f4d4f4c..6f325e9c 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -671,4 +671,5 @@ manifests:
+@@ -730,4 +730,5 @@ manifests:
    service_error: true
    service: true
    statefulset: true
 +  config_ipv6: false
  ...
 -- 
-1.8.3.1
+2.25.1
 

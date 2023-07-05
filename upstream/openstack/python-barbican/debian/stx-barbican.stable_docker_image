@@ -4,6 +4,6 @@ PROJECT=barbican
 DIST_REPOS="OS"
 PROJECT_REPO=https://opendev.org/openstack/barbican.git
 NON_UNIQUE_SYSTEM_ACCOUNT="yes"
-PROJECT_REF=cc076f24e55c24a6fc8e57ca606130090fb6369b
+PROJECT_REF=stable/2023.1
 PIP_PACKAGES="pycryptodomex"
 PROFILES="fluent"

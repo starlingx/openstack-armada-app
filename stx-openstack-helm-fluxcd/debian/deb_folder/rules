@@ -14,8 +14,8 @@ override_dh_auto_build:
 	# Stage helm-toolkit in the local repo.
 	cp $(HELM_FOLDER)/helm-toolkit-$(TOOLKIT_VERSION).tgz helm-charts/
 	# Host a server for the helm charts.
-	chartmuseum --debug --port=8879 --context-path='/charts' --storage="local" \
-		--storage-local-rootdir="./helm-charts" &
+	chartmuseum --debug --port=8879 --context-path='/charts' \
+		--storage="local" --storage-local-rootdir="./helm-charts" &
 	sleep 2
 	helm repo add local http://localhost:8879/charts
 	# Create the TGZ file.
@@ -29,7 +29,7 @@ override_dh_auto_build:
 	cd helm-charts && make clients
 	# Terminate the helm chart server.
 	pkill chartmuseum
-	# Remove helm-toolkit. This will be packaged with openstack-helm-infra.
+	# Remove helm-toolkit.
 	rm  helm-charts/helm-toolkit-$(TOOLKIT_VERSION).tgz
 
 override_dh_auto_install:

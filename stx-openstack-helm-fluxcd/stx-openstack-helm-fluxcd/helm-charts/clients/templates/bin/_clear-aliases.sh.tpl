@@ -1,19 +1,20 @@
 #!/bin/bash
+#
+# Copyright (c) 2023 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Clears OpenStack service aliases.
+#
 
-{{/*
-Copyright (c) 2023 Wind River Systems, Inc.
-
-SPDX-License-Identifier: Apache-2.0
-*/}}
-
-SERVICES="
-  openstack
-  nova
+SERVICES=(
   cinder
   glance
   heat
-"
+  nova
+  openstack
+)
 
-for service in ${SERVICES}; do
+for service in "${SERVICES[@]}"; do
   unalias "${service}" 2> /dev/null
 done

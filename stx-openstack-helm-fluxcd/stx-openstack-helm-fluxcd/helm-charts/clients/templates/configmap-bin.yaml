@@ -17,12 +17,14 @@ metadata:
 data:
   clients-init.sh: |
 {{ tuple "bin/_clients-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  clients-wrapper.sh: |
+{{ tuple "bin/_clients-wrapper.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   clear-aliases.sh: |
 {{ tuple "bin/_clear-aliases.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   setup-aliases.sh: |
 {{ tuple "bin/_setup-aliases.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
-  wrapper.sh: |
-{{ tuple "bin/_wrapper.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  local_openstackrc: |
+{{ tuple "bin/_local_openstackrc.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
 {{- end }}
 {{- end }}
 

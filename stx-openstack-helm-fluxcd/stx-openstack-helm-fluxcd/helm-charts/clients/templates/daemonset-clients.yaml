@@ -54,6 +54,10 @@ spec:
               subPath: clients-init.sh
               readOnly: true
             - name: clients-bin
+              mountPath: /tmp/clients-wrapper.sh
+              subPath: clients-wrapper.sh
+              readOnly: true
+            - name: clients-bin
               mountPath: /tmp/clear-aliases.sh
               subPath: clear-aliases.sh
               readOnly: true
@@ -62,8 +66,8 @@ spec:
               subPath: setup-aliases.sh
               readOnly: true
             - name: clients-bin
-              mountPath: /tmp/wrapper.sh
-              subPath: wrapper.sh
+              mountPath: /tmp/local_openstackrc
+              subPath: local_openstackrc
               readOnly: true
             - name: host-var-opt
               mountPath: /var/opt

@@ -2,7 +2,7 @@ BUILDER=loci
 LABEL=stx-ceilometer
 PROJECT=ceilometer
 PROJECT_REPO=https://opendev.org/openstack/ceilometer.git
-PROJECT_REF=bcada72c3aaeeb2a86de3368b1787a9253c9d55b
+PROJECT_REF=stable/2023.1
 PIP_PACKAGES="\
   gnocchiclient \
   libvirt-python \

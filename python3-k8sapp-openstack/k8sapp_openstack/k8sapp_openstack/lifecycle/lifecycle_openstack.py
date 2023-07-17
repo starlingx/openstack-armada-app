@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -18,6 +18,8 @@ from sysinv.helm import lifecycle_utils as lifecycle_utils
 from sysinv.helm.lifecycle_constants import LifecycleConstants
 
 from k8sapp_openstack import utils as app_utils
+from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.helpers import ldap
 
 LOG = logging.getLogger(__name__)
 
@@ -97,6 +99,8 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         """
         hook_info[LifecycleConstants.EXTRA][self.WAS_APPLIED] = app.active
 
+        self._pre_apply_ldap_actions()
+
     def post_apply(self, context, conductor_obj, app, hook_info):
         """ Post apply actions
 
@@ -155,6 +159,8 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # Update the VIM configuration.
             conductor_obj._update_vim_config(context)
             conductor_obj._update_radosgw_config(context)
+
+        self._post_remove_ldap_actions()
 
     def _delete_app_specific_resources_post_remove(self, app_op, app, hook_info):
         """Delete application specific resources.
@@ -291,3 +297,26 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         not installed. Otherwise, False.
         """
         return app_utils.https_enabled() and not app_utils.is_openstack_https_certificates_ready()
+
+    def _pre_apply_ldap_actions(self):
+        """Perform pre apply LDAP-related actions."""
+
+        # Create `openstack` group.
+        has_group = ldap.check_group(app_constants.HELM_NS_OPENSTACK)
+        if not has_group:
+            ldap.add_group(app_constants.HELM_NS_OPENSTACK)
+
+        # Create the volume mount directory.
+        app_utils.create_openstack_volume_mount()
+
+    def _post_remove_ldap_actions(self):
+        """Perform post remove LDAP-related actions."""
+
+        # Try to delete the volume mount directory.
+        # If successful, delete `openstack` group.
+        # Otherwise, do nothing.
+        deleted = app_utils.delete_openstack_volume_mount()
+        if deleted:
+            has_group = ldap.check_group(app_constants.HELM_NS_OPENSTACK)
+            if has_group:
+                ldap.delete_group(app_constants.HELM_NS_OPENSTACK)

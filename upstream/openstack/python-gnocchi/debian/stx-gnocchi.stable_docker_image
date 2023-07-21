@@ -5,8 +5,16 @@ PROJECT_REPO=https://github.com/gnocchixyz/gnocchi.git
 PROJECT_REF=4.3.2
 PROJECT_UID=42425
 PROJECT_GID=42425
-PIP_PACKAGES="pylint SQLAlchemy SQLAlchemy-Utils oslo.db keystonemiddleware gnocchiclient pymemcache psycopg2"
 DIST_REPOS="OS"
+PIP_PACKAGES="\
+  gnocchiclient \
+  keystonemiddleware \
+  pymemcache \
+  psycopg2 \
+  oslo.db \
+  SQLAlchemy \
+  SQLAlchemy-Utils
+  "
 DIST_PACKAGES="python3-rados"
 PROFILES="gnocchi apache"
 CUSTOMIZATION="\

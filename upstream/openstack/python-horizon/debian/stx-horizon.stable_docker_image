@@ -3,11 +3,17 @@ LABEL=stx-horizon
 PROJECT=horizon
 PROJECT_REPO=https://opendev.org/openstack/horizon.git
 PROJECT_REF=stable/2023.1
+UPGRADE_PIP_PACKAGES=pip
+DIST_REPOS="OS"
 PROJECT_UID=42425
 PROJECT_GID=42425
-PIP_PACKAGES="pycryptodomex python-ceilometerclient \
-              coverage pyudev ldap"
-DIST_REPOS="OS"
+PIP_PACKAGES="\
+  coverage \
+  ldap \
+  pycryptodomex \
+  python-ceilometerclient \
+  pyudev
+"
 PROFILES="fluent horizon apache"
 CUSTOMIZATION="\
     ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \

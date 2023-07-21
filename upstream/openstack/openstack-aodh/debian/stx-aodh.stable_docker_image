@@ -3,10 +3,15 @@ LABEL=stx-aodh
 PROJECT=aodh
 PROJECT_REPO=https://opendev.org/openstack/aodh.git
 PROJECT_REF=stable/2023.1
+DIST_REPOS="OS"
+UPGRADE_PIP_PACKAGES=pip
 PROJECT_UID=42425
 PROJECT_GID=42425
-PIP_PACKAGES="pylint SQLAlchemy gnocchiclient aodhclient"
-DIST_REPOS="OS"
+PIP_PACKAGES="\
+  aodhclient \
+  gnocchiclient \
+  SQLAlchemy \
+"
 PROFILES="apache"
 CUSTOMIZATION="\
     ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \

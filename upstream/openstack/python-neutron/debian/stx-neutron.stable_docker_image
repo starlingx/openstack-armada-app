@@ -6,6 +6,11 @@ PROJECT_REPO=https://opendev.org/openstack/neutron.git
 PROJECT_REF=stable/2023.1
 UPDATE_SYSTEM_ACCOUNT="yes"
 NON_UNIQUE_SYSTEM_ACCOUNT="yes"
-PIP_PACKAGES="networking-sfc pycrypto pylint tinyrpc lxml"
+PIP_PACKAGES="\
+  lxml \
+  networking-sfc \
+  pycrypto \
+  tinyrpc
+"
 DIST_PACKAGES="ethtool lshw"
 PROFILES="fluent neutron linuxbridge openvswitch"

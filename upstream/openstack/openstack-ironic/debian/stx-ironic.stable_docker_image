@@ -5,12 +5,24 @@ PROJECT_REPO=https://opendev.org/openstack/ironic.git
 PROJECT_REF=stable/2023.1
 PROJECT_UID=42425
 PROJECT_GID=42425
-PIP_PACKAGES="pylint alembic pysnmp"
 DIST_REPOS="OS"
-DIST_PACKAGES="ipxe tftpd-hpa openipmi ipmitool iproute2 qemu-utils syslinux-common open-iscsi"
+UPDATE_SYSTEM_ACCOUNT="yes"
+PIP_PACKAGES="\
+  alembic \
+  pysnmp
+"
+DIST_PACKAGES="\
+  ipmitool \
+  iproute2 \
+  ipxe \
+  open-iscsi \
+  openipmi \
+  qemu-utils \
+  syslinux-common \
+  tftpd-hpa
+"
 PROFILES="ironic apache"
 CUSTOMIZATION="\
     ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \
     ln -s /etc/apache2/mods-available/wsgi.conf /etc/apache2/mods-enabled/wsgi.conf
 "
-UPDATE_SYSTEM_ACCOUNT="yes"

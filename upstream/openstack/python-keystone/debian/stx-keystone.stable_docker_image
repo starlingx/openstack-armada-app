@@ -3,7 +3,12 @@ LABEL=stx-keystone
 PROJECT=keystone
 PROJECT_REPO=https://opendev.org/openstack/keystone.git
 PROJECT_REF=stable/2023.1
-PIP_PACKAGES="python-openstackclient ldap ldappool python-ldap pylint"
+PIP_PACKAGES="\
+  ldap \
+  ldappool \
+  python-ldap \
+  python-openstackclient
+"
 DIST_REPOS="OS"
 PROFILES="fluent apache"
 CUSTOMIZATION="\

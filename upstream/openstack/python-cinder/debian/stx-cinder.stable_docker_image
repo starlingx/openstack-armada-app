@@ -4,9 +4,13 @@ PROJECT=cinder
 DIST_REPOS="OS"
 PROJECT_REPO=https://opendev.org/openstack/cinder.git
 PROJECT_REF=stable/2023.1
+UPGRADE_PIP_PACKAGES=pip
 PROJECT_UID=42425
 PROJECT_GID=42425
 NON_UNIQUE_SYSTEM_ACCOUNT="yes"
 DIST_PACKAGES="nfs-common"
-PIP_PACKAGES="pycryptodomex python-swiftclient pylint"
+PIP_PACKAGES="\
+  pycryptodomex \
+  python-swiftclient
+"
 PROFILES="fluent cinder lvm ceph qemu"

@@ -6,6 +6,10 @@ PROJECT_REF=stable/2023.1
 DIST_REPOS="OS"
 UPDATE_SYSTEM_ACCOUNT="yes"
 NON_UNIQUE_SYSTEM_ACCOUNT="yes"
-PIP_PACKAGES="pycryptodomex python-swiftclient psutil pylint "
+PIP_PACKAGES="\
+  pycryptodomex \
+  python-swiftclient \
+  psutil
+"
 DIST_PACKAGES="libpq5"
 PROFILES="fluent glance ceph"

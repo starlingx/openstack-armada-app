@@ -3,21 +3,21 @@ LABEL=stx-ceilometer
 PROJECT=ceilometer
 PROJECT_REPO=https://opendev.org/openstack/ceilometer.git
 PROJECT_REF=stable/2023.1
+NON_UNIQUE_SYSTEM_ACCOUNT="yes"
+UPDATE_SYSTEM_ACCOUNT="yes"
+DIST_REPOS="OS"
 PIP_PACKAGES="\
   gnocchiclient \
   libvirt-python \
   panko==5.0.0
 "
-DIST_REPOS="OS"
 DIST_PACKAGES="\
-  ipmitool \
   libvirt0 \
   libvirt-clients \
   libvirt-daemon \
   libvirt-daemon-driver-lxc \
   libvirt-daemon-driver-qemu \
   libvirt-daemon-driver-storage-gluster \
-  libvirt-login-shell
+  libvirt-login-shell \
+  ipmitool 
 "
-UPDATE_SYSTEM_ACCOUNT="yes"
-NON_UNIQUE_SYSTEM_ACCOUNT="yes"

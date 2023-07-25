@@ -1,7 +1,7 @@
 From 6fa2814271b7806aece4fb44f6d8eabe8c5ab6aa Mon Sep 17 00:00:00 2001
 From: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Date: Tue, 8 Feb 2022 09:18:02 -0300
-Subject: [PATCH 21/22] Remove mariadb
+Subject: Remove mariadb tls
 
 Change-Id: I37405da8faab3495ebe55c81389e0d769aaeb1d1
 ---
@@ -13,7 +13,7 @@ Change-Id: I37405da8faab3495ebe55c81389e0d769aaeb1d1
  5 files changed, 6 insertions(+), 36 deletions(-)
 
 diff --git a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
-index 934a2435..8ae71c67 100644
+index 62ed1191..49bd12d3 100644
 --- a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
 @@ -37,7 +37,6 @@ limitations under the License.
@@ -24,8 +24,40 @@ index 934a2435..8ae71c67 100644
  
  {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-drop" }}
  {{ tuple $envAll "db_drop" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
-@@ -133,9 +132,6 @@ spec:
+@@ -134,9 +133,6 @@ spec:
                subPath: {{ base $dbToDrop.logConfigFile | quote }}
+               readOnly: true
+ {{- end }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- end }}
+ {{- end }}
+       volumes:
+         - name: pod-tmp
+@@ -151,9 +147,6 @@ spec:
+             name: {{ $configMapBin | quote }}
+             defaultMode: 0555
+ {{- end }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- end }}
+ {{- $local := dict "configMapBinFirst" true -}}
+ {{- range $key1, $dbToDrop := $dbsToDrop }}
+ {{- $dbToDropType := default "oslo" $dbToDrop.inputType }}
+diff --git a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
+index 745e8dab..fe27e6ff 100644
+--- a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
++++ b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
+@@ -37,7 +37,6 @@ limitations under the License.
+ {{- $backoffLimit := index . "backoffLimit" | default "1000" -}}
+ {{- $activeDeadlineSeconds := index . "activeDeadlineSeconds" -}}
+ {{- $serviceNamePretty := $serviceName | replace "_" "-" -}}
+-{{- $dbAdminTlsSecret := index . "dbAdminTlsSecret" | default "" -}}
+ 
+ {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-init" }}
+ {{ tuple $envAll "db_init" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+@@ -133,9 +132,6 @@ spec:
+               subPath: {{ base $dbToInit.logConfigFile | quote }}
                readOnly: true
  {{- end }}
 -{{- if $envAll.Values.manifests.certificates }}
@@ -42,42 +74,10 @@ index 934a2435..8ae71c67 100644
 -{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- end }}
  {{- $local := dict "configMapBinFirst" true -}}
- {{- range $key1, $dbToDrop := $dbsToDrop }}
- {{- $dbToDropType := default "oslo" $dbToDrop.inputType }}
-diff --git a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-index c164ad0a..dcfbb35f 100644
---- a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-+++ b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-@@ -37,7 +37,6 @@ limitations under the License.
- {{- $backoffLimit := index . "backoffLimit" | default "1000" -}}
- {{- $activeDeadlineSeconds := index . "activeDeadlineSeconds" -}}
- {{- $serviceNamePretty := $serviceName | replace "_" "-" -}}
--{{- $dbAdminTlsSecret := index . "dbAdminTlsSecret" | default "" -}}
- 
- {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-init" }}
- {{ tuple $envAll "db_init" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
-@@ -132,9 +131,6 @@ spec:
-               subPath: {{ base $dbToInit.logConfigFile | quote }}
-               readOnly: true
- {{- end }}
--{{- if $envAll.Values.manifests.certificates }}
--{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
--{{- end }}
- {{- end }}
-       volumes:
-         - name: pod-tmp
-@@ -149,9 +145,6 @@ spec:
-             name: {{ $configMapBin | quote }}
-             defaultMode: 0555
- {{- end }}
--{{- if $envAll.Values.manifests.certificates }}
--{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
--{{- end }}
- {{- $local := dict "configMapBinFirst" true -}}
  {{- range $key1, $dbToInit := $dbsToInit }}
  {{- $dbToInitType := default "oslo" $dbToInit.inputType }}
 diff --git a/helm-toolkit/templates/manifests/_job-db-sync.tpl b/helm-toolkit/templates/manifests/_job-db-sync.tpl
-index 659238a4..f181061f 100644
+index 24d2496d..6b222945 100644
 --- a/helm-toolkit/templates/manifests/_job-db-sync.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-sync.tpl
 @@ -34,7 +34,6 @@ limitations under the License.
@@ -88,7 +88,7 @@ index 659238a4..f181061f 100644
  
  {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-sync" }}
  {{ tuple $envAll "db_sync" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
-@@ -106,7 +105,6 @@ spec:
+@@ -107,7 +106,6 @@ spec:
                mountPath: {{ $dbToSync.logConfigFile | quote }}
                subPath: {{ base $dbToSync.logConfigFile | quote }}
                readOnly: true
@@ -96,7 +96,7 @@ index 659238a4..f181061f 100644
  {{- if $podVolMounts }}
  {{ $podVolMounts | toYaml | indent 12 }}
  {{- end }}
-@@ -129,7 +127,6 @@ spec:
+@@ -130,7 +128,6 @@ spec:
            secret:
              secretName: {{ $configMapEtc | quote }}
              defaultMode: 0444
@@ -141,7 +141,7 @@ index 03884fa1..81447546 100644
      database = user_engine.url.database
      user = user_engine.url.username
 diff --git a/helm-toolkit/templates/scripts/_db-init.py.tpl b/helm-toolkit/templates/scripts/_db-init.py.tpl
-index 4294d40c..9671b734 100644
+index 6027b951..321b82f1 100644
 --- a/helm-toolkit/templates/scripts/_db-init.py.tpl
 +++ b/helm-toolkit/templates/scripts/_db-init.py.tpl
 @@ -54,12 +54,6 @@ else:
@@ -179,13 +179,13 @@ index 4294d40c..9671b734 100644
  # Create DB User
  try:
      root_engine.execute(
--        "GRANT ALL ON `{0}`.* TO \'{1}\'@\'%%\' IDENTIFIED BY \'{2}\' {3}".format(
--            database, user, password, mysql_x509))
-+        "GRANT ALL ON `{0}`.* TO \'{1}\'@\'%%\' IDENTIFIED BY \'{2}\'".format(
-+            database, user, password))
+-        "CREATE USER IF NOT EXISTS \'{0}\'@\'%%\' IDENTIFIED BY \'{1}\' {2}".format(
+-            user, password, mysql_x509))
++        "CREATE USER IF NOT EXISTS \'{0}\'@\'%%\' IDENTIFIED BY \'{1}\'".format(
++            user, password))
+     root_engine.execute(
+         "GRANT ALL ON `{0}`.* TO \'{1}\'@\'%%\'".format(database, user))
      logger.info("Created user {0} for {1}".format(user, database))
- except:
-     logger.critical("Could not create user {0} for {1}".format(user, database))
 -- 
-2.17.1
+2.25.1
 

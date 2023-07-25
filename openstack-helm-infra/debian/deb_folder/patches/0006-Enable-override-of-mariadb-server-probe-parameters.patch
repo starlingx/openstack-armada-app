@@ -12,55 +12,56 @@ be performed because only one signle mariadb-server exists, have to
 take use of "startupProbe" to ensure the WSREP status are ready.
 For all these exceptional cases above, which are different from the
 default mariadb cluster with 3 nodes, we have to export the probe
-parameters and override the related probe pareameters.
+parameters and override the related probe parameters.
 
 Signed-off-by: Hu, Yong <yong.hu@intel.com>
 Co-Authored-By: Zhipeng, Liu <zhipengs.liu@intel.com>
+[ upversioned openstack-helm-infra base commit ]
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+Change-Id: Idffb247ea722e53976238cfeacde4f70b9171393
 ---
- mariadb/templates/statefulset.yaml | 3 +++-
- mariadb/values.yaml                | 20 +++++++++++++++
- 2 files changed, 23 insertions(+), 1 deletion(-)
+ mariadb/templates/statefulset.yaml |  1 +
+ mariadb/values.yaml                | 10 +++++++++-
+ 2 files changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index e31d4ac..83e135f 100644
+index 31d322b5..1185a41c 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -187,7 +187,9 @@ spec:
-               exec:
+@@ -200,6 +200,7 @@ spec:
                  command:
                    - /tmp/stop.sh
--{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
-+{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+ {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
 +{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "startup" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
-+{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "liveness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+ {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "liveness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
            volumeMounts:
              - name: pod-tmp
-               mountPath: /tmp
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 2d75f39..444bba3 100644
+index 741a75fe..e4a0399e 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -69,6 +69,20 @@ pod:
+@@ -68,12 +68,20 @@ pod:
              initialDelaySeconds: 30
              periodSeconds: 30
              timeoutSeconds: 15
 +            failureThreshold: 3
+         liveness:
+-          enabled: true
++          enabled: false
+           params:
+             initialDelaySeconds: 120
+             periodSeconds: 30
+             timeoutSeconds: 15
++            failureThreshold: 5
 +        startup:
 +          enabled: false
 +          params:
 +            initialDelaySeconds: 60
 +            periodSeconds: 60
 +            failureThreshold: 10
-+        liveness:
-+          enabled: false
-+          params:
-+            initialDelaySeconds: 60
-+            periodSeconds: 30
-+            failureThreshold: 5
-+            timeoutSeconds: 15
    security_context:
      server:
        pod:
---
-1.8.3.1
+-- 
+2.25.1
 

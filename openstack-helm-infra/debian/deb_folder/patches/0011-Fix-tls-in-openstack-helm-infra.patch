@@ -3,8 +3,6 @@ From: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Date: Wed, 19 Jan 2022 11:54:38 -0300
 Subject: [PATCH] Fix Support for TLS in openstack-helm-infra
 
-WIP
-
 Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Change-Id: I382e0fc68c9a92c6a9570097db2c6a959525059d
 ---
@@ -132,5 +130,5 @@ index 24a70450..f34ac527 100644
 +{{- end }}
 \ No newline at end of file
 -- 
-2.17.1
+2.25.1
 

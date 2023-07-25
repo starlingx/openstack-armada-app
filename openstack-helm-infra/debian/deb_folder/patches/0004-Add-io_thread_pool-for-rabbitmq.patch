@@ -10,10 +10,10 @@ Signed-off-by: Bin Yang <bin.yang@intel.com>
  2 files changed, 12 insertions(+)
 
 diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
-index 41dc198..e0e61e6 100644
+index 6b2143b4..35a482c1 100644
 --- a/rabbitmq/templates/statefulset.yaml
 +++ b/rabbitmq/templates/statefulset.yaml
-@@ -105,6 +105,10 @@ spec:
+@@ -135,6 +135,10 @@ spec:
                    key: RABBITMQ_ADMIN_PASSWORD
              - name: RABBITMQ_DEFINITION_FILE
                value: "{{ index $envAll.Values.conf.rabbitmq "management.load_definitions" }}"
@@ -24,7 +24,7 @@ index 41dc198..e0e61e6 100644
            volumeMounts:
              - name: pod-tmp
                mountPath: /tmp
-@@ -215,6 +219,10 @@ spec:
+@@ -233,6 +237,10 @@ spec:
  {{- if ne (.Values.conf.feature_flags | default "") "default" }}
              - name: RABBITMQ_FEATURE_FLAGS
                value: "{{ .Values.conf.feature_flags }}"
@@ -36,13 +36,13 @@ index 41dc198..e0e61e6 100644
            readinessProbe:
              initialDelaySeconds: 10
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index 6c95787..9cd3a91 100644
+index 2ec00310..6e6978c0 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
-@@ -375,6 +375,10 @@ volume:
+@@ -409,6 +409,10 @@ volume:
  # Set helm3_hook to false while using helm2
  helm3_hook: true
-
+ 
 +io_thread_pool:
 +  enabled: false
 +  size: 64
@@ -50,6 +50,6 @@ index 6c95787..9cd3a91 100644
  manifests:
    certificates: false
    configmap_bin: true
---
-2.7.4
+-- 
+2.25.1
 

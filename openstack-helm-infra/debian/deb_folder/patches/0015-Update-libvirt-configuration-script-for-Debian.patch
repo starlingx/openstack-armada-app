@@ -19,13 +19,13 @@ Change-Id: Ib2c3b0cbd0666ffd5dd310103c3f1a75b36c330c
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
-index c419997e..d8085f5e 100644
+index 74f7e32d..7f9177d7 100644
 --- a/libvirt/templates/bin/_libvirt.sh.tpl
 +++ b/libvirt/templates/bin/_libvirt.sh.tpl
 @@ -33,9 +33,11 @@ fi
-
+ 
  rm -f /var/run/libvirtd.pid
-
+ 
 -if [[ -c /dev/kvm ]]; then
 +if [ "$(cat /etc/os-release | grep -w NAME= | grep -w CentOS)" ]; then
 +  if [[ -c /dev/kvm ]]; then
@@ -33,8 +33,8 @@ index c419997e..d8085f5e 100644
      chown root:kvm /dev/kvm
 +  fi
  fi
-
+ 
  #Setup Cgroups to use when breaking out of Kubernetes defined groups
---
+-- 
 2.25.1
 

@@ -8,10 +8,6 @@ export HELM_FOLDER = $(ROOT)/usr/lib/helm
 	dh $@
 
 override_dh_auto_build:
-	# Host a server for the helm charts.
-	chartmuseum --debug --port=8879 --context-path='/charts' --storage="local" --storage-local-rootdir="." &
-	sleep 2
-	helm repo add local http://localhost:8879/charts
 	# Create the chart TGZ files.
 	make helm-toolkit
 	make gnocchi
@@ -22,8 +18,6 @@ override_dh_auto_build:
 	make openvswitch
 	make rabbitmq
 	make ceph-rgw
-	# Terminate the helm chart server.
-	pkill chartmuseum
 
 override_dh_auto_install:
 	# Install the chart tar files.

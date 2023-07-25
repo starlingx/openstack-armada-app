@@ -9,10 +9,10 @@ Subject: [PATCH] Fix pod restarts on all workers when worker added/removed
  2 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-index ab1177a..e564869 100644
+index 69dcd800..332b766e 100644
 --- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 +++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-@@ -215,7 +215,7 @@ limitations under the License.
+@@ -213,7 +213,7 @@ limitations under the License.
      name uniqueness */}}
      {{- $_ := set $current_dict "dns_1123_name" dict }}
      {{- if hasKey $current_dict "matchExpressions" }}
@@ -21,7 +21,7 @@ index ab1177a..e564869 100644
      {{- else }}
        {{- $_ := set $current_dict "dns_1123_name" $name_format2 }}
      {{- end }}
-@@ -258,7 +258,7 @@ limitations under the License.
+@@ -256,7 +256,7 @@ limitations under the License.
      {{- if not $context.Values.__daemonset_yaml.spec.template.metadata }}{{- $_ := set $context.Values.__daemonset_yaml.spec.template "metadata" dict }}{{- end }}
      {{- if not $context.Values.__daemonset_yaml.spec.template.metadata.annotations }}{{- $_ := set $context.Values.__daemonset_yaml.spec.template.metadata "annotations" dict }}{{- end }}
      {{- $cmap := list $current_dict.dns_1123_name $current_dict.nodeData | include $configmap_include }}
@@ -31,10 +31,10 @@ index ab1177a..e564869 100644
  
      {{/* generate configmap */}}
 diff --git a/helm-toolkit/templates/utils/_hash.tpl b/helm-toolkit/templates/utils/_hash.tpl
-index 1041ec0..e419e3b 100644
+index d871b626..550fda4a 100644
 --- a/helm-toolkit/templates/utils/_hash.tpl
 +++ b/helm-toolkit/templates/utils/_hash.tpl
-@@ -19,5 +19,5 @@ limitations under the License.
+@@ -17,5 +17,5 @@ limitations under the License.
  {{- $context := index . 1 -}}
  {{- $last := base $context.Template.Name }}
  {{- $wtf := $context.Template.Name | replace $last $name -}}
@@ -42,5 +42,5 @@ index 1041ec0..e419e3b 100644
 +{{- include $wtf $context | toJson | sha256sum | quote -}}
  {{- end -}}
 -- 
-2.7.4
+2.25.1
 

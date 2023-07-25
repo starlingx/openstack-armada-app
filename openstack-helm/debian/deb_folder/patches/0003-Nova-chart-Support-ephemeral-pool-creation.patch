@@ -14,17 +14,17 @@ Signed-off-by: Irina Mihai <irina.mihai@windriver.com>
 (cherry picked from commit 0afcb0b37cdcf57436e44867bac9242d8684ce81)
 Signed-off-by: Robert Church <robert.church@windriver.com>
 ---
- nova/templates/bin/_nova-storage-init.sh.tpl |  73 +++++++++++++
+ nova/templates/bin/_nova-storage-init.sh.tpl |  73 +++++++++
  nova/templates/configmap-bin.yaml            |   2 +
- nova/templates/job-storage-init.yaml         | 153 +++++++++++++++++++++++++++
- nova/values.yaml                             |  18 ++++
- 4 files changed, 246 insertions(+)
+ nova/templates/job-storage-init.yaml         | 156 +++++++++++++++++++
+ nova/values.yaml                             |  18 +++
+ 4 files changed, 249 insertions(+)
  create mode 100644 nova/templates/bin/_nova-storage-init.sh.tpl
  create mode 100644 nova/templates/job-storage-init.yaml
 
 diff --git a/nova/templates/bin/_nova-storage-init.sh.tpl b/nova/templates/bin/_nova-storage-init.sh.tpl
 new file mode 100644
-index 0000000..416297f
+index 00000000..416297f4
 --- /dev/null
 +++ b/nova/templates/bin/_nova-storage-init.sh.tpl
 @@ -0,0 +1,73 @@
@@ -102,10 +102,10 @@ index 0000000..416297f
 +fi
 +
 diff --git a/nova/templates/configmap-bin.yaml b/nova/templates/configmap-bin.yaml
-index c4e47fb..54571ac 100644
+index 90a91a93..1f7d11de 100644
 --- a/nova/templates/configmap-bin.yaml
 +++ b/nova/templates/configmap-bin.yaml
-@@ -93,6 +93,8 @@ data:
+@@ -89,6 +89,8 @@ data:
  {{ tuple "bin/_nova-console-proxy-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
    nova-console-proxy-init-assets.sh: |
  {{ tuple "bin/_nova-console-proxy-init-assets.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
@@ -116,7 +116,7 @@ index c4e47fb..54571ac 100644
    ssh-start.sh: |
 diff --git a/nova/templates/job-storage-init.yaml b/nova/templates/job-storage-init.yaml
 new file mode 100644
-index 0000000..3963926
+index 00000000..f3850b4b
 --- /dev/null
 +++ b/nova/templates/job-storage-init.yaml
 @@ -0,0 +1,156 @@
@@ -277,18 +277,18 @@ index 0000000..3963926
 +{{- end }}
 +
 diff --git a/nova/values.yaml b/nova/values.yaml
-index ca92907..3179231 100644
+index 7aca42ad..e1dc611f 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -87,6 +87,7 @@ images:
-     nova_service_cleaner: 'docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_xenial'
-     nova_spiceproxy: docker.io/openstackhelm/nova:stein-ubuntu_bionic
-     nova_spiceproxy_assets: docker.io/openstackhelm/nova:stein-ubuntu_bionic
+@@ -79,6 +79,7 @@ images:
+     nova_service_cleaner: 'docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_focal'
+     nova_spiceproxy: docker.io/openstackhelm/nova:wallaby-ubuntu_focal
+     nova_spiceproxy_assets: docker.io/openstackhelm/nova:wallaby-ubuntu_focal
 +    nova_storage_init: 'docker.io/port/ceph-config-helper:v1.10.3'
      test: docker.io/xrally/xrally-openstack:2.0.0
      image_repo_sync: docker.io/docker:17.07.0
      nova_wait_for_computes_init: gcr.io/google_containers/hyperkube-amd64:v1.11.6
-@@ -616,6 +617,14 @@ conf:
+@@ -585,6 +586,14 @@ conf:
        user: "cinder"
        keyring: null
        secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
@@ -303,15 +303,15 @@ index ca92907..3179231 100644
    rally_tests:
      run_tempest: false
      clean_up: |
-@@ -1893,6 +1902,7 @@ secrets:
+@@ -1556,6 +1565,7 @@ secrets:
      compute_spice_proxy:
        spiceproxy:
          internal: nova-tls-spiceproxy
 +  ephemeral: nova-ephemeral
-
- # typically overridden by environmental
- # values, but should include all endpoints
-@@ -2572,6 +2582,13 @@ pod:
+   oci_image_registry:
+     nova: nova-oci-image-registry
+ 
+@@ -2416,6 +2426,13 @@ pod:
          limits:
            memory: "1024Mi"
            cpu: "2000m"
@@ -325,14 +325,14 @@ index ca92907..3179231 100644
  
  network_policy:
    nova:
-@@ -2619,6 +2636,7 @@ manifests:
-   job_ks_placement_service: true
-   job_ks_placement_user: true
+@@ -2465,6 +2482,7 @@ manifests:
+   job_ks_service: true
+   job_ks_user: true
    job_cell_setup: true
 +  job_storage_init: true
    pdb_metadata: true
-   pdb_placement: true
    pdb_osapi: true
+   pod_rally_test: true
 -- 
-1.8.3.1
+2.25.1
 

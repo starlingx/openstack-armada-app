@@ -3,6 +3,7 @@ From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 Date: Tue, 20 Dec 2022 14:07:19 -0300
 Subject: [PATCH] Fixing keystone helm release hooks and weights
 
+Change-Id: I2131b82c2ffdaec9931b63c98422dbdceb615475
 ---
  keystone/templates/secret-credential-keys.yaml | 3 ++-
  keystone/templates/secret-fernet-keys.yaml     | 3 ++-

@@ -11,11 +11,11 @@ Story: 2006588
 Task: 37747
 Signed-off-by: Andy Ning <andy.ning@windriver.com>
 ---
- keystone/templates/ingress-api.yaml | 9 +++++++++
- 1 file changed, 9 insertions(+)
+ keystone/templates/ingress-api.yaml | 8 ++++++++
+ 1 file changed, 8 insertions(+)
 
 diff --git a/keystone/templates/ingress-api.yaml b/keystone/templates/ingress-api.yaml
-index de36571..37c3013 100644
+index 7bdcee60..525c2121 100644
 --- a/keystone/templates/ingress-api.yaml
 +++ b/keystone/templates/ingress-api.yaml
 @@ -21,3 +21,11 @@ limitations under the License.
@@ -31,4 +31,5 @@ index de36571..37c3013 100644
 +{{- end }}
 +{{- end }}
 -- 
-1.8.3.1
+2.25.1
+

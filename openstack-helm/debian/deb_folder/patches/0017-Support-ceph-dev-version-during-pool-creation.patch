@@ -36,6 +36,8 @@ Glance to account for the scenario where a development version of Ceph
 is used.
 
 Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+
+Change-Id: I464f8a1f8dcb0a5c6523647690723517dd1281b4
 ---
  .../templates/bin/_backup-storage-init.sh.tpl | 26 +++++++++++++++++-
  cinder/templates/bin/_storage-init.sh.tpl     | 26 +++++++++++++++++-
@@ -43,7 +45,7 @@ Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
  3 files changed, 75 insertions(+), 4 deletions(-)
 
 diff --git a/cinder/templates/bin/_backup-storage-init.sh.tpl b/cinder/templates/bin/_backup-storage-init.sh.tpl
-index cd2389c2..8975f196 100644
+index a50ecb74..1601172a 100644
 --- a/cinder/templates/bin/_backup-storage-init.sh.tpl
 +++ b/cinder/templates/bin/_backup-storage-init.sh.tpl
 @@ -32,8 +32,32 @@ elif [[ $STORAGE_BACKEND =~ 'cinder.backup.drivers.ceph' ]]; then
@@ -81,7 +83,7 @@ index cd2389c2..8975f196 100644
      size_protection=$(ceph osd pool get $1 nosizechange | cut -f2 -d: | tr -d '[:space:]')
      ceph osd pool set $1 nosizechange 0
 diff --git a/cinder/templates/bin/_storage-init.sh.tpl b/cinder/templates/bin/_storage-init.sh.tpl
-index a43115e4..415c5bec 100644
+index 4f945e2c..4d1c28e4 100644
 --- a/cinder/templates/bin/_storage-init.sh.tpl
 +++ b/cinder/templates/bin/_storage-init.sh.tpl
 @@ -29,8 +29,32 @@ if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
@@ -119,7 +121,7 @@ index a43115e4..415c5bec 100644
      size_protection=$(ceph osd pool get $1 nosizechange | cut -f2 -d: | tr -d '[:space:]')
      ceph osd pool set $1 nosizechange 0
 diff --git a/glance/templates/bin/_storage-init.sh.tpl b/glance/templates/bin/_storage-init.sh.tpl
-index cf6fecbf..ee51f6eb 100644
+index 0d291fd2..97880d3c 100644
 --- a/glance/templates/bin/_storage-init.sh.tpl
 +++ b/glance/templates/bin/_storage-init.sh.tpl
 @@ -45,9 +45,32 @@ elif [ "x$STORAGE_BACKEND" == "xrbd" ]; then
@@ -155,7 +157,7 @@ index cf6fecbf..ee51f6eb 100644
          ceph osd pool application enable $1 $3
 +      fi
      fi
-     ceph osd pool set "$1" size "${RBD_POOL_REPLICATION}"
+     ceph osd pool set "$1" size "${RBD_POOL_REPLICATION}" --yes-i-really-mean-it
      ceph osd pool set "$1" crush_rule "${RBD_POOL_CRUSH_RULE}"
 -- 
 2.25.1

@@ -22,23 +22,23 @@ Change-Id: I924302b6fd41d4fe6fe7bae5577de7d6d590abb2
  2 files changed, 9 insertions(+)
 
 diff --git a/nova/templates/job-bootstrap.yaml b/nova/templates/job-bootstrap.yaml
-index 1229acec..f719cb5c 100644
+index 7de7444a..3e2bfafd 100644
 --- a/nova/templates/job-bootstrap.yaml
 +++ b/nova/templates/job-bootstrap.yaml
-@@ -30,6 +30,11 @@ metadata:
+@@ -31,6 +31,11 @@ metadata:
    name: {{ $serviceAccountName | quote }}
    labels:
-     application: {{ $serviceAccountName | quote }}
+ {{ tuple $envAll "nova" "bootstrap" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
 +  annotations:
 +{{- if .Values.helm3_hook }}
 +    helm.sh/hook: post-install,post-upgrade
 +    helm.sh/hook-weight: "2"
 +{{- end }}
  spec:
+   backoffLimit: {{ $backoffLimit }}
    template:
-     metadata:
 diff --git a/nova/templates/job-cell-setup.yaml b/nova/templates/job-cell-setup.yaml
-index 6fd8bca4..0fe686b6 100644
+index 8d027718..2833ecae 100644
 --- a/nova/templates/job-cell-setup.yaml
 +++ b/nova/templates/job-cell-setup.yaml
 @@ -25,6 +25,10 @@ metadata:

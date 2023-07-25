@@ -18,7 +18,7 @@ Change-Id: I9bffd45208ab2992e380b2226c8e99639bc3f514
  1 file changed, 8 insertions(+), 8 deletions(-)
 
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index 249b4937..a3873676 100644
+index 07adee1c..b95bd618 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
 @@ -79,14 +79,14 @@ pod:
@@ -65,7 +65,7 @@ index 249b4937..a3873676 100644
        container:
          ceph_keyring_placement:
            runAsUser: 0
-@@ -143,7 +143,7 @@ pod:
+@@ -146,7 +146,7 @@ pod:
            readOnlyRootFilesystem: true
      storage_init:
        pod:
@@ -74,7 +74,7 @@ index 249b4937..a3873676 100644
        container:
          ceph_keyring_placement:
            runAsUser: 0
-@@ -153,14 +153,14 @@ pod:
+@@ -156,14 +156,14 @@ pod:
            allowPrivilegeEscalation: false
      clean:
        pod:

@@ -1,17 +1,17 @@
 From b272e8ff3a78f38ab82df7995233705611e99f81 Mon Sep 17 00:00:00 2001
 From: Angie Wang <angie.wang@windriver.com>
 Date: Tue, 1 Sep 2020 00:00:22 -0400
-Subject: [PATCH 1/1] Allow set public endpoint url for keystone endpoints
+Subject: [PATCH] Allow set public endpoint url for keystone endpoints
 
 ---
  keystone/templates/job-db-sync.yaml | 4 ++++
  1 file changed, 4 insertions(+)
 
 diff --git a/keystone/templates/job-db-sync.yaml b/keystone/templates/job-db-sync.yaml
-index 56a39b8..3d0681e 100644
+index a4ff67d8..08e82d78 100644
 --- a/keystone/templates/job-db-sync.yaml
 +++ b/keystone/templates/job-db-sync.yaml
-@@ -20,7 +20,11 @@ env:
+@@ -25,7 +25,11 @@ env:
    - name: OS_BOOTSTRAP_ADMIN_URL
      value: {{ tuple "identity" "admin" "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
    - name: OS_BOOTSTRAP_INTERNAL_URL
@@ -24,5 +24,5 @@ index 56a39b8..3d0681e 100644
      value: {{ tuple "identity" "public" "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
    - name: OPENSTACK_CONFIG_FILE
 -- 
-1.8.3.1
+2.25.1
 

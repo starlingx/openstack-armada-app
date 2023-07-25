@@ -14,8 +14,8 @@ override_dh_auto_build:
 	# Stage helm-toolkit in the local repo.
 	cp $(HELM_FOLDER)/helm-toolkit-$(TOOLKIT_VERSION).tgz .
 	# Host a server for the helm charts.
-	chartmuseum --debug --port=8879 --context-path='/charts' --storage="local" \
-		--storage-local-rootdir="." &
+	chartmuseum --debug --port=8879 --context-path='/charts' \
+		--storage="local" --storage-local-rootdir="." &
 	sleep 2
 	helm repo add local http://localhost:8879/charts
 	# Create the chart TGZ files.

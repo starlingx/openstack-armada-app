@@ -15,10 +15,10 @@ option.
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/glance/templates/job-storage-init.yaml b/glance/templates/job-storage-init.yaml
-index 82524086..77ab1c60 100644
+index d8aee237..f6ac0a10 100644
 --- a/glance/templates/job-storage-init.yaml
 +++ b/glance/templates/job-storage-init.yaml
-@@ -114,7 +114,7 @@ spec:
+@@ -122,7 +122,7 @@ spec:
              - name: RBD_POOL_CRUSH_RULE
                value: {{ .Values.conf.glance.glance_store.rbd_store_crush_rule | quote }}
              - name: RBD_POOL_CHUNK_SIZE
@@ -28,18 +28,18 @@ index 82524086..77ab1c60 100644
                value: {{ .Values.secrets.rbd | quote }}
              {{ end }}
 diff --git a/glance/values.yaml b/glance/values.yaml
-index 1428c299..a4f74379 100644
+index 160543b1..88bf350e 100644
 --- a/glance/values.yaml
 +++ b/glance/values.yaml
-@@ -256,7 +256,7 @@ conf:
-       auth_version: v3
-       memcache_security_strategy: ENCRYPT
+@@ -261,7 +261,7 @@ conf:
+       service_type: image
      glance_store:
+       cinder_catalog_info: volumev3::internalURL
 -      rbd_store_chunk_size: 8
 +      chunk_size: 8
        rbd_store_replication: 3
        rbd_store_crush_rule: replicated_rule
        rbd_store_pool: glance.images
 -- 
-2.17.1
+2.25.1
 

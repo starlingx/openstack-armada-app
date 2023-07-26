@@ -40,7 +40,7 @@ touch "${ADMIN_OPENRC}"
 chmod 600 "${ADMIN_OPENRC}"
 chown "${ownership}" "${ADMIN_OPENRC}"
 
-cat << EOF >> "${ADMIN_OPENRC}"
+cat << EOF > "${ADMIN_OPENRC}"
 source /etc/platform/openrc --no_credentials
 
 if [[ "$?" -ne 0 ]]; then

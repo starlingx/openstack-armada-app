@@ -15,6 +15,7 @@ images:
   tags:
     openstack_clients: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+    bootstrap: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
   pull_policy: "IfNotPresent"
   local_registry:
     active: false
@@ -26,11 +27,17 @@ labels:
   openstack_clients:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
 
 pod:
   mounts:
     clients:
       init_container: null
+      clients:
+        volumeMounts:
+        volumes:
   security_context:
     clients:
       pod:
@@ -38,6 +45,41 @@ pod:
       container:
         clients:
           readOnlyRootFilesystem: false
+    bootstrap:
+      pod:
+        runAsUser: 42424
+      container:
+        bootstrap:
+          readOnlyRootFilesystem: false
+  tolerations:
+    clients:
+      enabled: false
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+  resources:
+    enabled: false
+    jobs:
+      bootstrap:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+  use_fqdn:
+    clients: true
+
+bootstrap:
+  # Values for the bootstrap job. For this chart, these values are not used, but they
+  # have to be defined otherwise the pod will stay in a CrashLoopBackOff state.
+  enabled: true
+  ks_user: admin
+  script: "echo 'Not enabled'"
 
 dependencies:
   dynamic:
@@ -53,6 +95,10 @@ dependencies:
       services:
         - endpoint: internal
           service: local_image_registry
+    bootstrap:
+      services:
+        - endpoint: internal
+          service: identity
     clients:
       services:
         - endpoint: internal
@@ -103,12 +149,38 @@ endpoints:
       api:
         default: 80
         internal: 5000
+  clients:
+    name: clients
+    host_fqdn_override:
+      default: null
+      # NOTE(portdirect): this chart supports TLS for fqdn over-ridden public
+      # endpoints using the following format:
+      # public:
+      #   host: null
+      #   tls:
+      #     crt: null
+      #     key: null
+
+# Names of secrets used by bootstrap and environmental checks
+secrets:
+  identity:
+    admin: clients-keystone-admin
+  tls:
+    clients:
+      api:
+        public: clients-tls-public
 
 conf: {}
 
-tolerations: []
+# NOTE(helm_hook): helm_hook might break for helm2 binary.
+# set helm3_hook: false when using the helm2 binary.
+helm3_hook: true
 
 manifests:
+  certificates: false
   configmap_bin: true
   configmap_etc: true
   daemonset_clients: true
+  job_bootstrap: false
+  secret_ingress_tls: true
+  secret_keystone: true

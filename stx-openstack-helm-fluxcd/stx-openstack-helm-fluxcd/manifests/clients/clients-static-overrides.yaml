@@ -9,11 +9,18 @@ release_group: osh-openstack-clients
 images:
   tags:
     openstack_clients: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
-tolerations:
-  - key: node-role.kubernetes.io/master
-    operator: Exists
-    effect: NoSchedule
-  - key: node-role.kubernetes.io/control-plane
-    operator: Exists
-    effect: NoSchedule
+    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
+pod:
+  tolerations:
+    clients:
+      enabled: true
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+  resources:
+    enabled: true
 ...

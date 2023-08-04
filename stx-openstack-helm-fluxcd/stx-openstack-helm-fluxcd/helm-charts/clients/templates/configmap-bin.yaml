@@ -15,6 +15,10 @@ kind: ConfigMap
 metadata:
   name: {{ $configMapName }}
 data:
+{{- if .Values.bootstrap.enabled }}
+  bootstrap.sh: |
+{{ tuple "bin/_bootstrap.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+{{- end }}
   clients-init.sh: |
 {{ tuple "bin/_clients-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
   clients-wrapper.sh: |

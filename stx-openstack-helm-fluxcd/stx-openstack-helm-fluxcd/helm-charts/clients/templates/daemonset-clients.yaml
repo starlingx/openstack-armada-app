@@ -13,6 +13,7 @@
 {{- $envAll := index . 3 }}
 {{- with $envAll }}
 
+{{- $mounts_clients := .Values.pod.mounts.clients.clients }}
 {{- $mounts_clients_init := .Values.pod.mounts.clients.init_container }}
 
 ---
@@ -38,7 +39,7 @@ spec:
       nodeSelector:
         {{ .Values.labels.openstack_clients.node_selector_key }}: {{ .Values.labels.openstack_clients.node_selector_value }}
       tolerations:
-{{ toYaml .Values.tolerations | indent 8 }}
+{{ toYaml .Values.pod.tolerations.clients.tolerations | indent 8 }}
       initContainers:
 {{ tuple $envAll "pod_dependency" $mounts_clients_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
         - name: clients-init
@@ -75,6 +76,11 @@ spec:
         - name: clients
 {{ tuple $envAll "openstack_clients" | include "helm-toolkit.snippets.image" | indent 10 }}
 {{ dict "envAll" . "application" "clients" "container" "clients" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+          {{ if .Values.manifests.certificates }}
+          env:
+          - name: OS_CACERT
+            value: "/etc/ssl/certs/openstack-helm.crt"
+          {{ end }}
           command:
           - /bin/bash
           stdin: true
@@ -82,6 +88,8 @@ spec:
           volumeMounts:
             - name: host-var-opt-openstack
               mountPath: /wd
+{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.clients.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+{{ if $mounts_clients.volumeMounts }}{{ toYaml $mounts_clients.volumeMounts | indent 12 }}{{ end }}
       volumes:
         - name: pod-tmp
           emptyDir: {}
@@ -97,6 +105,8 @@ spec:
           hostPath:
             path: /var/opt/openstack
             type: DirectoryOrCreate
+{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.clients.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+{{ if $mounts_clients.volumes }}{{ toYaml $mounts_clients.volumes | indent 8 }}{{ end }}
 {{- end }}
 {{- end }}
 

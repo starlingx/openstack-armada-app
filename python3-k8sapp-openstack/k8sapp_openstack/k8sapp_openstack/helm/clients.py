@@ -43,6 +43,16 @@ class ClientsHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if self._is_openstack_https_ready():
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
+            # The job-boostrap is disabled by default in this Helm chart since
+            # it is only responsible for creating the TLS secret
+            overrides[common.HELM_NS_OPENSTACK]["manifests"].update({
+                "job_bootstrap": True,
+            })
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:
@@ -64,6 +74,11 @@ class ClientsHelm(openstack.OpenstackBaseHelm):
         return {
             'identity': {
                 'auth': overrides
+            },
+            'clients': {
+                'host_fqdn_override': self._get_endpoints_host_fqdn_overrides(
+                    self.SERVICE_NAME
+                )
             },
         }
 

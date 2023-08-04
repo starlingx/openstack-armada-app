@@ -1,0 +1,23 @@
+{{/*
+#
+#Copyright (c) 2023 Wind River Systems, Inc.
+#
+#SPDX-License-Identifier: Apache-2.0
+#
+*/}}
+
+{{- define "metadata.annotations.job.bootstrap" }}
+helm.sh/hook: post-install,post-upgrade
+{{- end }}
+
+
+{{- if and .Values.manifests.job_bootstrap .Values.bootstrap.enabled }}
+{{- $bootstrapJob := dict "envAll" . "serviceName" "clients" "keystoneUser" .Values.bootstrap.ks_user "jobAnnotations" (include "metadata.annotations.job.bootstrap" . | fromYaml) -}}
+{{- if and .Values.manifests.certificates .Values.secrets.tls.clients.api.public -}}
+{{- $_ := set $bootstrapJob "tlsSecret" .Values.secrets.tls.clients.api.public -}}
+{{- end -}}
+{{- if .Values.pod.tolerations.clients.enabled -}}
+{{- $_ := set $bootstrapJob "tolerationsEnabled" true -}}
+{{- end -}}
+{{ $bootstrapJob | include "helm-toolkit.manifests.job_bootstrap" }}
+{{- end }}

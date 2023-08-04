@@ -10,12 +10,6 @@
 # which executes them in a containerized environment.
 #
 
-if [[ ${BASH_SOURCE} = '/'* ]]; then
-  PATH_TO_SCRIPT=$(dirname "${BASH_SOURCE}")
-else
-  PATH_TO_SCRIPT=$(pwd)/$(dirname "${BASH_SOURCE}")
-fi
-
 SERVICES=(
   cinder
   glance
@@ -25,5 +19,5 @@ SERVICES=(
 )
 
 for service in "${SERVICES[@]}"; do
-  alias "${service}"="${PATH_TO_SCRIPT}/clients-wrapper.sh ${service}"
+  alias "${service}"="{{ .Values.workingDirectoryPath }}/clients-wrapper.sh ${service}"
 done

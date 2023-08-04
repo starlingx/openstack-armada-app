@@ -8,6 +8,8 @@
 
 """ System inventory App lifecycle operator."""
 
+from pathlib import Path
+
 from oslo_log import log as logging
 from sysinv.api.controllers.v1 import utils
 from sysinv.common import constants
@@ -99,8 +101,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         """
         hook_info[LifecycleConstants.EXTRA][self.WAS_APPLIED] = app.active
 
-        self._pre_apply_ldap_actions()
-
     def post_apply(self, context, conductor_obj, app, hook_info):
         """ Post apply actions
 
@@ -160,8 +160,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             conductor_obj._update_vim_config(context)
             conductor_obj._update_radosgw_config(context)
 
-        self._post_remove_ldap_actions()
-
     def _delete_app_specific_resources_post_remove(self, app_op, app, hook_info):
         """Delete application specific resources.
 
@@ -174,6 +172,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         lifecycle_utils.delete_persistent_volume_claim(app_op, common.HELM_NS_OPENSTACK)
         lifecycle_utils.delete_configmap(app_op, common.HELM_NS_OPENSTACK, self.APP_OPENSTACK_RESOURCE_CONFIG_MAP)
         lifecycle_utils.delete_namespace(app_op, common.HELM_NS_OPENSTACK)
+
+        # Perform post remove LDAP-related actions.
+        self._post_remove_ldap_actions()
 
     def _create_app_specific_resources_pre_apply(self, app_op, app, hook_info):
         """Add application specific resources.
@@ -210,6 +211,8 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 common.HELM_NS_OPENSTACK,
                 config_map_body)
 
+            # Perform pre apply LDAP-related actions.
+            self._pre_apply_ldap_actions(app)
         except Exception as e:
             LOG.error(e)
             raise
@@ -298,25 +301,64 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         """
         return app_utils.https_enabled() and not app_utils.is_openstack_https_certificates_ready()
 
-    def _pre_apply_ldap_actions(self):
-        """Perform pre apply LDAP-related actions."""
+    def _pre_apply_ldap_actions(self, app):
+        """Perform pre apply LDAP-related actions.
 
-        # Create `openstack` group.
-        has_group = ldap.check_group(app_constants.HELM_NS_OPENSTACK)
-        if not has_group:
-            ldap.add_group(app_constants.HELM_NS_OPENSTACK)
+        :param app: AppOperator.Application object
+        :raises KubeAppApplyFailure: If at least one application specific
+                                     resource fails to be created.
+        """
 
-        # Create the volume mount directory.
-        app_utils.create_openstack_volume_mount()
+        # Create group `openstack`.
+        group_exists = ldap.check_group(app_constants.HELM_NS_OPENSTACK)
+        if not group_exists:
+            status = ldap.add_group(app_constants.HELM_NS_OPENSTACK)
+            if not status:
+                raise exception.KubeAppApplyFailure(
+                    name=app.name,
+                    version=app.version,
+                    reason=(
+                        "Unable to create application specific resource: "
+                        f"Group `{app_constants.HELM_NS_OPENSTACK}` (LDAP)."
+                    )
+                )
+
+        # Get clients' working directory path.
+        # (It can be either the default or a user-defined one)
+        working_directory = app_utils.get_clients_working_directory()
+
+        # If it's a user-defined working directory path,
+        # delete the default one to avoid leftovers.
+        if (
+            Path(app_constants.CLIENTS_WORKING_DIR).exists()
+            and working_directory != app_constants.CLIENTS_WORKING_DIR
+        ):
+            app_utils.delete_clients_working_directory(
+                path=app_constants.CLIENTS_WORKING_DIR
+            )
+
+        # Finally, create the clients' working directory.
+        status = app_utils.create_clients_working_directory(
+            path=working_directory
+        )
+        if not status:
+            raise exception.KubeAppApplyFailure(
+                name=app.name,
+                version=app.version,
+                reason=(
+                    "Unable to create application specific resource: "
+                    "OpenStack clients' working directory "
+                    f"`{working_directory}`."
+                )
+            )
 
     def _post_remove_ldap_actions(self):
         """Perform post remove LDAP-related actions."""
 
-        # Try to delete the volume mount directory.
-        # If successful, delete `openstack` group.
-        # Otherwise, do nothing.
-        deleted = app_utils.delete_openstack_volume_mount()
-        if deleted:
-            has_group = ldap.check_group(app_constants.HELM_NS_OPENSTACK)
-            if has_group:
+        # Try to delete the OpenStack clients' working directory.
+        # If successful, also delete group `openstack`.
+        status = app_utils.delete_clients_working_directory()
+        if status:
+            group_exists = ldap.check_group(app_constants.HELM_NS_OPENSTACK)
+            if group_exists:
                 ldap.delete_group(app_constants.HELM_NS_OPENSTACK)

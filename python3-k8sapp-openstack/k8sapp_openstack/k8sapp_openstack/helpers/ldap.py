@@ -6,7 +6,7 @@
 # All Rights Reserved.
 #
 
-import subprocess
+import re
 from typing import List
 
 from oslo_log import log as logging
@@ -22,36 +22,37 @@ def check_group(group: str) -> bool:
                       Otherwise, returns `False`.
     """
 
-    # First, run `ldapsearch`.
-    cmd_p1 = [
+    stdout = search_group(group=group)
+
+    # If the `ldapsearch` output contains the word "numEntries",
+    # the group exists. Otherwise, it does not.
+    return "numEntries" in stdout
+
+
+def search_group(group: str) -> str:
+    """Search group.
+
+    :param group: The group name.
+    :returns: str -- The `ldapsearch` output.
+    """
+
+    cmd = [
         "ldapsearch",
         "-x",
         "-b",
         "ou=Group,dc=cgcs,dc=local",
-        f"(cn={group})",
+        f"(cn={group})"
     ]
-    p1 = subprocess.Popen(
-        cmd_p1, stdin=subprocess.PIPE, stdout=subprocess.PIPE
-    )
-
-    # Second, verify if the `ldapsearch` output contains the word `numEntries`.
-    # If it does, it means that the group exists.
-    cmd_p2 = ["grep", "numEntries"]
-    p2 = subprocess.Popen(cmd_p2, stdin=p1.stdout, stdout=subprocess.PIPE)
-
-    p1.stdout.close()
-    p2.communicate()
-
-    if p2.returncode == 0:
-        return True
-
-    return False
+    stdout, _ = cutils.trycmd(*cmd)
+    return stdout
 
 
-def add_group(group: str) -> None:
+def add_group(group: str) -> bool:
     """Add group.
 
     :param group: The group name.
+    :returns: bool -- `True`, if group has been added.
+                      `False`, if otherwise.
     """
 
     cmd = ["ldapaddgroup", group]
@@ -59,12 +60,16 @@ def add_group(group: str) -> None:
 
     if stderr:
         LOG.warning(f"Failed to add group `{group}`: {stderr}")
+        return False
+    return True
 
 
-def delete_group(group: str) -> None:
+def delete_group(group: str) -> bool:
     """Delete group.
 
     :param group: The group name.
+    :returns: bool -- `True`, if group has been deleted.
+                      `False`, if otherwise.
     """
 
     members = list_group_members(group)
@@ -76,6 +81,8 @@ def delete_group(group: str) -> None:
 
     if stderr:
         LOG.warning(f"Failed to delete group `{group}`: {stderr}")
+        return False
+    return True
 
 
 def check_group_member(member: str, group: str) -> bool:
@@ -83,42 +90,24 @@ def check_group_member(member: str, group: str) -> bool:
 
     :param member: The member name.
     :param group: The group name.
-    :returns: bool -- Returns `True` if group member exists.
-                      Otherwise, returns `False`.
+    :returns: bool -- `True`, if group member exists.
+                      `False`, if otherwise.
     """
 
-    # First, run `ldapsearch`.
-    cmd_p1 = [
-        "ldapsearch",
-        "-x",
-        "-b",
-        "ou=Group,dc=cgcs,dc=local",
-        f"(cn={group})",
-    ]
-    p1 = subprocess.Popen(
-        cmd_p1, stdin=subprocess.PIPE, stdout=subprocess.PIPE
-    )
+    stdout = search_group(group=group)
 
-    # Second, verify if the `ldapsearch` output contains the word `memberUid`.
-    # If it does, it means that the group not only exists, but also contains
-    # members.
-    cmd_p2 = ["grep", f"memberUid: {member}"]
-    p2 = subprocess.Popen(cmd_p2, stdin=p1.stdout, stdout=subprocess.PIPE)
-
-    p1.stdout.close()
-    p2.communicate()
-
-    if p2.returncode == 0:
-        return True
-
-    return False
+    # If the `ldapsearch` output contains the word "memberUid: {member}",
+    # the group member exists. Otherwise, it does not.
+    return f"memberUid: {member}" in stdout
 
 
-def add_group_member(member: str, group: str) -> None:
+def add_group_member(member: str, group: str) -> bool:
     """Add group member.
 
     :param member: The member name.
     :param group: The group name.
+    :returns: bool -- `True`, if member has been added.
+                      `False`, if otherwise.
     """
 
     cmd = ["ldapaddusertogroup", member, group]
@@ -128,13 +117,17 @@ def add_group_member(member: str, group: str) -> None:
         LOG.warning(
             f"Failed to add user `{member}` to group `{group}`: {stderr}"
         )
+        return False
+    return True
 
 
-def delete_group_member(member: str, group: str) -> None:
+def delete_group_member(member: str, group: str) -> bool:
     """Delete group member.
 
     :param member: The member name.
     :param group: The group name.
+    :returns: bool -- `True`, if member has been deleted.
+                      `False`, if otherwise.
     """
 
     cmd = ["ldapdeleteuserfromgroup", member, group]
@@ -144,6 +137,8 @@ def delete_group_member(member: str, group: str) -> None:
         LOG.warning(
             f"Failed to delete user `{member}` from group `{group}`: {stderr}"
         )
+        return False
+    return True
 
 
 def list_group_members(group: str) -> List[str]:
@@ -154,32 +149,9 @@ def list_group_members(group: str) -> List[str]:
                            the specified group.
     """
 
-    members = []
-
     # First, run `ldapsearch`.
-    cmd_p1 = [
-        "ldapsearch",
-        "-x",
-        "-b",
-        "ou=Group,dc=cgcs,dc=local",
-        f"(cn={group})",
-    ]
-    p1 = subprocess.Popen(
-        cmd_p1, stdin=subprocess.PIPE, stdout=subprocess.PIPE
-    )
+    stdout = search_group(group=group)
 
     # Second, verify if the `ldapsearch` output contains the word `memberUid`.
-    # If it does, it means that the group not only exists, but also contains
-    # members.
-    cmd_p2 = ["grep", "-Poh", "(?<=memberUid: )(.*)"]
-    p2 = subprocess.Popen(cmd_p2, stdin=p1.stdout, stdout=subprocess.PIPE)
-
-    p1.stdout.close()
-    stdout, _ = p2.communicate()
-
-    if p2.returncode == 0:
-        for user in stdout.decode().split():
-            if user:
-                members.append(user)
-
-    return members
+    # If it does, it means that the group contains members.
+    return re.findall("(?<=memberUid: )(.*)(?=\n)", stdout)

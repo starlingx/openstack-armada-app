@@ -9,8 +9,7 @@
 # Assumes the Keystone username is the same as the logged in username.
 #
 
-OPENSTACK_DIR=/var/opt/openstack
-OPENSTACK_OPENRC=${HOME}/${USER}-openrc-openstack
+OPENSTACK_OPENRC="${HOME}/${USER}-openrc-openstack"
 
 # Check if local openrc file exists.
 if [[ -e "${OPENSTACK_OPENRC}" ]]; then
@@ -30,13 +29,13 @@ chmod 600 "${OPENSTACK_OPENRC}"
 cat << EOF >> "${OPENSTACK_OPENRC}"
 source /etc/platform/openrc --no_credentials
 
-if [[ "$?" -ne 0 ]]; then
+if [[ "\$?" -ne 0 ]]; then
   return 1
 fi
 
-source "${OPENSTACK_DIR}/setup-aliases.sh"
+source "{{ .Values.workingDirectoryPath }}/setup-aliases.sh"
 
-if [[ "$?" -ne 0 ]]; then
+if [[ "\$?" -ne 0 ]]; then
   return 1
 fi
 

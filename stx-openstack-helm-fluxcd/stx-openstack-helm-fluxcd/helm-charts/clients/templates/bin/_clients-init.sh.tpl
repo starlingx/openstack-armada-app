@@ -11,7 +11,7 @@
 set -ex
 
 TMP_DIR=/tmp
-OPENSTACK_DIR=/var/opt/openstack
+WORKING_DIR=/wd
 
 OPENSTACK_SETUP_SCRIPTS=(
   clear-aliases.sh
@@ -21,20 +21,20 @@ OPENSTACK_SETUP_SCRIPTS=(
 )
 
 # Store ownership of the volume mount directory to use it later on other files.
-ownership=$(ls -nd "${OPENSTACK_DIR}" | awk '{print $3":"$4}')
+ownership=$(ls -nd "${WORKING_DIR}" | awk '{print $3":"$4}')
 
 # Copy setup scripts to volume mount directory and adjust their mode/ownership
 # to make them only usable by their corresponding owners and/or groups.
 for setup_script in "${OPENSTACK_SETUP_SCRIPTS[@]}"; do
 
-  cp "${TMP_DIR}/${setup_script}" "${OPENSTACK_DIR}"
-  chmod 550 "${OPENSTACK_DIR}/${setup_script}"
-  chown "${ownership}" "${OPENSTACK_DIR}/${setup_script}"
+  cp "${TMP_DIR}/${setup_script}" "${WORKING_DIR}"
+  chmod 550 "${WORKING_DIR}/${setup_script}"
+  chown "${ownership}" "${WORKING_DIR}/${setup_script}"
 
 done
 
 # Create openrc file for admin access.
-ADMIN_OPENRC="${OPENSTACK_DIR}/admin-openrc"
+ADMIN_OPENRC="${WORKING_DIR}/admin-openrc"
 
 touch "${ADMIN_OPENRC}"
 chmod 600 "${ADMIN_OPENRC}"
@@ -43,13 +43,13 @@ chown "${ownership}" "${ADMIN_OPENRC}"
 cat << EOF > "${ADMIN_OPENRC}"
 source /etc/platform/openrc --no_credentials
 
-if [[ "$?" -ne 0 ]]; then
+if [[ \$? -ne 0 ]]; then
   return 1
 fi
 
-source "${OPENSTACK_DIR}/setup-aliases.sh"
+source "{{ .Values.workingDirectoryPath }}/setup-aliases.sh"
 
-if [[ "$?" -ne 0 ]]; then
+if [[ \$? -ne 0 ]]; then
   return 1
 fi
 

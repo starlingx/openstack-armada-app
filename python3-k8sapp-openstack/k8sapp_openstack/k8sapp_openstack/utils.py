@@ -11,6 +11,7 @@ from oslo_log import log as logging
 from sysinv.common import constants
 from sysinv.common import utils as cutils
 from sysinv.db import api as dbapi
+import yaml
 
 from k8sapp_openstack.common import constants as app_constants
 
@@ -58,39 +59,12 @@ def is_openstack_https_ready():
     return https_enabled() and is_openstack_https_certificates_ready()
 
 
-def change_file_group_ownership(
-    file: str,
-    group: str,
-    recursive: bool = False
-) -> None:
-    """Change file's group ownership.
-
-    :param file: The file path.
-    :param group: The group name.
-    :param recursive: bool -- The flag that indicates whether permissions
-                              should be changed recursively or not.
-    """
-
-    cmd = ["chgrp", group, file]
-
-    if recursive:
-        cmd.insert(1, "-R")
-
-    _, stderr = cutils.trycmd(*cmd, run_as_root=True)
-
-    if stderr:
-        LOG.warning(
-            f"Failed to change group ownership of `{file}` "
-            f"to `{group}`: {stderr}"
-        )
-
-
 def change_file_owner(
     file: str,
     user: str = "",
     group: str = "",
     recursive: bool = False
-) -> None:
+) -> bool:
     """Change file's owner (chown).
 
     :param file: The file path.
@@ -109,7 +83,7 @@ def change_file_owner(
         ownership += f":{group}"
 
     if not ownership:
-        return
+        return False
 
     cmd = ["chown", ownership, file]
 
@@ -123,13 +97,15 @@ def change_file_owner(
             f"Failed to change ownership of `{file}` "
             f"to `{ownership}`: {stderr}"
         )
+        return False
+    return True
 
 
 def change_file_mode(
     file: str,
     mode: str,
     recursive: bool = False
-) -> None:
+) -> bool:
     """Change file's mode (chmod).
 
 
@@ -150,39 +126,122 @@ def change_file_mode(
         LOG.warning(
             f"Failed to change mode of `{file}` to `{mode}`: {stderr}"
         )
+        return False
+    return True
 
 
-def create_openstack_volume_mount() -> None:
-    """Create OpenStack volume mount directory."""
+def get_clients_working_directory() -> str:
+    """Get OpenStack clients' working directory path.
 
-    p = Path(app_constants.OPENSTACK_VOLUME_MOUNT_DIR)
+    :returns: str -- The clients' working directory path.
+    """
+
+    # By default, the working directory path is
+    # `app_constants.CLIENTS_WORKING_DIR`.
+    working_directory = app_constants.CLIENTS_WORKING_DIR
+
+    db = dbapi.get_instance()
+    if db is None:
+        return working_directory
+
+    # However, the user might have overriden the default
+    # working directory path. If that is the case, fetch
+    # and return the user-defined path.
+    app = cutils.find_openstack_app(db)
+
+    override = db.helm_override_get(
+        app_id=app.id,
+        name=app_constants.HELM_CHART_CLIENTS,
+        namespace=app_constants.HELM_NS_OPENSTACK,
+    )
+
+    if override.user_overrides:
+        user_overrides = yaml.load(
+            override.user_overrides, Loader=yaml.FullLoader
+        )
+        working_directory = user_overrides.get(
+            "workingDirectoryPath", app_constants.CLIENTS_WORKING_DIR
+        )
+    return working_directory
+
+
+def create_clients_working_directory(
+    path: str = ""
+) -> bool:
+    """Create OpenStack clients' working directory.
+
+    :param path: The working directory path (optional).
+                 If not specified, it will assume either the default or the
+                 user-defined working directory path. The latter has priority
+                 over the former.
+    :returns: bool -- `True`, if clients' working directory has been created.
+                      `False`, if otherwise.
+    """
+
+    if path:
+        working_directory = path
+    else:
+        working_directory = get_clients_working_directory()
+
+    # Create clients' working directory.
+    # (Ignore if it already exists)
+    p = Path(working_directory)
     p.mkdir(exist_ok=True)
 
-    # Change modes of the volume mount directory.
-    change_file_mode(
+    # Change modes of the clients' working directory.
+    # If the operation fails, return failure status.
+    status = change_file_mode(
         str(p),
         mode="770",
         recursive=True
     )
+    if not status:
+        return False
 
-    # Change ownership of the volume mount directory.
-    change_file_owner(
+    # Change ownership of the clients' working directory.
+    # If the operation fails, return failure status.
+    status = change_file_owner(
         str(p),
         user="sysadmin",
         group=app_constants.HELM_NS_OPENSTACK,
         recursive=True
     )
+    if not status:
+        return False
+    return True
 
 
-def delete_openstack_volume_mount() -> bool:
-    """Delete OpenStack volume mount.
+def delete_clients_working_directory(
+        path: str = ""
+) -> bool:
+    """Delete OpenStack clients' working directory.
 
-    :returns: bool -- True, if volume mount directory was successfully deleted.
-                      False, if otherwise.
+    :param path: The working directory path (optional).
+                 If not specified, it will assume either the default or the
+                 user-defined working directory path. The latter has priority
+                 over the former.
+    :returns: bool -- `True`, if clients' working directory has been deleted.
+                      `False`, if otherwise.
     """
 
-    # Search for additional files that might have been created by users.
-    directories = [app_constants.OPENSTACK_VOLUME_MOUNT_DIR]
+    if path:
+        working_directory = path
+    else:
+        working_directory = get_clients_working_directory()
+
+    # If it is a user-defined working directory, do not delete it.
+    # It may contain files that are used by other users and/or programs.
+    if working_directory != app_constants.CLIENTS_WORKING_DIR:
+        LOG.warning(
+            f"Unable to delete OpenStack clients' working directory "
+            f"`{working_directory}`. "
+            f"Directory is user-defined and cannot be deleted."
+        )
+        return False
+
+    # If it is the default working directory, search for additional
+    # files that might have been created by users.
+    directories = [working_directory]
     while directories:
         p = Path(directories.pop(0))
         for pathname in p.glob("*"):
@@ -191,21 +250,17 @@ def delete_openstack_volume_mount() -> bool:
                 continue
             else:
                 # Ignore files in the root directory.
-                if str(p) == app_constants.OPENSTACK_VOLUME_MOUNT_DIR:
+                if str(p) == working_directory:
                     continue
 
                 # If there is at least one file created by users outside the
                 # root directory, that is, in a user subdirectory, it means
-                # that we can't remove the volume mount directory.
+                # that we cannot delete the clients' working directory.
                 LOG.warning(
-                    f"Unable to delete OpenStack volume mount directory "
-                    f"`{app_constants.OPENSTACK_VOLUME_MOUNT_DIR}`. "
+                    f"Unable to delete OpenStack clients' working directory "
+                    f"`{working_directory}`. "
                     f"There are one or more user files in subdirectories."
                 )
                 return False
-
-    shutil.rmtree(
-        app_constants.OPENSTACK_VOLUME_MOUNT_DIR, ignore_errors=True
-    )
-
+    shutil.rmtree(working_directory, ignore_errors=True)
     return True

@@ -1,4 +1,4 @@
-#!/bin/bash -i
+#!/bin/bash
 #
 # Copyright (c) 2023 Wind River Systems, Inc.
 #
@@ -8,8 +8,14 @@
 # passed as arguments in a containerized environment.
 #
 
-OPENSTACK_DIR=/var/opt/openstack
+WORKING_DIR={{ .Values.workingDirectoryPath }}
 
+# Set `KUBECONFIG`.
+if [[ -z "${KUBECONFIG}" ]]; then
+  KUBECONFIG=/etc/kubernetes/admin.conf
+fi
+
+# Set `env` arguments.
 OPENSTACK_VARIABLES=(
   OS_AUTH_TYPE
   OS_AUTH_URL
@@ -26,10 +32,6 @@ OPENSTACK_VARIABLES=(
   OS_USER_DOMAIN_NAME
 )
 
-if [[ -z "${KUBECONFIG}" ]]; then
-  KUBECONFIG=/etc/kubernetes/admin.conf
-fi
-
 ENV_ARGUMENTS=()
 for variable in "${OPENSTACK_VARIABLES[@]}"; do
   if [[ ! -z "$(printenv ${variable})" ]]; then
@@ -37,12 +39,16 @@ for variable in "${OPENSTACK_VARIABLES[@]}"; do
   fi
 done
 
-CONTROLLER=$(echo "${PS1@P}" | grep -Po 'controller-\d+' | cut -d $'\n' -f 1)
-if [[ -z "${CONTROLLER}" ]]; then
+# Check if script is running on a controller node.
+# If not, then abort.
+CONTROLLER=$(hostname)
+if [[ "${CONTROLLER}" != 'controller'* ]]; then
   echo "OpenStack CLIs can only be accessed from a controller node."
   exit 1
 fi
 
+# Check if controller node contains a healthy `clients` pod.
+# If not, then abort.
 POD=$(
   kubectl --kubeconfig "${KUBECONFIG}" -n openstack get pods \
     | grep -i "clients-${CONTROLLER}.*Running" | awk '{print $1}'
@@ -57,13 +63,11 @@ if grep -q "^${USER}:" /etc/passwd; then
   kubectl --kubeconfig "${KUBECONFIG}" -n openstack exec -it "${POD}" \
     -c clients -- env ${ENV_ARGUMENTS[@]} /bin/bash -c "$*"
 else
-  if [[ ! -d "${OPENSTACK_DIR}/${USER}" ]]; then
-    mkdir -p "${OPENSTACK_DIR}/${USER}"
-    chgrp -R openstack "${OPENSTACK_DIR}/${USER}"
+  if [[ ! -d "${WORKING_DIR}/${USER}" ]]; then
+    mkdir -p "${WORKING_DIR}/${USER}"
+    chgrp -R openstack "${WORKING_DIR}/${USER}"
   fi
 
   kubectl --kubeconfig "${KUBECONFIG}" -n openstack exec -it "${POD}" \
     -c clients -- env ${ENV_ARGUMENTS[@]} /bin/bash -c "cd ${USER}; $*"
 fi
-
-

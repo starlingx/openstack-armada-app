@@ -170,6 +170,8 @@ secrets:
       api:
         public: clients-tls-public
 
+workingDirectoryPath: /var/opt/openstack
+
 conf: {}
 
 # NOTE(helm_hook): helm_hook might break for helm2 binary.

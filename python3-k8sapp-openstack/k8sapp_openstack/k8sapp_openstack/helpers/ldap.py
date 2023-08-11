@@ -6,6 +6,7 @@
 # All Rights Reserved.
 #
 
+from grp import getgrnam
 import re
 from typing import List
 
@@ -55,7 +56,26 @@ def add_group(group: str) -> bool:
                       `False`, if otherwise.
     """
 
-    cmd = ["ldapaddgroup", group]
+    # Check if a Linux group with the same group name exists.
+    try:
+        # If it does, reuse the GID in the LDAP group.
+        gid = getgrnam(group).gr_gid
+    except KeyError:
+        # If it doesn't, create the Linux group first and then
+        # reuse the GID in the LDAP group.
+        cmd = ["addgroup", group]
+        _, stderr = cutils.trycmd(*cmd, run_as_root=True)
+
+        if stderr:
+            LOG.warning(
+                f"Failed to add local group `{group}`: "
+                f"{stderr}"
+            )
+            return False
+
+        gid = getgrnam(group).gr_gid
+
+    cmd = ["ldapaddgroup", group, gid]
     _, stderr = cutils.trycmd(*cmd, run_as_root=True)
 
     if stderr:
@@ -72,15 +92,25 @@ def delete_group(group: str) -> bool:
                       `False`, if otherwise.
     """
 
+    # Delete LDAP group members (if any).
     members = list_group_members(group)
     for member in members:
         delete_group_member(member, group)
 
+    # Delete LDAP group.
     cmd = ["ldapdeletegroup", group]
     _, stderr = cutils.trycmd(*cmd, run_as_root=True)
 
     if stderr:
         LOG.warning(f"Failed to delete group `{group}`: {stderr}")
+        return False
+
+    # Delete group.
+    cmd = ["delgroup", group]
+    _, stderr = cutils.trycmd(*cmd, run_as_root=True)
+
+    if stderr:
+        LOG.warning(f"Failed to delete local group `{group}`: {stderr}")
         return False
     return True
 

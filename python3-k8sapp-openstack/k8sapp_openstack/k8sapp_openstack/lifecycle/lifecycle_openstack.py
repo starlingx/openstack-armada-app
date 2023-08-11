@@ -265,6 +265,36 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     "Trigger type {} expects {} to be true".format(
                         trigger[LifecycleConstants.TRIGGER_TYPE],
                         LifecycleConstants.TRIGGER_CONFIGURE_REQUIRED))
+        elif trigger[LifecycleConstants.TRIGGER_TYPE] == constants.APP_EVALUATE_REAPPLY_TYPE_DETECTED_SWACT:
+            # On host swacts, we must ensure that all controllers nodes have
+            # their clients' working directories with the right permissions.
+            working_directory = Path(app_utils.get_clients_working_directory())
+
+            try:
+                # If at least one of them has an invalid value, both will be
+                # set to `None`. This will cause the clients' working
+                # directory to be reconfigured (in terms of permissions).
+                working_directory_owner = working_directory.owner()
+                working_directory_group = working_directory.group()
+            except KeyError:
+                working_directory_owner = None
+                working_directory_group = None
+
+            if (
+                working_directory.exists()
+                and (
+                    working_directory_owner != app_constants.CLIENTS_WORKING_DIR_USER
+                    or working_directory_group != app_constants.CLIENTS_WORKING_DIR_GROUP
+                )
+            ):
+                status = app_utils.reset_clients_working_directory_permissions(
+                    path=str(working_directory)
+                )
+                if not status:
+                    raise exception.LifecycleSemanticCheckException(
+                        "Unable to reset clients' working directory "
+                        f"`{str(working_directory)}` permissions."
+                    )
 
         # Evaluate https reapply semantic check
         if self._semantic_check_openstack_https_not_ready():
@@ -310,16 +340,19 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         """
 
         # Create group `openstack`.
-        group_exists = ldap.check_group(app_constants.HELM_NS_OPENSTACK)
+        group_exists = ldap.check_group(
+            app_constants.CLIENTS_WORKING_DIR_GROUP
+        )
         if not group_exists:
-            status = ldap.add_group(app_constants.HELM_NS_OPENSTACK)
+            status = ldap.add_group(app_constants.CLIENTS_WORKING_DIR_GROUP)
             if not status:
                 raise exception.KubeAppApplyFailure(
                     name=app.name,
                     version=app.version,
                     reason=(
                         "Unable to create application specific resource: "
-                        f"Group `{app_constants.HELM_NS_OPENSTACK}` (LDAP)."
+                        f"Group `{app_constants.CLIENTS_WORKING_DIR_GROUP}` "
+                        "(LDAP)."
                     )
                 )
 
@@ -359,6 +392,8 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # If successful, also delete group `openstack`.
         status = app_utils.delete_clients_working_directory()
         if status:
-            group_exists = ldap.check_group(app_constants.HELM_NS_OPENSTACK)
+            group_exists = ldap.check_group(
+                app_constants.CLIENTS_WORKING_DIR_GROUP
+            )
             if group_exists:
-                ldap.delete_group(app_constants.HELM_NS_OPENSTACK)
+                ldap.delete_group(app_constants.CLIENTS_WORKING_DIR_GROUP)

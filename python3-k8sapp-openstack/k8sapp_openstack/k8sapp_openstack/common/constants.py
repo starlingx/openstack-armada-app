@@ -108,5 +108,7 @@ CEPH_POOL_VOLUMES_CHUNK_SIZE = 512
 CEPH_POOL_BACKUP_APP_NAME = 'cinder-backup'
 CEPH_POOL_BACKUP_CHUNK_SIZE = 256
 
-CLIENTS_WORKING_DIR = "/var/opt/openstack"
 CLIENTS_VOLUME_NAME = "clients-working-directory"
+CLIENTS_WORKING_DIR = "/var/opt/openstack"
+CLIENTS_WORKING_DIR_GROUP = "openstack"
+CLIENTS_WORKING_DIR_USER = "sysadmin"

@@ -4,8 +4,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from grp import getgrnam
+import os
 from pathlib import Path
+from pwd import getpwnam
 import shutil
+from typing import Generator
 
 from oslo_log import log as logging
 from sysinv.common import constants
@@ -59,75 +63,25 @@ def is_openstack_https_ready():
     return https_enabled() and is_openstack_https_certificates_ready()
 
 
-def change_file_owner(
-    file: str,
-    user: str = "",
-    group: str = "",
-    recursive: bool = False
-) -> bool:
-    """Change file's owner (chown).
+def directory_files(path: str) -> Generator:
+    """Simple generator to iterate over files from a directory.
 
-    :param file: The file path.
-    :param user: The desired user.
-    :param group: The desired group.
-    :param recursive: bool -- The flag that indicates whether ownerships
-                              should be changed recursively or not.
+    For each `next()` call (or iteration), returns a file path
+    string, e.g., `/path/to/file`.
+
+    :param path: The directory path.
+    :returns: Generator -- The file generator.
     """
 
-    ownership = ""
-
-    if user:
-        ownership += user
-
-    if group:
-        ownership += f":{group}"
-
-    if not ownership:
-        return False
-
-    cmd = ["chown", ownership, file]
-
-    if recursive:
-        cmd.insert(1, "-R")
-
-    _, stderr = cutils.trycmd(*cmd, run_as_root=True)
-
-    if stderr:
-        LOG.warning(
-            f"Failed to change ownership of `{file}` "
-            f"to `{ownership}`: {stderr}"
-        )
-        return False
-    return True
-
-
-def change_file_mode(
-    file: str,
-    mode: str,
-    recursive: bool = False
-) -> bool:
-    """Change file's mode (chmod).
-
-
-    :param file: The file path.
-    :param mode: The desired mode.
-    :param recursive: bool -- The flag that indicates whether modes should be
-                              changed recursively or not.
-    """
-
-    cmd = ["chmod", mode, file]
-
-    if recursive:
-        cmd.insert(1, "-R")
-
-    _, stderr = cutils.trycmd(*cmd, run_as_root=True)
-
-    if stderr:
-        LOG.warning(
-            f"Failed to change mode of `{file}` to `{mode}`: {stderr}"
-        )
-        return False
-    return True
+    directories = [path]
+    while directories:
+        directory = Path(directories.pop(0))
+        for pathname in directory.glob("*"):
+            if pathname.is_dir():
+                directories.append(str(pathname))
+                continue
+            else:
+                yield str(pathname)
 
 
 def get_clients_working_directory() -> str:
@@ -165,6 +119,53 @@ def get_clients_working_directory() -> str:
     return working_directory
 
 
+def reset_clients_working_directory_permissions(path: str) -> bool:
+    """Reset OpenStack clients' working directory permissions.
+
+    :param path: The clients' working directory path.
+    :returns: bool -- `True`, if the permissions have been reset.
+                      `False`, if otherwise.
+    """
+
+    # Get the ideal UID and GID for the clients' working directory.
+    try:
+        WORKING_DIR_UID = getpwnam(
+            app_constants.CLIENTS_WORKING_DIR_USER
+        ).pw_uid
+        WORKING_DIR_GID = getgrnam(
+            app_constants.CLIENTS_WORKING_DIR_GROUP
+        ).gr_gid
+    except KeyError:
+        LOG.error(
+            "Unable to get UID of user "
+            f"`{app_constants.CLIENTS_WORKING_DIR_USER}` and/or "
+            f"GID of group `{app_constants.CLIENTS_WORKING_DIR_GROUP}."
+        )
+        return False
+
+    try:
+        # Reset clients' working directory permissions.
+        os.chmod(path, mode=0o770)
+        os.chown(path, uid=WORKING_DIR_UID, gid=WORKING_DIR_GID)
+
+        for filepath in directory_files(path=path):
+            # For files in the root directory,
+            # reset both UID and GID to the ideal values.
+            if Path(filepath).parent == Path(path):
+                os.chown(filepath, uid=WORKING_DIR_UID, gid=WORKING_DIR_GID)
+            else:
+                # For files in user subdirectories,
+                # only reset the GID to the ideal value.
+                os.chown(filepath, uid=-1, gid=WORKING_DIR_GID)
+    except Exception as e:
+        LOG.error(
+            "Unable to reset clients' working directory "
+            f"`{path}` permissions: {e}"
+        )
+        return False
+    return True
+
+
 def create_clients_working_directory(
     path: str = ""
 ) -> bool:
@@ -178,35 +179,43 @@ def create_clients_working_directory(
                       `False`, if otherwise.
     """
 
-    if path:
-        working_directory = path
-    else:
-        working_directory = get_clients_working_directory()
+    # Get the ideal UID and GID for the clients' working directory.
+    try:
+        WORKING_DIR_UID = getpwnam(
+            app_constants.CLIENTS_WORKING_DIR_USER
+        ).pw_uid
+        WORKING_DIR_GID = getgrnam(
+            app_constants.CLIENTS_WORKING_DIR_GROUP
+        ).gr_gid
+    except KeyError:
+        LOG.error(
+            "Unable to get UID of user "
+            f"`{app_constants.CLIENTS_WORKING_DIR_USER}` and/or "
+            f"GID of group `{app_constants.CLIENTS_WORKING_DIR_GROUP}."
+        )
+        return False
 
     # Create clients' working directory.
     # (Ignore if it already exists)
-    p = Path(working_directory)
-    p.mkdir(exist_ok=True)
+    if not path:
+        path = get_clients_working_directory()
 
-    # Change modes of the clients' working directory.
-    # If the operation fails, return failure status.
-    status = change_file_mode(
-        str(p),
-        mode="770",
-        recursive=True
-    )
-    if not status:
-        return False
+    working_directory = Path(path)
+    working_directory.mkdir(exist_ok=True)
 
-    # Change ownership of the clients' working directory.
-    # If the operation fails, return failure status.
-    status = change_file_owner(
-        str(p),
-        user="sysadmin",
-        group=app_constants.HELM_NS_OPENSTACK,
-        recursive=True
-    )
-    if not status:
+    # Change clients' working directory permissions.
+    try:
+        os.chmod(str(working_directory), mode=0o770)
+        os.chown(
+            str(working_directory),
+            uid=WORKING_DIR_UID,
+            gid=WORKING_DIR_GID,
+        )
+    except Exception as e:
+        LOG.error(
+            "Unable to change clients' working directory "
+            f"`{str(working_directory)}` permissions: {e}"
+        )
         return False
     return True
 
@@ -241,26 +250,20 @@ def delete_clients_working_directory(
 
     # If it is the default working directory, search for additional
     # files that might have been created by users.
-    directories = [working_directory]
-    while directories:
-        p = Path(directories.pop(0))
-        for pathname in p.glob("*"):
-            if pathname.is_dir():
-                directories.append(str(pathname))
-                continue
-            else:
-                # Ignore files in the root directory.
-                if str(p) == working_directory:
-                    continue
+    for filepath in directory_files(path=working_directory):
+        # Ignore files in the root directory.
+        if Path(filepath).parent == Path(working_directory):
+            continue
 
-                # If there is at least one file created by users outside the
-                # root directory, that is, in a user subdirectory, it means
-                # that we cannot delete the clients' working directory.
-                LOG.warning(
-                    f"Unable to delete OpenStack clients' working directory "
-                    f"`{working_directory}`. "
-                    f"There are one or more user files in subdirectories."
-                )
-                return False
+        # If there is at least one file created by users outside the
+        # root directory, that is, in a user subdirectory, it means
+        # that we cannot delete the clients' working directory.
+        LOG.warning(
+            f"Unable to delete OpenStack clients' working directory "
+            f"`{working_directory}`. "
+            f"There are one or more user files in subdirectories."
+        )
+        return False
+
     shutil.rmtree(working_directory, ignore_errors=True)
     return True

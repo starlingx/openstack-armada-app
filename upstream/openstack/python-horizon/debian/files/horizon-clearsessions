@@ -1,3 +1,0 @@
-#!/bin/bash
-
-/usr/bin/nice -n 2 /usr/bin/python /usr/share/openstack-dashboard/manage.py clearsessions

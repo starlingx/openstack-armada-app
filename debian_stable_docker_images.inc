@@ -4,7 +4,6 @@
 #upstream/openstack/python-ceilometer
 #upstream/openstack/python-cinder
 #upstream/openstack/python-glance
-#upstream/openstack/python-gnocchi
 #upstream/openstack/python-heat/openstack-heat
 #upstream/openstack/python-horizon
 #upstream/openstack/python-keystone

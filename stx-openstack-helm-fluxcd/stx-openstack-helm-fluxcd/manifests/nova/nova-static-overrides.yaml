@@ -227,7 +227,6 @@ conf:
       cpu_weight_multiplier: 0.0
       disk_weight_multiplier: 0.0
       enabled_filters:
-        - RetryFilter
         - ComputeFilter
         - AvailabilityZoneFilter
         - AggregateInstanceExtraSpecsFilter

@@ -8,11 +8,15 @@
 #
 
 SERVICES=(
+  aodh
+  barbican
   cinder
   glance
   heat
   nova
+  neutron
   openstack
+  swift
 )
 
 for service in "${SERVICES[@]}"; do

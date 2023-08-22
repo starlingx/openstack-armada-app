@@ -1,4 +1,4 @@
-From 6741666ec144c447508db3d1500f11db5955bf7a Mon Sep 17 00:00:00 2001
+From a70cebb3a496eaab87c82aac686eeebbbf7abf19 Mon Sep 17 00:00:00 2001
 From: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Date: Thu, 10 Feb 2022 16:23:26 -0300
 Subject: [PATCH] Remove TLS from openstack services at backend
@@ -12,11 +12,14 @@ to diminish this overrides this patches disables https at the backend
 Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 [ upversioned openstack-helm base commit ]
 Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+[ Replicated changes to `cinder-volume-usage-audit` cron job ]
+Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 Change-Id: Ibc0e53d95cfe43e0e04c9cc14bc81469fb919a40
 ---
  cinder/templates/bin/_cinder-api.sh.tpl       | 40 -----------
  cinder/templates/certificates.yaml            | 17 -----
  cinder/templates/configmap-etc.yaml           |  4 --
+ .../cron-job-cinder-volume-usage-audit.yaml   |  4 +-
  cinder/templates/deployment-api.yaml          | 28 ++------
  cinder/templates/deployment-scheduler.yaml    |  4 +-
  cinder/templates/deployment-volume.yaml       |  6 +-
@@ -99,7 +102,7 @@ Change-Id: Ibc0e53d95cfe43e0e04c9cc14bc81469fb919a40
  placement/templates/job-ks-endpoints.yaml     |  2 +-
  placement/templates/job-ks-service.yaml       |  2 +-
  placement/templates/job-ks-user.yaml          |  2 +-
- 85 files changed, 121 insertions(+), 705 deletions(-)
+ 86 files changed, 123 insertions(+), 707 deletions(-)
  delete mode 100644 cinder/templates/certificates.yaml
  delete mode 100644 glance/templates/certificates.yaml
  delete mode 100644 heat/templates/certificates.yaml
@@ -204,6 +207,28 @@ index 5010ab96..a97310e1 100644
    api_audit_map.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.api_audit_map | b64enc }}
    cinder_sudoers: {{ $envAll.Values.conf.cinder_sudoers | b64enc }}
    rootwrap.conf: {{ $envAll.Values.conf.rootwrap | b64enc }}
+diff --git a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
+index 897b5b63..0c2c6bac 100644
+--- a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
++++ b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
+@@ -90,7 +90,7 @@ spec:
+                   mountPath: /tmp/volume-usage-audit.sh
+                   subPath: volume-usage-audit.sh
+                   readOnly: true
+-{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volume.api.internal "path" "/etc/cinder/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
++{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volume.api.public "path" "/etc/cinder/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
+ {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
+ {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
+ {{ if $mounts_cinder_volume_usage_audit.volumeMounts }}{{ toYaml $mounts_cinder_volume_usage_audit.volumeMounts | indent 16 }}{{ end }}
+@@ -107,7 +107,7 @@ spec:
+               configMap:
+                 name: cinder-bin
+                 defaultMode: 0555
+-{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volume.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
++{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volume.api.public | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+ {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+ {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+ {{ if $mounts_cinder_volume_usage_audit.volumes }}{{ toYaml $mounts_cinder_volume_usage_audit.volumes | indent 12 }}{{ end }}
 diff --git a/cinder/templates/deployment-api.yaml b/cinder/templates/deployment-api.yaml
 index 8ef57549..27e4381a 100644
 --- a/cinder/templates/deployment-api.yaml

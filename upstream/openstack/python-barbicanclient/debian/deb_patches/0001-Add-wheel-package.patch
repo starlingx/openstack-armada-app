@@ -1,0 +1,71 @@
+From 36a10042663d219e57941c79904c973fc0cb6438 Mon Sep 17 00:00:00 2001
+From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+Date: Tue, 27 Jun 2023 09:22:03 -0300
+Subject: [PATCH] Add wheel package
+
+Add python3-barbicanclient-wheel.
+
+This patch was ported from Charles Short <charles.short@windriver.com>
+
+Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+---
+ debian/changelog |  7 +++++++
+ debian/control   | 13 +++++++++++++
+ debian/rules     |  2 +-
+ 3 files changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/debian/changelog b/debian/changelog
+index 7f3e7a9..20cc0ed 100644
+--- a/debian/changelog
++++ b/debian/changelog
+@@ -47,6 +47,13 @@ python-barbicanclient (5.2.0-2) unstable; urgency=medium
+ 
+   * Uploading to unstable.
+ 
++python-barbicanclient (5.0.1-2.1) unstable; urgency=medium
++
++  * Non-maintainer upload.
++  * debian/control, debian/rules: Add wheels support.
++
++ -- Chuck Short <charles.short@windriver.com>  Sun, 03 Oct 2021 18:30:48 +0000
++
+  -- Thomas Goirand <zigo@debian.org>  Wed, 29 Sep 2021 17:11:20 +0200
+ 
+ python-barbicanclient (5.2.0-1) experimental; urgency=medium
+diff --git a/debian/control b/debian/control
+index 3b0a473..3bb61d5 100644
+--- a/debian/control
++++ b/debian/control
+@@ -54,3 +54,16 @@ Description: OpenStack Key Management API client - Python 3.x
+  command-line script (barbican).
+  .
+  This package contains the Python 3.x module.
++
++Package: python3-barbicanclient-wheel
++Architecture: all
++Depends:
++ python3-wheels,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: OpenStack Key Management API client - Python 3.x
++ This is a client for the Barbican Key Management API. This package includes a
++ Python library for accessing the API (the barbicanclient module), and a
++ command-line script (barbican).
++ .
++ This package contains the Python 3.x wheel.
+diff --git a/debian/rules b/debian/rules
+index f6b7783..978fde3 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -12,7 +12,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2
++	pkgos-dh_auto_install --no-py2 --wheel
+ 
+ override_dh_auto_test:
+ ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+-- 
+2.25.1
+

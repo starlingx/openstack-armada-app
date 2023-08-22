@@ -1,2 +1,2 @@
-stx-add-wheel-support.patch
-remove-openstackclient.patch
+0001-Add-wheel-package.patch
+0002-Remove-openstackclient.patch

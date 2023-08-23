@@ -113,7 +113,8 @@ conf:
         # OpenStack Help Documentation URL
         help_url: 'http://docs.openstack.org/ussuri/'
         # Pass any settings to the end of local_settings.py
-        raw: { }
+        raw:
+          HORIZON_CONFIG["simultaneous_sessions"]: 'allow'
       template: |
         import os
 

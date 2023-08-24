@@ -1,4 +1,4 @@
-From a70cebb3a496eaab87c82aac686eeebbbf7abf19 Mon Sep 17 00:00:00 2001
+From bba7b91404e1c00b3576c84c809047f8f640fccf Mon Sep 17 00:00:00 2001
 From: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Date: Thu, 10 Feb 2022 16:23:26 -0300
 Subject: [PATCH] Remove TLS from openstack services at backend
@@ -14,6 +14,8 @@ Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
 [ Replicated changes to `cinder-volume-usage-audit` cron job ]
 Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+[ Changed Horizon SSL Cert paths ]
+Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 Change-Id: Ibc0e53d95cfe43e0e04c9cc14bc81469fb919a40
 ---
  cinder/templates/bin/_cinder-api.sh.tpl       | 40 -----------
@@ -56,9 +58,10 @@ Change-Id: Ibc0e53d95cfe43e0e04c9cc14bc81469fb919a40
  heat/templates/job-trusts.yaml                |  4 +-
  heat/templates/pod-rally-test.yaml            |  6 +-
  horizon/templates/certificates.yaml           | 17 -----
- horizon/templates/deployment.yaml             |  4 +-
+ horizon/templates/deployment.yaml             |  6 +-
  horizon/templates/ingress-api.yaml            |  4 --
  horizon/templates/pod-helm-tests.yaml         |  4 +-
+ horizon/values.yaml                           |  2 +-
  keystone/templates/bin/_keystone-api.sh.tpl   |  4 --
  keystone/templates/certificates.yaml          | 17 -----
  keystone/templates/deployment-api.yaml        |  8 +--
@@ -102,7 +105,7 @@ Change-Id: Ibc0e53d95cfe43e0e04c9cc14bc81469fb919a40
  placement/templates/job-ks-endpoints.yaml     |  2 +-
  placement/templates/job-ks-service.yaml       |  2 +-
  placement/templates/job-ks-user.yaml          |  2 +-
- 86 files changed, 123 insertions(+), 707 deletions(-)
+ 87 files changed, 125 insertions(+), 709 deletions(-)
  delete mode 100644 cinder/templates/certificates.yaml
  delete mode 100644 glance/templates/certificates.yaml
  delete mode 100644 heat/templates/certificates.yaml
@@ -1114,9 +1117,18 @@ index 8dbb884a..00000000
 -{{ dict "envAll" . "service" "dashboard" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{- end -}}
 diff --git a/horizon/templates/deployment.yaml b/horizon/templates/deployment.yaml
-index 33398760..8d251745 100644
+index 33398760..4f58341f 100644
 --- a/horizon/templates/deployment.yaml
 +++ b/horizon/templates/deployment.yaml
+@@ -72,7 +72,7 @@ spec:
+                 fieldPath: status.podIP
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           - name: REQUESTS_CA_BUNDLE
+-            value: "/etc/openstack-dashboard/certs/ca.crt"
++            value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           lifecycle:
+             preStop:
 @@ -162,7 +162,7 @@ spec:
                mountPath: /tmp/favicon.ico
                subPath: favicon.ico
@@ -1169,6 +1181,19 @@ index 7d163039..979402a7 100644
 +{{- dict "enabled" $envAll.Values.manifests.certificates "name" .Values.secrets.tls.dashboard.dashboard.public | include "helm-toolkit.snippets.tls_volume" | indent 4 }}
  {{ if $mounts_tests.volumes }}{{ toYaml $mounts_tests.volumes | indent 4 }}{{ end }}
  {{- end }}
+diff --git a/horizon/values.yaml b/horizon/values.yaml
+index 73b0d465..54a75cac 100644
+--- a/horizon/values.yaml
++++ b/horizon/values.yaml
+@@ -466,7 +466,7 @@ conf:
+ 
+         {{- if .Values.manifests.certificates }}
+         # The CA certificate to use to verify SSL connections
+-        OPENSTACK_SSL_CACERT = '/etc/openstack-dashboard/certs/ca.crt'
++        OPENSTACK_SSL_CACERT = '/etc/ssl/certs/openstack-helm.crt'
+         {{- end }}
+ 
+         # The OPENSTACK_KEYSTONE_BACKEND settings can be used to identify the
 diff --git a/keystone/templates/bin/_keystone-api.sh.tpl b/keystone/templates/bin/_keystone-api.sh.tpl
 index f6216df1..85740a05 100644
 --- a/keystone/templates/bin/_keystone-api.sh.tpl

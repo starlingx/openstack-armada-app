@@ -1,1 +1,0 @@
-This repo is for the stx-gnocchi image, build on top of https://opendev.org/openstack/gnocchi

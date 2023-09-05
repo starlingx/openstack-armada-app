@@ -89,7 +89,7 @@ class ClientsHelm(openstack.OpenstackBaseHelm):
         for host in hosts:
             if (host.invprovision in [constants.PROVISIONED,
                                       constants.PROVISIONING]):
-                if constants.WORKER in utils.get_personalities(host):
+                if constants.CONTROLLER in utils.get_personalities(host):
 
                     hostname = str(host.hostname)
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2021 Wind River Systems, Inc.
+# Copyright (c) 2019-2023 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -76,7 +76,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.cpus_by_hostid = {}
         self.interfaces_by_hostid = {}
         self.cluster_host_network = None
-        self.interface_networks_by_ifaceid = {}
         self.addresses_by_hostid = {}
         self.memory_by_hostid = {}
         self.ethernet_ports_by_hostid = {}
@@ -92,7 +91,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.interfaces_by_hostid = self._get_host_interfaces()
         self.cluster_host_network = self.dbapi.network_get_by_type(
             constants.NETWORK_TYPE_CLUSTER_HOST)
-        self.interface_networks_by_ifaceid = self._get_interface_networks()
         self.addresses_by_hostid = self._get_host_addresses()
         self.memory_by_hostid = self._get_host_imemory()
         self.ethernet_ports_by_hostid = self._get_host_ethernet_ports()
@@ -421,39 +419,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             addresses[address.ifname].append(address)
         return addresses
 
-    def _get_cluster_host_iface(self, host):
-        """
-        Returns the host cluster interface.
-        """
-        cluster_host_iface = None
-        for iface in self.interfaces_by_hostid.get(host.id, []):
-            try:
-                self._get_interface_network_query(iface.id, self.cluster_host_network.id)
-                cluster_host_iface = iface
-            except exception.InterfaceNetworkNotFoundByHostInterfaceNetwork:
-                pass
-
-        LOG.debug("Host: {} Interface: {}".format(host.id, cluster_host_iface))
-        return cluster_host_iface
-
-    def _get_cluster_host_ip(self, host):
-        """
-        Returns the host cluster IP.
-        """
-        cluster_host_iface = self._get_cluster_host_iface(host)
-
-        if cluster_host_iface is None:
-            return
-
-        cluster_host_ip = None
-
-        for addr in self.addresses_by_hostid.get(host.id, []):
-            if addr.interface_id == cluster_host_iface.id:
-                cluster_host_ip = addr.address
-
-        LOG.debug("Host: {} Host IP: {}".format(host.id, cluster_host_ip))
-        return cluster_host_ip
-
     def _update_host_pci_whitelist(self, host, pci_config):
         """
         Generate multistring values containing PCI passthrough
@@ -499,13 +464,13 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             libvirt_config.update({'images_type': 'default'})
 
     def _update_host_addresses(self, host, default_config, vnc_config, libvirt_config):
-        cluster_host_ip = self._get_cluster_host_ip(host)
+        cluster_host_ip = self._get_cluster_host_ip(
+            host, self.addresses_by_hostid)
 
         default_config.update({'my_ip': cluster_host_ip})
         vnc_config.update({'server_listen': cluster_host_ip})
-
-        libvirt_config.update({'live_migration_inbound_addr': cluster_host_ip})
         vnc_config.update({'server_proxyclient_address': cluster_host_ip})
+        libvirt_config.update({'live_migration_inbound_addr': cluster_host_ip})
 
     def _get_ssh_subnet(self):
         address_pool = self.dbapi.address_pool_get(self.cluster_host_network.pool_uuid)
@@ -675,28 +640,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             'rbd_ceph_conf': rbd_ceph_conf
         }
         return rbd_config
-
-    def _get_interface_networks(self):
-        """
-        Builds a dictionary of interface networks indexed by interface id
-        """
-        interface_networks = {}
-
-        db_interface_networks = self.dbapi.interface_network_get_all()
-        for iface_net in db_interface_networks:
-            interface_networks.setdefault(iface_net.interface_id, []).append(iface_net)
-        return interface_networks
-
-    def _get_interface_network_query(self, interface_id, network_id):
-        """
-        Return the interface network of the supplied interface id and network id
-        """
-        for iface_net in self.interface_networks_by_ifaceid.get(interface_id, []):
-            if iface_net.interface_id == interface_id and iface_net.network_id == network_id:
-                return iface_net
-
-        raise exception.InterfaceNetworkNotFoundByHostInterfaceNetwork(
-            interface_id=interface_id, network_id=network_id)
 
     def _get_datanetworks(self):
         """

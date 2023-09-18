@@ -252,6 +252,8 @@ conf:
       required: false
     workarounds:
       enable_numa_live_migration: true
+  libvirt:
+    address_search_enabled: false
   hypervisor:
     address_search_enabled: false
   ssh: |

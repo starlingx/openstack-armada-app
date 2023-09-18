@@ -16,3 +16,4 @@
 0016-Update-user-in-cinder-related-pods.patch
 0017-Support-ceph-dev-version-during-pool-creation.patch
 0018-Update-charts-requirements-to-use-local-server.patch
+0019-Make-nova-address-search-optional.patch

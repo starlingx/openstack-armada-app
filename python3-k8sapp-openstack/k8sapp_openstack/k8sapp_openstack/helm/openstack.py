@@ -596,6 +596,69 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             interfaces.setdefault(iface.forihostid, []).append(iface)
         return interfaces
 
+    def _get_interface_networks(self):
+        """
+        Builds a dictionary of interface networks indexed by interface id
+        """
+        interface_networks = {}
+
+        db_interface_networks = self.dbapi.interface_network_get_all()
+        for iface_net in db_interface_networks:
+            interface_networks.setdefault(iface_net.interface_id, []).append(iface_net)
+        return interface_networks
+
+    def _get_interface_network_query(self, interface_id, network_id):
+        """
+        Return the interface network of the supplied interface id and network id
+        """
+        interface_networks_by_ifaceid = self._get_interface_networks()
+        for iface_net in interface_networks_by_ifaceid.get(interface_id, []):
+            if iface_net.interface_id == interface_id and iface_net.network_id == network_id:
+                return iface_net
+
+        raise exception.InterfaceNetworkNotFoundByHostInterfaceNetwork(
+            interface_id=interface_id, network_id=network_id)
+
+    def _get_cluster_host_iface(self, host, cluster_host_net_id):
+        """
+        Returns the host cluster interface.
+        """
+        cluster_host_iface = None
+        interfaces_by_hostid = self._get_host_interfaces()
+        for iface in interfaces_by_hostid.get(host.id, []):
+            try:
+                self._get_interface_network_query(iface.id, cluster_host_net_id)
+                cluster_host_iface = iface
+            except exception.InterfaceNetworkNotFoundByHostInterfaceNetwork:
+                LOG.debug("Host: {} Interface: {} is not "
+                          "a cluster-host interface".format(host.id, iface))
+
+        LOG.debug("Host: {} Interface: {}".format(host.id, cluster_host_iface))
+        return cluster_host_iface
+
+    def _get_cluster_host_ip(self, host, addresses_by_hostid):
+        """
+        Returns the host cluster IP.
+        """
+        cluster_host_network = self.dbapi.network_get_by_type(
+            constants.NETWORK_TYPE_CLUSTER_HOST)
+
+        cluster_host_iface = self._get_cluster_host_iface(
+            host, cluster_host_network.id)
+        if cluster_host_iface is None:
+            LOG.info("None cluster-host interface "
+                     "found for Host: {}".format(host.id))
+            return
+
+        cluster_host_ip = None
+
+        for addr in addresses_by_hostid.get(host.id, []):
+            if addr.interface_id == cluster_host_iface.id:
+                cluster_host_ip = addr.address
+
+        LOG.debug("Host: {} Host IP: {}".format(host.id, cluster_host_ip))
+        return cluster_host_ip
+
     def _get_host_labels(self):
         """
         Builds a dictionary of labels indexed by host id

@@ -1,0 +1,84 @@
+From 66120483da2c8e39a65d14ace0adba96008c615c Mon Sep 17 00:00:00 2001
+From: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+Date: Fri, 22 Sep 2023 13:38:49 -0300
+Subject: [PATCH] Nova: Make address search optional
+
+The recent openstack-helm base commit update [1] brought a recent
+change [2] that modifies the nova-compute-init.sh script behavior in
+a way that is now affecting anyone that is not actually using it.
+
+When this script was originally introduced [3] it was mainly relying
+on a Values specific configuration for libvirt and would add
+information to the extra conf file "nova-libvirt.conf" only if this
+value was defined. It was used to set the name of the live migration
+interface, and since it is delivered through a ConfigMap consumed by
+a DaemonSet, it is a "global" config and not something that can be
+defined per host.
+
+It was never a problem to stx-openstack, because we were not using the
+Value and therefore not populating the nova-libvirt.conf.
+Now, after this new merge [2], when this value is not defined a
+conditional triggers the IP resolution through the default gateway.
+So, even if not using the migration interface Value, we end up having
+an extra config file that will overwrite anything that was already
+defined to nova.conf per host.
+
+We can not rely on default gateway IP resolution since we want our
+live migration traffic to go through an specific network and we also
+do not want to define a global name for the related interface, since
+this can (although probably will not) differ between hosts.
+The solution is similar to what was done in the past for VNC spice
+server proxyclient and the hypervisor addresses [4].
+
+This configurable address search was proposed upstream [5].
+
+[1] https://opendev.org/starlingx/openstack-armada-app/
+commit/8254cd31bb1f12eebc48b712b33f75b2fc0aa571
+[2] https://github.com/openstack/openstack-helm
+/commit/31be86079d711c698b2560b4bed654e23373a596
+[3] https://github.com/openstack/openstack-helm
+/commit/31be86079d711c698b2560b4bed654e23373a596
+[4] https://opendev.org/starlingx/openstack-armada-app/src/commit/
+7190f7fb5048d014ed46112aeedd4e8622031881/openstack-helm/debian/
+deb_folder/patches/0002-Nova-console-ip-address-search-optionality.patch
+[5] https://review.opendev.org/c/openstack/openstack-helm/+/896461
+
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+Change-Id: I1f84006f71baded82f39d864b1fa38351b3642cf
+---
+ nova/templates/bin/_nova-compute.sh.tpl | 2 ++
+ nova/values.yaml                        | 4 +++-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
+index 60b0272d..702e3b92 100644
+--- a/nova/templates/bin/_nova-compute.sh.tpl
++++ b/nova/templates/bin/_nova-compute.sh.tpl
+@@ -21,7 +21,9 @@ exec nova-compute \
+ {{- if .Values.console.address_search_enabled }}
+       --config-file /tmp/pod-shared/nova-console.conf \
+ {{- end }}
++{{- if .Values.conf.libvirt.address_search_enabled }}
+       --config-file /tmp/pod-shared/nova-libvirt.conf \
++{{- end }}
+ {{- if and ( empty .Values.conf.nova.DEFAULT.host ) ( .Values.pod.use_fqdn.compute ) }}
+       --config-file /tmp/pod-shared/nova-compute-fqdn.conf \
+ {{- end }}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index e1dc611f..882470c6 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -1341,7 +1341,9 @@ conf:
+       cpu_allocation_ratio: 1.0
+       reserved_host_memory_mb: 0
+   libvirt:
+-    # Get the IP address to be used as the target for live migration traffic using interface name.
++    address_search_enabled: true
++    # When "address_search_enabled", get the IP address to be used as the target for live migration
++    # traffic using interface name.
+     # If this option is set to None, the hostname of the migration target compute node will be used.
+     live_migration_interface:
+   hypervisor:
+-- 
+2.25.1
+

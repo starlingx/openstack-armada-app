@@ -61,7 +61,7 @@ fi
 
 if grep -q "^${USER}:" /etc/passwd; then
   kubectl --kubeconfig "${KUBECONFIG}" -n openstack exec -it "${POD}" \
-    -c clients -- env ${ENV_ARGUMENTS[@]} /bin/bash -c "$*"
+    -c clients -- env ${ENV_ARGUMENTS[@]} /bin/bash -c "${*@Q}"
 else
   if [[ ! -d "${WORKING_DIR}/${USER}" ]]; then
     mkdir -p "${WORKING_DIR}/${USER}"
@@ -69,5 +69,5 @@ else
   fi
 
   kubectl --kubeconfig "${KUBECONFIG}" -n openstack exec -it "${POD}" \
-    -c clients -- env ${ENV_ARGUMENTS[@]} /bin/bash -c "cd ${USER}; $*"
+    -c clients -- env ${ENV_ARGUMENTS[@]} /bin/bash -c "cd ${USER}; ${*@Q}"
 fi

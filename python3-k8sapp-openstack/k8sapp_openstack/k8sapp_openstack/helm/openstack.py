@@ -65,6 +65,9 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         app_constants.HELM_CHART_KEYSTONE_API_PROXY,
     ]
 
+    def get_namespaces(self):
+        return self.SUPPORTED_NAMESPACES
+
     def _get_service_config(self, service):
         configs = self.context.setdefault('_service_configs', {})
         if service not in configs:

@@ -11,7 +11,7 @@ from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 
 
-class MemcachedHelm(openstack.BaseHelm):
+class MemcachedHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the memcached chart"""
 
     CHART = app_constants.HELM_CHART_MEMCACHED

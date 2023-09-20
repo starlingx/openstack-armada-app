@@ -13,7 +13,7 @@ from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 
 
-class GarbdHelm(openstack.BaseHelm):
+class GarbdHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the galera arbitrator chart"""
 
     # The service name is used to build the standard docker image location.

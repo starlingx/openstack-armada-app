@@ -3,27 +3,26 @@ LABEL=stx-openstackclients
 PROJECT=infra
 PROJECT_REPO=nil
 DIST_REPOS="OS"
-UPGRADE_PIP_PACKAGES=pip
-PIP_PACKAGES="\
+PIP_PACKAGES="
+  aodhclient \
   httplib2 \
   ndg-httpsclient \
   pyasn1 \
   pycryptodomex \
   pyopenssl \
-  aodhclient \
-  python-cinderclient \
+  python-barbicanclient \
   python-glanceclient \
   python-heatclient \
   python-keystoneclient \
   python-neutronclient \
   python-novaclient \
-  python-barbicanclient \
-  python-openstackclient \
-  python-swiftclient
+  python-swiftclient \
 "
-DIST_PACKAGES="\
+DIST_PACKAGES="
   bash-completion \
   libffi-dev \
   openssl \
-  python-dev
+  python-dev \
+  python3-cinderclient \
+  python3-openstackclient \
 "

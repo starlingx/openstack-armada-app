@@ -111,7 +111,7 @@ conf:
         # Turn off domain support as we aren't using
         keystone_multidomain_support: 'False'
         # OpenStack Help Documentation URL
-        help_url: 'http://docs.openstack.org/ussuri/'
+        help_url: 'https://docs.openstack.org/2023.1/'
         # Pass any settings to the end of local_settings.py
         raw:
           HORIZON_CONFIG["simultaneous_sessions"]: 'allow'

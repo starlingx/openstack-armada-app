@@ -2,7 +2,7 @@ BUILDER=loci
 LABEL=stx-openstackclients
 PROJECT=infra
 PROJECT_REPO=nil
-DIST_REPOS="OS"
+DIST_REPOS="OS +openstack"
 PIP_PACKAGES="
   aodhclient \
   httplib2 \

@@ -1,0 +1,192 @@
+From b327cf3e379dd1a28e9e1491774c11e1209a1476 Mon Sep 17 00:00:00 2001
+From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+Date: Tue, 26 Sep 2023 16:16:04 -0300
+Subject: [PATCH] Add service tokens for Cinder auth
+
+Since version 22.1.0 of Cinder, it requires Nova to configure service
+tokens in order to manipulate volumes [1], meaning that if that's not
+configured, Nova will not be able to create VMs by volume. The commit
+configured for StarlingX's openstack-helm package does not include this
+configuration, which was done later by [2] and [3].
+
+This patch includes commits [2] and [3] in order to allow Nova to create
+VMs by volumes.
+
+[1] https://docs.openstack.org/releasenotes/cinder/2023.1.html#upgrade-notes
+[2] https://opendev.org/openstack/openstack-helm/commit/91c8a5baf2cf2f0dddded57d88f00ea11dd4ff4a
+[3] https://opendev.org/openstack/openstack-helm/commit/7d39af25fddbf5fc67e15c92a9265f28567a214e
+
+Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+---
+ cinder/values.yaml                |  6 ++++--
+ glance/values.yaml                |  2 ++
+ neutron/values.yaml               |  2 ++
+ nova/templates/configmap-etc.yaml | 23 +++++++++++++++++++++++
+ nova/values.yaml                  | 18 ++++++++++++++++--
+ placement/values.yaml             |  2 ++
+ 6 files changed, 49 insertions(+), 4 deletions(-)
+
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index b95bd618..ddc5d632 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -826,6 +826,8 @@ conf:
+     database:
+       max_retries: -1
+     keystone_authtoken:
++      service_token_roles: service
++      service_token_roles_required: true
+       auth_version: v3
+       auth_type: password
+       memcache_security_strategy: ENCRYPT
+@@ -848,7 +850,7 @@ conf:
+       backend_url: file:///var/lib/cinder/coordination
+     service_user:
+       auth_type: password
+-      send_service_user_token: false
++      send_service_user_token: true
+   logging:
+     loggers:
+       keys:
+@@ -1224,7 +1226,7 @@ endpoints:
+         user_domain_name: default
+         project_domain_name: default
+       cinder:
+-        role: admin
++        role: admin,service
+         region_name: RegionOne
+         username: cinder
+         password: password
+diff --git a/glance/values.yaml b/glance/values.yaml
+index d23674bb..d15b77ac 100644
+--- a/glance/values.yaml
++++ b/glance/values.yaml
+@@ -256,6 +256,8 @@ conf:
+     oslo_middleware:
+       enable_proxy_headers_parsing: true
+     keystone_authtoken:
++      service_token_roles: service
++      service_token_roles_required: true
+       auth_type: password
+       auth_version: v3
+       memcache_security_strategy: ENCRYPT
+diff --git a/neutron/values.yaml b/neutron/values.yaml
+index 0a84322d..c71a40cf 100644
+--- a/neutron/values.yaml
++++ b/neutron/values.yaml
+@@ -1809,6 +1809,8 @@ conf:
+     ironic:
+       endpoint_type: internal
+     keystone_authtoken:
++      service_token_roles: service
++      service_token_roles_required: true
+       memcache_security_strategy: ENCRYPT
+       auth_type: password
+       auth_version: v3
+diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
+index 5e3b61d3..1d8fbd97 100644
+--- a/nova/templates/configmap-etc.yaml
++++ b/nova/templates/configmap-etc.yaml
+@@ -228,6 +228,29 @@ limitations under the License.
+ {{- $_ := tuple "oslo_cache" "internal" "memcache" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" | set .Values.conf.nova.ironic "memcache_servers" -}}
+ {{- end -}}
+ 
++{{- if empty .Values.conf.nova.cinder.auth_url -}}
++{{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.nova.cinder "auth_url" -}}
++{{- end -}}
++
++{{- if empty .Values.conf.nova.cinder.os_region_name -}}
++{{- $_ := set .Values.conf.nova.cinder "os_region_name" .Values.endpoints.identity.auth.cinder.region_name -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.cinder.project_name -}}
++{{- $_ := set .Values.conf.nova.cinder "project_name" .Values.endpoints.identity.auth.cinder.project_name -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.cinder.project_domain_name -}}
++{{- $_ := set .Values.conf.nova.cinder "project_domain_name" .Values.endpoints.identity.auth.cinder.project_domain_name -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.cinder.user_domain_name -}}
++{{- $_ := set .Values.conf.nova.cinder "user_domain_name" .Values.endpoints.identity.auth.cinder.user_domain_name -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.cinder.username -}}
++{{- $_ := set .Values.conf.nova.cinder "username" .Values.endpoints.identity.auth.cinder.username -}}
++{{- end -}}
++{{- if empty .Values.conf.nova.cinder.password -}}
++{{- $_ := set .Values.conf.nova.cinder "password" .Values.endpoints.identity.auth.cinder.password -}}
++{{- end -}}
++
+ {{- if empty .Values.conf.nova.DEFAULT.osapi_compute_listen_port -}}
+ {{- $_ := tuple "compute" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | set .Values.conf.nova.DEFAULT "osapi_compute_listen_port" -}}
+ {{- end -}}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 882470c6..63b8d02f 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -1402,6 +1402,10 @@ conf:
+       service_metadata_proxy: True
+       auth_type: password
+       auth_version: v3
++    cinder:
++      catalog_info: volumev3::internalURL
++      auth_url: null
++      auth_type: password
+     database:
+       max_retries: -1
+     api_database:
+@@ -1409,6 +1413,8 @@ conf:
+     cell0_database:
+       max_retries: -1
+     keystone_authtoken:
++      service_token_roles: service
++      service_token_roles_required: true
+       auth_type: password
+       auth_version: v3
+       memcache_security_strategy: ENCRYPT
+@@ -1417,7 +1423,7 @@ conf:
+       notify_on_state_change: vm_and_task_state
+     service_user:
+       auth_type: password
+-      send_service_user_token: false
++      send_service_user_token: true
+     libvirt:
+       connection_uri: "qemu+unix:///system?socket=/run/libvirt/libvirt-sock"
+       images_type: qcow2
+@@ -1708,7 +1714,7 @@ endpoints:
+         user_domain_name: default
+         project_domain_name: default
+       nova:
+-        role: admin
++        role: admin,service
+         region_name: RegionOne
+         username: nova
+         password: password
+@@ -1743,6 +1749,14 @@ endpoints:
+         project_name: service
+         user_domain_name: service
+         project_domain_name: service
++      cinder:
++        role: admin,service
++        region_name: RegionOne
++        username: cinder
++        password: password
++        project_name: service
++        user_domain_name: service
++        project_domain_name: service
+       test:
+         role: admin
+         region_name: RegionOne
+diff --git a/placement/values.yaml b/placement/values.yaml
+index aa864620..4a702ace 100644
+--- a/placement/values.yaml
++++ b/placement/values.yaml
+@@ -82,6 +82,8 @@ conf:
+     placement_database:
+       connection: null
+     keystone_authtoken:
++      service_token_roles: service
++      service_token_roles_required: true
+       auth_version: v3
+       auth_type: password
+       memcache_security_strategy: ENCRYPT
+-- 
+2.25.1
+

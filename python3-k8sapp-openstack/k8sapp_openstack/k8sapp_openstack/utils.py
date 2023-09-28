@@ -8,6 +8,7 @@ from grp import getgrnam
 import os
 from pathlib import Path
 from pwd import getpwnam
+import re
 import shutil
 from typing import Generator
 
@@ -267,3 +268,34 @@ def delete_clients_working_directory(
 
     shutil.rmtree(working_directory, ignore_errors=True)
     return True
+
+
+def get_ceph_uuid():
+    """Get Ceph secret UUID for Cinder backend configuration
+
+    :returns: str -- The Ceph's secret UUID
+    """
+    ceph_config_file = os.path.join(constants.CEPH_CONF_PATH,
+                                    constants.SB_TYPE_CEPH_CONF_FILENAME)
+
+    # If the file doesn't exist, return nothing, as not to change
+    # the default value.
+    if not os.path.isfile(ceph_config_file):
+        LOG.warning(f"`{ceph_config_file}` does not exist. Using "
+                    "default configuration.")
+        return None
+
+    # Search for the line that contains the `fsid` parameter, which is
+    # the Ceph UUID required for Cinder's backend configuration.
+    with open(ceph_config_file) as file:
+        line = next((line for line in file if "fsid" in line), None)
+        if not line:
+            LOG.warning(f"`{ceph_config_file}` does not contain the "
+                        "'fsid' value. Using default configuration")
+            return None
+
+        # This Regex pattern searches for an UUID
+        pattern = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]"
+                             r"{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}",
+                             re.IGNORECASE)
+        return pattern.findall(line)[0]

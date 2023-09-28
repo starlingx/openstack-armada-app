@@ -11,6 +11,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import get_ceph_uuid
 
 
 class LibvirtHelm(openstack.OpenstackBaseHelm):
@@ -79,6 +80,12 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                 }
             },
         }
+
+        ceph_uuid = get_ceph_uuid()
+        if ceph_uuid:
+            overrides['ceph']['cinder'] = {
+                'secret_uuid': ceph_uuid,
+            }
 
         return overrides
 

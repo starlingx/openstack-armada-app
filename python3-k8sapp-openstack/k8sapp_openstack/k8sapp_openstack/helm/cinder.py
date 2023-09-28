@@ -13,6 +13,7 @@ from tsconfig import tsconfig as tsc
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import get_ceph_uuid
 
 
 ROOK_CEPH_BACKEND_NAME = 'ceph-store'
@@ -226,6 +227,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                      constants.SB_TYPE_CEPH_CONF_FILENAME),
             }
 
+            ceph_uuid = get_ceph_uuid()
+            if ceph_uuid:
+                conf_backends[bk_name]['rbd_secret_uuid'] = ceph_uuid
+
         return conf_backends
 
     def _get_endpoints_overrides(self):
@@ -357,6 +362,12 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 (constants.CEPH_CONF_PATH +
                  constants.SB_TYPE_CEPH_CONF_FILENAME),
         }
+
+        ceph_uuid = get_ceph_uuid()
+        if ceph_uuid:
+            conf_backends['rbd1']['rbd_secret_uuid'] = ceph_uuid
+            conf_backends[ROOK_CEPH_BACKEND_NAME]['rbd_secret_uuid'] = ceph_uuid
+
         return conf_backends
 
     def _get_ceph_client_rook_overrides(self):

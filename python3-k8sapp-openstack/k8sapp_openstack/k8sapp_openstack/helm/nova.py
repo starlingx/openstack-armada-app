@@ -18,6 +18,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import get_ceph_uuid
 
 LOG = logging.getLogger(__name__)
 
@@ -798,6 +799,15 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 }
             },
         }
+
+        ceph_uuid = get_ceph_uuid()
+        if ceph_uuid:
+            overrides['ceph']['cinder'] = {
+                'secret_uuid': ceph_uuid,
+            }
+            overrides['nova']['libvirt'] = {
+                'rbd_secret_uuid': ceph_uuid,
+            }
 
         if self._is_openstack_https_ready():
             overrides = self._update_overrides(overrides, {

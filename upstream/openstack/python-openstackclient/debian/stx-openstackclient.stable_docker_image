@@ -4,25 +4,25 @@ PROJECT=infra
 PROJECT_REPO=nil
 DIST_REPOS="OS +openstack"
 PIP_PACKAGES="
-  aodhclient \
   httplib2 \
   ndg-httpsclient \
   pyasn1 \
   pycryptodomex \
-  pyopenssl \
-  python-barbicanclient \
-  python-glanceclient \
-  python-heatclient \
-  python-keystoneclient \
-  python-neutronclient \
-  python-novaclient \
-  python-swiftclient \
+  pyopenssl
 "
 DIST_PACKAGES="
   bash-completion \
   libffi-dev \
   openssl \
   python-dev \
+  python3-aodhclient \
+  python3-barbicanclient \
   python3-cinderclient \
+  python3-glanceclient \
+  python3-heatclient \
+  python3-keystoneclient \
+  python3-neutronclient \
+  python3-novaclient \
   python3-openstackclient \
+  python3-swiftclient
 "

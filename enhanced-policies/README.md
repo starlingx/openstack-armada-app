@@ -80,6 +80,7 @@ Make sure you have access to the Openstack CLI, follow the instructions on [this
     system helm-override-update stx-openstack neutron openstack --reuse-values --values=rbac/neutron-policy-overrides.yml
     system helm-override-update stx-openstack glance openstack --reuse-values --values=rbac/glance-policy-overrides.yml
     system helm-override-update stx-openstack horizon openstack --reuse-values --values=rbac/horizon-policy-overrides.yml
+    system helm-override-update stx-openstack horizon openstack --reuse-values --values=rbac/horizon-nova-policy-overrides.yml
 
     system application-apply stx-openstack
     ```

@@ -152,7 +152,8 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             'glance': {
                 'DEFAULT': {
                     'graceful_shutdown': True,
-                    'show_image_direct_url': True,
+                    'show_image_direct_url': False,
+                    'show_multiple_locations': False,
                 },
                 'glance_store': {
                     'chunk_size': min(chunk_size, app_constants.CEPH_POOL_IMAGES_CHUNK_SIZE),

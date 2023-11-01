@@ -24,5 +24,6 @@ DIST_PACKAGES="
   python3-neutronclient \
   python3-novaclient \
   python3-openstackclient \
+  python3-osc-placement \
   python3-swiftclient
 "

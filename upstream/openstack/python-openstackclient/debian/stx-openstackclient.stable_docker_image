@@ -14,7 +14,7 @@ DIST_PACKAGES="
   bash-completion \
   libffi-dev \
   openssl \
-  python-dev \
+  python3-dev \
   python3-aodhclient \
   python3-barbicanclient \
   python3-cinderclient \

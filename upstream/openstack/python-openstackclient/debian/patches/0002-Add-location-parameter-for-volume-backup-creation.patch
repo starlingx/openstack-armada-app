@@ -1,4 +1,4 @@
-From 7919bad45b4ed340e780fa6617309d4c2b9142fc Mon Sep 17 00:00:00 2001
+From c2c7f074270c687dde542d061518ee9aeefbc4ba Mon Sep 17 00:00:00 2001
 From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 Date: Mon, 6 Mar 2023 09:52:22 -0300
 Subject: [PATCH] Add location parameter for volume backup creation
@@ -10,11 +10,13 @@ volume backup locations.
 This change also updates the unit tests accordingly.
 
 Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+[ Fixed backup creation with --location flag ]
+Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 ---
  openstackclient/tests/unit/volume/v2/fakes.py             | 1 +
  .../tests/unit/volume/v2/test_volume_backup.py            | 8 ++++++++
- openstackclient/volume/v2/volume_backup.py                | 5 +++++
- 3 files changed, 14 insertions(+)
+ openstackclient/volume/v2/volume_backup.py                | 6 ++++++
+ 3 files changed, 15 insertions(+)
 
 diff --git a/openstackclient/tests/unit/volume/v2/fakes.py b/openstackclient/tests/unit/volume/v2/fakes.py
 index a3ef142f..2e320863 100644
@@ -97,7 +99,7 @@ index 7d00b8bf..6c22f3b6 100644
          backup.object_count,
          backup.size,
 diff --git a/openstackclient/volume/v2/volume_backup.py b/openstackclient/volume/v2/volume_backup.py
-index d96b28e9..5626f756 100644
+index d96b28e9..eac6167d 100644
 --- a/openstackclient/volume/v2/volume_backup.py
 +++ b/openstackclient/volume/v2/volume_backup.py
 @@ -88,6 +88,11 @@ class CreateVolumeBackup(command.ShowOne):
@@ -112,6 +114,14 @@ index d96b28e9..5626f756 100644
          parser.add_argument(
              '--force',
              action='store_true',
+@@ -168,6 +173,7 @@ class CreateVolumeBackup(command.ShowOne):
+             description=parsed_args.description,
+             force=parsed_args.force,
+             incremental=parsed_args.incremental,
++            location=parsed_args.location,
+             **kwargs,
+         )
+         backup._info.pop("links", None)
 -- 
 2.25.1
 

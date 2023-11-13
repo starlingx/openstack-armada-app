@@ -784,9 +784,18 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 'ephemeral_storage': self._get_rbd_ephemeral_storage(),
                 'admin_keyring': admin_keyring,
             },
+            # NOTE(tcervi): Nova config options reference:
+            # https://docs.openstack.org/nova/latest/configuration/sample-config.html
+            # https://docs.openstack.org/nova/latest/configuration/config.html
             'nova': {
                 'libvirt': {
                     'virt_type': self._get_virt_type(),
+                },
+                # NOTE(tcervi): Workaround needed since OpenStack 2023.1
+                # Can be removed once nova/+bug/2023035 and
+                # nova/+bug/2039803 are fixed.
+                'workarounds': {
+                    'skip_cpu_compare_on_dest': True,
                 },
                 'vnc': {
                     'novncproxy_base_url': self._get_novncproxy_base_url(),

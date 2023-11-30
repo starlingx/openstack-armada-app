@@ -1,2 +1,3 @@
 0001-Add-plugin-entry-point-sorting-mechanism.patch
 0002-Add-location-parameter-for-volume-backup-creation.patch
+0003-Fix-output-for-openstack-volume-backup-restore.patch

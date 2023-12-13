@@ -44,7 +44,6 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         self.interfaces_by_hostid = self._get_host_interfaces(
             sort_key=self._interface_sort_key)
         self.addresses_by_hostid = self._get_host_addresses()
-        host_overrides = self._get_per_host_overrides()
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -53,44 +52,12 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                         'server': self._num_provisioned_controllers()
                     },
                 },
-                'conf': {
-                    'plugins': {
-                        'ml2_conf': self._get_neutron_ml2_config()
-                    },
-                    'overrides': {
-                        'neutron_ovs-agent': {
-                            'hosts': host_overrides
-                        },
-                        'neutron_dhcp-agent': {
-                            'hosts': host_overrides
-                        },
-                        'neutron_l3-agent': {
-                            'hosts': host_overrides
-                        },
-                        'neutron_metadata-agent': {
-                            'hosts': host_overrides
-                        },
-                        'neutron_sriov-agent': {
-                            'hosts': host_overrides
-                        },
-                    },
-                    'paste': {
-                        'app:neutronversions': {
-                            'paste.app_factory':
-                                'neutron.pecan_wsgi.app:versions_factory'
-                        },
-                    },
-                },
+                'conf': self._get_conf_overrides(),
                 'endpoints': self._get_endpoints_overrides(),
             }
         }
 
         if self._is_openstack_https_ready():
-            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
-                overrides[common.HELM_NS_OPENSTACK],
-                {'conf': self._get_conf_overrides()}
-            )
-
             overrides[common.HELM_NS_OPENSTACK] = \
                 self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
 
@@ -351,19 +318,101 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)
 
+    def _is_ha(self):
+        """
+        Determine if the system supports multiple deployments of
+        agents/services based on the number of available nodes.
+        """
+        if utils.is_aio_simplex_system(self.dbapi):
+            return False
+        return True
+
+    def _get_ha_count(self):
+        """
+        Determine the number of redundant deployments of
+        agents/services the system supports.
+        - AIO-SX supports only a single copy.
+        - AIO-DX supports two redundant copies.
+        - Any other deployment will be based on the number of
+          available compute nodes, fixing three as the maximum
+          value for redundant deployments.
+
+        :returns: the number of supported redundant deployments
+        """
+        if not self._is_ha():
+            return 1
+
+        if utils.is_aio_duplex_system(self.dbapi):
+            return 2
+
+        compute_count = 0
+        hosts = self.dbapi.ihost_get_list()
+        for host in hosts:
+            host_labels = self.labels_by_hostid.get(host.id, [])
+            if (host.invprovision in [constants.PROVISIONED,
+                                      constants.PROVISIONING] or
+                    host.ihost_action in [constants.UNLOCK_ACTION,
+                                          constants.FORCE_UNLOCK_ACTION]):
+                if (constants.WORKER in utils.get_personalities(host) and
+                        utils.has_openstack_compute(host_labels)):
+                    compute_count += 1
+
+        if compute_count >= 3:
+            return 3
+        else:
+            return compute_count
+
     def _get_conf_overrides(self):
-        return {
+        host_overrides = self._get_per_host_overrides()
+        overrides = {
             'neutron': {
-                'keystone_authtoken': {
-                    'cafile': self.get_ca_file(),
+                'DEFAULT': {
+                    'dhcp_agents_per_network': self._get_ha_count(),
+                }
+            },
+            'plugins': {
+                'ml2_conf': self._get_neutron_ml2_config()
+            },
+            'overrides': {
+                'neutron_ovs-agent': {
+                    'hosts': host_overrides
                 },
-                'nova': {
-                    'cafile': self.get_ca_file(),
+                'neutron_dhcp-agent': {
+                    'hosts': host_overrides
+                },
+                'neutron_l3-agent': {
+                    'hosts': host_overrides
+                },
+                'neutron_metadata-agent': {
+                    'hosts': host_overrides
+                },
+                'neutron_sriov-agent': {
+                    'hosts': host_overrides
                 },
             },
-            'metadata_agent': {
-                'DEFAULT': {
-                    'auth_ca_cert': self.get_ca_file(),
+            'paste': {
+                'app:neutronversions': {
+                    'paste.app_factory':
+                        'neutron.pecan_wsgi.app:versions_factory'
                 },
-            }
+            },
         }
+
+        if self._is_openstack_https_ready():
+            overrides = self._update_overrides(overrides, {
+                'neutron': {
+                     'keystone_authtoken': {
+                         'cafile': self.get_ca_file(),
+                     },
+                     'nova': {
+                         'cafile': self.get_ca_file(),
+                     },
+                },
+                'metadata_agent': {
+                    'DEFAULT': {
+                        'auth_ca_cert': self.get_ca_file(),
+                    },
+                }
+            })
+
+        return overrides

@@ -55,7 +55,6 @@ conf:
         modify_metadef_object: rule:admin_or_projectadmin_owner
         modify_metadef_property: rule:admin_or_projectadmin_owner
         modify_metadef_tag: rule:admin_or_projectadmin_owner
-        modify_task: rule:admin_or_projectadmin_owner
         publicize_image: rule:admin_or_projectadmin_required
         reactivate: rule:admin_or_projectadmin_owner
         remove_metadef_property: rule:admin_or_projectadmin_owner

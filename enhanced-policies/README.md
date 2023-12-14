@@ -14,7 +14,7 @@ It's important that all the overrides files get applied, some of the rules prese
 Setting up the environment
 --------------------------
 
-Make sure you have access to the Openstack CLI, follow the instructions on [this doc.](https://docs.starlingx.io/deploy_install_guides/r5_release/openstack/access.html#id4)
+Make sure you have access to the Openstack CLI, follow the instructions on [this doc.](https://docs.starlingx.io/system_configuration/openstack/enhanced-rbac-policies.html)
 
 1. Transfer the policies to your cloud's controller:
     ```
@@ -120,10 +120,10 @@ Please follow the instructions below to test the enhanced policies on your syste
     pytest tests/
     ```
 
-    On WindRiver Openstack:
+    On Custom envs (Openstack):
     ```
     export OS_CLOUD=openstack
-    pytest tests/ --env wro
+    pytest tests/ --env custom-o
     ```
    
 If things go awry...

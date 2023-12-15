@@ -143,7 +143,9 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             if pw_format == common.PASSWORD_FORMAT_CEPH:
                 try:
                     cmd = ['ceph-authtool', '--gen-print-key']
-                    password = subprocess.check_output(cmd).strip()
+                    # pylint is showing a false positive for this subprocess line.
+                    # supressing..
+                    password = subprocess.check_output(cmd).strip()  # pylint: disable=E1102
                     # TODO: Remove it when Debian is default for
                     # at least two STX releases (prob. ~ stx/9.0)
                     # Python Duck Typing to ensure compatibility with

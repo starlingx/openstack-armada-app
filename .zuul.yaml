@@ -1,43 +1,30 @@
 ---
 - project:
+    vars:
+      ensure_tox_version: '<4'
     check:
       jobs:
         - openstack-tox-linters
-        - k8sapp-openstack-tox-py36
         - k8sapp-openstack-tox-py39
         - k8sapp-openstack-tox-pylint
+        - k8sapp-openstack-tox-flake8
+        - k8sapp-openstack-tox-metadata
         - k8sapp-openstack-tox-pep8
     gate:
       jobs:
         - openstack-tox-linters
-        - k8sapp-openstack-tox-py36
         - k8sapp-openstack-tox-py39
         - k8sapp-openstack-tox-pylint
+        - k8sapp-openstack-tox-flake8
+        - k8sapp-openstack-tox-metadata
         - k8sapp-openstack-tox-pep8
     post:
       jobs:
         - stx-openstack-armada-app-upload-git-mirror
 
 - job:
-    name: k8sapp-openstack-tox-py36
-    parent: tox-py36
-    description: |
-        Run py36 test for k8app-openstack
-    nodeset: ubuntu-bionic
-    required-projects:
-      - starlingx/config
-      - starlingx/fault
-      - starlingx/update
-      - starlingx/utilities
-    files:
-        - python3-k8sapp-openstack/k8sapp_openstack/*
-    vars:
-        tox_envlist: py36
-        python_version: 3.6
-        tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
-- job:
     name: k8sapp-openstack-tox-py39
-    parent: tox-py39
+    parent: openstack-tox-py39
     description: |
         Run py39 test for k8app-openstack
     nodeset: debian-bullseye
@@ -46,24 +33,34 @@
       - starlingx/fault
       - starlingx/update
       - starlingx/utilities
+      - starlingx/root
     files:
         - python3-k8sapp-openstack/k8sapp_openstack/*
     vars:
         tox_envlist: py39
         python_version: 3.9
         tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
+        tox_constraints_file: '{{ ansible_user_dir }}/src/opendev.org/starlingx/root/build-tools/requirements/debian/upper-constraints.txt'
+
 - job:
-    name: stx-openstack-armada-app-upload-git-mirror
-    parent: upload-git-mirror
-    description: >
-      Mirrors opendev.org/starlingx/openstack-armada-app to
-      github.com/starlingx/openstack-armada-app
+    name: k8sapp-openstack-tox-metadata
+    parent: tox
+    description: |
+      Run metadata tests for k8sapp_oidc
+    nodeset: debian-bullseye
+    required-projects:
+      - starlingx/config
+      - starlingx/fault
+      - starlingx/update
+      - starlingx/utilities
+      - starlingx/root
+    files:
+      - python3-k8sapp-openstack/*
     vars:
-      git_mirror_repository: starlingx/openstack-armada-app
-    secrets:
-      - name: git_mirror_credentials
-        secret: stx-openstack-armada-app-github-secret2
-        pass-to-parent: true
+      tox_envlist: metadata
+      tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
+      tox_constraints_file: '{{ ansible_user_dir }}/src/opendev.org/starlingx/root/build-tools/requirements/debian/upper-constraints.txt'
+
 - job:
     name: k8sapp-openstack-tox-pylint
     parent: tox
@@ -75,11 +72,32 @@
       - starlingx/fault
       - starlingx/update
       - starlingx/utilities
+      - starlingx/root
     files:
       - python3-k8sapp-openstack/*
     vars:
       tox_envlist: pylint
       tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
+      tox_constraints_file: '{{ ansible_user_dir }}/src/opendev.org/starlingx/root/build-tools/requirements/debian/upper-constraints.txt'
+
+- job:
+    name: k8sapp-openstack-tox-flake8
+    parent: tox
+    description: |
+      Run flake8 tests for k8sapp_oidc
+    nodeset: debian-bullseye
+    required-projects:
+      - starlingx/config
+      - starlingx/fault
+      - starlingx/update
+      - starlingx/utilities
+      - starlingx/root
+    files:
+      - python3-k8sapp-openstack/*
+    vars:
+      tox_envlist: flake8
+      tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
+      tox_constraints_file: '{{ ansible_user_dir }}/src/opendev.org/starlingx/root/build-tools/requirements/debian/upper-constraints.txt'
 
 - job:
     name: k8sapp-openstack-tox-pep8
@@ -97,6 +115,19 @@
     vars:
       tox_envlist: pep8
       tox_extra_args: -c python3-k8sapp-openstack/k8sapp_openstack/tox.ini
+
+- job:
+    name: stx-openstack-armada-app-upload-git-mirror
+    parent: upload-git-mirror
+    description: >
+      Mirrors opendev.org/starlingx/openstack-armada-app to
+      github.com/starlingx/openstack-armada-app
+    vars:
+      git_mirror_repository: starlingx/openstack-armada-app
+    secrets:
+      - name: git_mirror_credentials
+        secret: stx-openstack-armada-app-github-secret2
+        pass-to-parent: true
 
 - secret:
     name: stx-openstack-armada-app-github-secret2

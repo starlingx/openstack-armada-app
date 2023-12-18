@@ -22,6 +22,7 @@ images:
       - dep_check
 
 labels:
+  isApplication: false
   agent:
     pci_irq_affinity_agent:
       node_selector_key: openstack-compute-node

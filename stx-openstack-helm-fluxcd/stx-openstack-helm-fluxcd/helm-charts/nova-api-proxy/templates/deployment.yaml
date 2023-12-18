@@ -30,10 +30,12 @@ spec:
   template:
     metadata:
       labels:
+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
 {{ tuple $envAll "nova" "api-proxy" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
       annotations:
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       affinity:

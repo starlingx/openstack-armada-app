@@ -85,6 +85,7 @@ images:
       - image_repo_sync
 
 labels:
+  isApplication: false
   server:
     node_selector_key: openstack-compute-node
     node_selector_value: enabled

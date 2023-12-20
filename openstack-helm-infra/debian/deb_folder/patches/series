@@ -14,3 +14,4 @@
 0014-Update-openstack-Ingress-for-networking-api-v1.patch
 0015-Update-libvirt-configuration-script-for-Debian.patch
 0016-Add-ServiceAccount-to-openvswitch-pod.patch
+0017-Add-app.starlingx.io-component-label-to-pods.patch

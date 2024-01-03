@@ -24,6 +24,7 @@ images:
       - image_repo_sync
 
 labels:
+  isApplication: false
   openstack_clients:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled

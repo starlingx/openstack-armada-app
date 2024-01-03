@@ -11,6 +11,7 @@
 replicaCount: 1
 
 labels:
+  isApplication: false
   api_proxy:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled

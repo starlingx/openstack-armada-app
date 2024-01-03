@@ -41,6 +41,9 @@ spec:
       annotations:
         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
       labels:
+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+      annotations:
+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
 {{ tuple $envAll "garbd" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
     spec:
       shareProcessNamespace: true

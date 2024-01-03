@@ -32,7 +32,10 @@ spec:
   template:
     metadata:
       labels:
+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
 {{ tuple $envAll "clients" "clients" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+      annotations:
+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
     spec:
 {{ dict "envAll" . "application" "clients" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
       serviceAccountName: {{ $serviceAccountName }}

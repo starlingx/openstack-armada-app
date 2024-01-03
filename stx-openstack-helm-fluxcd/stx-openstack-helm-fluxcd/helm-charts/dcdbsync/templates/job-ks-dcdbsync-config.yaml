@@ -30,7 +30,10 @@ spec:
   template:
     metadata:
       labels:
+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
 {{ tuple $envAll $serviceName "ks-config" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+      annotations:
+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
     spec:
       serviceAccountName: {{ $serviceAccountName }}
       restartPolicy: OnFailure

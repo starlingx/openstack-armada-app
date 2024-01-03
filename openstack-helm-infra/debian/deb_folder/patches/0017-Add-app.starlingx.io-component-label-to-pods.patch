@@ -1,0 +1,371 @@
+From de4f807376a58fa6b04163bc04cdbdad14777540 Mon Sep 17 00:00:00 2001
+From: dbarbosa <david.barbosabastos@windriver.com>
+Date: Wed, 20 Dec 2023 06:51:59 -0300
+Subject: [PATCH] Add app.starlingx.io/component label to pods
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add the label app.starlingx.io/component to the pods and allow the
+value to be updated via "system helm-override-update". This change
+also ensures that when changing the label value and reapplying the
+app, the pod is restarted.
+
+The value of the label can only be “platform” or “application”, if
+the variable "label.isApplication" in the values.yaml file is
+different from true or false, the label will not change.
+
+By default, all pods start with the value platform.
+---
+ ceph-rgw/templates/deployment-rgw.yaml            | 2 ++
+ ceph-rgw/templates/job-bootstrap.yaml             | 2 ++
+ ceph-rgw/templates/job-rgw-placement-targets.yaml | 2 ++
+ ceph-rgw/templates/job-rgw-restart.yaml           | 2 ++
+ ceph-rgw/templates/job-rgw-storage-init.yaml      | 2 ++
+ ceph-rgw/templates/job-s3-admin.yaml              | 2 ++
+ ceph-rgw/templates/pod-helm-tests.yaml            | 2 ++
+ ceph-rgw/values.yaml                              | 1 +
+ ingress/templates/deployment-error.yaml           | 2 ++
+ ingress/templates/deployment-ingress.yaml         | 2 ++
+ ingress/values.yaml                               | 1 +
+ libvirt/templates/daemonset-libvirt.yaml          | 2 ++
+ libvirt/values.yaml                               | 1 +
+ memcached/templates/deployment.yaml               | 2 ++
+ memcached/values.yaml                             | 1 +
+ mongodb/templates/statefulset.yaml                | 2 ++
+ mongodb/values.yaml                               | 1 +
+ rabbitmq/templates/job-cluster-wait.yaml          | 2 ++
+ rabbitmq/templates/pod-test.yaml                  | 2 ++
+ rabbitmq/templates/statefulset.yaml               | 2 ++
+ rabbitmq/values.yaml                              | 1 +
+ 21 files changed, 36 insertions(+)
+
+diff --git a/ceph-rgw/templates/deployment-rgw.yaml b/ceph-rgw/templates/deployment-rgw.yaml
+index 07da5dbb..565f0f57 100644
+--- a/ceph-rgw/templates/deployment-rgw.yaml
++++ b/ceph-rgw/templates/deployment-rgw.yaml
+@@ -101,11 +101,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-client-hash: {{ tuple "configmap-etc-client.yaml" . | include "helm-toolkit.utils.hash" }}
+         secret-keystone-rgw-hash: {{ tuple "secret-keystone-rgw.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw" "containerNames" (list "init" "ceph-rgw" "ceph-init-dirs" "ceph-rgw-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-bootstrap.yaml b/ceph-rgw/templates/job-bootstrap.yaml
+index 63689691..f75e5a43 100644
+--- a/ceph-rgw/templates/job-bootstrap.yaml
++++ b/ceph-rgw/templates/job-bootstrap.yaml
+@@ -58,8 +58,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "bootstrap" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-bootstrap" "containerNames" (list "ceph-keyring-placement" "init" "ceph-rgw-bootstrap") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-rgw-placement-targets.yaml b/ceph-rgw/templates/job-rgw-placement-targets.yaml
+index 45b9486a..d092069b 100644
+--- a/ceph-rgw/templates/job-rgw-placement-targets.yaml
++++ b/ceph-rgw/templates/job-rgw-placement-targets.yaml
+@@ -59,8 +59,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-placement-targets" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-placement-targets" "containerNames" (list "ceph-keyring-placement" "init" "create-rgw-placement-targets") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-rgw-restart.yaml b/ceph-rgw/templates/job-rgw-restart.yaml
+index fdbec8f9..080b5df2 100644
+--- a/ceph-rgw/templates/job-rgw-restart.yaml
++++ b/ceph-rgw/templates/job-rgw-restart.yaml
+@@ -59,8 +59,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-restart" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-restart" "containerNames" (list "init" "ceph-rgw-restart") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-rgw-storage-init.yaml b/ceph-rgw/templates/job-rgw-storage-init.yaml
+index 4c3a6ed3..a2c30130 100644
+--- a/ceph-rgw/templates/job-rgw-storage-init.yaml
++++ b/ceph-rgw/templates/job-rgw-storage-init.yaml
+@@ -56,8 +56,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-storage-init" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-storage-init" "containerNames" (list "ceph-keyring-placement" "init" "ceph-rgw-storage-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-s3-admin.yaml b/ceph-rgw/templates/job-s3-admin.yaml
+index d796395b..94a831a9 100644
+--- a/ceph-rgw/templates/job-s3-admin.yaml
++++ b/ceph-rgw/templates/job-s3-admin.yaml
+@@ -60,8 +60,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-s3-admin" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-s3-admin" "containerNames" (list "ceph-keyring-placement" "init" "create-s3-admin") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/pod-helm-tests.yaml b/ceph-rgw/templates/pod-helm-tests.yaml
+index 54a0f870..01c3325b 100644
+--- a/ceph-rgw/templates/pod-helm-tests.yaml
++++ b/ceph-rgw/templates/pod-helm-tests.yaml
+@@ -22,8 +22,10 @@ kind: Pod
+ metadata:
+   name: {{ $serviceAccountName }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-test" "containerNames" (list "ceph-rgw-ks-validation" "ceph-rgw-s3-validation") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+ spec:
+diff --git a/ceph-rgw/values.yaml b/ceph-rgw/values.yaml
+index d04d8fff..b312e4e9 100644
+--- a/ceph-rgw/values.yaml
++++ b/ceph-rgw/values.yaml
+@@ -41,6 +41,7 @@ images:
+       - image_repo_sync
+ 
+ labels:
++  isApplication: false
+   job:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/ingress/templates/deployment-error.yaml b/ingress/templates/deployment-error.yaml
+index ccd6c3b3..60bbc11b 100644
+--- a/ingress/templates/deployment-error.yaml
++++ b/ingress/templates/deployment-error.yaml
+@@ -35,11 +35,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ingress" "error-pages" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-conf.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "ingress-error-pages" "containerNames" (list "init" "ingress-error-pages") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "error_pages" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/ingress/templates/deployment-ingress.yaml b/ingress/templates/deployment-ingress.yaml
+index 4153b672..dbd18833 100644
+--- a/ingress/templates/deployment-ingress.yaml
++++ b/ingress/templates/deployment-ingress.yaml
+@@ -197,6 +197,7 @@ spec:
+     metadata:
+       labels:
+ {{ tuple $envAll "ingress" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+         app: ingress-api
+         app.kubernetes.io/name: "ingress-api"
+         app.kubernetes.io/instance: {{ $serviceAccountName }}
+@@ -209,6 +210,7 @@ spec:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-conf.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{- $containers := "init ingress" }}
+ {{- if and .Values.network.host_namespace .Values.network.vip.manage }}
+ {{- $containers = printf "%s ingress-vip-kernel-modules ingress-vip-init ingress-vip" $containers }}
+diff --git a/ingress/values.yaml b/ingress/values.yaml
+index c42cdac4..c531b1cf 100644
+--- a/ingress/values.yaml
++++ b/ingress/values.yaml
+@@ -134,6 +134,7 @@ pod:
+           cpu: "2000m"
+ 
+ labels:
++  isApplication: false
+   server:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
+index 7502fb25..ad216a6e 100644
+--- a/libvirt/templates/daemonset-libvirt.yaml
++++ b/libvirt/templates/daemonset-libvirt.yaml
+@@ -58,12 +58,14 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{- dict "envAll" $envAll "podName" "libvirt-libvirt-default" "containerNames" (list "libvirt") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "libvirt" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/libvirt/values.yaml b/libvirt/values.yaml
+index 3c2bad6e..9cd24011 100644
+--- a/libvirt/values.yaml
++++ b/libvirt/values.yaml
+@@ -19,6 +19,7 @@
+ release_group: null
+ 
+ labels:
++  isApplication: false
+   agent:
+     libvirt:
+       node_selector_key: openstack-compute-node
+diff --git a/memcached/templates/deployment.yaml b/memcached/templates/deployment.yaml
+index b3d12eaf..a2f0d912 100644
+--- a/memcached/templates/deployment.yaml
++++ b/memcached/templates/deployment.yaml
+@@ -43,10 +43,12 @@ spec:
+   template:
+     metadata:
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "memcached" "containerNames" (list "init" "memcached") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "memcached" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "server" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/memcached/values.yaml b/memcached/values.yaml
+index 64af4c05..8694f3b7 100644
+--- a/memcached/values.yaml
++++ b/memcached/values.yaml
+@@ -130,6 +130,7 @@ images:
+       - image_repo_sync
+ 
+ labels:
++  isApplication: false
+   server:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/mongodb/templates/statefulset.yaml b/mongodb/templates/statefulset.yaml
+index e5e0b48d..763da1b1 100644
+--- a/mongodb/templates/statefulset.yaml
++++ b/mongodb/templates/statefulset.yaml
+@@ -35,10 +35,12 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "mongodb" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       affinity:
+diff --git a/mongodb/values.yaml b/mongodb/values.yaml
+index 90167a0d..3f782371 100644
+--- a/mongodb/values.yaml
++++ b/mongodb/values.yaml
+@@ -70,6 +70,7 @@ volume:
+     host_path: /var/lib/openstack-helm/mongodb
+ 
+ labels:
++  isApplication: false
+   server:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/rabbitmq/templates/job-cluster-wait.yaml b/rabbitmq/templates/job-cluster-wait.yaml
+index 1c4378c7..223291e4 100644
+--- a/rabbitmq/templates/job-cluster-wait.yaml
++++ b/rabbitmq/templates/job-cluster-wait.yaml
+@@ -46,11 +46,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "rabbitmq" "cluster-wait" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "rabbitmq-cluster-wait" "containerNames" (list "init" "rabbitmq-cookie" "rabbitmq-rabbitmq-cluster-wait" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "cluster_wait" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/rabbitmq/templates/pod-test.yaml b/rabbitmq/templates/pod-test.yaml
+index 37d8af36..2cdc047d 100644
+--- a/rabbitmq/templates/pod-test.yaml
++++ b/rabbitmq/templates/pod-test.yaml
+@@ -40,10 +40,12 @@ kind: Pod
+ metadata:
+   name: "{{.deployment_name}}-test"
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "rabbitmq" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+     "helm.sh/hook": test-success
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "rabbitmq-rabbitmq-test" "containerNames" (list "init" "rabbitmq-rabbitmq-test") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+ spec:
+ {{ dict "envAll" $envAll "application" "test" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 2 }}
+diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
+index 5d013a1e..b669f25c 100644
+--- a/rabbitmq/templates/statefulset.yaml
++++ b/rabbitmq/templates/statefulset.yaml
+@@ -96,6 +96,7 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "rabbitmq" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+@@ -103,6 +104,7 @@ spec:
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
+         secret-rabbit-admin-hash: {{ tuple "secret-rabbit-admin.yaml" . | include "helm-toolkit.utils.hash" }}
+         secret-erlang-cookie-hash: {{ tuple "secret-erlang-cookie.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "rabbitmq" "containerNames" (list "init" "rabbitmq-password" "rabbitmq-cookie" "rabbitmq-perms" "rabbitmq") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "server" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
+index e24db892..aa9b52ff 100644
+--- a/rabbitmq/values.yaml
++++ b/rabbitmq/values.yaml
+@@ -17,6 +17,7 @@
+ 
+ ---
+ labels:
++  isApplication: false
+   server:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+-- 
+2.34.1
+

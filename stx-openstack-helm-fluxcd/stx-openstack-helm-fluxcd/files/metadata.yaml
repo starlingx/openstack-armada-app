@@ -12,6 +12,9 @@ disabled_charts:
 upgrades:
   auto_update: true
 
+supported_k8s_version:
+  minimum: 1.24.4
+
 behavior:
   platform_managed_app: yes
   evaluate_reapply:

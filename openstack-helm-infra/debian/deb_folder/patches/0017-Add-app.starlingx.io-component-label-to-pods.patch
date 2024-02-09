@@ -2,9 +2,6 @@ From de4f807376a58fa6b04163bc04cdbdad14777540 Mon Sep 17 00:00:00 2001
 From: dbarbosa <david.barbosabastos@windriver.com>
 Date: Wed, 20 Dec 2023 06:51:59 -0300
 Subject: [PATCH] Add app.starlingx.io/component label to pods
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
 
 Add the label app.starlingx.io/component to the pods and allow the
 value to be updated via "system helm-override-update". This change
@@ -16,6 +13,10 @@ the variable "label.isApplication" in the values.yaml file is
 different from true or false, the label will not change.
 
 By default, all pods start with the value platform.
+
+Signed-off-by: David Bastos <david.barbosabastos@windriver.com>
+[ Updated "isApplication" labels values to "true" ]
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
 ---
  ceph-rgw/templates/deployment-rgw.yaml            | 2 ++
  ceph-rgw/templates/job-bootstrap.yaml             | 2 ++
@@ -156,7 +157,7 @@ index d04d8fff..b312e4e9 100644
        - image_repo_sync
  
  labels:
-+  isApplication: false
++  isApplication: true
    job:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
@@ -206,7 +207,7 @@ index c42cdac4..c531b1cf 100644
            cpu: "2000m"
  
  labels:
-+  isApplication: false
++  isApplication: true
    server:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
@@ -237,7 +238,7 @@ index 3c2bad6e..9cd24011 100644
  release_group: null
  
  labels:
-+  isApplication: false
++  isApplication: true
    agent:
      libvirt:
        node_selector_key: openstack-compute-node
@@ -266,7 +267,7 @@ index 64af4c05..8694f3b7 100644
        - image_repo_sync
  
  labels:
-+  isApplication: false
++  isApplication: true
    server:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
@@ -295,7 +296,7 @@ index 90167a0d..3f782371 100644
      host_path: /var/lib/openstack-helm/mongodb
  
  labels:
-+  isApplication: false
++  isApplication: true
    server:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
@@ -362,7 +363,7 @@ index e24db892..aa9b52ff 100644
  
  ---
  labels:
-+  isApplication: false
++  isApplication: true
    server:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled

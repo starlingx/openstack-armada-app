@@ -1,0 +1,32 @@
+From fb3efbc55f9933910ab4dffa58d36fc2921b5b97 Mon Sep 17 00:00:00 2001
+From: Romulo Leite <romulo.leite@windriver.com>
+Date: Thu, 11 Jul 2024 14:30:20 -0300
+Subject: [PATCH] Remove nginx configuration-snippet
+
+These snippet annotations are now disabled
+by default for security matters
+
+Signed-off-by: Romulo Leite <romulo.leite@windriver.com>
+---
+ ingress/values.yaml | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/ingress/values.yaml b/ingress/values.yaml
+index c42cdac4..92d038e5 100644
+--- a/ingress/values.yaml
++++ b/ingress/values.yaml
+@@ -164,11 +164,6 @@ network:
+       # .deployment.cluster.class
+       kubernetes.io/ingress.class: null
+       nginx.ingress.kubernetes.io/proxy-body-size: "0"
+-      nginx.ingress.kubernetes.io/configuration-snippet: |
+-        more_set_headers "X-Content-Type-Options: nosniff";
+-        more_set_headers "X-Frame-Options: deny";
+-        more_set_headers "X-Permitted-Cross-Domain-Policies: none";
+-        more_set_headers "Content-Security-Policy: script-src 'self'";
+   external_policy_local: false
+ 
+ dependencies:
+-- 
+2.34.1
+

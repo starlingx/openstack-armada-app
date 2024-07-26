@@ -1,11 +1,13 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 ---
 release_group: osh-openstack-gnocchi
+labels:
+  isApplication: false
 images:
   tags:
     db_init: docker.io/starlingx/stx-gnocchi:master-debian-stable-latest

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021 Wind River Systems, Inc.
+# Copyright (c) 2021-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -22,7 +22,7 @@ images:
       - dep_check
 
 labels:
-  isApplication: true
+  isApplication: false
   agent:
     pci_irq_affinity_agent:
       node_selector_key: openstack-compute-node

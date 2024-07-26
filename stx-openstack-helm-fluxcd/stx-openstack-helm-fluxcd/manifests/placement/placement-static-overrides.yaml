@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,6 +10,7 @@ endpoints:
   identity:
     force_public_endpoint: true
 labels:
+  isApplication: false
   placement:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled

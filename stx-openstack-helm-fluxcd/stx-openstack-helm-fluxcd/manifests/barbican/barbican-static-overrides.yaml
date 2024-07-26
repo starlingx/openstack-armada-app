@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,6 +7,7 @@
 ---
 release_group: osh-openstack-barbican
 labels:
+  isApplication: false
   api:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled

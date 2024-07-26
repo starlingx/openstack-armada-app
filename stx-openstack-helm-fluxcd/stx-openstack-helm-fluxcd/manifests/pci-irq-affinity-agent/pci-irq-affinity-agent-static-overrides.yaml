@@ -1,11 +1,13 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 ---
 release_group: osh-openstack-pci-irq-affinity-agent
+labels:
+  isApplication: false
 images:
   tags:
     pci_irq_affinity_agent: docker.io/starlingx/stx-pci-irq-affinity-agent:master-debian-stable-latest

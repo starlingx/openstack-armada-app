@@ -1,11 +1,13 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 ---
 release_group: osh-openstack-clients
+labels:
+  isApplication: false
 images:
   tags:
     openstack_clients: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest

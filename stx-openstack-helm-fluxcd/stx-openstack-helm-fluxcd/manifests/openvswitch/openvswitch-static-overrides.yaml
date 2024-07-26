@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,6 +7,7 @@
 ---
 release_group: osh-openstack-openvswitch
 labels:
+  isApplication: false
   ovs:
     node_selector_key: openvswitch
     node_selector_value: enabled

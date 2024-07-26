@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -34,6 +34,7 @@ images:
     rgw_placement_targets: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     rgw_s3_admin: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
 labels:
+  isApplication: false
   api:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled

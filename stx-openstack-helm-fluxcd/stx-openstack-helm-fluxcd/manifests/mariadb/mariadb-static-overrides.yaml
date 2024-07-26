@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2023 Wind River Systems, Inc.
+# Copyright (c) 2022-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,6 +12,7 @@ monitoring:
   prometheus:
     enabled: false
 labels:
+  isApplication: false
   server:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled

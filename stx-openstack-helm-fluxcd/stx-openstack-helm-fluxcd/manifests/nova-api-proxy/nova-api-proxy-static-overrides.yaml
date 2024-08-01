@@ -15,6 +15,8 @@ images:
 endpoints:
   identity:
     force_public_endpoint: true
+jobs:
+  ttlSecondsAfterFinished: 5400
 pod:
   affinity:
     anti:

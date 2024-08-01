@@ -21,6 +21,8 @@ conf:
     cgroup: "k8s-infra"
 libvirt:
   listen_addr: "::"
+jobs:
+  ttlSecondsAfterFinished: 5400
 pod:
   tolerations:
     libvirt:

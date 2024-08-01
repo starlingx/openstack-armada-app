@@ -30,6 +30,8 @@ images:
     mariadb: docker.io/openstackhelm/mariadb:ubuntu_xenial-20200303
     mariadb_backup: docker.io/openstackhelm/mariadb:10.2.18
     scripted_test: null
+jobs:
+  ttlSecondsAfterFinished: 5400
 pod:
   probes:
     server:

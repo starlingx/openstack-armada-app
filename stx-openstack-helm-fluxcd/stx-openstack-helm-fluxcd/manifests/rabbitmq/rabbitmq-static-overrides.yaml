@@ -27,6 +27,8 @@ images:
     rabbitmq_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     scripted_test: docker.io/rabbitmq:3.9.0-management
     rabbitmq: docker.io/rabbitmq:3.9.0
+jobs:
+  ttlSecondsAfterFinished: 5400
 pod:
   affinity:
     anti:

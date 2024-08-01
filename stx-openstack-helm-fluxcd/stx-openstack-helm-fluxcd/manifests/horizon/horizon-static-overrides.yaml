@@ -23,6 +23,8 @@ network:
   node_port:
     enabled: 'true'
     port: 31000
+jobs:
+  ttlSecondsAfterFinished: 5400
 pod:
   tolerations:
     horizon:

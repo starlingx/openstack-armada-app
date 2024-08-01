@@ -28,7 +28,6 @@ override_dh_auto_build:
 	make horizon
 	make ironic
 	make keystone
-	make magnum
 	make neutron
 	make nova
 	make placement

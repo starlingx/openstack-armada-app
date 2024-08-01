@@ -49,6 +49,7 @@ endpoints:
   identity:
     force_public_endpoint: true
 jobs:
+  ttlSecondsAfterFinished: 5400
   alarms_cleaner:
     # daily at the 35 minute mark
     cron: "35 */24 * * *"

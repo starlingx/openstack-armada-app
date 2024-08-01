@@ -44,6 +44,8 @@ labels:
   registry:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+jobs:
+  ttlSecondsAfterFinished: 5400
 pod:
   replicas:
     api: 2

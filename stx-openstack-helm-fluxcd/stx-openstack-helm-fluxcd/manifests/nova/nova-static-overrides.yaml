@@ -95,6 +95,8 @@ images:
     nova_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     rabbit_init: docker.io/rabbitmq:3.9.0-management
     test: null
+jobs:
+  ttlSecondsAfterFinished: 5400
 pod:
   useHostNetwork:
     novncproxy: false

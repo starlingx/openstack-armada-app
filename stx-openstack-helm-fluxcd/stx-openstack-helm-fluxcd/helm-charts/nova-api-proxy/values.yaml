@@ -231,6 +231,9 @@ endpoints:
         default: 8774
         public: 80
 
+jobs:
+  ttlSecondsAfterFinished: 5400
+
 pod:
   user:
     nova_api_proxy:

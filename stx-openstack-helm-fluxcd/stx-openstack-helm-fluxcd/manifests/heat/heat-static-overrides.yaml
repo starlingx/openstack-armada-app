@@ -68,6 +68,8 @@ conf:
       bind_host: "::"
     heat_api_cfn:
       bind_host: "::"
+jobs:
+  ttlSecondsAfterFinished: 5400
 pod:
   replicas:
     api: 2

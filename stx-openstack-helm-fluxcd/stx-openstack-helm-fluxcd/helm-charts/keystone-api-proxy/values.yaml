@@ -201,6 +201,9 @@ endpoints:
         default: 25000
         public: 80
 
+jobs:
+  ttlSecondsAfterFinished: 5400
+
 pod:
   user:
     keystone_api_proxy:

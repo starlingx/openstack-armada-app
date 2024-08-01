@@ -6,6 +6,8 @@
 
 ---
 release_group: osh-openstack-ironic
+jobs:
+  ttlSecondsAfterFinished: 5400
 pod:
   replicas:
     api: 2

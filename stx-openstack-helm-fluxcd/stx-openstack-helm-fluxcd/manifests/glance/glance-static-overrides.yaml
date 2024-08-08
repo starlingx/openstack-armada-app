@@ -33,8 +33,6 @@ images:
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     rabbit_init: docker.io/rabbitmq:3.9.0-management
     test: null
-jobs:
-  ttlSecondsAfterFinished: 5400
 pod:
   replicas:
     api: 2

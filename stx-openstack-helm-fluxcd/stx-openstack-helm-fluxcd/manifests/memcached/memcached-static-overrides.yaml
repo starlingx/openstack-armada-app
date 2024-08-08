@@ -14,8 +14,6 @@ labels:
   prometheus_memcached_exporter:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
-jobs:
-  ttlSecondsAfterFinished: 5400
 pod:
   tolerations:
     memcached:

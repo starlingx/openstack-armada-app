@@ -12,8 +12,6 @@ endpoints:
       name: osh-openstack-rabbitmq-rabbitmq
   identity:
     force_public_endpoint: true
-jobs:
-  ttlSecondsAfterFinished: 5400
 pod:
   replicas:
     server: 2

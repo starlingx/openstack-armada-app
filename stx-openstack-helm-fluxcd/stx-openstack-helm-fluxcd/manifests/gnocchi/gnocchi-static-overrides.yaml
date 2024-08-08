@@ -87,8 +87,6 @@ conf:
     app:healthcheck:
       use: egg:oslo.middleware#healthcheck
       oslo_config_project: gnocchi
-jobs:
-  ttlSecondsAfterFinished: 5400
 pod:
   affinity:
     anti:

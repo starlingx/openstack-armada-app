@@ -95,9 +95,6 @@ manifests:
   deployment: true
   network_policy: false
 
-jobs:
-  ttlSecondsAfterFinished: 5400
-
 pod:
   affinity:
     anti:

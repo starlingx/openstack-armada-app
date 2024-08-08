@@ -41,17 +41,17 @@ Signed-off-by: Giulia Melao <giulia.depaulamelao@windriver.com>
  gnocchi/templates/job-storage-init.yaml                    | 3 +++
  gnocchi/templates/pod-gnocchi-test.yaml                    | 2 ++
  gnocchi/values.yaml                                        | 1 +
- helm-toolkit/templates/manifests/_job-bootstrap.tpl        | 5 +++++
- helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl    | 6 ++++++
- helm-toolkit/templates/manifests/_job-db-init-mysql.tpl    | 5 +++++
- helm-toolkit/templates/manifests/_job-db-sync.tpl          | 5 +++++
- helm-toolkit/templates/manifests/_job-ks-endpoints.tpl     | 5 +++++
- helm-toolkit/templates/manifests/_job-ks-service.tpl       | 5 +++++
- helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl     | 5 +++++
- helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl | 5 +++++
- helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl   | 6 ++++++
- helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl     | 6 ++++++
- helm-toolkit/templates/manifests/_job_image_repo_sync.tpl  | 6 ++++++
+ helm-toolkit/templates/manifests/_job-bootstrap.tpl        | 4 ++++
+ helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl    | 5 +++++
+ helm-toolkit/templates/manifests/_job-db-init-mysql.tpl    | 4 ++++
+ helm-toolkit/templates/manifests/_job-db-sync.tpl          | 4 ++++
+ helm-toolkit/templates/manifests/_job-ks-endpoints.tpl     | 4 ++++
+ helm-toolkit/templates/manifests/_job-ks-service.tpl       | 4 ++++
+ helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl     | 4 ++++
+ helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl | 4 ++++
+ helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl   | 5 +++++
+ helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl     | 5 +++++
+ helm-toolkit/templates/manifests/_job_image_repo_sync.tpl  | 5 +++++
  ingress/templates/deployment-error.yaml                    | 2 ++
  ingress/templates/deployment-ingress.yaml                  | 2 ++
  ingress/values.yaml                                        | 1 +
@@ -73,7 +73,7 @@ Signed-off-by: Giulia Melao <giulia.depaulamelao@windriver.com>
  rabbitmq/templates/pod-test.yaml                           | 2 ++
  rabbitmq/templates/statefulset.yaml                        | 2 ++
  rabbitmq/values.yaml                                       | 1 +
- 50 files changed, 134 insertions(+)
+ 50 files changed, 123 insertions(+)
 
 diff --git a/ceph-rgw/templates/deployment-rgw.yaml b/ceph-rgw/templates/deployment-rgw.yaml
 index 07da5dbb..565f0f57 100644
@@ -348,18 +348,10 @@ index 2175b133..c9b90dd2 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/helm-toolkit/templates/manifests/_job-bootstrap.tpl b/helm-toolkit/templates/manifests/_job-bootstrap.tpl
-index 5d98c8b7..879fb0e2 100644
+index 5d98c8b7..35f5fb16 100644
 --- a/helm-toolkit/templates/manifests/_job-bootstrap.tpl
 +++ b/helm-toolkit/templates/manifests/_job-bootstrap.tpl
-@@ -55,6 +55,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -62,11 +63,15 @@ spec:
+@@ -62,11 +62,15 @@ spec:
    template:
      metadata:
        labels:
@@ -376,18 +368,10 @@ index 5d98c8b7..879fb0e2 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
-index 49bd12d3..56dc7b29 100644
+index 49bd12d3..27a28129 100644
 --- a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
-@@ -57,6 +57,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -64,10 +65,15 @@ spec:
+@@ -64,10 +64,15 @@ spec:
    template:
      metadata:
        labels:
@@ -404,18 +388,10 @@ index 49bd12d3..56dc7b29 100644
        serviceAccountName: {{ $serviceAccountName }}
        restartPolicy: OnFailure
 diff --git a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-index fe27e6ff..8c3ad321 100644
+index fe27e6ff..f59069a1 100644
 --- a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-@@ -55,6 +55,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -62,11 +63,15 @@ spec:
+@@ -62,11 +62,15 @@ spec:
    template:
      metadata:
        labels:
@@ -432,18 +408,10 @@ index fe27e6ff..8c3ad321 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-db-sync.tpl b/helm-toolkit/templates/manifests/_job-db-sync.tpl
-index 6b222945..6a01ddfc 100644
+index 6b222945..20f5e98a 100644
 --- a/helm-toolkit/templates/manifests/_job-db-sync.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-sync.tpl
-@@ -52,6 +52,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -59,11 +60,15 @@ spec:
+@@ -59,11 +59,15 @@ spec:
    template:
      metadata:
        labels:
@@ -460,18 +428,10 @@ index 6b222945..6a01ddfc 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl b/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
-index f268947b..033457bc 100644
+index f268947b..0cbb88f0 100644
 --- a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
 +++ b/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
-@@ -56,6 +56,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -63,11 +64,15 @@ spec:
+@@ -63,11 +63,15 @@ spec:
    template:
      metadata:
        labels:
@@ -488,18 +448,10 @@ index f268947b..033457bc 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-ks-service.tpl b/helm-toolkit/templates/manifests/_job-ks-service.tpl
-index a109e3cc..b16d8e4e 100644
+index a109e3cc..fb10543d 100644
 --- a/helm-toolkit/templates/manifests/_job-ks-service.tpl
 +++ b/helm-toolkit/templates/manifests/_job-ks-service.tpl
-@@ -56,6 +56,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -63,11 +64,15 @@ spec:
+@@ -63,11 +63,15 @@ spec:
    template:
      metadata:
        labels:
@@ -516,18 +468,10 @@ index a109e3cc..b16d8e4e 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl b/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
-index 905eb71a..0ae6295d 100644
+index 905eb71a..00cbb492 100644
 --- a/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
-@@ -78,6 +78,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -85,11 +86,15 @@ spec:
+@@ -85,11 +85,15 @@ spec:
    template:
      metadata:
        labels:
@@ -544,18 +488,10 @@ index 905eb71a..0ae6295d 100644
      spec:
        serviceAccountName: {{ $serviceAccountName | quote }}
 diff --git a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
-index 1501563e..0286bac4 100644
+index 1501563e..8c796834 100644
 --- a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
-@@ -43,6 +43,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -50,11 +51,15 @@ spec:
+@@ -50,11 +50,15 @@ spec:
    template:
      metadata:
        labels:
@@ -572,18 +508,10 @@ index 1501563e..0286bac4 100644
      spec:
        serviceAccountName: {{ $serviceAccountName | quote }}
 diff --git a/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl b/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
-index 29cb9937..aded4fb1 100644
+index 29cb9937..3783ff89 100644
 --- a/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
-@@ -53,6 +53,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -60,10 +61,15 @@ spec:
+@@ -60,10 +60,15 @@ spec:
    template:
      metadata:
        labels:
@@ -600,18 +528,10 @@ index 29cb9937..aded4fb1 100644
        serviceAccountName: {{ $serviceAccountName | quote }}
        restartPolicy: OnFailure
 diff --git a/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl b/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
-index 50d9af59..f8aaec87 100644
+index 50d9af59..4a23b945 100644
 --- a/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
-@@ -51,6 +51,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -58,10 +59,15 @@ spec:
+@@ -58,10 +58,15 @@ spec:
    template:
      metadata:
        labels:
@@ -628,18 +548,10 @@ index 50d9af59..f8aaec87 100644
        serviceAccountName: {{ $serviceAccountName | quote }}
        restartPolicy: OnFailure
 diff --git a/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl b/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl
-index 0906df4c..1d2c4cb2 100644
+index 0906df4c..bc135c64 100644
 --- a/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl
 +++ b/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl
-@@ -50,6 +50,7 @@ metadata:
- {{ toYaml $jobAnnotations | indent 4 }}
- {{- end }}
- spec:
-+  ttlSecondsAfterFinished: 200
-   backoffLimit: {{ $backoffLimit }}
- {{- if $activeDeadlineSeconds }}
-   activeDeadlineSeconds: {{ $activeDeadlineSeconds }}
-@@ -57,10 +58,15 @@ spec:
+@@ -57,10 +57,15 @@ spec:
    template:
      metadata:
        labels:
@@ -982,5 +894,4 @@ index e24db892..aa9b52ff 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 -- 
-2.34.1
-
+2.46.0

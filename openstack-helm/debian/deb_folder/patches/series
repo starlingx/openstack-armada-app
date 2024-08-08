@@ -20,4 +20,3 @@
 0020-Add-service-tokens-for-Cinder-auth.patch
 0021-Add-app.starlingx.io-component-label-to-pods.patch
 0022-Add-missing-initial-delay-in-readiness-probes.patch
-0023-Expose-configurable-Job-TTL-on-values.patch

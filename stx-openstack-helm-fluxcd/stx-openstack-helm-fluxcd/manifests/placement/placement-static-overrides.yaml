@@ -28,8 +28,6 @@ images:
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
     placement: docker.io/starlingx/stx-placement:master-debian-stable-latest
     placement_db_sync: docker.io/starlingx/stx-placement:master-debian-stable-latest
-jobs:
-  ttlSecondsAfterFinished: 5400
 pod:
   replicas:
     placement: 1

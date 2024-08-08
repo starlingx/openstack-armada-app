@@ -523,8 +523,6 @@ wsgi_ceilometer: |
       ErrorLog /dev/stdout
       CustomLog /dev/stdout combined
   </VirtualHost>
-jobs:
-  ttlSecondsAfterFinished: 5400
 pod:
   affinity:
     anti:

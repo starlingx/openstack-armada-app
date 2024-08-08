@@ -22,8 +22,6 @@ images:
     ingress_module_init: null
     ingress_routed_vip: null
     keepalived: null
-jobs:
-  ttlSecondsAfterFinished: 5400
 pod:
   replicas:
     error_page: 2

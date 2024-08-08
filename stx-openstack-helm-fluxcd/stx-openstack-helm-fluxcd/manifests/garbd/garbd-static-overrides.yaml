@@ -11,8 +11,6 @@ labels:
   server:
     node_selector_key: openstack-compute-node
     node_selector_value: enabled
-jobs:
-  ttlSecondsAfterFinished: 5400
 pod:
   tolerations:
     garbd:

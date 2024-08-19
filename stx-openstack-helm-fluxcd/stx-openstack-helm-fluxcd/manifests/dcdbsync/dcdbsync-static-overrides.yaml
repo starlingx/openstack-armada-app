@@ -12,4 +12,5 @@ images:
   tags:
     dcdbsync: docker.io/starlingx/stx-keystone:master-debian-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
 ...

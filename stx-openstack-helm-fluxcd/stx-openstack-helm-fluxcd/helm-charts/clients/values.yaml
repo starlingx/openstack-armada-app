@@ -16,6 +16,7 @@ images:
     openstack_clients: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     bootstrap: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
   pull_policy: "IfNotPresent"
   local_registry:
     active: false
@@ -184,6 +185,7 @@ manifests:
   configmap_bin: true
   configmap_etc: true
   daemonset_clients: true
+  job_pre_apply_cleanup: true
   job_bootstrap: false
   secret_ingress_tls: true
   secret_keystone: true

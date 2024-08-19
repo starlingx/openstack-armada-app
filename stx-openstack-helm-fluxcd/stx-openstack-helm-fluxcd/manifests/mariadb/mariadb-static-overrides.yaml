@@ -29,6 +29,7 @@ images:
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     mariadb: docker.io/openstackhelm/mariadb:ubuntu_xenial-20200303
     mariadb_backup: docker.io/openstackhelm/mariadb:10.2.18
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     scripted_test: null
 pod:
   probes:

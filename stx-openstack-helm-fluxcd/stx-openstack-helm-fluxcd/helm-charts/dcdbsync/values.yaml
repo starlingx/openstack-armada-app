@@ -24,6 +24,7 @@ images:
     ks_endpoints: docker.io/starlingx/stx-keystone:master-centos-stable-latest
     dcdbsync: docker.io/starlingx/stx-keystone:master-centos-stable-latest
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
   pullPolicy: IfNotPresent
   local_registry:
     active: false
@@ -115,6 +116,7 @@ secrets:
 manifests:
   secret_keystone: true
   configmap_bin: true
+  job_pre_apply_cleanup: true
   job_ks_dcdbsync: true
 
 resources: {}

@@ -79,6 +79,7 @@ images:
     dep_check: 'quay.io/stackanetes/kubernetes-entrypoint:v0.3.1'
     garbd: 'docker.io/starlingx/stx-mariadb:master-centos-stable-latest'
     image_repo_sync: docker.io/docker:17.07.0
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
   local_registry:
     active: false
     exclude:
@@ -94,6 +95,7 @@ manifests:
   configmap_bin: true
   deployment: true
   network_policy: false
+  job_pre_apply_cleanup: false
 
 pod:
   affinity:

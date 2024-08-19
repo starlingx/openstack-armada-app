@@ -12,6 +12,7 @@ images:
   tags:
     nova_api_proxy: docker.io/starlingx/stx-nova-api-proxy:master-debian-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
 endpoints:
   identity:
     force_public_endpoint: true

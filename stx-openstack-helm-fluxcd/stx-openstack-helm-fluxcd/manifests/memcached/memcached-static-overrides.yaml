@@ -33,6 +33,7 @@ monitoring:
     enabled: false
 images:
   tags:
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     image_repo_sync: null
     prometheus_memcached_exporter: null
 ...

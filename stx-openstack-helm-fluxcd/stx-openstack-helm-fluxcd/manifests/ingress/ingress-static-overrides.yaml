@@ -18,6 +18,7 @@ images:
   tags:
     ingress: registry.k8s.io/ingress-nginx/controller:v1.7.0
     error_pages: registry.k8s.io/defaultbackend-amd64:1.5
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     image_repo_sync: null
     ingress_module_init: null
     ingress_routed_vip: null

@@ -24,6 +24,7 @@ images:
     ks_endpoints: docker.io/openstackhelm/heat:pike
     keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-debian-stable-latest
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
   pullPolicy: IfNotPresent
   local_registry:
     active: false
@@ -265,6 +266,7 @@ manifests:
   secret_keystone: true
   service_api: true
   service_ingress_api: true
+  job_pre_apply_cleanup: true
   job_ks_endpoints: true
 
 resources: {}

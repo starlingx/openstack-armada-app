@@ -33,6 +33,7 @@ images:
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     rgw_placement_targets: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     rgw_s3_admin: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
 labels:
   isApplication: false
   api:

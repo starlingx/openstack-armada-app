@@ -41,6 +41,7 @@ images:
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     rabbit_init: docker.io/rabbitmq:3.9.0-management
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     test: null
 pod:
   replicas:

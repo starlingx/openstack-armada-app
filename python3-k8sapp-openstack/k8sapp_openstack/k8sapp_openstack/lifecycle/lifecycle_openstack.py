@@ -297,7 +297,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     )
 
         # Evaluate https reapply semantic check
-        if self._semantic_check_openstack_https_not_ready():
+        if not self._semantic_check_openstack_https_ready():
             raise exception.LifecycleSemanticCheckException(
                 "Https semantic check failed."
             )
@@ -323,13 +323,12 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 "while the node {} not in {} state.".format(
                     active_controller.hostname, constants.VIM_SERVICES_ENABLED))
 
-    def _semantic_check_openstack_https_not_ready(self):
-        """Return True if OpenStack HTTPS is not ready for reapply.
+    def _semantic_check_openstack_https_ready(self):
+        """Return True if OpenStack HTTPS is ready for reapply.
 
-        :return: True when https flag is True and certificates are
-        not installed. Otherwise, False.
+        :return: True certificate file is present. Otherwise, False.
         """
-        return app_utils.https_enabled() and not app_utils.is_openstack_https_certificates_ready()
+        return app_utils.is_openstack_https_ready()
 
     def _pre_apply_ldap_actions(self, app):
         """Perform pre apply LDAP-related actions.

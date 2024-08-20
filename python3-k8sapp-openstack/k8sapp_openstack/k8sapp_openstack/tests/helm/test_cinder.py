@@ -5,8 +5,6 @@
 #
 
 import mock
-from oslo_utils import uuidutils
-from sysinv.common import constants
 from sysinv.helm import common
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
@@ -27,7 +25,8 @@ class CinderConversionTestCase(test_plugins.K8SAppOpenstackAppMixin,
 
 class CinderGetOverrideTest(CinderConversionTestCase,
                             dbbase.ControllerHostTestCase):
-    def test_cinder_overrides(self):
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_cinder_overrides(self, *_):
         dbutils.create_test_host_fs(name='image-conversion',
                                     forihostid=self.host.id)
         overrides = self.operator.get_helm_chart_overrides(
@@ -59,37 +58,12 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
-    @mock.patch('k8sapp_openstack.utils.https_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
+    @mock.patch(
+        'k8sapp_openstack.utils.get_certificate_file',
+        return_value='/var/opt/openstack/ssl/openstack-helm.crt'
+    )
     def test_cinder_overrides_https_enabled(self, *_):
-        dbutils.create_test_host_fs(name='image-conversion',
-                                    forihostid=self.host.id)
-        self.dbapi.certificate_create(
-            {
-                "id": 1,
-                "uuid": uuidutils.generate_uuid(),
-                "certtype": constants.CERT_MODE_OPENSTACK,
-                "signature": "abcdef",
-            }
-        )
-
-        self.dbapi.certificate_create(
-            {
-                "id": 2,
-                "uuid": uuidutils.generate_uuid(),
-                "certtype": constants.CERT_MODE_OPENSTACK_CA,
-                "signature": "abcdef",
-            }
-        )
-
-        self.dbapi.certificate_create(
-            {
-                "id": 3,
-                "uuid": uuidutils.generate_uuid(),
-                "certtype": constants.CERT_MODE_SSL_CA,
-                "signature": "abcdef",
-            }
-        )
-
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_CINDER,
             cnamespace=common.HELM_NS_OPENSTACK)

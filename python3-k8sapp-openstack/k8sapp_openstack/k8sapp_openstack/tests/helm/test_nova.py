@@ -5,7 +5,6 @@
 #
 
 import mock
-from oslo_utils import uuidutils
 from sysinv.common import constants
 from sysinv.helm import common
 from sysinv.helm import helm
@@ -48,7 +47,8 @@ class NovaGetOverrideTest(NovaHelmTestCase,
     def test_update_host_addresses(self):
         self.nova._update_host_addresses(self.worker, {}, {}, {})
 
-    def test_nova_overrides(self):
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_NOVA,
             cnamespace=common.HELM_NS_OPENSTACK)
@@ -69,7 +69,8 @@ class NovaGetOverrideTest(NovaHelmTestCase,
             },
         })
 
-    def test_nova_overrides_reuses_neutron_ironic_placement_users(self):
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_overrides_reuses_neutron_ironic_placement_users(self, *_):
         overrides_neutron = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_NEUTRON,
             cnamespace=common.HELM_NS_OPENSTACK)
@@ -98,35 +99,12 @@ class NovaGetOverrideTest(NovaHelmTestCase,
 
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
-    @mock.patch('k8sapp_openstack.utils.https_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
+    @mock.patch(
+        'k8sapp_openstack.utils.get_certificate_file',
+        return_value='/var/opt/openstack/ssl/openstack-helm.crt'
+    )
     def test_nova_overrides_https_enabled(self, *_):
-        self.dbapi.certificate_create(
-            {
-                "id": 1,
-                "uuid": uuidutils.generate_uuid(),
-                "certtype": constants.CERT_MODE_OPENSTACK,
-                "signature": "abcdef",
-            }
-        )
-
-        self.dbapi.certificate_create(
-            {
-                "id": 2,
-                "uuid": uuidutils.generate_uuid(),
-                "certtype": constants.CERT_MODE_OPENSTACK_CA,
-                "signature": "abcdef",
-            }
-        )
-
-        self.dbapi.certificate_create(
-            {
-                "id": 3,
-                "uuid": uuidutils.generate_uuid(),
-                "certtype": constants.CERT_MODE_SSL_CA,
-                "signature": "abcdef",
-            }
-        )
-
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_NOVA,
             cnamespace=common.HELM_NS_OPENSTACK)

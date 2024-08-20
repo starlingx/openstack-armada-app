@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import mock
 from sysinv.helm import common
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
@@ -22,7 +23,8 @@ class IronicHelmTestCase(test_plugins.K8SAppOpenstackAppMixin,
 
 class IronicGetOverrideTest(IronicHelmTestCase,
                             dbbase.ControllerHostTestCase):
-    def test_ironic_overrides(self):
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_ironic_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_IRONIC,
             cnamespace=common.HELM_NS_OPENSTACK)
@@ -38,7 +40,8 @@ class IronicGetOverrideTest(IronicHelmTestCase,
             },
         })
 
-    def test_ironic_reuses_glance_user(self):
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_ironic_reuses_glance_user(self, *_):
         overrides_glance = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_GLANCE,
             cnamespace=common.HELM_NS_OPENSTACK)

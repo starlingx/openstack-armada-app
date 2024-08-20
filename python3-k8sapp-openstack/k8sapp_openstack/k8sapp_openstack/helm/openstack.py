@@ -744,14 +744,13 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         """
         Check if OpenStack is ready for HTTPS
 
-        Returns true if the https_enabled flag is set to true and if the openstack, openstack_ca
-        and ssl_ca certificates are installed in the system.
+        Returns true if the openstack certificate file is present.
         """
         return app_utils.is_openstack_https_ready()
 
     @staticmethod
     def get_ca_file():
-        return '/etc/ssl/certs/openstack-helm.crt'
+        return app_utils.get_certificate_file()
 
     def _enable_certificates(self, overrides):
         overrides = self._update_overrides(overrides, {

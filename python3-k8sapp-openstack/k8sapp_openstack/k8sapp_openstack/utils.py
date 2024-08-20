@@ -23,45 +23,53 @@ from k8sapp_openstack.common import constants as app_constants
 LOG = logging.getLogger(__name__)
 
 
-def https_enabled():
-    db = dbapi.get_instance()
-    if db is None:
-        return False
-
-    isystem = db.isystem_get_one()
-    return isystem.capabilities.get("https_enabled", False)
-
-
-def is_openstack_https_certificates_ready():
-    """Return whether the openstack certificates are ready or not.
-
-    Returns True if the openstack, openstack_ca and ssl_ca
-    certificates are installed in the system.
-    """
-    db = dbapi.get_instance()
-    if db is None:
-        return False
-
-    cert_openstack, cert_openstack_ca, cert_ssl_ca = False, False, False
-    certificates = db.certificate_get_list()
-    for certificate in certificates:
-        if certificate.certtype == constants.CERT_MODE_OPENSTACK:
-            cert_openstack = True
-        elif certificate.certtype == constants.CERT_MODE_OPENSTACK_CA:
-            cert_openstack_ca = True
-        elif certificate.certtype == constants.CERT_MODE_SSL_CA:
-            cert_ssl_ca = True
-
-    return cert_openstack and cert_openstack_ca and cert_ssl_ca
-
-
 def is_openstack_https_ready():
     """Check if OpenStack is ready for HTTPS.
 
-    Returns true if https is enabled and https certificates are
-    installed in the system.
+    Returns true if the HTTPss certificate is in place
+    at the Openstack working directory
     """
-    return https_enabled() and is_openstack_https_certificates_ready()
+    return os.path.isfile(get_certificate_file())
+
+
+def get_certificate_file() -> str:
+    """Get OpenStack certificate file path.
+
+    :returns: str -- The certificate file path.
+    """
+
+    # By default, the certificate file name and directory
+    # are stored in the constants
+    openstack_dir = get_clients_working_directory()
+    cert_directory = app_constants.CERT_RELATIVE_PATH
+    cert_file_name = app_constants.CERT_FILE_NAME
+
+    db = dbapi.get_instance()
+    if db is None:
+        return os.path.join(openstack_dir, cert_directory, cert_file_name)
+
+    # However, the user might have overriden the default
+    # certiticate path and file name. If that is the case,
+    # fetch and return the user-defined variables.
+    app = cutils.find_openstack_app(db)
+
+    override = db.helm_override_get(
+        app_id=app.id,
+        name=app_constants.HELM_CHART_CLIENTS,
+        namespace=app_constants.HELM_NS_OPENSTACK,
+    )
+
+    if override.user_overrides:
+        user_overrides = yaml.load(
+            override.user_overrides, Loader=yaml.FullLoader
+        )
+        cert_directory = user_overrides.get(
+            "certRelativePath", app_constants.CERT_RELATIVE_PATH
+        )
+        cert_file_name = user_overrides.get(
+            "certFileName", app_constants.CERT_FILE_NAME
+        )
+    return os.path.join(openstack_dir, cert_directory, cert_file_name)
 
 
 def directory_files(path: str) -> Generator:

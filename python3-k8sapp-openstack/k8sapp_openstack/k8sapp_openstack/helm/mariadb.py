@@ -17,6 +17,8 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
 
     CHART = app_constants.HELM_CHART_MARIADB
     HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_MARIADB
+    SERVICE_NAME = app_constants.HELM_CHART_MARIADB
+    AUTH_USERS = ['mariadb']
 
     def _num_server_replicas(self):
         return self._num_controllers()
@@ -63,5 +65,9 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
             'oslo_db': {
                 'auth': self._get_endpoints_oslo_db_overrides(
                     self.CHART, [])
+            },
+            'identity': {
+                'auth': self._get_endpoints_identity_overrides(
+                    self.SERVICE_NAME, self.AUTH_USERS),
             }
         }

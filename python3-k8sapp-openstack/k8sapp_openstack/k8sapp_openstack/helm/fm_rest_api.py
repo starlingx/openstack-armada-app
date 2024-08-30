@@ -32,6 +32,14 @@ class FmRestApiHelm(openstack.OpenstackBaseHelm):
                         'api': self._num_provisioned_controllers()
                     },
                 },
+                'fm': {
+                    'DEFAULT': {
+                        'region_name': self._get_service_region_name(self.SERVICE_NAME)
+                    },
+                    'sysinv': {
+                        'os_region_name': self._get_service_region_name(self.SERVICE_NAME)
+                    }
+                }
             }
         }
 

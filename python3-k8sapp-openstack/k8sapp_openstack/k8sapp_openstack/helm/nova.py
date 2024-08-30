@@ -66,8 +66,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     # (lcavalca): 'nova' is used as ingress fqdn by nova-api-proxy
     SERVICE_FQDN = 'nova-api-internal'
     SERVICE_NAME = app_constants.HELM_CHART_NOVA
-    AUTH_USERS = ['nova', ]
-    SERVICE_USERS = ['neutron', 'ironic', 'placement']
+    AUTH_USERS = ['nova']
+    SERVICE_USERS = ['neutron', 'ironic', 'placement', 'cinder']
     NOVNCPROXY_SERVICE_NAME = 'novncproxy'
     NOVNCPROXY_NODE_PORT = '30680'
 

@@ -23,6 +23,7 @@ class ClientsHelm(openstack.OpenstackBaseHelm):
     HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_CLIENTS
 
     SERVICE_NAME = app_constants.HELM_CHART_CLIENTS
+    AUTH_USERS = ['nova']
 
     def __init__(self, operator):
         super(ClientsHelm, self).__init__(operator)
@@ -62,24 +63,15 @@ class ClientsHelm(openstack.OpenstackBaseHelm):
             return overrides
 
     def _get_endpoints_overrides(self):
-        overrides = self._get_common_users_overrides(
-                    common.SERVICE_ADMIN)
-
-        overrides['admin'].update({
-            'project_name': self._get_admin_project_name(),
-            'project_domain_name': self._get_admin_project_domain(),
-            'user_domain_name': self._get_admin_user_domain(),
-        })
-
         return {
             'identity': {
-                'auth': overrides
+                'auth': self._get_endpoints_identity_overrides(
+                    self.SERVICE_NAME, self.AUTH_USERS)
             },
             'clients': {
                 'host_fqdn_override': self._get_endpoints_host_fqdn_overrides(
-                    self.SERVICE_NAME
-                )
-            },
+                    self.SERVICE_NAME)
+            }
         }
 
     def _get_per_host_overrides(self):

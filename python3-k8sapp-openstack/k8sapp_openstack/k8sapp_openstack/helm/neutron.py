@@ -27,7 +27,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
 
     SERVICE_NAME = app_constants.HELM_CHART_NEUTRON
     AUTH_USERS = ['neutron']
-    SERVICE_USERS = ['nova']
+    SERVICE_USERS = ['nova', 'placement', 'designate', 'ironic']
 
     def __init__(self, operator):
         super(NeutronHelm, self).__init__(operator)

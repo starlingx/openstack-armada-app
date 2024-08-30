@@ -148,7 +148,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         conf_cinder = {
             'DEFAULT': {
                 'enabled_backends': ','.join(
-                    str(b.name.encode('utf8', 'strict').decode('utf-8')) for b in backends)
+                    str(b.name.encode('utf8', 'strict').decode('utf-8')) for b in backends),
+                'os_region_name': self.get_region_name()
             },
         }
         current_host_fs_list = self.dbapi.host_fs_get_list()
@@ -306,7 +307,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         conf_cinder = {
             'DEFAULT': {
                 'enabled_backends': 'ceph-store',
-                'default_volume_type': 'ceph-store'
+                'default_volume_type': 'ceph-store',
+                'os_region_name': self.get_region_name()
             },
         }
 

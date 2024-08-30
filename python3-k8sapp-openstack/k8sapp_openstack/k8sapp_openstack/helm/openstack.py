@@ -170,11 +170,6 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
                     service_config.region_name is not None):
                 return service_config.region_name.encode('utf8', 'strict')
 
-        if (self._distributed_cloud_role() ==
-                constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER and
-                service in self.SYSTEM_CONTROLLER_SERVICES):
-            return constants.SYSTEM_CONTROLLER_REGION
-
         return self._region_name()
 
     def _get_configured_service_name(self, service, version=None):
@@ -276,7 +271,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         for user in users + list(service_users):
             overrides.update({
                 user: {
-                    'region_name': self._region_name(),
+                    'region_name': self._get_service_region_name(service_name),
                     'password': self._get_or_generate_password(
                         # Service user passwords already exist in other chart overrides
                         # Notice the use of username as 'chart' on
@@ -418,7 +413,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
 
             overrides.update({
                 user: {
-                    'region_name': self._region_name(),
+                    'region_name': self._get_service_region_name(service),
                     'username': o_user,
                     'password': self._get_identity_password(o_service, o_user)
                 }

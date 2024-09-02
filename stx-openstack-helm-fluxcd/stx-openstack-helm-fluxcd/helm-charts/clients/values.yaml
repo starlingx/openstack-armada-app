@@ -174,10 +174,10 @@ secrets:
 
 workingDirectoryPath: /var/opt/openstack
 
-# These values are not used directly by the 'Clients' chart, but they are
-# stored here because they are relative to the 'workingDirectoryPath'.
-certRelativePath: ssl
-certFileName: openstack-helm.crt
+# These values are not used directly by the 'Clients' chart.
+openstackCertificateFile: /etc/ssl/private/openstack/cert.pem
+openstackCertificateKeyFile: /etc/ssl/private/openstack/key.pem
+openstackCertificateCAFile: /etc/ssl/private/openstack/ca-cert.pem
 
 conf: {}
 

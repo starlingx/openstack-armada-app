@@ -48,8 +48,16 @@ class FmRestApiGetOverrideTest(FmRestApiHelmTestCase,
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
     @mock.patch(
-        'k8sapp_openstack.utils.get_certificate_file',
-        return_value='/var/opt/openstack/ssl/openstack-helm.crt'
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
+        return_value='/etc/ssl/private/openstack/ca-cert.pem'
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.get_openstack_certificate_files',
+        return_value={
+            app_constants.OPENSTACK_CERT: '/etc/ssl/private/openstack/cert.pem',
+            app_constants.OPENSTACK_CERT_KEY: '/etc/ssl/private/openstack/key.pem',
+            app_constants.OPENSTACK_CERT_CA: '/etc/ssl/private/openstack/ca-cert.pem'
+        }
     )
     def test_fm_overrides_https_enabled(self, *_):
         overrides = self.operator.get_helm_chart_overrides(

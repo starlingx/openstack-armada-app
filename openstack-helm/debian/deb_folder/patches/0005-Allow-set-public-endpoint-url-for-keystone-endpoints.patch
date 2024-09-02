@@ -1,19 +1,27 @@
-From b272e8ff3a78f38ab82df7995233705611e99f81 Mon Sep 17 00:00:00 2001
+From 412b3d1afa534675d3fce56f9fa5a3e9d95b62de Mon Sep 17 00:00:00 2001
 From: Angie Wang <angie.wang@windriver.com>
 Date: Tue, 1 Sep 2020 00:00:22 -0400
 Subject: [PATCH] Allow set public endpoint url for keystone endpoints
 
+[ Use public endpoint for admin url]
+Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 ---
- keystone/templates/job-db-sync.yaml | 4 ++++
- 1 file changed, 4 insertions(+)
+ keystone/templates/job-db-sync.yaml | 8 ++++++++
+ 1 file changed, 8 insertions(+)
 
 diff --git a/keystone/templates/job-db-sync.yaml b/keystone/templates/job-db-sync.yaml
-index a4ff67d8..08e82d78 100644
+index a4ff67d8..37db4464 100644
 --- a/keystone/templates/job-db-sync.yaml
 +++ b/keystone/templates/job-db-sync.yaml
-@@ -25,7 +25,11 @@ env:
+@@ -23,9 +23,17 @@ helm.sh/hook-weight: "-4"
+ {{- $envAll := index . 0 -}}
+ env:
    - name: OS_BOOTSTRAP_ADMIN_URL
++    {{- if and (hasKey $envAll.Values.endpoints.identity "force_public_endpoint") $envAll.Values.endpoints.identity.force_public_endpoint }}
++    value: {{ tuple "identity" "public" "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
++    {{- else }}
      value: {{ tuple "identity" "admin" "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
++    {{- end }}
    - name: OS_BOOTSTRAP_INTERNAL_URL
 +    {{- if and (hasKey $envAll.Values.endpoints.identity "force_public_endpoint") $envAll.Values.endpoints.identity.force_public_endpoint }}
 +    value: {{ tuple "identity" "public" "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
@@ -24,5 +32,5 @@ index a4ff67d8..08e82d78 100644
      value: {{ tuple "identity" "public" "api" $envAll | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" }}
    - name: OPENSTACK_CONFIG_FILE
 -- 
-2.25.1
+2.34.1
 

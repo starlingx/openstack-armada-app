@@ -113,5 +113,7 @@ CLIENTS_WORKING_DIR = "/var/opt/openstack"
 CLIENTS_WORKING_DIR_GROUP = "openstack"
 CLIENTS_WORKING_DIR_USER = "sysadmin"
 
-CERT_RELATIVE_PATH = "ssl"
-CERT_FILE_NAME = "openstack-helm.crt"
+# Openstack certificates names
+OPENSTACK_CERT = "openstack-cert"
+OPENSTACK_CERT_KEY = "openstack-cert-key"
+OPENSTACK_CERT_CA = "openstack-cert-ca"

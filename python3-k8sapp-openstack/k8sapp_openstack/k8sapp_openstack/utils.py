@@ -24,29 +24,42 @@ LOG = logging.getLogger(__name__)
 
 
 def is_openstack_https_ready():
-    """Check if OpenStack is ready for HTTPS.
+    """Return whether the openstack certificates are ready or not.
 
-    Returns true if the HTTPss certificate is in place
-    at the Openstack working directory
+    Returns true if the HTTPs certificates are present in the
+    defined directory.
     """
-    return os.path.isfile(get_certificate_file())
+    certificates = get_openstack_certificate_files()
+    for cert_name in certificates:
+        # The CA certificate (Certificate Authority) is not
+        # required for HTTPs to be enabled, so we skip it.
+        if cert_name == app_constants.OPENSTACK_CERT_CA:
+            continue
+
+        # Check if the file exist
+        if not os.path.isfile(certificates[cert_name]):
+            return False
+    return True
 
 
-def get_certificate_file() -> str:
-    """Get OpenStack certificate file path.
+def get_openstack_certificate_files() -> dict[str, str]:
+    """Get Openstack certificate files
 
-    :returns: str -- The certificate file path.
+    :returns: dict[str, str] -- a dictionary of the files
     """
-
-    # By default, the certificate file name and directory
-    # are stored in the constants
-    openstack_dir = get_clients_working_directory()
-    cert_directory = app_constants.CERT_RELATIVE_PATH
-    cert_file_name = app_constants.CERT_FILE_NAME
+    # By default, the certificate files are stored in
+    # the default platform directory
+    openstack_cert_file_path = constants.OPENSTACK_CERT_FILE
+    openstack_cert_key_file_path = constants.OPENSTACK_CERT_KEY_FILE
+    openstack_cert_ca_file_path = constants.OPENSTACK_CERT_CA_FILE
 
     db = dbapi.get_instance()
     if db is None:
-        return os.path.join(openstack_dir, cert_directory, cert_file_name)
+        return {
+            app_constants.OPENSTACK_CERT: openstack_cert_file_path,
+            app_constants.OPENSTACK_CERT_KEY: openstack_cert_key_file_path,
+            app_constants.OPENSTACK_CERT_CA: openstack_cert_ca_file_path
+        }
 
     # However, the user might have overriden the default
     # certiticate path and file name. If that is the case,
@@ -63,13 +76,22 @@ def get_certificate_file() -> str:
         user_overrides = yaml.load(
             override.user_overrides, Loader=yaml.FullLoader
         )
-        cert_directory = user_overrides.get(
-            "certRelativePath", app_constants.CERT_RELATIVE_PATH
+
+        openstack_cert_file_path = user_overrides.get(
+            "openstackCertificateFile", constants.OPENSTACK_CERT_FILE
         )
-        cert_file_name = user_overrides.get(
-            "certFileName", app_constants.CERT_FILE_NAME
+        openstack_cert_key_file_path = user_overrides.get(
+            "openstackCertificateKeyFile", constants.OPENSTACK_CERT_KEY_FILE
         )
-    return os.path.join(openstack_dir, cert_directory, cert_file_name)
+        openstack_cert_ca_file_path = user_overrides.get(
+            "openstackCertificateCAFile", constants.OPENSTACK_CERT_CA_FILE
+        )
+
+    return {
+        app_constants.OPENSTACK_CERT: openstack_cert_file_path,
+        app_constants.OPENSTACK_CERT_KEY: openstack_cert_key_file_path,
+        app_constants.OPENSTACK_CERT_CA: openstack_cert_ca_file_path
+    }
 
 
 def directory_files(path: str) -> Generator:

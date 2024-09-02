@@ -299,16 +299,20 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
 
     def _get_endpoint_public_tls(self):
         overrides = {}
-        if (os.path.exists(constants.OPENSTACK_CERT_FILE) and
-                os.path.exists(constants.OPENSTACK_CERT_KEY_FILE)):
+
+        certificates = app_utils.get_openstack_certificate_files()
+        cert_file = certificates[app_constants.OPENSTACK_CERT]
+        cert_key_file = certificates[app_constants.OPENSTACK_CERT_KEY]
+        cert_ca_file = certificates[app_constants.OPENSTACK_CERT_CA]
+
+        if (os.path.exists(cert_file) and os.path.exists(cert_key_file)):
             overrides.update({
-                'crt': self._get_file_content(constants.OPENSTACK_CERT_FILE),
-                'key': self._get_file_content(
-                    constants.OPENSTACK_CERT_KEY_FILE),
+                'crt': self._get_file_content(cert_file),
+                'key': self._get_file_content(cert_key_file),
             })
-        if os.path.exists(constants.OPENSTACK_CERT_CA_FILE):
+        if os.path.exists(cert_ca_file):
             overrides.update({
-                'ca': self._get_file_content(constants.OPENSTACK_CERT_CA_FILE),
+                'ca': self._get_file_content(cert_ca_file),
             })
         return overrides
 
@@ -745,7 +749,10 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
 
     @staticmethod
     def get_ca_file():
-        return app_utils.get_certificate_file()
+        # This function returns the path for the CA cert file INSIDE the container,
+        # no on the host machine. If you're changing this, be mindful of changing
+        # the same path in the helm-toolkit.
+        return '/etc/ssl/certs/openstack-helm.crt'
 
     def _enable_certificates(self, overrides):
         overrides = self._update_overrides(overrides, {

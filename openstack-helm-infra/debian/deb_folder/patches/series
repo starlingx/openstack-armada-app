@@ -17,3 +17,4 @@
 0017-Add-app.starlingx.io-component-label-to-pods.patch
 0018-Remove-nginx-configuration-snippet.patch
 0019-Add-pre-apply-cleanup-Job-to-STX-O-Helm-charts.patch
+0020-Add-Kubernetes-name-label-to-helm-toolkit-template.patch

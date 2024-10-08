@@ -329,3 +329,16 @@ def get_ceph_uuid():
                              r"{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}",
                              re.IGNORECASE)
         return pattern.findall(line)[0]
+
+
+def is_subcloud():
+    db = dbapi.get_instance()
+    system = db.isystem_get_one()
+
+    try:
+        if system.distributed_cloud_role == "subcloud":
+            return True
+        else:
+            return False
+    except AttributeError:
+        return False

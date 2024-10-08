@@ -338,22 +338,33 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                                      resource fails to be created.
         """
 
-        # Create group `openstack`.
+        # Create group `openstack`. If in a subcloud, just notify the group
+        # should be created in the controller.
         group_exists = ldap.check_group(
             app_constants.CLIENTS_WORKING_DIR_GROUP
         )
         if not group_exists:
-            status = ldap.add_group(app_constants.CLIENTS_WORKING_DIR_GROUP)
-            if not status:
+            if app_utils.is_subcloud():
                 raise exception.KubeAppApplyFailure(
                     name=app.name,
                     version=app.version,
                     reason=(
-                        "Unable to create application specific resource: "
-                        f"Group `{app_constants.CLIENTS_WORKING_DIR_GROUP}` "
-                        "(LDAP)."
+                        "When in a subcloud, a LDAP group named \"openstack\" "
+                        "with gid \"1001\" should be added in the controller."
                     )
                 )
+            else:
+                status = ldap.add_group(app_constants.CLIENTS_WORKING_DIR_GROUP)
+                if not status:
+                    raise exception.KubeAppApplyFailure(
+                        name=app.name,
+                        version=app.version,
+                        reason=(
+                            "Unable to create application specific resource: "
+                            f"Group `{app_constants.CLIENTS_WORKING_DIR_GROUP}` "
+                            "(LDAP)."
+                        )
+                    )
 
         # Get clients' working directory path.
         # (It can be either the default or a user-defined one)

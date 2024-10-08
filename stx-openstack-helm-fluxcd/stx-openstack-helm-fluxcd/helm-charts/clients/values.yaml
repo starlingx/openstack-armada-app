@@ -174,11 +174,6 @@ secrets:
 
 workingDirectoryPath: /var/opt/openstack
 
-# These values are not used directly by the 'Clients' chart.
-openstackCertificateFile: /etc/ssl/private/openstack/cert.pem
-openstackCertificateKeyFile: /etc/ssl/private/openstack/key.pem
-openstackCertificateCAFile: /etc/ssl/private/openstack/ca-cert.pem
-
 conf: {}
 
 # NOTE(helm_hook): helm_hook might break for helm2 binary.
@@ -194,3 +189,25 @@ manifests:
   job_bootstrap: false
   secret_ingress_tls: true
   secret_keystone: true
+
+
+# ---- START OF STX-OPENSTACK CONFIGURATION VALUES ----
+# The fields bellow are not used directly by the Clients chart,
+# but are used to store various STX-Openstack configuration values.
+
+# Certificate file paths.
+# These default values are the paths to the PEM files if the
+# certificates were installed by the `system os-certificate-install`
+# command.
+openstackCertificateFile: /etc/ssl/private/openstack/cert.pem
+openstackCertificateKeyFile: /etc/ssl/private/openstack/key.pem
+openstackCertificateCAFile: /etc/ssl/private/openstack/ca-cert.pem
+
+# Service endpoint pattern.
+# If the Openstack endpoint domain is configured, this pattern will
+# be used to define the FQDN overrides for each service.
+# The pattern MUST contain the following fields inside braces:
+# service_name: Will be defined by the STX-Openstack plugin
+# endpoint_name: Configured via system commands
+serviceEndpointPattern: "{service_name}.{endpoint_domain}"
+

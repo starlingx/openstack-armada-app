@@ -113,7 +113,8 @@ CLIENTS_WORKING_DIR = "/var/opt/openstack"
 CLIENTS_WORKING_DIR_GROUP = "openstack"
 CLIENTS_WORKING_DIR_USER = "sysadmin"
 
-# Openstack certificates names
+# STX-Openstack configuration values
 OPENSTACK_CERT = "openstack-cert"
 OPENSTACK_CERT_KEY = "openstack-cert-key"
 OPENSTACK_CERT_CA = "openstack-cert-ca"
+SERVICES_FQDN_PATTERN = "{service_name}.{endpoint_domain}"

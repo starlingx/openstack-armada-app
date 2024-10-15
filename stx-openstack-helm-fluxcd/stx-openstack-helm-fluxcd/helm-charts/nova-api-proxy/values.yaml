@@ -68,7 +68,7 @@ conf:
 
   paste:
     pipeline:nova-api-proxy:
-      pipeline: version authtoken acceptor proxyapp
+      pipeline: version acceptor proxyapp
     filter:debug_header:
       paste.filter_factory: nova_api_proxy.apps.acceptor:DebugHeaders.factory
     filter:version:

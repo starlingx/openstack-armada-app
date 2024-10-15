@@ -23,6 +23,58 @@ from k8sapp_openstack.common import constants as app_constants
 LOG = logging.getLogger(__name__)
 
 
+def _get_value_from_application(
+    default_value: str,
+    chart_name: str,
+    override_name: str
+) -> str:
+    """
+    Gets a value from the app constants or from the
+    Helm overrides
+
+    :param default_value: The value to return if there are no overrides
+    :param chart_name: The name of the chart to look for the overrides
+    :param override_name: The name of the field in values.yaml
+    """
+    # If the database in unavailable, return the default value
+    value = default_value
+    db = dbapi.get_instance()
+    if db is None:
+        return value
+
+    # However, the user might have overriden the default
+    # pattern. If that is the case, fetch and return the
+    # user-defined one.
+    # If the database is available, get the Helm overrides
+    # for it. Return the default value if no overrides are
+    # present, and return the override if it exists.
+    app = cutils.find_openstack_app(db)
+
+    override = db.helm_override_get(
+        app_id=app.id,
+        name=chart_name,
+        namespace=app_constants.HELM_NS_OPENSTACK,
+    )
+
+    if override.user_overrides:
+        user_overrides = yaml.load(
+            override.user_overrides, Loader=yaml.FullLoader
+        )
+        value = user_overrides.get(override_name, default_value)
+    return value
+
+
+def get_services_fqdn_pattern() -> str:
+    """Get services FQDN configuration pattern
+
+    :returns: str -- The services FQDN endpoint pattern
+    """
+    return _get_value_from_application(
+            default_value=app_constants.SERVICES_FQDN_PATTERN,
+            chart_name=app_constants.HELM_CHART_CLIENTS,
+            override_name="serviceEndpointPattern")
+
+
 def is_openstack_https_ready():
     """Return whether the openstack certificates are ready or not.
 
@@ -47,45 +99,20 @@ def get_openstack_certificate_files() -> dict[str, str]:
 
     :returns: dict[str, str] -- a dictionary of the files
     """
-    # By default, the certificate files are stored in
-    # the default platform directory
-    openstack_cert_file_path = constants.OPENSTACK_CERT_FILE
-    openstack_cert_key_file_path = constants.OPENSTACK_CERT_KEY_FILE
-    openstack_cert_ca_file_path = constants.OPENSTACK_CERT_CA_FILE
+    openstack_cert_file_path = _get_value_from_application(
+            default_value=constants.OPENSTACK_CERT_FILE,
+            chart_name=app_constants.HELM_CHART_CLIENTS,
+            override_name="openstackCertificateFile")
 
-    db = dbapi.get_instance()
-    if db is None:
-        return {
-            app_constants.OPENSTACK_CERT: openstack_cert_file_path,
-            app_constants.OPENSTACK_CERT_KEY: openstack_cert_key_file_path,
-            app_constants.OPENSTACK_CERT_CA: openstack_cert_ca_file_path
-        }
+    openstack_cert_key_file_path = _get_value_from_application(
+            default_value=constants.OPENSTACK_CERT_KEY_FILE,
+            chart_name=app_constants.HELM_CHART_CLIENTS,
+            override_name="openstackCertificateKeyFile")
 
-    # However, the user might have overriden the default
-    # certiticate path and file name. If that is the case,
-    # fetch and return the user-defined variables.
-    app = cutils.find_openstack_app(db)
-
-    override = db.helm_override_get(
-        app_id=app.id,
-        name=app_constants.HELM_CHART_CLIENTS,
-        namespace=app_constants.HELM_NS_OPENSTACK,
-    )
-
-    if override.user_overrides:
-        user_overrides = yaml.load(
-            override.user_overrides, Loader=yaml.FullLoader
-        )
-
-        openstack_cert_file_path = user_overrides.get(
-            "openstackCertificateFile", constants.OPENSTACK_CERT_FILE
-        )
-        openstack_cert_key_file_path = user_overrides.get(
-            "openstackCertificateKeyFile", constants.OPENSTACK_CERT_KEY_FILE
-        )
-        openstack_cert_ca_file_path = user_overrides.get(
-            "openstackCertificateCAFile", constants.OPENSTACK_CERT_CA_FILE
-        )
+    openstack_cert_ca_file_path = _get_value_from_application(
+            default_value=constants.OPENSTACK_CERT_CA_FILE,
+            chart_name=app_constants.HELM_CHART_CLIENTS,
+            override_name="openstackCertificateCAFile")
 
     return {
         app_constants.OPENSTACK_CERT: openstack_cert_file_path,
@@ -120,34 +147,10 @@ def get_clients_working_directory() -> str:
 
     :returns: str -- The clients' working directory path.
     """
-
-    # By default, the working directory path is
-    # `app_constants.CLIENTS_WORKING_DIR`.
-    working_directory = app_constants.CLIENTS_WORKING_DIR
-
-    db = dbapi.get_instance()
-    if db is None:
-        return working_directory
-
-    # However, the user might have overriden the default
-    # working directory path. If that is the case, fetch
-    # and return the user-defined path.
-    app = cutils.find_openstack_app(db)
-
-    override = db.helm_override_get(
-        app_id=app.id,
-        name=app_constants.HELM_CHART_CLIENTS,
-        namespace=app_constants.HELM_NS_OPENSTACK,
-    )
-
-    if override.user_overrides:
-        user_overrides = yaml.load(
-            override.user_overrides, Loader=yaml.FullLoader
-        )
-        working_directory = user_overrides.get(
-            "workingDirectoryPath", app_constants.CLIENTS_WORKING_DIR
-        )
-    return working_directory
+    return _get_value_from_application(
+            default_value=app_constants.CLIENTS_WORKING_DIR,
+            chart_name=app_constants.HELM_CHART_CLIENTS,
+            override_name="workingDirectoryPath")
 
 
 def reset_clients_working_directory_permissions(path: str) -> bool:

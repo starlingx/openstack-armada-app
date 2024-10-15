@@ -323,9 +323,13 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             constants.SERVICE_PARAM_SECTION_OPENSTACK_HELM,
             constants.SERVICE_PARAM_NAME_ENDPOINT_DOMAIN)
         if endpoint_domain is not None:
-            overrides['public'].update({
-                'host': service_name + '.' + str(endpoint_domain.value).lower()
-            })
+            # Define endpoint domain based on pattern
+            fqdn_pattern = app_utils.get_services_fqdn_pattern()
+            service_endpoint = fqdn_pattern.format(
+                    service_name=service_name,
+                    endpoint_domain=str(endpoint_domain.value),
+            ).lower()
+            overrides['public'].update({'host': service_endpoint})
 
         if self._is_openstack_https_ready():
             tls_overrides = self._get_endpoint_public_tls()

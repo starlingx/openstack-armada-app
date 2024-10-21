@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2023 Wind River Systems, Inc.
+# Copyright (c) 2019-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -107,6 +107,9 @@ CEPH_POOL_VOLUMES_CHUNK_SIZE = 512
 
 CEPH_POOL_BACKUP_APP_NAME = 'cinder-backup'
 CEPH_POOL_BACKUP_CHUNK_SIZE = 256
+
+# Cinder version used as the default value when getting service name and type
+CINDER_CURRENT_VERSION = 'v3'
 
 CLIENTS_VOLUME_NAME = "clients-working-directory"
 CLIENTS_WORKING_DIR = "/var/opt/openstack"

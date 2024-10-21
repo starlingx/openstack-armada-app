@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -292,14 +292,14 @@ class CinderHelm(openstack.OpenstackBaseHelm):
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)
 
-    def get_service_name_v2(self):
-        return self._get_configured_service_name(self.SERVICE_NAME, 'v2')
+    def get_service_name(self, version=app_constants.CINDER_CURRENT_VERSION):
+        return self._get_configured_service_name(self.SERVICE_NAME, version)
 
-    def get_service_type_v2(self):
+    def get_service_type(self, version=app_constants.CINDER_CURRENT_VERSION):
         service_type = self._get_configured_service_type(
-            self.SERVICE_NAME, 'v2')
+            self.SERVICE_NAME, version)
         if service_type is None:
-            return self.SERVICE_TYPE + 'v2'
+            return self.SERVICE_TYPE + version
         else:
             return service_type
 

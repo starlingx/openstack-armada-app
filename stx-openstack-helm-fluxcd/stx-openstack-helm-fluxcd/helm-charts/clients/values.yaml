@@ -203,6 +203,13 @@ openstackCertificateFile: /etc/ssl/private/openstack/cert.pem
 openstackCertificateKeyFile: /etc/ssl/private/openstack/key.pem
 openstackCertificateCAFile: /etc/ssl/private/openstack/ca-cert.pem
 
+# Controls the source of certificate values for OpenStack HTTPS configuration.
+# true: Forces the application to always read certificate values directly from
+# the specified certificate files, ignoring any Helm or system overrides.
+# false: Attempts to retrieve certificate values from system or Helm overrides
+# first; falls back to reading from certificate files only if no overrides are defined.
+forceReadCertificateFiles: false
+
 # Service endpoint pattern.
 # If the Openstack endpoint domain is configured, this pattern will
 # be used to define the FQDN overrides for each service.

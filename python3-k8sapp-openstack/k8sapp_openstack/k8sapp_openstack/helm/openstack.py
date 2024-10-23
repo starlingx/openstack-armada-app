@@ -1,11 +1,10 @@
 #
-# Copyright (c) 2019-2023 Wind River Systems, Inc.
+# Copyright (c) 2019-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import base64
-import os
 # Adding a try-import as six 1.12.0 doesn't have this move and we are pinned
 # at the stein upper-requirements on tox.ini
 try:
@@ -291,29 +290,21 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
 
         return overrides
 
-    def _get_file_content(self, filename):
-        file_contents = ''
-        with open(filename) as f:
-            file_contents = f.read()
-        return file_contents
-
-    def _get_endpoint_public_tls(self):
+    def _get_endpoint_public_tls(self, service_name):
         overrides = {}
 
-        certificates = app_utils.get_openstack_certificate_files()
+        certificates = app_utils.get_openstack_certificate_values(service_name)
         cert_file = certificates[app_constants.OPENSTACK_CERT]
         cert_key_file = certificates[app_constants.OPENSTACK_CERT_KEY]
         cert_ca_file = certificates[app_constants.OPENSTACK_CERT_CA]
 
-        if (os.path.exists(cert_file) and os.path.exists(cert_key_file)):
+        if (cert_file and cert_key_file):
             overrides.update({
-                'crt': self._get_file_content(cert_file),
-                'key': self._get_file_content(cert_key_file),
+                'crt': cert_file,
+                'key': cert_key_file,
             })
-        if os.path.exists(cert_ca_file):
-            overrides.update({
-                'ca': self._get_file_content(cert_ca_file),
-            })
+        if cert_ca_file:
+            overrides.update({'ca': cert_ca_file})
         return overrides
 
     def _get_endpoints_host_fqdn_overrides(self, service_name):
@@ -332,7 +323,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             overrides['public'].update({'host': service_endpoint})
 
         if self._is_openstack_https_ready():
-            tls_overrides = self._get_endpoint_public_tls()
+            tls_overrides = self._get_endpoint_public_tls(service_name)
             if tls_overrides:
                 overrides['public'].update({
                     'tls': tls_overrides
@@ -743,12 +734,15 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
 
         return 'null'
 
-    def _is_openstack_https_ready(self):
+    def _is_openstack_https_ready(self, service_name=None):
         """
         Check if OpenStack is ready for HTTPS
 
         Returns true if the openstack certificate file is present.
         """
+        if not service_name:
+            # Default to clients service
+            service_name = app_constants.HELM_CHART_CLIENTS
         return app_utils.is_openstack_https_ready()
 
     @staticmethod

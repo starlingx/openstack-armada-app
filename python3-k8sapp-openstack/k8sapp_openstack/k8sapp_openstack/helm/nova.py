@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2023 Wind River Systems, Inc.
+# Copyright (c) 2019-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -153,7 +153,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             }
         })
 
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
                 overrides[common.HELM_NS_OPENSTACK],
                 {'secrets': self._get_secrets_overrides()}
@@ -818,7 +818,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 'rbd_secret_uuid': ceph_uuid,
             }
 
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides = self._update_overrides(overrides, {
                 'nova': {
                     'keystone_authtoken': {

@@ -120,4 +120,5 @@ CLIENTS_WORKING_DIR_USER = "sysadmin"
 OPENSTACK_CERT = "openstack-cert"
 OPENSTACK_CERT_KEY = "openstack-cert-key"
 OPENSTACK_CERT_CA = "openstack-cert-ca"
+FORCE_READ_CERT_FILES = False
 SERVICES_FQDN_PATTERN = "{service_name}.{endpoint_domain}"

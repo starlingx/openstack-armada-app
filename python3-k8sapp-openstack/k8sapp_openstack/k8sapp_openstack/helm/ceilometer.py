@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -52,7 +52,7 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
         if utils.is_virtual():
             manifests_overrides.update({'daemonset_ipmi': False})
 
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             manifests_overrides.update({'certificates': True})
 
         return manifests_overrides
@@ -71,7 +71,7 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
             }
         }
 
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             conf_overrides = self._update_overrides(conf_overrides, {
                 'ceilometer': {
                     'keystone_authtoken': {

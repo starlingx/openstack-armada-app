@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +13,9 @@ import shutil
 from typing import Generator
 
 from oslo_log import log as logging
+from oslo_serialization import base64
 from sysinv.common import constants
+from sysinv.common import kubernetes
 from sysinv.common import utils as cutils
 from sysinv.db import api as dbapi
 import yaml
@@ -23,11 +25,7 @@ from k8sapp_openstack.common import constants as app_constants
 LOG = logging.getLogger(__name__)
 
 
-def _get_value_from_application(
-    default_value: str,
-    chart_name: str,
-    override_name: str
-) -> str:
+def _get_value_from_application(default_value, chart_name, override_name):
     """
     Gets a value from the app constants or from the
     Helm overrides
@@ -75,29 +73,127 @@ def get_services_fqdn_pattern() -> str:
             override_name="serviceEndpointPattern")
 
 
-def is_openstack_https_ready():
-    """Return whether the openstack certificates are ready or not.
+def is_openstack_https_ready(service_name: str = app_constants.HELM_CHART_CLIENTS):
+    """Check if OpenStack is ready for HTTPS.
 
-    Returns true if the HTTPs certificates are present in the
-    defined directory.
+    This function returns True if the necessary HTTPS certificates are either
+    present as file content in the specified directory or defined in the system
+    overrides. Specifically, it checks for the presence of the primary
+    certificate and key files, while skipping the optional CA certificate.
+
+    Args:
+        service_name (str): The name of the Helm chart, used to check certificates.
+                            Defaults to `app_constants.HELM_CHART_CLIENTS`.
+
+    Returns:
+        bool: True if all required HTTPS certificates are present;
+              False otherwise.
     """
-    certificates = get_openstack_certificate_files()
+    # If the service name was not defined, check for the actual certificate files
+    certificates = get_openstack_certificate_values(service_name)
     for cert_name in certificates:
         # The CA certificate (Certificate Authority) is not
         # required for HTTPs to be enabled, so we skip it.
         if cert_name == app_constants.OPENSTACK_CERT_CA:
             continue
 
-        # Check if the file exist
-        if not os.path.isfile(certificates[cert_name]):
+        # Check if the value is defined
+        if not certificates[cert_name]:
             return False
     return True
 
 
-def get_openstack_certificate_files() -> dict[str, str]:
-    """Get Openstack certificate files
+def get_openstack_certificate_values(service_name: str = app_constants.HELM_CHART_CLIENTS) -> dict:
+    """Retrieve the OpenStack certificate values for HTTPS readiness.
 
-    :returns: dict[str, str] -- a dictionary of the files
+    This function retrieves the certificate, key, and CA values required for HTTPS
+    connections for the OpenStack charts. It first attempts to load these values from
+    a Kubernetes secret named `<service_name>-tls-public` in the `openstack`
+    namespace. If the secret does not exist or is unavailable, it defaults to
+    reading the values from Helm overrides. If neither the secret nor the overrides
+    are defined, it defaults to reading certificate files directly from the filesystem.
+
+    Args:
+        service_name (str): The name of the Helm chart, used to construct the secret name.
+                            Defaults to `app_constants.HELM_CHART_CLIENTS`.
+
+    Returns:
+        dict[str, str]: A dictionary containing the following keys:
+            - app_constants.OPENSTACK_CERT: The primary HTTPS certificate.
+            - app_constants.OPENSTACK_CERT_KEY: The corresponding private key.
+            - app_constants.OPENSTACK_CERT_CA: The CA certificate, if defined.
+
+            If any of these values are unavailable, their dictionary entries are set to `None`.
+    """
+    # If the forceReadCertificateFiles value is set to true, then always
+    # try to get the overrides from the files.
+    force_read = _get_value_from_application(
+            default_value=app_constants.FORCE_READ_CERT_FILES,
+            chart_name=app_constants.HELM_CHART_CLIENTS,
+            override_name="forceReadCertificateFiles")
+    if force_read:
+        LOG.debug("forceReadCertificateFiles is True. Reading certificates values from files")
+        return _get_openstack_certificate_files()
+
+    # Search for the <service_name>-tls-public secret
+    try:
+        # Get secret
+        secret_name = f"{service_name}-tls-public"
+        kube = kubernetes.KubeOperator()
+        secret = kube.kube_get_secret(name=secret_name, namespace=app_constants.HELM_NS_OPENSTACK)
+
+        # Make sure secret has 'data' attribute
+        if not hasattr(secret, 'data'):
+            # Simply raise an Exception here to use certificate files instead
+            LOG.debug(f"Secret {secret_name} has no data attribute")
+            raise Exception
+
+        data = secret.data
+
+        # Check for the cert and key files in the secret's data.
+        # No need to check for the CA file, as it's not mandatory to have it.
+        if "tls.crt" not in data or "tls.key" not in data:
+            LOG.warning(f"Secret {secret_name} does not contain 'tls.crt' or 'tls.key'")
+            raise Exception
+
+        tls_crt = base64.decode_as_text(data['tls.crt'])
+        tls_key = base64.decode_as_text(data['tls.key'])
+
+        # Check and decode CA certificate, if present
+        ca_crt = base64.decode_as_text(data['ca.crt']) if "ca.crt" in data else None
+
+        # Prepare and return certificate dictionary
+        certs_dict = {
+            app_constants.OPENSTACK_CERT: tls_crt,
+            app_constants.OPENSTACK_CERT_KEY: tls_key,
+            app_constants.OPENSTACK_CERT_CA: ca_crt
+        }
+    except Exception:
+        # Something went wrong, read certificate files.
+        # This could mean that this is an upload and there are no overrides,
+        # or that the host_fqdn_override is empty
+        LOG.debug(f"Secret {secret_name} not found for chart {service_name}. "
+                  "Attempting to retrieve OpenStack certificates from files.")
+        certs_dict = _get_openstack_certificate_files()
+
+    return certs_dict
+
+
+def _get_openstack_certificate_files():
+    """Retrieve OpenStack certificate files for HTTPS connections.
+
+    This function gathers the file paths for the OpenStack certificate, key, and CA
+    certificate, using default values or application-specific overrides as defined
+    in Helm configurations. It reads and returns the content of each file path.
+
+    Returns:
+        dict[str, str]: A dictionary containing:
+            - app_constants.OPENSTACK_CERT: Contents of the primary certificate file.
+            - app_constants.OPENSTACK_CERT_KEY: Contents of the private key file.
+            - app_constants.OPENSTACK_CERT_CA: Contents of the CA certificate file.
+
+            If any of the files are unavailable or empty, their corresponding entries
+            in the dictionary will be `None`.
     """
     openstack_cert_file_path = _get_value_from_application(
             default_value=constants.OPENSTACK_CERT_FILE,
@@ -115,9 +211,9 @@ def get_openstack_certificate_files() -> dict[str, str]:
             override_name="openstackCertificateCAFile")
 
     return {
-        app_constants.OPENSTACK_CERT: openstack_cert_file_path,
-        app_constants.OPENSTACK_CERT_KEY: openstack_cert_key_file_path,
-        app_constants.OPENSTACK_CERT_CA: openstack_cert_ca_file_path
+        app_constants.OPENSTACK_CERT: _get_file_content(openstack_cert_file_path),
+        app_constants.OPENSTACK_CERT_KEY: _get_file_content(openstack_cert_key_file_path),
+        app_constants.OPENSTACK_CERT_CA: _get_file_content(openstack_cert_ca_file_path)
     }
 
 
@@ -345,3 +441,22 @@ def is_subcloud():
             return False
     except AttributeError:
         return False
+
+
+def _get_file_content(filename):
+    """Read and return the content of a specified file.
+
+    This function checks if a file exists at the specified path. If the file exists,
+    it reads and returns the file's content. If the file is missing, it returns `None`.
+
+    Args:
+        filename (str): The path to the file to be read.
+
+    Returns:
+        str or None: The content of the file as a string, or `None` if the file does
+        not exist.
+    """
+    if not os.path.isfile(filename):
+        return None
+    with open(filename) as f:
+        return f.read()

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -63,11 +63,11 @@ class NeutronGetOverrideTest(NeutronHelmTestCase,
         return_value='/etc/ssl/private/openstack/ca-cert.pem'
     )
     @mock.patch(
-        'k8sapp_openstack.utils.get_openstack_certificate_files',
+        'k8sapp_openstack.utils.get_openstack_certificate_values',
         return_value={
-            app_constants.OPENSTACK_CERT: '/etc/ssl/private/openstack/cert.pem',
-            app_constants.OPENSTACK_CERT_KEY: '/etc/ssl/private/openstack/key.pem',
-            app_constants.OPENSTACK_CERT_CA: '/etc/ssl/private/openstack/ca-cert.pem'
+            app_constants.OPENSTACK_CERT: 'fake',
+            app_constants.OPENSTACK_CERT_KEY: 'fake',
+            app_constants.OPENSTACK_CERT_CA: 'fake'
         }
     )
     def test_neutron_overrides_https_enabled(self, *_):

@@ -81,7 +81,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             }
         }
 
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = \
                 self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
 
@@ -177,7 +177,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             conf_cinder['DEFAULT']['default_volume_type'] = \
                 default.encode('utf8', 'strict')
 
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             conf_cinder["keystone_authtoken"] = {
                 'cafile': self.get_ca_file()
             }
@@ -312,7 +312,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             },
         }
 
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             conf_cinder["keystone_authtoken"] = {
                 'cafile': self.get_ca_file()
             }

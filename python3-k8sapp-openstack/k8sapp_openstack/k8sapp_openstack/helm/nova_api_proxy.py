@@ -50,7 +50,7 @@ class NovaApiProxyHelm(openstack.OpenstackBaseHelm):
             }
         }
 
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
                 overrides[common.HELM_NS_OPENSTACK],
                 {

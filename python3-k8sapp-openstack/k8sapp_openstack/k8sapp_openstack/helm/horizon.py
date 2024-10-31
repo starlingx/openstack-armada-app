@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2024 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -48,7 +48,7 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
             }
         }
 
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = \
                 self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
 
@@ -111,7 +111,7 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
             })
 
         # Https & security settings
-        if self._is_openstack_https_ready():
+        if self._is_openstack_https_ready(self.SERVICE_NAME):
             local_settings_config.update({
                 'https_enabled': 'True',
             })

@@ -116,9 +116,14 @@ CLIENTS_WORKING_DIR = "/var/opt/openstack"
 CLIENTS_WORKING_DIR_GROUP = "openstack"
 CLIENTS_WORKING_DIR_USER = "sysadmin"
 
+# NetApp definitions
+NETAPP_CONTROLLER_LABEL = "controller.csi.trident.netapp.io"
+NETAPP_MAIN_CONTAINER_NAME = "trident-main"
+
 # STX-Openstack configuration values
 OPENSTACK_CERT = "openstack-cert"
 OPENSTACK_CERT_KEY = "openstack-cert-key"
 OPENSTACK_CERT_CA = "openstack-cert-ca"
 FORCE_READ_CERT_FILES = False
 SERVICES_FQDN_PATTERN = "{service_name}.{endpoint_domain}"
+OPENSTACK_NETAPP_NAMESPACE = "trident"

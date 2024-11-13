@@ -12,6 +12,8 @@ import re
 import shutil
 from typing import Generator
 
+from eventlet.green import subprocess
+from kubernetes.client.rest import ApiException as KubeApiException
 from oslo_log import log as logging
 from oslo_serialization import base64
 from sysinv.common import constants
@@ -460,3 +462,79 @@ def _get_file_content(filename):
         return None
     with open(filename) as f:
         return f.read()
+
+
+def check_netapp_backends() -> dict:
+    """
+    Check for the presence of NetApp backends (NFS and iSCSI) using `tridentctl`.
+
+    Calling the 'tridentctl' directly does not work with the STX-Openstack plugins,
+    so we have to run the command inside of the 'trident-main' container.
+
+    Returns:
+        dict: A dictionary indicating the availability of `nfs` and `iscsi` backends.
+              Example: {"nfs": True, "iscsi": False}
+    """
+    namespace = _get_value_from_application(
+        default_value=app_constants.OPENSTACK_NETAPP_NAMESPACE,
+        chart_name=app_constants.HELM_CHART_CLIENTS,
+        override_name="netAppNamespace")
+
+    backends_map = {"nfs": False, "iscsi": False}
+
+    try:
+        kube = kubernetes.KubeOperator()
+
+        # Get the controller pod for NetApp
+        pods = kube.kube_get_pods_by_selector(namespace, f"app={app_constants.NETAPP_CONTROLLER_LABEL}", "")
+        if not pods:
+            return {"nfs": False, "iscsi": False}
+        pod_name = pods[0].metadata.name
+
+        # Not using the `kube_exec_container_stream` function from the KubeOperator
+        # here, as it is prone to error
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", namespace,
+            "exec", "-it", pod_name,
+            "-c", app_constants.NETAPP_MAIN_CONTAINER_NAME,
+            "--", "tridentctl", "get", "backends"
+        ]
+        backend_info = subprocess.run(
+                args=cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+                shell=False)
+
+        if not backend_info.stdout:
+            return backends_map
+
+        backends_map["nfs"] = bool(re.search(r"ontap-nas", backend_info.stdout))
+        backends_map["iscsi"] = bool(re.search(r"ontap-san", backend_info.stdout))
+        return backends_map
+    except KubeApiException as e:
+        LOG.error(f"Failed to get trident controller pod name: {e}")
+        return backends_map
+    except subprocess.CalledProcessError as e:
+        LOG.error(
+            "Tridentctl command did not return successful return code: "
+            f"{e.returncode}. Error message was: {e.output}"
+        )
+        return backends_map
+    except subprocess.TimeoutExpired as e:
+        LOG.error(f"Tridentctl command timed out: {e}")
+        return backends_map
+    except Exception as e:
+        LOG.error(f"Unexpected error while fetching NetApp backends: {e}")
+        return backends_map
+
+
+def is_netapp_available() -> bool:
+    """Returns true or false if NetApp backend is available
+
+    Returns:
+        bool: True if Netapp backend is available or False if it is not
+    """
+    netapp_backends = check_netapp_backends()
+    return netapp_backends["nfs"] or netapp_backends["iscsi"]

@@ -19,6 +19,7 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import get_ceph_uuid
+from k8sapp_openstack.utils import get_services_fqdn_pattern
 
 LOG = logging.getLogger(__name__)
 
@@ -236,8 +237,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             constants.SERVICE_PARAM_SECTION_OPENSTACK_HELM,
             constants.SERVICE_PARAM_NAME_ENDPOINT_DOMAIN)
         if endpoint_domain is not None:
-            location = "%s.%s" % (self.NOVNCPROXY_SERVICE_NAME,
-                                  str(endpoint_domain.value).lower())
+            fqdn_pattern = get_services_fqdn_pattern()
+            location = fqdn_pattern.format(
+                    service_name=self.NOVNCPROXY_SERVICE_NAME,
+                    endpoint_domain=str(endpoint_domain.value),
+            ).lower()
         else:
             if self._is_ipv6_cluster_service():
                 location = "[%s]:%s" % (self._get_oam_address(),

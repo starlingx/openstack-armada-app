@@ -1,0 +1,23 @@
+#!/usr/bin/make -f
+# export DH_VERBOSE = 1
+
+export CHART_BASE_VERSION = 4.11.1
+export PATCH_VERSION = 2
+export CHART_VERSION = $(CHART_BASE_VERSION)+STX.$(PATCH_VERSION)
+
+export ROOT = debian/tmp
+export APP_FOLDER = $(ROOT)/usr/lib/helm
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	mv charts/ingress-nginx .
+	make CHART_VERSION=$(CHART_VERSION) ingress-nginx;
+
+override_dh_auto_install:
+	# Install the app tar file.
+	install -d -m 755 $(APP_FOLDER)
+	install -p -D -m 755 *.tgz $(APP_FOLDER)
+
+override_dh_auto_test:

@@ -1,18 +1,15 @@
-Source: openstack-helm-infra
+Source: ingress-nginx-helm
 Section: libs
 Priority: optional
 Maintainer: StarlingX Developers <starlingx-discuss@lists.starlingx.io>
 Build-Depends: debhelper-compat (= 13),
- helm,
- procps,
- ingress-nginx-helm
+ helm
 Standards-Version: 4.5.1
 Homepage: https://www.starlingx.io
 
-Package: openstack-helm-infra
+Package: ingress-nginx-helm
 Section: libs
 Architecture: all
 Depends: ${misc:Depends}
-Description: StarlingX Openstack Helm Infrastructure
- This package contains a patched version of the openstack-helm-infra
- repo.
+Description: StarlingX Nginx Helm Charts
+ This package contains helm charts for the Nginx Ingress application.

@@ -13,10 +13,14 @@ from tsconfig import tsconfig as tsc
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import check_netapp_backends
 from k8sapp_openstack.utils import get_ceph_uuid
+from k8sapp_openstack.utils import is_netapp_available
 
 
 ROOK_CEPH_BACKEND_NAME = 'ceph-store'
+NETAPP_NFS_BACKEND_NAME = 'netapp-nfs'
+NETAPP_ISCSI_BACKEND_NAME = 'netapp-iscsi'
 
 
 class CinderHelm(openstack.OpenstackBaseHelm):
@@ -62,6 +66,17 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             ceph_overrides = self._get_conf_ceph_overrides()
             ceph_client_overrides = self._get_ceph_client_overrides()
 
+        # Add NetApp configuration
+        cinder_volume_read_only_filesystem = True
+        if is_netapp_available():
+            # If NetApp is using NFS, the cinder-volume pod cannot have a readOnly filesystem,
+            # as the NFS will be mounted into the pod during initialization
+            netapp_backends = check_netapp_backends()
+            cinder_volume_read_only_filesystem = not netapp_backends["nfs"]
+
+            cinder_overrides = self._get_conf_netapp_cinder_overrides(cinder_overrides)
+            backend_overrides = self._get_conf_netapp_backends_overrides(backend_overrides)
+
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'pod': {
@@ -75,7 +90,16 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                         'volume': self._num_provisioned_controllers(),
                         'scheduler': self._num_provisioned_controllers(),
                         'backup': self._num_provisioned_controllers()
-                    }
+                    },
+                    'security_context': {
+                        'cinder_volume': {
+                            'container': {
+                                'cinder_volume': {
+                                    'readOnlyRootFilesystem': cinder_volume_read_only_filesystem
+                                }
+                            }
+                        }
+                    },
                 },
                 'conf': {
                     'cinder': cinder_overrides,
@@ -189,6 +213,27 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
         return cinder_overrides
 
+    def _get_conf_netapp_cinder_overrides(self, cinder_overrides):
+        # Ensure 'DEFAULT' key exists in cinder_overrides
+        cinder_overrides.setdefault('DEFAULT', {})
+
+        # Get available NetApp backends
+        netapp_backends = check_netapp_backends()
+        netapp_array = [
+            NETAPP_NFS_BACKEND_NAME if netapp_backends.get("nfs") else None,
+            NETAPP_ISCSI_BACKEND_NAME if netapp_backends.get("iscsi") else None,
+        ]
+
+        # Remove None values
+        netapp_array = [item for item in netapp_array if item]
+
+        # Add NetApp backends to Cinder enabled_backends list, ensuring no duplicates
+        existing_backends = cinder_overrides['DEFAULT'].get('enabled_backends', '').split(',')
+        backends_list = list(filter(None, set(existing_backends + netapp_array)))
+        cinder_overrides['DEFAULT']['enabled_backends'] = ','.join(backends_list)
+
+        return cinder_overrides
+
     def _get_conf_ceph_backends_overrides(self, backend_overrides):
         # Get tier info.
         tiers = self.dbapi.storage_tier_get_list()
@@ -229,6 +274,25 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             ceph_uuid = get_ceph_uuid()
             if ceph_uuid:
                 backend_overrides[bk_name]['rbd_secret_uuid'] = ceph_uuid
+
+        return backend_overrides
+
+    def _get_conf_netapp_backends_overrides(self, backend_overrides):
+        cinder_netapp_driver = 'cinder.volume.drivers.netapp.common.NetAppDriver'
+
+        backend_overrides[NETAPP_NFS_BACKEND_NAME] = {
+            'volume_driver': cinder_netapp_driver,
+            'volume_backend_name': NETAPP_NFS_BACKEND_NAME,
+            'netapp_storage_family': 'ontap_cluster',
+            'netapp_storage_protocol': 'nfs',
+            'nfs_shares_config': '/etc/cinder/nfs.shares'
+        }
+        backend_overrides[NETAPP_ISCSI_BACKEND_NAME] = {
+            'volume_driver': cinder_netapp_driver,
+            'volume_backend_name': NETAPP_ISCSI_BACKEND_NAME,
+            'netapp_storage_family': 'ontap_cluster',
+            'netapp_storage_protocol': 'iscsi',
+        }
 
         return backend_overrides
 

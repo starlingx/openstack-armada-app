@@ -26,6 +26,10 @@ class CinderConversionTestCase(test_plugins.K8SAppOpenstackAppMixin,
 class CinderGetOverrideTest(CinderConversionTestCase,
                             dbbase.ControllerHostTestCase):
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.utils.check_netapp_backends',
+        return_value={'nfs': False, 'iscsi': False}
+    )
     def test_cinder_overrides(self, *_):
         dbutils.create_test_host_fs(name='image-conversion',
                                     forihostid=self.host.id)
@@ -70,6 +74,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             app_constants.OPENSTACK_CERT_KEY: 'fake',
             app_constants.OPENSTACK_CERT_CA: 'fake'
         }
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.check_netapp_backends',
+        return_value={'nfs': False, 'iscsi': False}
     )
     def test_cinder_overrides_https_enabled(self, *_):
         overrides = self.operator.get_helm_chart_overrides(

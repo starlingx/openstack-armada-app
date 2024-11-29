@@ -1,0 +1,22 @@
+#
+# Copyright (c) 2024 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+commonLabels:
+  chart_group: openstack-ingress-nginx
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: ingress-nginx-static-overrides
+    files:
+      - ingress-nginx-static-overrides.yaml
+  - name: ingress-nginx-system-overrides
+    files:
+      - ingress-nginx-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

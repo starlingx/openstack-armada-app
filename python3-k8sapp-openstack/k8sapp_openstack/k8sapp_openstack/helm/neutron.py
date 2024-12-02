@@ -71,6 +71,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
 
     def _get_per_host_overrides(self):
         host_list = []
+        config_map = []
         hosts = self.dbapi.ihost_get_list()
 
         for host in hosts:
@@ -95,7 +96,29 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                     if utils.get_vswitch_type(self.dbapi) == constants.VSWITCH_TYPE_NONE:
                         host_neutron['conf'].update({
                             'auto_bridge_add': self._get_host_bridges(host)})
-                    host_list.append(host_neutron)
+
+                    # add first host to config_map
+                    if not config_map:
+                        config_map.append({
+                            'conf': host_neutron['conf'],
+                            'name': [hostname]
+                        })
+                    else:
+                        # check if an identical configuration already exists in the config_map
+                        for config in config_map:
+                            if config['conf'] == host_neutron['conf']:
+                                config['name'].append(hostname)
+                                break
+                        else:
+                            # add new config to config_map
+                            config_map.append({
+                                'conf': host_neutron['conf'],
+                                'name': [hostname]
+                            })
+
+        for config in config_map:
+            host_list.append(config)
+
         return host_list
 
     def _interface_sort_key(self, iface):

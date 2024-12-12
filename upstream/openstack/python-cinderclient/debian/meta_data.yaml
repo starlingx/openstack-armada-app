@@ -1,11 +1,11 @@
 ---
 debname: python-cinderclient
-debver: 1:9.3.0-1
+debver: 1:9.5.0-1
 dl_path:
-  name: python-cinderclient-debian-9.3.0-1.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-cinderclient/-/archive/debian/9.3.0-1/python-cinderclient-debian-9.3.0-1.tar.gz
-  md5sum: 1f23aab079e908bbf8745da2d9adf137
-  sha256: 962ba2fe525092fbe46bc33524f455c52627974de0023c939df3bb076b93dde2
+  name: python-cinderclient-debian-9.5.0-1.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-cinderclient/-/archive/debian/9.5.0-1/python-cinderclient-debian-9.5.0-1.tar.gz
+  md5sum: 8e093a8b2c212b1e818cd6f81dc3af35
+  sha256: 78a17256fab1475722fb9556879d27d03c7f75a25823024cbe7035932fae6c8c
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

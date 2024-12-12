@@ -1,4 +1,4 @@
-From 64b639e6c81a11ecf8c52ae8f331f462cce009aa Mon Sep 17 00:00:00 2001
+From ec902592084577f04075359c811f012864f631cb Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 17:28:06 +0000
 Subject: [PATCH] Add package wheel
@@ -11,10 +11,10 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  1 file changed, 3 insertions(+)
 
 diff --git a/debian/rules b/debian/rules
-index 8acee49..0d8778c 100755
+index a0eead7..9186ad3 100755
 --- a/debian/rules
 +++ b/debian/rules
-@@ -15,6 +15,9 @@ override_dh_auto_install:
+@@ -17,6 +17,9 @@ override_dh_auto_install:
  	for i in $(PYTHON3S) ; do \
  		python3 setup.py install -f --install-layout=deb --root=$(CURDIR)/debian/tmp ; \
  	done
@@ -25,5 +25,5 @@ index 8acee49..0d8778c 100755
  	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages pkgos-dh_auto_test --no-py2
  endif
 -- 
-2.25.1
+2.34.1
 

@@ -1,4 +1,4 @@
-From a82f5a067982c96990255752e714ddb49156a763 Mon Sep 17 00:00:00 2001
+From 643f257cbfcda6e9714360bee06b31be74222025 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 13:25:54 +0000
 Subject: [PATCH] Add wheel package
@@ -12,10 +12,10 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  2 files changed, 15 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index 9b81157..8e22bc1 100644
+index d84b592..d283f5a 100644
 --- a/debian/control
 +++ b/debian/control
-@@ -73,3 +73,17 @@ Description: client API library for Neutron - Python 3.x
+@@ -74,3 +74,17 @@ Description: client API library for Neutron - Python 3.x
   capabilities (e.g., QoS, ACLs, network monitoring, etc).
   .
   This package provides the client and Python 3.x module.
@@ -34,18 +34,18 @@ index 9b81157..8e22bc1 100644
 + .
 + This package contains the Python3 wheel.
 diff --git a/debian/rules b/debian/rules
-index b886612..ee5df36 100755
+index c13fda2..20b1479 100755
 --- a/debian/rules
 +++ b/debian/rules
-@@ -12,7 +12,7 @@ override_dh_auto_build:
+@@ -14,7 +14,7 @@ override_dh_auto_build:
  	echo "Do nothing..."
  
  override_dh_auto_install:
 -	pkgos-dh_auto_install --no-py2
 +	pkgos-dh_auto_install --no-py2 --wheel
- 	install -D -m 0644 tools/neutron.bash_completion $(CURDIR)/debian/python3-neutronclient/usr/share/bash-completion/completions/neutron
  
  ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+ override_dh_auto_test:
 -- 
-2.25.1
+2.34.1
 

@@ -1,4 +1,4 @@
-From 70ee3f4e6732d6cf55a8744d202e2a3f7b100f45 Mon Sep 17 00:00:00 2001
+From 6052351b446c4149b7f9fbfa3939e3884da5e764 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 12:49:17 +0000
 Subject: [PATCH] Add wheel package
@@ -12,7 +12,7 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  2 files changed, 24 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index f837496..7e5a51e 100644
+index 8087b67..ba96755 100644
 --- a/debian/control
 +++ b/debian/control
 @@ -100,3 +100,26 @@ Description: Client for OpenStack bare metal Service - Python 3.x
@@ -43,18 +43,18 @@ index f837496..7e5a51e 100644
 + .
 + This package contains the Python wheel.
 diff --git a/debian/rules b/debian/rules
-index e69b6fe..40f2b34 100755
+index 440f688..c466daa 100755
 --- a/debian/rules
 +++ b/debian/rules
-@@ -12,7 +12,7 @@ override_dh_auto_build:
+@@ -14,7 +14,7 @@ override_dh_auto_build:
  	echo "Do nothing..."
- 
+
  override_dh_auto_install:
 -	pkgos-dh_auto_install --no-py2
 +	pkgos-dh_auto_install --no-py2 --wheel
- 
+
  override_dh_auto_test:
  ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
--- 
-2.25.1
+--
+2.34.1
 

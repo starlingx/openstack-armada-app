@@ -1,11 +1,11 @@
 ---
 debname: python-keystoneclient
-debver: 5.1.0-2
+debver: 5.4.0-2
 dl_path:
-  name: python-keystoneclient-debian-5.1.0-2.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-keystoneclient/-/archive/debian/5.1.0-2/python-keystoneclient-debian-5.1.0-2.tar.gz
-  md5sum: a356b26f89ebb88fd4eab221f852d149
-  sha256sum: a90cfc24773cb5dc214b44e32abc87d4b25ecd97c87abf292e1b806a40623ac0
+  name: python-keystoneclient-debian-5.4.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-keystoneclient/-/archive/debian/5.4.0-2/python-keystoneclient-debian-5.4.0-2.tar.gz
+  md5sum: 038c6ef8749480c4ab76ebbe366d4c1b
+  sha256sum: 70b061cc8d7595978833e43d4d51601b9221fa9ca25c26142da2799edd7e1ae4
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

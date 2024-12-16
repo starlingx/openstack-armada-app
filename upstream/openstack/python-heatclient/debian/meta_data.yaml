@@ -1,11 +1,11 @@
 ---
 debname: python-heatclient
-debver: 3.2.0-2
+debver: 3.5.0-2
 dl_path:
-  name: python-heatclient-debian-3.2.0-2.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-heatclient/-/archive/debian/3.2.0-2/python-heatclient-debian-3.2.0-2.tar.gz
-  md5sum: 857e06948b59dee6436bd789dbbba9ce
-  sha256sum: 5c355e161873c8030f781ce521745e12b4d939fb26a11b4eb0d9029e8aef8daf
+  name: python-heatclient-debian-3.5.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-heatclient/-/archive/debian/3.5.0-2/python-heatclient-debian-3.5.0-2.tar.gz
+  md5sum: b2534b40a1df681ebbca45e9f3350a5a
+  sha256sum: babe17e9064172307035cc9acade20217fa598d23fa516e102b99ac66976f0ec
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

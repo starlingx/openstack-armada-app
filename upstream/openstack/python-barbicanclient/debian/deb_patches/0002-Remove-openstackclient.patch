@@ -1,4 +1,4 @@
-From 00afa9f474cb665ad8399207731552914c6d78c2 Mon Sep 17 00:00:00 2001
+From 845ded9ae20aedff09b1f697fead16aa9da97d0e Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Mon, 29 Nov 2021 20:50:16 +0000
 Subject: [PATCH] Remove openstackclient
@@ -24,6 +24,6 @@ index 3bb61d5..6e4d9f2 100644
   python3-openstackdocstheme <!nodoc>,
   python3-oslo.config,
   python3-oslo.i18n,
--- 
-2.25.1
+--
+2.34.1
 

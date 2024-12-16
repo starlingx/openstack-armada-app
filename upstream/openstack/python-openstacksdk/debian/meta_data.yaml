@@ -1,11 +1,11 @@
 ---
-debver: 1.0.1-2
+debver: 3.0.0-3
 debname: python-openstacksdk
 dl_path:
-  name: python-openstacksdk-debian-1.0.1-2.tar.gz
-  url: https://salsa.debian.org/openstack-team/libs/python-openstacksdk/-/archive/debian/1.0.1-2/python-openstacksdk-debian-1.0.1-2.tar.gz
-  md5sum: 828fd06a1d8362dfe57f48f7a43e129d
-  sha256sum: 770ca51824df373e11aab01dd2fca9b431d21132676c2dd43251c3ea7cb8f6e3
+  name: python-openstacksdk-debian-3.0.0-3.tar.gz
+  url: https://salsa.debian.org/openstack-team/libs/python-openstacksdk/-/archive/debian/3.0.0-3/python-openstacksdk-debian-3.0.0-3.tar.gz
+  md5sum: 5b7fb3c8e0cb9c555fc6261d5a758de6
+  sha256sum: 942b7aba202a6b820cc7d815cd28ac03957f7ac04006473a3d6ce43b6feaffbf
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

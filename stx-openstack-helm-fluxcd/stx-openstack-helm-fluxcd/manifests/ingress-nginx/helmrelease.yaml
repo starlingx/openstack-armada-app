@@ -1,0 +1,39 @@
+#
+# Copyright (c) 2024 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2"
+kind: HelmRelease
+metadata:
+  name: ingress-nginx
+  labels:
+    chart_group: openstack-ingress-nginx
+spec:
+  releaseName: openstack-ingress-nginx
+  chart:
+    spec:
+      chart: ingress-nginx
+      version: 4.11.1
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+      interval: 1m
+  interval: 1m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  valuesFrom:
+    - kind: Secret
+      name: ingress-nginx-static-overrides
+      valuesKey: ingress-nginx-static-overrides.yaml
+    - kind: Secret
+      name: ingress-nginx-system-overrides
+      valuesKey: ingress-nginx-system-overrides.yaml
+...

@@ -1,5 +1,4 @@
-
-From 80ca3caf55c34900ab1d555f57151a01764e9d32 Mon Sep 17 00:00:00 2001
+From 1bc2ecf87f45a0c2737cd05a5681a1f1b1e1f015 Mon Sep 17 00:00:00 2001
 From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 Date: Mon, 6 Mar 2023 09:25:12 -0300
 Subject: [PATCH] Add location parameter for volume backup creation
@@ -192,5 +191,5 @@ index 61069c8..a72caa3 100644
              body['backup']['metadata'] = metadata
          if availability_zone:
 -- 
-2.25.1
+2.34.1
 

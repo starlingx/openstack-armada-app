@@ -1,4 +1,4 @@
-From ceb23453a2ac814e752393aaef841a1024f243d8 Mon Sep 17 00:00:00 2001
+From ddf75bde7116bed571b33a41888e2ef98a3fb783 Mon Sep 17 00:00:00 2001
 From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 Date: Fri, 24 Feb 2023 08:47:48 -0300
 Subject: [PATCH] Add plugin entry point sorting mechanism
@@ -43,13 +43,15 @@ default in the list.
 [6] https://opendev.org/openstack/cliff/src/branch/stable/victoria/cliff/commandmanager.py#L75
 
 Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+[ Ported this patch to python-openstackclient v6.6.0-5 @ Caracal ]
+Signed-off-by: Jose Claudio <joseclaudio.paespires@windriver.com>
 ---
- openstackclient/common/clientmanager.py | 173 +++++++++++++++++++++++-
+ openstackclient/common/clientmanager.py | 172 +++++++++++++++++++++++-
  openstackclient/shell.py                |  32 ++++-
- 2 files changed, 202 insertions(+), 3 deletions(-)
+ 2 files changed, 201 insertions(+), 3 deletions(-)
 
 diff --git a/openstackclient/common/clientmanager.py b/openstackclient/common/clientmanager.py
-index 1ed6aa24..def7f2ca 100644
+index 35c79247..bf193dbc 100644
 --- a/openstackclient/common/clientmanager.py
 +++ b/openstackclient/common/clientmanager.py
 @@ -19,14 +19,17 @@ import importlib
@@ -70,7 +72,7 @@ index 1ed6aa24..def7f2ca 100644
  
  USER_AGENT = 'python-openstackclient'
  
-@@ -143,11 +146,177 @@ class ClientManager(clientmanager.ClientManager):
+@@ -147,12 +150,177 @@ class ClientManager(clientmanager.ClientManager):
  
  # Plugin Support
  
@@ -239,7 +241,7 @@ index 1ed6aa24..def7f2ca 100644
 +
 +    return before_entry_points + entry_points + after_entry_points
 +
-+
+ 
  def get_plugin_modules(group):
      """Find plugin entry points"""
      mod_list = []
@@ -251,10 +253,10 @@ index 1ed6aa24..def7f2ca 100644
  
          # Different versions of stevedore use different
 diff --git a/openstackclient/shell.py b/openstackclient/shell.py
-index bc88e1f1..1db9eaca 100644
+index 68ebf8a4..13626a2e 100644
 --- a/openstackclient/shell.py
 +++ b/openstackclient/shell.py
-@@ -20,7 +20,9 @@ import sys
+@@ -21,7 +21,9 @@ import warnings
  
  from osc_lib.api import auth
  from osc_lib.command import commandmanager
@@ -264,7 +266,7 @@ index bc88e1f1..1db9eaca 100644
  
  import openstackclient
  from openstackclient.common import clientmanager
-@@ -29,6 +31,19 @@ from openstackclient.common import clientmanager
+@@ -30,12 +32,25 @@ from openstackclient.common import clientmanager
  DEFAULT_DOMAIN = 'default'
  
  
@@ -282,19 +284,17 @@ index bc88e1f1..1db9eaca 100644
 +
 +
  class OpenStackShell(shell.OpenStackShell):
- 
      def __init__(self):
-@@ -36,7 +51,7 @@ class OpenStackShell(shell.OpenStackShell):
          super(OpenStackShell, self).__init__(
              description=__doc__.strip(),
              version=openstackclient.__version__,
 -            command_manager=commandmanager.CommandManager('openstack.cli'),
 +            command_manager=CommandManager('openstack.cli'),
-             deferred_help=True)
+             deferred_help=True,
+         )
  
-         self.api_version = {}
-@@ -50,6 +65,18 @@ class OpenStackShell(shell.OpenStackShell):
-             version)
+@@ -54,6 +69,18 @@ class OpenStackShell(shell.OpenStackShell):
+         )
          parser = clientmanager.build_plugin_option_parser(parser)
          parser = auth.build_auth_plugins_option_parser(parser)
 +
@@ -312,7 +312,7 @@ index bc88e1f1..1db9eaca 100644
          return parser
  
      def _final_defaults(self):
-@@ -62,6 +89,9 @@ class OpenStackShell(shell.OpenStackShell):
+@@ -66,6 +93,9 @@ class OpenStackShell(shell.OpenStackShell):
          else:
              self._auth_type = 'password'
  
@@ -323,5 +323,5 @@ index bc88e1f1..1db9eaca 100644
          """Load plugins via stevedore
  
 -- 
-2.25.1
+2.34.1
 

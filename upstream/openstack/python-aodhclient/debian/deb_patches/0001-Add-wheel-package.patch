@@ -1,4 +1,4 @@
-From f20a31e3f6bbdb1e79303339a0c1aace544dfe8c Mon Sep 17 00:00:00 2001
+From a36874e1f79bf49b1bc1ee7cf79a735667cb6c2c Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 16:46:26 +0000
 Subject: [PATCH] Add wheel package
@@ -12,10 +12,10 @@ Signed-off-by: Charles Short <charles.short@windriver.com>
  2 files changed, 17 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index 37d8cd8..7caceee 100644
+index 7a650ec..06c2fd5 100644
 --- a/debian/control
 +++ b/debian/control
-@@ -84,3 +84,19 @@ Description: OpenStack Alarming as a Service - Python 3.x client
+@@ -79,3 +79,19 @@ Description: OpenStack Alarming as a Service - Python 3.x client
   for more than 10 min.
   .
   This package contains the Python 3.x module.
@@ -36,18 +36,18 @@ index 37d8cd8..7caceee 100644
 + .
 + This package contains the Python wheel.
 diff --git a/debian/rules b/debian/rules
-index 42e437f..3795caf 100755
+index ca3fc9d..e166124 100755
 --- a/debian/rules
 +++ b/debian/rules
-@@ -13,7 +13,7 @@ override_dh_auto_build:
+@@ -15,7 +15,7 @@ override_dh_auto_build:
  	echo "Do nothing..."
- 
+
  override_dh_auto_install:
 -	pkgos-dh_auto_install --no-py2
 +	pkgos-dh_auto_install --no-py2 --wheel
- 
+
  override_dh_auto_test:
  ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
--- 
-2.25.1
+--
+2.34.1
 

@@ -1,4 +1,4 @@
-From 36a10042663d219e57941c79904c973fc0cb6438 Mon Sep 17 00:00:00 2001
+From be960e947f4cafa84651e5b8012d193623afdcaa Mon Sep 17 00:00:00 2001
 From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 Date: Tue, 27 Jun 2023 09:22:03 -0300
 Subject: [PATCH] Add wheel package
@@ -15,13 +15,13 @@ Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
  3 files changed, 21 insertions(+), 1 deletion(-)
 
 diff --git a/debian/changelog b/debian/changelog
-index 7f3e7a9..20cc0ed 100644
+index 43785ac..7b65712 100644
 --- a/debian/changelog
 +++ b/debian/changelog
-@@ -47,6 +47,13 @@ python-barbicanclient (5.2.0-2) unstable; urgency=medium
- 
+@@ -84,6 +84,13 @@ python-barbicanclient (5.2.0-2) unstable; urgency=medium
+
    * Uploading to unstable.
- 
+
 +python-barbicanclient (5.0.1-2.1) unstable; urgency=medium
 +
 +  * Non-maintainer upload.
@@ -30,7 +30,7 @@ index 7f3e7a9..20cc0ed 100644
 + -- Chuck Short <charles.short@windriver.com>  Sun, 03 Oct 2021 18:30:48 +0000
 +
   -- Thomas Goirand <zigo@debian.org>  Wed, 29 Sep 2021 17:11:20 +0200
- 
+
  python-barbicanclient (5.2.0-1) experimental; urgency=medium
 diff --git a/debian/control b/debian/control
 index 3b0a473..3bb61d5 100644
@@ -54,18 +54,18 @@ index 3b0a473..3bb61d5 100644
 + .
 + This package contains the Python 3.x wheel.
 diff --git a/debian/rules b/debian/rules
-index f6b7783..978fde3 100755
+index 40d1617..2b7daa3 100755
 --- a/debian/rules
 +++ b/debian/rules
-@@ -12,7 +12,7 @@ override_dh_auto_build:
+@@ -14,7 +14,7 @@ override_dh_auto_build:
  	echo "Do nothing..."
- 
+
  override_dh_auto_install:
 -	pkgos-dh_auto_install --no-py2
 +	pkgos-dh_auto_install --no-py2 --wheel
- 
+
  override_dh_auto_test:
  ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
--- 
-2.25.1
+--
+2.34.1
 

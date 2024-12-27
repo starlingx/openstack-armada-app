@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -20,6 +20,9 @@ class NeutronHelmTestCase(test_plugins.K8SAppOpenstackAppMixin,
     def setUp(self):
         super(NeutronHelmTestCase, self).setUp()
         self.app = dbutils.create_test_app(name=self.app_name)
+        self.app.dbapi = mock.MagicMock()
+        self.neutron_helm = neutron.NeutronHelm(self.app.dbapi)
+        self.neutron_helm.labels_by_hostid = {}
 
 
 class NeutronGetOverrideTest(NeutronHelmTestCase,
@@ -133,3 +136,31 @@ class NeutronGetOverrideTest(NeutronHelmTestCase,
                 'certificates': True,
             },
         })
+
+    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+                return_value=True)
+    def test_get_manifests_overrides_openvswitch_enabled(self, mock_is_openvswitch_enabled):
+        """
+        Test for the _get_manifests_overrides function to ensure the correct
+        'daemonset_l3_agent' value is returned based on the openvswitch status.
+        """
+        self.app.dbapi.ihost_get_list.return_value = [
+            mock.MagicMock(id=1),
+            mock.MagicMock(id=2)
+        ]
+        overrides = self.neutron_helm._get_manifests_overrides()
+        self.assertEqual({'daemonset_l3_agent': True}, overrides)
+
+    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+                return_value=False)
+    def test_get_manifests_overrides_openvswitch_disabled(self, mock_is_openvswitch_enabled):
+        """
+        Test for the _get_manifests_overrides function to ensure the correct
+        'daemonset_l3_agent' value is returned based on the openvswitch status.
+        """
+        self.app.dbapi.ihost_get_list.return_value = [
+            mock.MagicMock(id=1),
+            mock.MagicMock(id=2)
+        ]
+        overrides = self.neutron_helm._get_manifests_overrides()
+        self.assertEqual({'daemonset_l3_agent': False}, overrides)

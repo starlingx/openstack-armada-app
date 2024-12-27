@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -20,6 +20,7 @@ from sysinv.common import constants
 from sysinv.common import kubernetes
 from sysinv.common import utils as cutils
 from sysinv.db import api as dbapi
+from sysinv.helm import common as helm_common
 import yaml
 
 from k8sapp_openstack.common import constants as app_constants
@@ -538,3 +539,36 @@ def is_netapp_available() -> bool:
     """
     netapp_backends = check_netapp_backends()
     return netapp_backends["nfs"] or netapp_backends["iscsi"]
+
+
+def is_openvswitch_enabled(hosts, labels_by_hostid) -> bool:
+    """
+    Check if openvswitch is enabled.
+
+    Args:
+        hosts (list): A list of hosts registered in the database.
+        labels_by_hostid (dict): A dictionary of labels associated
+        with a specific host ID.
+
+    Returns:
+        bool: True if openvswitch is enabled or False if it is not.
+    """
+    for host in hosts:
+        host_labels = labels_by_hostid.get(host.id, [])
+        if not host_labels:
+            LOG.debug(f"No labels found for host ID {host.id}")
+        labels = dict((label.label_key, label.label_value) for label in host_labels)
+        if (host.invprovision in [constants.PROVISIONED,
+                                  constants.PROVISIONING] or
+                host.ihost_action in [constants.UNLOCK_ACTION,
+                                      constants.FORCE_UNLOCK_ACTION]):
+            if (constants.WORKER in cutils.get_personalities(host) and
+                    cutils.has_openstack_compute(host_labels)):
+                if (helm_common.LABEL_OPENVSWITCH in labels):
+                    vswitch_label_value = labels.get(helm_common.LABEL_OPENVSWITCH)
+                    LOG.debug(f"Open vSwitch label value for host {host.id}: {vswitch_label_value}")
+                    return helm_common.LABEL_VALUE_ENABLED == vswitch_label_value.lower()
+                else:
+                    LOG.debug(f"Openvswitch label not found for host {host.id}")
+    LOG.info("Openvswitch is not enabled on any of the hosts.")
+    return False

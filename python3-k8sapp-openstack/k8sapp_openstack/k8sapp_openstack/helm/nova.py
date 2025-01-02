@@ -645,6 +645,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
     def _get_per_host_overrides(self):
         host_list = []
+        config_map = []
         hosts = self.dbapi.ihost_get_list()
 
         for host in hosts:
@@ -676,7 +677,25 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                             }
                         }
                     }
-                    host_list.append(host_nova)
+                # add first host to config_map
+                if not config_map:
+                    config_map.append({
+                        'conf': host_nova['conf'],
+                        'name': [hostname]
+                    })
+                else:
+                    # check if an identical configuration already exists in the config_map
+                    for config in config_map:
+                        if config['conf'] == host_nova['conf']:
+                            config['name'].append(hostname)
+                            break
+                    else:
+                        # add new config to config_map
+                        config_map.append({
+                            'conf': host_nova['conf'],
+                            'name': [hostname]
+                        })
+        host_list.extend(config_map)
         return host_list
 
     def get_region_name(self):

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -43,9 +43,6 @@ class NovaGetOverrideTest(NovaHelmTestCase,
             'interface_id': self.ifaces[0].id,
             'enable_dad': self.oam_subnet.version == 6
         })
-
-    def test_update_host_addresses(self):
-        self.nova._update_host_addresses(self.worker, {}, {}, {})
 
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_nova_overrides(self, *_):

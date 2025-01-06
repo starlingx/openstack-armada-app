@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -464,15 +464,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         else:
             libvirt_config.update({'images_type': 'default'})
 
-    def _update_host_addresses(self, host, default_config, vnc_config, libvirt_config):
-        cluster_host_ip = self._get_cluster_host_ip(
-            host, self.addresses_by_hostid)
-
-        default_config.update({'my_ip': cluster_host_ip})
-        vnc_config.update({'server_listen': cluster_host_ip})
-        vnc_config.update({'server_proxyclient_address': cluster_host_ip})
-        libvirt_config.update({'live_migration_inbound_addr': cluster_host_ip})
-
     def _get_ssh_subnet(self):
         address_pool = self.dbapi.address_pool_get(self.cluster_host_network.pool_uuid)
         return '%s/%s' % (str(address_pool.network), str(address_pool.prefix))
@@ -668,13 +659,10 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                     hostname = str(host.hostname)
                     default_config = {}
                     compute_config = {}
-                    vnc_config = {}
                     libvirt_config = {}
                     pci_config = {}
                     self._update_host_cpu_maps(host, compute_config)
                     self._update_host_storage(host, default_config, libvirt_config)
-                    self._update_host_addresses(host, default_config, vnc_config,
-                                                libvirt_config)
                     self._update_host_pci_whitelist(host, pci_config)
                     self._update_reserved_memory(host, default_config)
                     host_nova = {
@@ -683,7 +671,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                             'nova': {
                                 'DEFAULT': default_config,
                                 'compute': compute_config if compute_config else None,
-                                'vnc': vnc_config,
                                 'libvirt': libvirt_config,
                                 'pci': pci_config if pci_config else None,
                             }

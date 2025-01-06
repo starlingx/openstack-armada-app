@@ -1,0 +1,127 @@
+From 9dbf2a0cc29a051471b7bdf8f4f762259722d5a9 Mon Sep 17 00:00:00 2001
+From: marantes <murillo.arantes@windriver.com>
+Date: Fri, 3 Jan 2025 16:04:17 -0300
+Subject: [PATCH] Add cluster host ip env var to nova
+
+This patch reads the Nova configurations from /etc/nova/nova.conf and
+writes them to a new Nova configuration file located at
+/tmp/pod-shared/nova.conf, with the only difference being that the
+fields DEFAULT.my_ip, vnc.server_listen, vnc.server_proxyclient_address
+and libvirt.live_migration_inbound_addr will be updated to contain the
+cluster host IP configured in a environment variable. This new
+configuration file will be used by the Nova compute container.
+
+This patch aims to assist in the task of changing the IP acquisition
+method for Nova compute pods from the Nova plugin to an environment
+variable-based approach that will provide the cluster host IP address
+to the Nova compute container. Since the Nova configuration file
+located at /etc/nova is read-only, the solution of creating a new
+configuration file was used, following a similar approach that is
+already followed by other Nova configuration files using this path
+(nova-console.conf, nova-hypervisor.conf and nova-libvirt.conf).
+
+Signed-off-by: Murillo Arantes <murillo.arantes@windriver.com>
+---
+ nova/templates/bin/_nova-compute.sh.tpl | 51 ++++++++++++++++++++++++-
+ nova/templates/daemonset-compute.yaml   |  8 +++-
+ 2 files changed, 56 insertions(+), 3 deletions(-)
+
+diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
+index 702e3b92..116f41a6 100644
+--- a/nova/templates/bin/_nova-compute.sh.tpl
++++ b/nova/templates/bin/_nova-compute.sh.tpl
+@@ -16,8 +16,57 @@ limitations under the License.
+
+ set -ex
+
++# Check if environment variable exists
++if [ -z "$CLUSTER_HOST_IP" ]; then
++    echo "Error: CLUSTER_HOST_IP environment variable is not set."
++    exit 1
++fi
++
++# Set input and output files
++INPUT_FILE="/etc/nova/nova.conf"
++OUTPUT_FILE="/tmp/pod-shared/nova.conf"
++
++# Check if the output directory exists
++if [ ! -d "$(dirname "$OUTPUT_FILE")" ]; then
++    echo "Error: Output directory does not exist."
++    exit 1
++fi
++
++# Set fields to replace with cluster host ip
++declare -A CONFIG_CHANGES
++CONFIG_CHANGES["DEFAULT.my_ip"]="$CLUSTER_HOST_IP"
++CONFIG_CHANGES["vnc.server_listen"]="$CLUSTER_HOST_IP"
++CONFIG_CHANGES["vnc.server_proxyclient_address"]="$CLUSTER_HOST_IP"
++CONFIG_CHANGES["libvirt.live_migration_inbound_addr"]="$CLUSTER_HOST_IP"
++
++# Loop through the lines of the input file
++while IFS="=" read -r line; do
++    # Check if the line is a section
++    if [[ "$line" =~ ^\[.*\]$ ]]; then
++        section="${line//[\[\]]/}"  # Get section name by stripping brackets
++    fi
++
++    # Loop through the dictionary of field.section and update the values
++    for field_section in "${!CONFIG_CHANGES[@]}"; do
++        section_name="${field_section%%.*}"   # Extract section (before the dot)
++        field_name="${field_section#*.}"     # Extract field (after the dot)
++        new_value="${CONFIG_CHANGES[$field_section]}"
++
++        # If we are in the correct section, update the field value
++        if [[ "$section" == "$section_name" && "$line" =~ ^$field_name\ = ]]; then
++            line="$field_name = $new_value"
++        fi
++    done
++
++    # Write the line (modified or unmodified) to the output file
++    if ! echo "$line" >> "$OUTPUT_FILE"; then
++        echo "Error: Failed to write to output file."
++        exit 1
++    fi
++done < "$INPUT_FILE"
++
+ exec nova-compute \
+-      --config-file /etc/nova/nova.conf \
++      --config-file /tmp/pod-shared/nova.conf \
+ {{- if .Values.console.address_search_enabled }}
+       --config-file /tmp/pod-shared/nova-console.conf \
+ {{- end }}
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 1a117456..794674f3 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -18,7 +18,7 @@ exec:
+     - python
+     - /tmp/health-probe.py
+     - --config-file
+-    - /etc/nova/nova.conf
++    - /tmp/pod-shared/nova.conf
+     - --service-queue-name
+     - compute
+     - --liveness-probe
+@@ -33,7 +33,7 @@ exec:
+     - python
+     - /tmp/health-probe.py
+     - --config-file
+-    - /etc/nova/nova.conf
++    - /tmp/pod-shared/nova.conf
+     - --service-queue-name
+     - compute
+     {{- if .Values.pod.use_fqdn.compute }}
+@@ -278,6 +278,10 @@ spec:
+               value: "{{ .Values.pod.probes.rpc_timeout }}"
+             - name: RPC_PROBE_RETRIES
+               value: "{{ .Values.pod.probes.rpc_retries }}"
++            - name: CLUSTER_HOST_IP
++              valueFrom:
++                fieldRef:
++                  fieldPath: status.hostIP
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+             - name: REQUESTS_CA_BUNDLE
+               value: "/etc/ssl/certs/openstack-helm.crt"
+-- 
+2.34.1
+

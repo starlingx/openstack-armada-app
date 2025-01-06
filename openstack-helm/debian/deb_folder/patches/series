@@ -22,3 +22,4 @@
 0022-Add-missing-initial-delay-in-readiness-probes.patch
 0023-Add-pre-apply-cleanup-Job-to-STX-O-Helm-charts.patch
 0024-Define-values-for-NetApp-volume-backend.patch
+0025-Add-cluster-host-ip-env-var-to-nova.patch

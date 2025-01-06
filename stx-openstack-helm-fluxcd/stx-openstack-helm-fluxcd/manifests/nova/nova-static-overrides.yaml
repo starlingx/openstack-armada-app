@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -186,6 +186,7 @@ conf:
     vnc:
       novncproxy_host: "::"
       server_listen: "::"
+      server_proxyclient_address: "::"
     spice:
       html5proxy_host: "::"
       server_listen: "::"
@@ -199,6 +200,7 @@ conf:
       rbd_user: cinder
       # Allow up to 1 day for resize conf
       remove_unused_resized_minimum_age_seconds: 86400
+      live_migration_inbound_addr: "::"
     database:
       idle_timeout: 60
       max_overflow: 64

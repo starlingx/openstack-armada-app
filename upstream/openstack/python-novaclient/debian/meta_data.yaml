@@ -1,11 +1,11 @@
 ---
 debname: python-novaclient
-debver: 18.3.0-2
+debver: 18.6.0-3
 dl_path:
-  name: python-novaclient-debian-18.3.0-2.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-novaclient/-/archive/debian/18.3.0-2/python-novaclient-debian-18.3.0-2.tar.gz
-  md5sum: dd87296a6d95a6bb5b9bd9d00de46cb8
-  sha256sum: 7041145071a244b5e1450585ffa0594e2b8cc437e422f70dd90aaecb8ead4abc
+  name: python-novaclient-debian-18.6.0-3.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-novaclient/-/archive/debian/18.6.0-3/python-novaclient-debian-18.6.0-3.tar.gz
+  md5sum: 75b67344ba1a5404ed90737aead07d41
+  sha256sum: e189f8a62b4dd677ffceeb44f40fce4b54e067ced32631b066cd397c9167a335
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

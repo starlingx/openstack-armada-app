@@ -681,24 +681,24 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                             }
                         }
                     }
-                # add first host to config_map
-                if not config_map:
-                    config_map.append({
-                        'conf': host_nova['conf'],
-                        'name': [hostname]
-                    })
-                else:
-                    # check if an identical configuration already exists in the config_map
-                    for config in config_map:
-                        if config['conf'] == host_nova['conf']:
-                            config['name'].append(hostname)
-                            break
-                    else:
-                        # add new config to config_map
+                    # add first host to config_map
+                    if not config_map:
                         config_map.append({
                             'conf': host_nova['conf'],
                             'name': [hostname]
                         })
+                    else:
+                        # check if an identical configuration already exists in the config_map
+                        for config in config_map:
+                            if config['conf'] == host_nova['conf']:
+                                config['name'].append(hostname)
+                                break
+                        else:
+                            # add new config to config_map
+                            config_map.append({
+                                'conf': host_nova['conf'],
+                                'name': [hostname]
+                            })
         host_list.extend(config_map)
         return host_list
 

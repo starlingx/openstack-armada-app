@@ -1,0 +1,40 @@
+From b327cf3e379dd1a28e9e1491774c11e1209a1476 Mon Sep 17 00:00:00 2001
+From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+Date: Tue, 26 Sep 2023 16:16:04 -0300
+Subject: [PATCH] Add service tokens for Cinder auth
+
+Since version 22.1.0 of Cinder, it requires Nova to configure service
+tokens in order to manipulate volumes [1], meaning that if that's not
+configured, Nova will not be able to create VMs by volume. The commit
+configured for StarlingX's openstack-helm package does not include this
+configuration, which was done later by [2] and [3].
+
+This patch includes commits [2] and [3] in order to allow Nova to create
+VMs by volumes.
+
+[1] https://docs.openstack.org/releasenotes/cinder/2023.1.html#upgrade-notes
+[2] https://opendev.org/openstack/openstack-helm/commit/91c8a5baf2cf2f0dddded57d88f00ea11dd4ff4a
+[3] https://opendev.org/openstack/openstack-helm/commit/7d39af25fddbf5fc67e15c92a9265f28567a214e
+
+Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+[ Upversioned openstack-helm-infra base commit to Caracal ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+---
+ nova/values.yaml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/nova/values.yaml b/nova/values.yaml
+index e5baeba0..5cc60057 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -1441,6 +1441,8 @@ conf:
+       auth_version: v3
+     cinder:
+       catalog_info: volumev3::internalURL
++      auth_url: null
++      auth_type: password
+     database:
+       max_retries: -1
+     api_database:
+-- 
+2.34.1

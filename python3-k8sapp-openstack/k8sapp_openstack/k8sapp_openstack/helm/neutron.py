@@ -50,7 +50,8 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
             common.HELM_NS_OPENSTACK: {
                 'pod': {
                     'replicas': {
-                        'server': self._num_provisioned_controllers()
+                        'server': self._num_provisioned_controllers(),
+                        'rpc_server': self._num_provisioned_controllers(),
                     },
                 },
                 'conf': self._get_conf_overrides(),

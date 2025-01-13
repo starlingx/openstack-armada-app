@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -26,6 +26,8 @@ images:
   tags:
     ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     ceph_rgw: null
+    ceph_rgw_pool: null
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
     image_repo_sync: null
     ceph_bootstrap: null
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -21,6 +21,7 @@ labels:
     node_selector_value: enabled
 images:
   tags:
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
     image_repo_sync: null
     prometheus_rabbitmq_exporter: null
     prometheus_rabbitmq_exporter_helm_tests: null
@@ -49,10 +50,14 @@ pod:
         operator: Exists
         effect: NoSchedule
   probes:
-    readiness:
-      periodSeconds: 30
-    liveness:
-      periodSeconds: 30
+    rabbitmq:
+      rabbitmq:
+        readiness:
+          params:
+            periodSeconds: 30
+        liveness:
+          params:
+            periodSeconds: 30
 # TODO: Revert to upstream defaults once the following LP is resolved:
 # https://bugs.launchpad.net/starlingx/+bug/1814595. By changing this PV
 # size to 1Gi from the default 265Mi, this avoids the kernel hang from the

@@ -19,10 +19,10 @@ Change-Id: Ib2c3b0cbd0666ffd5dd310103c3f1a75b36c330c
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
-index 74f7e32d..7f9177d7 100644
+index 357bfe36..d16cdca3 100644
 --- a/libvirt/templates/bin/_libvirt.sh.tpl
 +++ b/libvirt/templates/bin/_libvirt.sh.tpl
-@@ -33,9 +33,11 @@ fi
+@@ -48,9 +48,11 @@ fi
  
  rm -f /var/run/libvirtd.pid
  
@@ -34,7 +34,6 @@ index 74f7e32d..7f9177d7 100644
 +  fi
  fi
  
- #Setup Cgroups to use when breaking out of Kubernetes defined groups
+ if [ $CGROUP_VERSION != "v2" ]; then
 -- 
-2.25.1
-
+2.34.1

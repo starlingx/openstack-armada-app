@@ -11,11 +11,11 @@ Subject: [PATCH] Add-flavor-extra-spec-hw-pci_irq_affinity_mask
  4 files changed, 16 insertions(+)
 
 diff --git a/glance/templates/configmap-etc.yaml b/glance/templates/configmap-etc.yaml
-index 0ee26061..15d8b9e2 100644
+index 5a5f1c28..a7fa0452 100644
 --- a/glance/templates/configmap-etc.yaml
 +++ b/glance/templates/configmap-etc.yaml
-@@ -143,6 +143,9 @@ data:
-   glance-api.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.glance | b64enc }}
+@@ -153,6 +153,9 @@ data:
+   glance-api-uwsgi.ini: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.glance_api_uwsgi | b64enc }}
    logging.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.logging | b64enc }}
    glance-api-paste.ini: {{ include "helm-toolkit.utils.to_ini" .Values.conf.paste | b64enc }}
 +{{- range $key, $val := .Values.conf.extra_metadata }}
@@ -25,10 +25,10 @@ index 0ee26061..15d8b9e2 100644
    api_audit_map.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.api_audit_map | b64enc }}
    glance_sudoers: {{ $envAll.Values.conf.glance_sudoers | b64enc }}
 diff --git a/glance/templates/deployment-api.yaml b/glance/templates/deployment-api.yaml
-index 9c26c747..60ba98b1 100644
+index bfeaf26b..b70d44ca 100644
 --- a/glance/templates/deployment-api.yaml
 +++ b/glance/templates/deployment-api.yaml
-@@ -204,6 +204,12 @@ spec:
+@@ -214,6 +214,12 @@ spec:
                mountPath: /etc/glance/glance-api.conf
                subPath: glance-api.conf
                readOnly: true
@@ -38,9 +38,9 @@ index 9c26c747..60ba98b1 100644
 +              subPath: compute_{{ $key }}.json
 +              readOnly: true
 +            {{- end }}
-             {{- if .Values.conf.glance.DEFAULT.log_config_append }}
              - name: glance-etc
-               mountPath: {{ .Values.conf.glance.DEFAULT.log_config_append }}
+               mountPath: /etc/glance/glance-api-uwsgi.ini
+               subPath: glance-api-uwsgi.ini
 diff --git a/glance/templates/job-metadefs-load.yaml b/glance/templates/job-metadefs-load.yaml
 index 1c2efaaa..ca6081fb 100644
 --- a/glance/templates/job-metadefs-load.yaml
@@ -59,10 +59,10 @@ index 1c2efaaa..ca6081fb 100644
                mountPath: /etc/glance
              - name: glance-etc
 diff --git a/glance/values.yaml b/glance/values.yaml
-index 88bf350e..d23674bb 100644
+index 9e8468f7..1cbf4282 100644
 --- a/glance/values.yaml
 +++ b/glance/values.yaml
-@@ -189,6 +189,7 @@ conf:
+@@ -187,6 +187,7 @@ conf:
        oslo_config_program: glance-api
      filter:http_proxy_to_wsgi:
        paste.filter_factory: oslo_middleware:HTTPProxyToWSGI.factory
@@ -71,5 +71,4 @@ index 88bf350e..d23674bb 100644
    glance_sudoers: |
      # This sudoers file supports rootwrap for both Kolla and LOCI Images.
 -- 
-2.25.1
-
+2.34.1

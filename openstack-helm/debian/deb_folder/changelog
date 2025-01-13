@@ -1,3 +1,9 @@
+openstack-helm (1.1-0) unstable; urgency=medium
+
+  * Upversion to Caracal release.
+
+ --  Daniel Caires <DanielMarques.Caires@windriver.com>  Wed, 29 Jan 2025 15:31:20 +0000
+
 openstack-helm (1.0-1) unstable; urgency=medium
 
   * Initial release.

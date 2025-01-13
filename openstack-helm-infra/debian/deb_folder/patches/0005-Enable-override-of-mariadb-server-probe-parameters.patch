@@ -25,19 +25,19 @@ Change-Id: Idffb247ea722e53976238cfeacde4f70b9171393
  2 files changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 31d322b5..1185a41c 100644
+index 42521f19..350fe81c 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -200,6 +200,7 @@ spec:
+@@ -234,6 +234,7 @@ spec:
                  command:
                    - /tmp/stop.sh
  {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
 +{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "startup" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
- {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "liveness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+ {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "liveness" "probeTemplate" (include "mariadbLivenessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
            volumeMounts:
              - name: pod-tmp
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 741a75fe..e4a0399e 100644
+index 5a6733f7..a418d4dc 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
 @@ -68,12 +68,20 @@ pod:
@@ -63,5 +63,4 @@ index 741a75fe..e4a0399e 100644
      server:
        pod:
 -- 
-2.25.1
-
+2.34.1

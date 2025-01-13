@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -21,9 +21,11 @@ labels:
     node_selector_value: enabled
 images:
   tags:
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
     ingress: registry.k8s.io/ingress-nginx/controller:v1.7.0
     error_pages: registry.k8s.io/defaultbackend-amd64:1.5
     image_repo_sync: null
+    prometheus_create_mysql_user: null
     prometheus_mysql_exporter: null
     prometheus_mysql_exporter_helm_tests: null
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest

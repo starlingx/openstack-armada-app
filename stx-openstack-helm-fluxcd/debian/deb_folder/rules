@@ -5,7 +5,7 @@ export ROOT = debian/tmp
 export APP_FOLDER = $(ROOT)/usr/lib/application
 export FLUXCD_FOLDER = $(ROOT)/usr/lib/fluxcd
 export HELM_FOLDER = /usr/lib/helm
-export TOOLKIT_VERSION = 0.2.53
+export TOOLKIT_VERSION = 0.2.69
 
 %:
 	dh $@

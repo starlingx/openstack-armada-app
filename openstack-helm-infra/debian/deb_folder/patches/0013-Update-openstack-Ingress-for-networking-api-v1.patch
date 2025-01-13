@@ -23,39 +23,13 @@ Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
 Co-authored-by: Rafael Falcao <rafael.vieirafalcao@windriver.com>
 [ upversioned openstack-helm-infra base commit ]
 Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+[ Upversioned openstack-helm-infra base commit to Caracal ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Change-Id: I0bbecc097fdafdf5ebbc3a164b80ba903b5623f2
 ---
- ingress/templates/deployment-ingress.yaml | 1 +
- ingress/templates/ingress.yaml            | 3 ++-
  mariadb/templates/deployment-ingress.yaml | 4 ++--
- 3 files changed, 5 insertions(+), 3 deletions(-)
+ 1 file changed, 2 insertions(+), 2 deletions(-)
 
-diff --git a/ingress/templates/deployment-ingress.yaml b/ingress/templates/deployment-ingress.yaml
-index 56f169d5..4153b672 100644
---- a/ingress/templates/deployment-ingress.yaml
-+++ b/ingress/templates/deployment-ingress.yaml
-@@ -68,6 +68,7 @@ rules:
-       - "networking.k8s.io"
-     resources:
-       - ingresses
-+      - ingressclasses
-     verbs:
-       - get
-       - list
-diff --git a/ingress/templates/ingress.yaml b/ingress/templates/ingress.yaml
-index 1f67c7a7..3c39f180 100644
---- a/ingress/templates/ingress.yaml
-+++ b/ingress/templates/ingress.yaml
-@@ -16,7 +16,8 @@ limitations under the License.
- {{- $envAll := . }}
- {{- if eq .Values.deployment.mode "namespace" }}
- {{- if empty (index .Values.network.ingress.annotations "kubernetes.io/ingress.class") -}}
--{{- $_ := set .Values.network.ingress.annotations "kubernetes.io/ingress.class" .Values.deployment.cluster.class -}}
-+{{- $ingressClassName := "nginx" -}}
-+{{- $_ := set .Values.network.ingress.annotations "kubernetes.io/ingress.class" $ingressClassName -}}
- {{- end -}}
- {{- $serviceName := tuple "ingress" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" -}}
- {{- $servicePort := tuple "ingress" "internal" "http" . | include "helm-toolkit.endpoints.endpoint_port_lookup" -}}
 diff --git a/mariadb/templates/deployment-ingress.yaml b/mariadb/templates/deployment-ingress.yaml
 index 6fbf3389..ba0d64c9 100644
 --- a/mariadb/templates/deployment-ingress.yaml
@@ -79,5 +53,4 @@ index 6fbf3389..ba0d64c9 100644
        - configmaps
      verbs:
 -- 
-2.25.1
-
+2.34.1

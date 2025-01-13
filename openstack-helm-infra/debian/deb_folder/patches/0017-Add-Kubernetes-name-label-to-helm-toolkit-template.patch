@@ -7,11 +7,12 @@ This change allows the application framework status to correctly
 represent the pods statuses by adding the correct label to every pod.
 
 Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
+[ Upversioned openstack-helm-infra base commit to Caracal ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  helm-toolkit/templates/snippets/_kubernetes_metadata_labels.tpl | 1 +
- ingress/templates/deployment-ingress.yaml                       | 2 --
  mariadb/templates/deployment-ingress.yaml                       | 2 --
- 3 files changed, 1 insertion(+), 4 deletions(-)
+ 2 files changed, 1 insertion(+), 2 deletions(-)
 
 diff --git a/helm-toolkit/templates/snippets/_kubernetes_metadata_labels.tpl b/helm-toolkit/templates/snippets/_kubernetes_metadata_labels.tpl
 index 48b53fa1..37482ebc 100644
@@ -25,26 +26,6 @@ index 48b53fa1..37482ebc 100644
  {{- if ($envAll.Values.pod).labels }}
  {{- if hasKey $envAll.Values.pod.labels $component }}
  {{ index $envAll.Values.pod "labels" $component | toYaml }}
-diff --git a/ingress/templates/deployment-ingress.yaml b/ingress/templates/deployment-ingress.yaml
-index dbd18833..4ea245f2 100644
---- a/ingress/templates/deployment-ingress.yaml
-+++ b/ingress/templates/deployment-ingress.yaml
-@@ -177,7 +177,6 @@ metadata:
-   labels:
- {{ tuple $envAll "ingress" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
-     app: ingress-api
--    app.kubernetes.io/name: "ingress-api"
-     app.kubernetes.io/instance: {{ $serviceAccountName }}
-     app.kubernetes.io/component: "ingress"
-     app.kubernetes.io/managed-by: {{ $envAll.Release.Service }}
-@@ -199,7 +198,6 @@ spec:
- {{ tuple $envAll "ingress" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
-         app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
-         app: ingress-api
--        app.kubernetes.io/name: "ingress-api"
-         app.kubernetes.io/instance: {{ $serviceAccountName }}
-         app.kubernetes.io/component: "ingress"
-         app.kubernetes.io/managed-by: {{ $envAll.Release.Service }}
 diff --git a/mariadb/templates/deployment-ingress.yaml b/mariadb/templates/deployment-ingress.yaml
 index cf964061..91f496cb 100644
 --- a/mariadb/templates/deployment-ingress.yaml
@@ -66,5 +47,4 @@ index cf964061..91f496cb 100644
          app.kubernetes.io/managed-by: {{ $envAll.Release.Service }}
  {{- if $envAll.Chart.AppVersion }}
 -- 
-2.43.0
-
+2.34.1

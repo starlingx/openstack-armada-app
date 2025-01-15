@@ -34,6 +34,12 @@ images:
     rabbit_init: docker.io/rabbitmq:3.9.0-management
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     test: null
+network:
+  api:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 pod:
   replicas:
     api: 2

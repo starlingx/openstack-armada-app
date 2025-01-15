@@ -49,6 +49,12 @@ pod:
         - key: openstack-compute-node
           operator: Exists
           effect: NoSchedule
+network:
+  api:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 endpoints:
   oslo_messaging:
     statefulset:

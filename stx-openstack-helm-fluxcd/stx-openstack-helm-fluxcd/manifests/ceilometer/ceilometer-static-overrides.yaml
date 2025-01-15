@@ -525,6 +525,12 @@ wsgi_ceilometer: |
       ErrorLog /dev/stdout
       CustomLog /dev/stdout combined
   </VirtualHost>
+network:
+  api:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 pod:
   affinity:
     anti:

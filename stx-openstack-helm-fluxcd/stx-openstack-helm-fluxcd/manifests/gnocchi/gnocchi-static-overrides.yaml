@@ -89,6 +89,12 @@ conf:
     app:healthcheck:
       use: egg:oslo.middleware#healthcheck
       oslo_config_project: gnocchi
+network:
+  api:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 pod:
   affinity:
     anti:

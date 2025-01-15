@@ -16,3 +16,4 @@
 0016-Add-pre-apply-cleanup-Job-to-STX-O-Helm-charts.patch
 0017-Add-Kubernetes-name-label-to-helm-toolkit-template.patch
 0018-Add-support-for-multiple-hosts-in-a-daemonset.patch
+0019-Fix-upversion-breaking-changes.patch

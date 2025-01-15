@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -27,7 +27,7 @@ HELM_CHART_GNOCCHI = 'gnocchi'
 HELM_CHART_HEAT = 'heat'
 HELM_CHART_HELM_TOOLKIT = 'openstack-helm-toolkit'
 HELM_CHART_HORIZON = 'horizon'
-HELM_CHART_INGRESS = 'ingress'
+HELM_CHART_INGRESS = 'ingress-nginx-openstack'
 HELM_CHART_IRONIC = 'ironic'
 HELM_CHART_KEYSTONE = 'keystone'
 HELM_CHART_KEYSTONE_API_PROXY = 'keystone-api-proxy'
@@ -59,7 +59,7 @@ FLUXCD_HELMRELEASE_GNOCCHI = 'gnocchi'
 FLUXCD_HELMRELEASE_HEAT = 'heat'
 FLUXCD_HELMRELEASE_HELM_TOOLKIT = 'openstack-helm-toolkit'
 FLUXCD_HELMRELEASE_HORIZON = 'horizon'
-FLUXCD_HELMRELEASE_INGRESS = 'ingress'
+FLUXCD_HELMRELEASE_INGRESS = 'ingress-nginx-openstack'
 FLUXCD_HELMRELEASE_IRONIC = 'ironic'
 FLUXCD_HELMRELEASE_KEYSTONE = 'keystone'
 FLUXCD_HELMRELEASE_KEYSTONE_API_PROXY = 'keystone-api-proxy'

@@ -70,6 +70,23 @@ conf:
       bind_host: "::"
     heat_api_cfn:
       bind_host: "::"
+network:
+  api:
+    ingress:
+      public: true
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
+  cfn:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
+  cloudwatch:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 pod:
   replicas:
     api: 2

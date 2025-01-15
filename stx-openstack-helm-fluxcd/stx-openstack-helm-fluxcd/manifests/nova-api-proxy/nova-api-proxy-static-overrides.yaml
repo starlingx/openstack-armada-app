@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -16,6 +16,12 @@ images:
 endpoints:
   identity:
     force_public_endpoint: true
+network:
+  api_proxy:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 pod:
   affinity:
     anti:

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2024 Wind River Systems, Inc.
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,7 +11,7 @@ from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 
 
-class IngressHelm(openstack.OpenstackBaseHelm):
+class IngressNginxOpenstackHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the ingress chart"""
 
     CHART = app_constants.HELM_CHART_INGRESS

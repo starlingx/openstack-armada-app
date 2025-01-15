@@ -47,6 +47,12 @@ labels:
   registry:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+network:
+  api:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 pod:
   replicas:
     api: 2

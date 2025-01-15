@@ -1,0 +1,89 @@
+#
+# Copyright (c) 2024-2025 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+fullnameOverride: ingress-nginx-openstack
+nameOverride: ingress-nginx-openstack
+
+controller:
+  opentelemetry:
+    image:
+      repository: registry.k8s.io/ingress-nginx/opentelemetry
+      tag: "v20230721-3e2062ee5"
+  config:
+    bind-address: '::'
+    worker-processes: "4"
+    enable-underscores-in-headers: "true"
+    enable-vts-status: "true"
+    proxy-connect-timeout: "30"
+    server-tokens: "false"
+
+  dnsPolicy: ClusterFirst
+  hostNetwork: false
+  ingressClassResource:
+    name: nginx-openstack
+    controllerValue: k8s.io/ingress-nginx-openstack
+  ingressClass: nginx-openstack
+  scope:
+    enabled: true
+    namespace: "openstack"
+    namespaceSelector: "openstack"
+  labels:
+    app: ingress-api
+  tolerations:
+  - key: "node-role.kubernetes.io/master"
+    operator: "Exists"
+    effect: "NoSchedule"
+  - key: "node-role.kubernetes.io/control-plane"
+    operator: "Exists"
+    effect: "NoSchedule"
+  - key: "openstack-compute-node"
+    operator: "Exists"
+    effect: "NoSchedule"
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: release_group
+            operator: In
+            values:
+            - ingress-nginx-openstack
+          - key: application
+            operator: In
+            values:
+            - ingress-nginx-openstack
+          - key: component
+            operator: In
+            values:
+            - server
+        topologyKey: kubernetes.io/hostname
+  nodeSelector:
+    openstack-control-plane: "enabled"
+  service:
+    type: ClusterIP
+  admissionWebhooks:
+    patch:
+      image:
+        repository: registry.k8s.io/ingress-nginx/kube-webhook-certgen
+        tag: v1.4.1
+    enabled: false
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 3
+  resources:
+    requests:
+      cpu: 100m
+      ephemeral-storage: 2000Ki
+      memory: 128Mi
+
+defaultBackend:
+  enabled: false
+
+revisionHistoryLimit: 3
+...

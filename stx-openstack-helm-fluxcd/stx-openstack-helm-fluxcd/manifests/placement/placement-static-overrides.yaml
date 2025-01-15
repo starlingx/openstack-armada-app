@@ -29,6 +29,12 @@ images:
     placement: docker.io/starlingx/stx-placement:master-debian-stable-latest
     placement_db_sync: docker.io/starlingx/stx-placement:master-debian-stable-latest
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+network:
+  api:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 pod:
   replicas:
     placement: 1

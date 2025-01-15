@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -32,6 +32,12 @@ pod:
     fm:
       requests:
         ephemeral-storage: "20000Ki"
+network:
+  faultmanagement:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 labels:
   isApplication: false
   api:

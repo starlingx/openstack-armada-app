@@ -29,7 +29,7 @@ spec:
   upgrade:
     disableHooks: False
   dependsOn:
-    - name: ingress
+    - name: ingress-nginx-openstack
       namespace: openstack
     - name: nginx-ports-control
       namespace: openstack

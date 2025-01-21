@@ -5,7 +5,9 @@
 #
 
 import mock
+from sysinv.common import constants
 from sysinv.helm import common
+from sysinv.helm import helm
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
 from sysinv.tests.helm import base
@@ -20,13 +22,16 @@ class NeutronHelmTestCase(test_plugins.K8SAppOpenstackAppMixin,
     def setUp(self):
         super(NeutronHelmTestCase, self).setUp()
         self.app = dbutils.create_test_app(name=self.app_name)
-        self.app.dbapi = mock.MagicMock()
-        self.neutron_helm = neutron.NeutronHelm(self.app.dbapi)
-        self.neutron_helm.labels_by_hostid = {}
 
 
 class NeutronGetOverrideTest(NeutronHelmTestCase,
                              dbbase.ControllerHostTestCase):
+    def setUp(self):
+        super(NeutronGetOverrideTest, self).setUp()
+        self.app.dbapi = mock.MagicMock()
+        self.neutron_helm = neutron.NeutronHelm(self.app.dbapi)
+        self.neutron_helm.labels_by_hostid = {}
+
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_neutron_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
@@ -164,3 +169,166 @@ class NeutronGetOverrideTest(NeutronHelmTestCase,
         ]
         overrides = self.neutron_helm._get_manifests_overrides()
         self.assertEqual({'daemonset_l3_agent': False}, overrides)
+
+
+class NeutronGetPerHostOverrideTest(NeutronHelmTestCase,
+                                    dbbase.ControllerHostTestCase):
+
+    def setUp(self):
+        super(NeutronGetPerHostOverrideTest, self).setUp()
+        self.operator = helm.HelmOperator(self.dbapi)
+        self.neutron_helm = neutron.NeutronHelm(self.operator)
+
+    def _create_workers(self, count=1):
+        for i in range(count):
+            self.worker_zero = self._create_test_host(
+                personality=constants.WORKER,
+                administrative=constants.ADMIN_LOCKED,
+                invprovision=constants.PROVISIONED,
+                unit=i
+            )
+
+    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
+                return_value=True)
+    @mock.patch('sysinv.common.utils.has_openstack_compute', return_value=True)
+    def test_get_per_host_overrides_single_host(self, *_):
+        """
+        Test _get_per_host_overrides to ensure configurations are created only
+        when host configurations differ, avoiding duplicates.
+        """
+        self._create_workers()
+        overrides = self.neutron_helm._get_per_host_overrides()
+        self.assertEqual(
+            ['worker-0'],
+            overrides[0]['name']
+        )
+
+    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
+                return_value=True)
+    @mock.patch('sysinv.common.utils.has_openstack_compute', return_value=True)
+    def test_get_per_host_overrides_two_hosts_identical_configs(self, *_):
+        """
+        Test _get_per_host_overrides to ensure configurations are created only
+        when host configurations differ, avoiding duplicates.
+        """
+        self._create_workers(2)
+        overrides = self.neutron_helm._get_per_host_overrides()
+        self.assertEqual(
+            ['worker-0', 'worker-1'],
+            overrides[0]['name']
+        )
+
+    @mock.patch('k8sapp_openstack.helm.neutron.NeutronHelm._get_host_bridges',
+                side_effect=lambda host: {f'br-phy-{host.hostname}': 54321})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
+                return_value=True)
+    @mock.patch('sysinv.common.utils.get_vswitch_type',
+                return_value=constants.VSWITCH_TYPE_NONE)
+    @mock.patch('sysinv.common.utils.has_openstack_compute',
+                return_value=True)
+    def test_get_per_host_overrides_two_hosts_diff_configs(self, *_):
+        """
+        Test _get_per_host_overrides to ensure configurations are created only
+        when host configurations differ, avoiding duplicates.
+        """
+        self._create_workers(2)
+        overrides = self.neutron_helm._get_per_host_overrides()
+        self.assertEqual(
+            len(overrides),
+            2
+        )
+        self.assertEqual(
+            ['worker-0'],
+            overrides[0]['name']
+        )
+        self.assertEqual(
+            ['worker-1'],
+            overrides[1]['name']
+        )
+
+    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
+                return_value=True)
+    @mock.patch('sysinv.common.utils.has_openstack_compute', return_value=True)
+    def test_get_per_host_overrides_three_hosts_identical_configs(self, *_):
+        """
+        Test _get_per_host_overrides to ensure configurations are created only
+        when host configurations differ, avoiding duplicates.
+        """
+        self._create_workers(3)
+        overrides = self.neutron_helm._get_per_host_overrides()
+        self.assertEqual(
+            ['worker-0', 'worker-1', 'worker-2'],
+            overrides[0]['name']
+        )
+
+    @mock.patch('k8sapp_openstack.helm.neutron.NeutronHelm._get_host_bridges',
+                side_effect=lambda host: {f'br-phy-{host.hostname}': 54321})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
+                return_value=True)
+    @mock.patch('sysinv.common.utils.get_vswitch_type',
+                return_value=constants.VSWITCH_TYPE_NONE)
+    @mock.patch('sysinv.common.utils.has_openstack_compute',
+                return_value=True)
+    def test_get_per_host_overrides_three_hosts_diff_configs(self, *_):
+        """
+        Test _get_per_host_overrides to ensure configurations are created only
+        when host configurations differ, avoiding duplicates.
+        """
+        self._create_workers(3)
+        overrides = self.neutron_helm._get_per_host_overrides()
+        self.assertEqual(
+            len(overrides),
+            3
+        )
+        self.assertEqual(
+            ['worker-0'],
+            overrides[0]['name']
+        )
+        self.assertEqual(
+            ['worker-1'],
+            overrides[1]['name']
+        )
+        self.assertEqual(
+            ['worker-2'],
+            overrides[2]['name']
+        )
+
+    @mock.patch(
+        'k8sapp_openstack.helm.neutron.NeutronHelm._get_host_bridges',
+        side_effect=lambda host: {
+            'br-phy-0': 54321
+        } if int(host.hostname[-1]) % 2 == 0 else {
+            'br-phy-1': 54321
+        }
+    )
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
+                return_value=True)
+    @mock.patch('sysinv.common.utils.get_vswitch_type',
+                return_value=constants.VSWITCH_TYPE_NONE)
+    @mock.patch('sysinv.common.utils.has_openstack_compute',
+                return_value=True)
+    def test_get_per_host_overrides_four_hosts_half_alike_configs(self, *_):
+        """
+        Test _get_per_host_overrides to ensure configurations are created only
+        when host configurations differ, avoiding duplicates.
+        """
+        self._create_workers(4)
+        overrides = self.neutron_helm._get_per_host_overrides()
+        self.assertEqual(
+            len(overrides),
+            2
+        )
+        self.assertEqual(
+            ['worker-0', 'worker-2'],
+            overrides[0]['name']
+        )
+        self.assertEqual(
+            ['worker-1', 'worker-3'],
+            overrides[1]['name']
+        )

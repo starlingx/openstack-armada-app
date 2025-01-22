@@ -1,4 +1,4 @@
-From a3591cdd38b46cc360bbd579c02a0a82224d91f1 Mon Sep 17 00:00:00 2001
+From 0fdefb9c0ff7ffae1b618a1e3fb5e06f4aab9cdd Mon Sep 17 00:00:00 2001
 From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 Date: Wed, 29 Nov 2023 17:12:09 -0300
 Subject: [PATCH] Fix output for "openstack volume backup restore"
@@ -24,28 +24,30 @@ issue to reappear.
 [5] https://review.opendev.org/c/openstack/python-openstackclient/+/353931
 
 Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+[ Ported this patch to python-openstackclient v6.6.0-5 @ Caracal ]
+Signed-off-by: Jose Claudio <joseclaudio.paespires@windriver.com>
 ---
- openstackclient/volume/v2/volume_backup.py | 5 ++++-
- 1 file changed, 4 insertions(+), 1 deletion(-)
+ openstackclient/volume/v2/volume_backup.py | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/openstackclient/volume/v2/volume_backup.py b/openstackclient/volume/v2/volume_backup.py
-index eac6167d..c1bb0b2c 100644
+index 92770f55..57909e0d 100644
 --- a/openstackclient/volume/v2/volume_backup.py
 +++ b/openstackclient/volume/v2/volume_backup.py
-@@ -410,9 +410,12 @@ class RestoreVolumeBackup(command.ShowOne):
-                 ) % parsed_args.volume
-                 raise exceptions.CommandError(msg)
+@@ -440,11 +440,12 @@ class RestoreVolumeBackup(command.ShowOne):
+                 )
+                 raise exceptions.CommandError(msg % parsed_args.volume)
  
--        return volume_client.restores.restore(
+-        return volume_client.restore_backup(
 +        backup_restore = volume_client.restores.restore(
-             backup.id, volume_id, volume_name,
+             backup.id,
+             volume_id=volume_id,
+             name=volume_name,
          )
 +        return zip(*sorted(backup_restore._info.items()))
-+
-+
  
  
  class SetVolumeBackup(command.Command):
 -- 
-2.25.1
+2.34.1
 

@@ -1,4 +1,4 @@
-From 4e07c23b3d1a3d194545fe2ee4e8ba3281f447a4 Mon Sep 17 00:00:00 2001
+From 6b0824bd7da3d208b64f0caaf589b5f6d1d56c2a Mon Sep 17 00:00:00 2001
 From: Dan Voiculeasa <dan.voiculeasa@windriver.com>
 Date: Thu, 2 Jun 2022 20:20:50 +0300
 Subject: [PATCH] Allow external bash completion
@@ -8,6 +8,8 @@ than the one generated at runtime. Allow bash completion to be
 generated at /etc/bash_completion.d .
 
 Signed-off-by: Dan Voiculeasa <dan.voiculeasa@windriver.com>
+[ Ported this patch to python-openstackclient v6.6.0-5 @ Caracal ]
+Signed-off-by: Jose Claudio <joseclaudio.paespires@windriver.com>
 ---
  debian/python3-openstackclient.dirs | 1 +
  debian/rules                        | 3 ---
@@ -22,10 +24,10 @@ index 00000000..bc3b6805
 @@ -0,0 +1 @@
 +etc/bash_completion.d/
 diff --git a/debian/rules b/debian/rules
-index 8c257cd8..9b71b705 100755
+index f032e337..638ee8d4 100755
 --- a/debian/rules
 +++ b/debian/rules
-@@ -14,9 +14,6 @@ override_dh_auto_build:
+@@ -16,9 +16,6 @@ override_dh_auto_build:
  override_dh_auto_install:
  	pkgos-dh_auto_install --no-py2 --wheel
  
@@ -34,7 +36,7 @@ index 8c257cd8..9b71b705 100755
 -
  override_dh_auto_test:
  ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
- 	pkgos-dh_auto_test --no-py2 'openstackclient\.tests.*'
+ 	# See https://bugs.debian.org/1058097
 -- 
-2.25.1
+2.34.1
 

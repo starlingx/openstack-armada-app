@@ -232,7 +232,6 @@ conf:
       disk_weight_multiplier: 0.0
       enabled_filters:
         - ComputeFilter
-        - AvailabilityZoneFilter
         - AggregateInstanceExtraSpecsFilter
         - ComputeCapabilitiesFilter
         - ImagePropertiesFilter

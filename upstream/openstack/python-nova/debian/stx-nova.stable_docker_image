@@ -2,7 +2,7 @@ BUILDER=loci
 LABEL=stx-nova
 PROJECT=nova
 PROJECT_REPO=https://opendev.org/openstack/nova.git
-PROJECT_REF=4b4fc274812e4c0bbc724c45a7c7d01a4cd657dc
+PROJECT_REF=8555afb07d39dfad81e39c4a90b371598acaa8ca
 PIP_PACKAGES="\
   httplib2 \
   pycryptodomex \

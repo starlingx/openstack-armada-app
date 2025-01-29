@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,7 +10,7 @@ kind: Kustomization
 namespace: openstack
 resources:
   - base
-  - ingress
+  - ingress-nginx-openstack
   - nginx-ports-control
   - mariadb
   - garbd

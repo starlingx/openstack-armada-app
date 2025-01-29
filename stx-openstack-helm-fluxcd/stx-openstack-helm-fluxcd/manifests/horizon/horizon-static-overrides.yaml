@@ -22,6 +22,11 @@ manifests:
   pod_helm_test: false
   secret_keystone: false
 network:
+  dashboard:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
   node_port:
     enabled: 'true'
     port: 31000

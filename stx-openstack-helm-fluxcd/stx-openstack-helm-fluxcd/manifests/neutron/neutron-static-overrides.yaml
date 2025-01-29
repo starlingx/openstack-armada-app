@@ -172,6 +172,11 @@ network:
   backend:
     - openvswitch
     - sriov
+  server:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
 dependencies:
   static:
     ovs_agent:

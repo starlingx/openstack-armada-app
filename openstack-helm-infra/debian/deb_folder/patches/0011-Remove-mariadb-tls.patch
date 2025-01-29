@@ -4,6 +4,8 @@ Date: Tue, 8 Feb 2022 09:18:02 -0300
 Subject: Remove mariadb tls
 
 Change-Id: I37405da8faab3495ebe55c81389e0d769aaeb1d1
+[ Upversioned openstack-helm-infra base commit to Caracal ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  .../templates/manifests/_job-db-drop-mysql.tpl     |  7 -------
  .../templates/manifests/_job-db-init-mysql.tpl     |  7 -------
@@ -13,7 +15,7 @@ Change-Id: I37405da8faab3495ebe55c81389e0d769aaeb1d1
  5 files changed, 6 insertions(+), 36 deletions(-)
 
 diff --git a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
-index 62ed1191..49bd12d3 100644
+index 2b7ff2cd..5e31a04d 100644
 --- a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
 @@ -37,7 +37,6 @@ limitations under the License.
@@ -24,8 +26,40 @@ index 62ed1191..49bd12d3 100644
  
  {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-drop" }}
  {{ tuple $envAll "db_drop" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
-@@ -134,9 +133,6 @@ spec:
+@@ -135,9 +134,6 @@ spec:
                subPath: {{ base $dbToDrop.logConfigFile | quote }}
+               readOnly: true
+ {{- end }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- end }}
+ {{- end }}
+       volumes:
+         - name: pod-tmp
+@@ -152,9 +148,6 @@ spec:
+             name: {{ $configMapBin | quote }}
+             defaultMode: 0555
+ {{- end }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- end }}
+ {{- $local := dict "configMapBinFirst" true -}}
+ {{- range $key1, $dbToDrop := $dbsToDrop }}
+ {{- $dbToDropType := default "oslo" $dbToDrop.inputType }}
+diff --git a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
+index b8a1dce3..ff5d54ba 100644
+--- a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
++++ b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
+@@ -37,7 +37,6 @@ limitations under the License.
+ {{- $backoffLimit := index . "backoffLimit" | default "1000" -}}
+ {{- $activeDeadlineSeconds := index . "activeDeadlineSeconds" -}}
+ {{- $serviceNamePretty := $serviceName | replace "_" "-" -}}
+-{{- $dbAdminTlsSecret := index . "dbAdminTlsSecret" | default "" -}}
+ 
+ {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-init" }}
+ {{ tuple $envAll "db_init" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+@@ -134,9 +133,6 @@ spec:
+               subPath: {{ base $dbToInit.logConfigFile | quote }}
                readOnly: true
  {{- end }}
 -{{- if $envAll.Values.manifests.certificates }}
@@ -42,42 +76,10 @@ index 62ed1191..49bd12d3 100644
 -{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- end }}
  {{- $local := dict "configMapBinFirst" true -}}
- {{- range $key1, $dbToDrop := $dbsToDrop }}
- {{- $dbToDropType := default "oslo" $dbToDrop.inputType }}
-diff --git a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-index 745e8dab..fe27e6ff 100644
---- a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-+++ b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-@@ -37,7 +37,6 @@ limitations under the License.
- {{- $backoffLimit := index . "backoffLimit" | default "1000" -}}
- {{- $activeDeadlineSeconds := index . "activeDeadlineSeconds" -}}
- {{- $serviceNamePretty := $serviceName | replace "_" "-" -}}
--{{- $dbAdminTlsSecret := index . "dbAdminTlsSecret" | default "" -}}
- 
- {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-init" }}
- {{ tuple $envAll "db_init" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
-@@ -133,9 +132,6 @@ spec:
-               subPath: {{ base $dbToInit.logConfigFile | quote }}
-               readOnly: true
- {{- end }}
--{{- if $envAll.Values.manifests.certificates }}
--{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
--{{- end }}
- {{- end }}
-       volumes:
-         - name: pod-tmp
-@@ -150,9 +146,6 @@ spec:
-             name: {{ $configMapBin | quote }}
-             defaultMode: 0555
- {{- end }}
--{{- if $envAll.Values.manifests.certificates }}
--{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
--{{- end }}
- {{- $local := dict "configMapBinFirst" true -}}
  {{- range $key1, $dbToInit := $dbsToInit }}
  {{- $dbToInitType := default "oslo" $dbToInit.inputType }}
 diff --git a/helm-toolkit/templates/manifests/_job-db-sync.tpl b/helm-toolkit/templates/manifests/_job-db-sync.tpl
-index 24d2496d..6b222945 100644
+index 4696c88f..364a7fe8 100644
 --- a/helm-toolkit/templates/manifests/_job-db-sync.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-sync.tpl
 @@ -34,7 +34,6 @@ limitations under the License.
@@ -88,7 +90,7 @@ index 24d2496d..6b222945 100644
  
  {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-sync" }}
  {{ tuple $envAll "db_sync" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
-@@ -107,7 +106,6 @@ spec:
+@@ -108,7 +107,6 @@ spec:
                mountPath: {{ $dbToSync.logConfigFile | quote }}
                subPath: {{ base $dbToSync.logConfigFile | quote }}
                readOnly: true
@@ -96,7 +98,7 @@ index 24d2496d..6b222945 100644
  {{- if $podVolMounts }}
  {{ $podVolMounts | toYaml | indent 12 }}
  {{- end }}
-@@ -130,7 +128,6 @@ spec:
+@@ -131,7 +129,6 @@ spec:
            secret:
              secretName: {{ $configMapEtc | quote }}
              defaultMode: 0444
@@ -105,7 +107,7 @@ index 24d2496d..6b222945 100644
  {{ $podVols | toYaml | indent 8 }}
  {{- end }}
 diff --git a/helm-toolkit/templates/scripts/_db-drop.py.tpl b/helm-toolkit/templates/scripts/_db-drop.py.tpl
-index 03884fa1..81447546 100644
+index 1e28da9c..86464714 100644
 --- a/helm-toolkit/templates/scripts/_db-drop.py.tpl
 +++ b/helm-toolkit/templates/scripts/_db-drop.py.tpl
 @@ -54,13 +54,6 @@ else:
@@ -141,7 +143,7 @@ index 03884fa1..81447546 100644
      database = user_engine.url.database
      user = user_engine.url.username
 diff --git a/helm-toolkit/templates/scripts/_db-init.py.tpl b/helm-toolkit/templates/scripts/_db-init.py.tpl
-index 6027b951..321b82f1 100644
+index 110cd98e..60b1c5a3 100644
 --- a/helm-toolkit/templates/scripts/_db-init.py.tpl
 +++ b/helm-toolkit/templates/scripts/_db-init.py.tpl
 @@ -54,12 +54,6 @@ else:
@@ -175,17 +177,16 @@ index 6027b951..321b82f1 100644
      # Get our user data out of the user_engine
      database = user_engine.url.database
      user = user_engine.url.username
-@@ -133,8 +127,8 @@ except:
- # Create DB User
+@@ -139,8 +133,8 @@ except:
  try:
-     root_engine.execute(
--        "CREATE USER IF NOT EXISTS \'{0}\'@\'%%\' IDENTIFIED BY \'{1}\' {2}".format(
--            user, password, mysql_x509))
-+        "CREATE USER IF NOT EXISTS \'{0}\'@\'%%\' IDENTIFIED BY \'{1}\'".format(
-+            user, password))
-     root_engine.execute(
-         "GRANT ALL ON `{0}`.* TO \'{1}\'@\'%%\'".format(database, user))
-     logger.info("Created user {0} for {1}".format(user, database))
+     with root_engine.connect() as connection:
+         connection.execute(
+-            "CREATE USER IF NOT EXISTS \'{0}\'@\'%%\' IDENTIFIED BY \'{1}\' {2}".format(
+-                user, password, mysql_x509))
++            "CREATE USER IF NOT EXISTS \'{0}\'@\'%%\' IDENTIFIED BY \'{1}\'".format(
++                user, password))
+         connection.execute(
+             "GRANT ALL ON `{0}`.* TO \'{1}\'@\'%%\'".format(database, user))
+         try:
 -- 
-2.25.1
-
+2.34.1

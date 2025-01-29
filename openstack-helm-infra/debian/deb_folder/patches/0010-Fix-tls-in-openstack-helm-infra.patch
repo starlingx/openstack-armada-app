@@ -6,19 +6,34 @@ Subject: [PATCH] Fix Support for TLS in openstack-helm-infra
 Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Change-Id: I382e0fc68c9a92c6a9570097db2c6a959525059d
 ---
- .../templates/manifests/_secret-tls.yaml.tpl  | 97 +++++++------------
- 1 file changed, 33 insertions(+), 64 deletions(-)
+ .../templates/manifests/_secret-tls.yaml.tpl  | 100 ++++++------------
+ 1 file changed, 31 insertions(+), 69 deletions(-)
 
 diff --git a/helm-toolkit/templates/manifests/_secret-tls.yaml.tpl b/helm-toolkit/templates/manifests/_secret-tls.yaml.tpl
-index 24a70450..f34ac527 100644
+index c8003403..ae7ee795 100644
 --- a/helm-toolkit/templates/manifests/_secret-tls.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_secret-tls.yaml.tpl
-@@ -15,66 +15,36 @@ limitations under the License.
+@@ -15,73 +15,36 @@ limitations under the License.
  {{/*
  abstract: |
    Creates a manifest for a services public tls secret
 -examples:
 -  - values: |
+-      annotations:
+-        secret:
++values: |
++  secrets:
++    tls:
++      key_manager:
++        api:
++          public: barbican-tls-public
++  endpoints:
++    key_manager:
++      host_fqdn_override:
++        public:
+           tls:
+-            key_manager_api_public:
+-              custom.tld/key: "value"
 -      secrets:
 -        tls:
 -          key_manager:
@@ -43,6 +58,8 @@ index 24a70450..f34ac527 100644
 -    kind: Secret
 -    metadata:
 -      name: barbican-tls-public
+-      annotations:
+-        custom.tld/key: "value"
 -    type: kubernetes.io/tls
 -    data:
 -      tls.key: Rk9PLUtFWQo=
@@ -77,17 +94,6 @@ index 24a70450..f34ac527 100644
 -    data:
 -      tls.key: Rk9PLUtFWQo=
 -      tls.crt: Rk9PLUNSVApGT08tSU5URVJNRURJQVRFX0NSVApGT08tQ0FfQ1JUCg==
-+values: |
-+  secrets:
-+    tls:
-+      key_manager:
-+        api:
-+          public: barbican-tls-public
-+  endpoints:
-+    key_manager:
-+      host_fqdn_override:
-+        public:
-+          tls:
 +            crt: |
 +              FOO-CRT
 +            key: |
@@ -110,8 +116,8 @@ index 24a70450..f34ac527 100644
  */}}
  
  {{- define "helm-toolkit.manifests.secret_ingress_tls" }}
-@@ -95,14 +65,13 @@ metadata:
-   name: {{ index $envAll.Values.secrets.tls ( $backendServiceType | replace "-" "_" ) $backendService $endpoint }}
+@@ -106,11 +69,10 @@ metadata:
+ {{ tuple "tls" $customAnnotationKey $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
  type: kubernetes.io/tls
  data:
 +  tls.crt: {{ $endpointHost.tls.crt | b64enc }}
@@ -120,15 +126,9 @@ index 24a70450..f34ac527 100644
 -  tls.crt: {{ list $endpointHost.tls.crt $endpointHost.tls.ca | join "\n" | b64enc }}
 -{{- else }}
 -  tls.crt: {{ $endpointHost.tls.crt | b64enc }}
--{{- end }}
 +  ca.crt: {{ $endpointHost.tls.ca | b64enc }}
  {{- end }}
  {{- end }}
  {{- end }}
- {{- end }}
- {{- end }}
-+{{- end }}
-\ No newline at end of file
 -- 
-2.25.1
-
+2.34.1

@@ -31,10 +31,10 @@ index 5367f18d..961cec26 100644
  {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "99_force" ) "key" "99-force.cnf" ) | indent 2 }}
  {{- end }}
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 1185a41c..f08094ef 100644
+index 350fe81c..4198a932 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -229,7 +229,7 @@ spec:
+@@ -267,7 +267,7 @@ spec:
                mountPath: /etc/mysql/conf.d/00-base.cnf
                subPath: 00-base.cnf
                readOnly: true
@@ -44,15 +44,14 @@ index 1185a41c..f08094ef 100644
                mountPath: /etc/mysql/conf.d/20-override.cnf
                subPath: 20-override.cnf
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 5f4d4f4c..6f325e9c 100644
+index a418d4dc..268e73bf 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -730,4 +730,5 @@ manifests:
-   service_error: true
+@@ -729,4 +729,5 @@ manifests:
+   service_error: false
    service: true
    statefulset: true
 +  config_ipv6: false
  ...
 -- 
-2.25.1
-
+2.34.1

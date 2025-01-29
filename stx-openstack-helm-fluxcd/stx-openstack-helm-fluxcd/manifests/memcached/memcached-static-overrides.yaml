@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -33,6 +33,8 @@ monitoring:
     enabled: false
 images:
   tags:
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
+    memcached: docker.io/library/memcached:1.5.5
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     image_repo_sync: null
     prometheus_memcached_exporter: null

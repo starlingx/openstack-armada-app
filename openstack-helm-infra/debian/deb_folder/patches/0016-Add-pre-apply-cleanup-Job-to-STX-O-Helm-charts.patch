@@ -17,14 +17,15 @@ This patch creates a Job template that runs right before the Helm
 chart is installed ou updated. This Job deletes all jobs that have
 its status as completed.
 
+[ Upversioned openstack-helm-infra base commit to Caracal ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+
 ---
  ceph-rgw/templates/job-pre-apply-cleanup.yaml | 18 ++++
  ceph-rgw/values.yaml                          |  2 +
  gnocchi/templates/job-pre-apply-cleanup.yaml  | 18 ++++
  gnocchi/values.yaml                           |  2 +
  .../manifests/_job-pre-apply-cleanup.tpl      | 93 +++++++++++++++++++
- ingress/templates/job-pre-apply-cleanup.yaml  | 18 ++++
- ingress/values.yaml                           |  2 +
  libvirt/templates/job-pre-apply-cleanup.yaml  | 18 ++++
  libvirt/values.yaml                           |  2 +
  mariadb/templates/job-pre-apply-cleanup.yaml  | 18 ++++
@@ -35,11 +36,10 @@ its status as completed.
  openvswitch/values.yaml                       |  2 +
  rabbitmq/templates/job-pre-apply-cleanup.yaml | 18 ++++
  rabbitmq/values.yaml                          |  2 +
- 17 files changed, 253 insertions(+)
+ 15 files changed, 233 insertions(+)
  create mode 100644 ceph-rgw/templates/job-pre-apply-cleanup.yaml
  create mode 100644 gnocchi/templates/job-pre-apply-cleanup.yaml
  create mode 100644 helm-toolkit/templates/manifests/_job-pre-apply-cleanup.tpl
- create mode 100644 ingress/templates/job-pre-apply-cleanup.yaml
  create mode 100644 libvirt/templates/job-pre-apply-cleanup.yaml
  create mode 100644 mariadb/templates/job-pre-apply-cleanup.yaml
  create mode 100644 memcached/templates/job-pre-apply-cleanup.yaml
@@ -48,7 +48,7 @@ its status as completed.
 
 diff --git a/ceph-rgw/templates/job-pre-apply-cleanup.yaml b/ceph-rgw/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
-index 00000000..ba0f0df3
+index 00000000..2a1d6d91
 --- /dev/null
 +++ b/ceph-rgw/templates/job-pre-apply-cleanup.yaml
 @@ -0,0 +1,18 @@
@@ -72,18 +72,18 @@ index 00000000..ba0f0df3
 +{{- end }}
 \ No newline at end of file
 diff --git a/ceph-rgw/values.yaml b/ceph-rgw/values.yaml
-index b312e4e9..59a92f8b 100644
+index a0befdf0..d8e52d28 100644
 --- a/ceph-rgw/values.yaml
 +++ b/ceph-rgw/values.yaml
-@@ -34,6 +34,7 @@ images:
-     ks_endpoints: 'docker.io/openstackhelm/heat:wallaby-ubuntu_focal'
-     ks_service: 'docker.io/openstackhelm/heat:wallaby-ubuntu_focal'
-     ks_user: 'docker.io/openstackhelm/heat:wallaby-ubuntu_focal'
+@@ -35,6 +35,7 @@ images:
+     ks_endpoints: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
+     ks_service: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
+     ks_user: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
 +    pre_apply_cleanup: 'docker.io/starlingx/stx-vault-manager:master-debian-stable-latest'
    local_registry:
      active: false
      exclude:
-@@ -690,6 +691,7 @@ manifests:
+@@ -724,6 +725,7 @@ manifests:
    configmap_etc: true
    deployment_rgw: true
    ingress_rgw: true
@@ -117,7 +117,7 @@ index 00000000..0e4424da
 +{{- end }}
 \ No newline at end of file
 diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
-index c9b90dd2..d445cf7c 100644
+index bbfd4335..dfab7413 100644
 --- a/gnocchi/values.yaml
 +++ b/gnocchi/values.yaml
 @@ -52,6 +52,7 @@ images:
@@ -128,7 +128,7 @@ index c9b90dd2..d445cf7c 100644
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -638,6 +639,7 @@ manifests:
+@@ -639,6 +640,7 @@ manifests:
    daemonset_statsd: true
    deployment_api: true
    ingress_api: true
@@ -236,51 +236,6 @@ index 00000000..84f88bfc
 +      restartPolicy: OnFailure
 +{{- end }}
 \ No newline at end of file
-diff --git a/ingress/templates/job-pre-apply-cleanup.yaml b/ingress/templates/job-pre-apply-cleanup.yaml
-new file mode 100644
-index 00000000..aa02ff78
---- /dev/null
-+++ b/ingress/templates/job-pre-apply-cleanup.yaml
-@@ -0,0 +1,18 @@
-+{{/*
-+Licensed under the Apache License, Version 2.0 (the "License");
-+you may not use this file except in compliance with the License.
-+You may obtain a copy of the License at
-+
-+   http://www.apache.org/licenses/LICENSE-2.0
-+
-+Unless required by applicable law or agreed to in writing, software
-+distributed under the License is distributed on an "AS IS" BASIS,
-+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+See the License for the specific language governing permissions and
-+limitations under the License.
-+*/}}
-+
-+{{- if .Values.manifests.job_pre_apply_cleanup }}
-+{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "ingress" -}}
-+{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
-+{{- end }}
-\ No newline at end of file
-diff --git a/ingress/values.yaml b/ingress/values.yaml
-index c531b1cf..a657db27 100644
---- a/ingress/values.yaml
-+++ b/ingress/values.yaml
-@@ -32,6 +32,7 @@ images:
-     keepalived: docker.io/osixia/keepalived:1.4.5
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
-     image_repo_sync: docker.io/library/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
-   pull_policy: "IfNotPresent"
-   local_registry:
-     active: false
-@@ -353,6 +354,7 @@ manifests:
-   secret_dhparam: false
-   service_error: true
-   service_ingress: true
-+  job_pre_apply_cleanup: true
-   job_image_repo_sync: true
-   monitoring:
-     prometheus:
 diff --git a/libvirt/templates/job-pre-apply-cleanup.yaml b/libvirt/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
 index 00000000..7c44fd2b
@@ -307,25 +262,25 @@ index 00000000..7c44fd2b
 +{{- end }}
 \ No newline at end of file
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index 9cd24011..ee598a9b 100644
+index 22ff231c..b3a4373b 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
-@@ -32,6 +32,7 @@ images:
-     ceph_config_helper: 'docker.io/openstackhelm/ceph-config-helper:ubuntu_focal_17.2.6-1-20230508'
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
+@@ -33,6 +33,7 @@ images:
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/library/docker:17.07.0
+     kubectl: docker.io/bitnami/kubectl:latest
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -254,6 +255,7 @@ manifests:
+@@ -317,6 +318,7 @@ manifests:
    configmap_bin: true
    configmap_etc: true
    daemonset_libvirt: true
 +  job_pre_apply_cleanup: true
    job_image_repo_sync: true
    network_policy: false
-   secret_registry: true
+   role_cert_manager: false
 diff --git a/mariadb/templates/job-pre-apply-cleanup.yaml b/mariadb/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
 index 00000000..4c2cef3b
@@ -352,21 +307,21 @@ index 00000000..4c2cef3b
 +{{- end }}
 \ No newline at end of file
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index d58fff83..36797386 100644
+index 61d2d3e7..d348f587 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
 @@ -31,6 +31,7 @@ images:
-     mariadb_backup: quay.io/airshipit/porthole-mysqlclient-utility:latest-ubuntu_bionic
+     mariadb_backup: quay.io/airshipit/porthole-mysqlclient-utility:latest-ubuntu_focal
      ks_user: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
      scripted_test: docker.io/openstackhelm/mariadb:ubuntu_focal-20210415
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -705,6 +706,7 @@ manifests:
+@@ -710,6 +711,7 @@ manifests:
    configmap_services_tcp: true
-   deployment_error: true
-   deployment_ingress: true
+   deployment_error: false
+   deployment_ingress: false
 +  job_pre_apply_cleanup: true
    job_image_repo_sync: true
    cron_job_mariadb_backup: false
@@ -397,7 +352,7 @@ index 00000000..f2d12578
 +{{- end }}
 \ No newline at end of file
 diff --git a/memcached/values.yaml b/memcached/values.yaml
-index 8694f3b7..bae58fb3 100644
+index dd2bf3c6..26875d38 100644
 --- a/memcached/values.yaml
 +++ b/memcached/values.yaml
 @@ -123,6 +123,7 @@ images:
@@ -442,18 +397,18 @@ index 00000000..3a29b239
 +{{- end }}
 \ No newline at end of file
 diff --git a/openvswitch/values.yaml b/openvswitch/values.yaml
-index c69b59ac..6ce0b6a6 100644
+index 49006ea9..0e5a2f75 100644
 --- a/openvswitch/values.yaml
 +++ b/openvswitch/values.yaml
 @@ -24,6 +24,7 @@ images:
      openvswitch_vswitchd: docker.io/openstackhelm/openvswitch:latest-ubuntu_focal
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/library/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -204,6 +205,7 @@ manifests:
+@@ -206,6 +207,7 @@ manifests:
    configmap_bin: true
    daemonset: true
    daemonset_ovs_vswitchd: true
@@ -487,18 +442,18 @@ index 00000000..428d7c01
 +{{- end }}
 \ No newline at end of file
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index aa9b52ff..d26ce9b1 100644
+index 68a963a1..fbb98414 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
 @@ -40,6 +40,7 @@ images:
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
-     scripted_test: docker.io/library/rabbitmq:3.9.0-management
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     scripted_test: docker.io/library/rabbitmq:3.13.0-management
      image_repo_sync: docker.io/library/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -428,6 +429,7 @@ manifests:
+@@ -446,6 +447,7 @@ manifests:
    configmap_etc: true
    config_ipv6: false
    ingress_management: true
@@ -507,5 +462,4 @@ index aa9b52ff..d26ce9b1 100644
    job_image_repo_sync: true
    monitoring:
 -- 
-2.46.0
-
+2.34.1

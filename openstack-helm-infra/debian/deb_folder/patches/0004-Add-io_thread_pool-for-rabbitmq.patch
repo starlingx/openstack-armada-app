@@ -10,10 +10,10 @@ Signed-off-by: Bin Yang <bin.yang@intel.com>
  2 files changed, 12 insertions(+)
 
 diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
-index 6b2143b4..35a482c1 100644
+index 8a4c8b73..68fbac71 100644
 --- a/rabbitmq/templates/statefulset.yaml
 +++ b/rabbitmq/templates/statefulset.yaml
-@@ -135,6 +135,10 @@ spec:
+@@ -146,6 +146,10 @@ spec:
                    key: RABBITMQ_ADMIN_PASSWORD
              - name: RABBITMQ_DEFINITION_FILE
                value: "{{ index $envAll.Values.conf.rabbitmq "management.load_definitions" }}"
@@ -24,22 +24,22 @@ index 6b2143b4..35a482c1 100644
            volumeMounts:
              - name: pod-tmp
                mountPath: /tmp
-@@ -233,6 +237,10 @@ spec:
- {{- if ne (.Values.conf.feature_flags | default "") "default" }}
+@@ -248,6 +252,10 @@ spec:
              - name: RABBITMQ_FEATURE_FLAGS
                value: "{{ .Values.conf.feature_flags }}"
-+{{- end }}
+ {{- end }}
 +{{- if $envAll.Values.io_thread_pool.enabled }}
 +            - name: RABBITMQ_IO_THREAD_POOL_SIZE
 +              value: {{ $envAll.Values.io_thread_pool.size | quote }}
- {{- end }}
-           readinessProbe:
-             initialDelaySeconds: 10
++{{- end }}
+ {{ dict "envAll" $envAll "component" "rabbitmq" "container" "rabbitmq" "type" "readiness" "probeTemplate" (include "rabbitmqReadinessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | trim | indent 10 }}
+ {{ dict "envAll" $envAll "component" "rabbitmq" "container" "rabbitmq" "type" "liveness" "probeTemplate" (include "rabbitmqLivenessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | trim | indent 10 }}
+           lifecycle:
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index 2ec00310..6e6978c0 100644
+index 06db8f8b..ca1f2036 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
-@@ -409,6 +409,10 @@ volume:
+@@ -435,6 +435,10 @@ volume:
  # Set helm3_hook to false while using helm2
  helm3_hook: true
  
@@ -51,5 +51,4 @@ index 2ec00310..6e6978c0 100644
    certificates: false
    configmap_bin: true
 -- 
-2.25.1
-
+2.34.1

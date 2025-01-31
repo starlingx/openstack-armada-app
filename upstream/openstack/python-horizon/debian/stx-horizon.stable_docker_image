@@ -2,7 +2,7 @@ BUILDER=loci
 LABEL=stx-horizon
 PROJECT=horizon
 PROJECT_REPO=https://opendev.org/openstack/horizon.git
-PROJECT_REF=068e207393455441e7bad0eb5958be6a3c35f505
+PROJECT_REF=a8b3b4621f342742bac3a11708df869a6a9a5b15
 UPGRADE_PIP_PACKAGES=pip
 DIST_REPOS="OS"
 PROJECT_UID=42425
@@ -12,7 +12,8 @@ PIP_PACKAGES="\
   ldap \
   pycryptodomex \
   python-ceilometerclient \
-  pyudev
+  pyudev \
+  pymemcache
 "
 PROFILES="fluent horizon apache"
 CUSTOMIZATION="\

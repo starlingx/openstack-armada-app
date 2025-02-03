@@ -182,6 +182,14 @@ dependencies:
     ovs_agent:
       pod: null
 conf:
+  overrides:
+    neutron_netns-cleanup-cron:
+      labels:
+        - conf: {}
+          label:
+            key: openstack-control-plane
+            values:
+              - enabled
   neutron:
     DEFAULT:
       l3_ha: false

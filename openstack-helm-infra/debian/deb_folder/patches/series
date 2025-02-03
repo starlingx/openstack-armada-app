@@ -19,3 +19,4 @@
 0019-Add-pre-apply-cleanup-Job-to-STX-O-Helm-charts.patch
 0020-Add-Kubernetes-name-label-to-helm-toolkit-template.patch
 0021-Add-support-for-multiple-hosts-in-a-daemonset.patch
+0022-removed-section-to-add-default-daemonset-to-global-l.patch

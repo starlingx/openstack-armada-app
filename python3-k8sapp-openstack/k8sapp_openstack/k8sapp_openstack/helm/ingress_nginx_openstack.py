@@ -18,32 +18,41 @@ class IngressNginxOpenstackHelm(openstack.OpenstackBaseHelm):
     HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_INGRESS
 
     def get_overrides(self, namespace=None):
-        limit_enabled, limit_cpus, limit_mem_mib = self._get_platform_res_limit()
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'controller': {
-                    'replicaCount': self._num_provisioned_controllers(),
-                    'resources': {
-                        'enabled': limit_enabled,
-                        'limits': {
-                            'cpu': "%d000m" % (limit_cpus),
-                            'memory': "%dMi" % (limit_mem_mib)
-                        }
-                    }
+                    'replicaCount': self._num_provisioned_controllers()
                 },
                 'defaultBackend': {
-                    'replicaCount': self._num_provisioned_controllers(),
-                    'resources': {
-                        'enabled': limit_enabled,
-                        'limits': {
-                            'cpu': "%d000m" % (limit_cpus),
-                            'memory': "%dMi" % (limit_mem_mib)
-                        }
-                    }
+                    'replicaCount': self._num_provisioned_controllers()
                 }
             }
         }
+
+        limit_enabled, limit_cpus, limit_mem_mib = self._get_platform_res_limit()
+        if limit_enabled:
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {
+                    'controller': {
+                        'resources': {
+                            'limits': {
+                                'cpu': "%d000m" % (limit_cpus),
+                                'memory': "%dMi" % (limit_mem_mib)
+                            }
+                        }
+                    },
+                    'defaultBackend': {
+                        'resources': {
+                            'limits': {
+                                'cpu': "%d000m" % (limit_cpus),
+                                'memory': "%dMi" % (limit_mem_mib)
+                            }
+                        }
+                    }
+                }
+            )
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]

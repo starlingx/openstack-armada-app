@@ -1,5 +1,6 @@
 app_name: app-openstack
 app_version: 1.0-1
+maintain_user_overrides: true
 
 disabled_charts:
 - aodh

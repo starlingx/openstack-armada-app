@@ -1,2 +1,2 @@
-0001-Add-support-for-building-python3-wheel.patch 
-0002-Add-ipv6-support-for-keystone.patch
+stx-add-wheel-support.patch
+add-ipv6-support.patch

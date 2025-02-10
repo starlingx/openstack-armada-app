@@ -17,6 +17,7 @@ from sysinv.common import exception
 from sysinv.helm import common
 from sysinv.helm import lifecycle_base as base
 from sysinv.helm import lifecycle_utils as lifecycle_utils
+from sysinv.helm import utils as helm_utils
 from sysinv.helm.lifecycle_constants import LifecycleConstants
 
 from k8sapp_openstack import utils as app_utils
@@ -85,6 +86,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     hook_info.operation == constants.APP_APPLY_OP and \
                         hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
                 return self._pre_manual_apply_check(conductor_obj, app, hook_info)
+            elif hook_info.mode == constants.APP_LIFECYCLE_MODE_MANUAL and \
+                    hook_info.operation == constants.APP_UPDATE_OP and \
+                        hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
+                return self._pre_update_cleanup_actions(hook_info)
 
         # Default behavior
         super(OpenstackAppLifecycleOperator, self).app_lifecycle_actions(context, conductor_obj, app_op, app,
@@ -407,3 +412,12 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             )
             if group_exists:
                 ldap.delete_group(app_constants.CLIENTS_WORKING_DIR_GROUP)
+
+    def _pre_update_cleanup_actions(self, hook_info):
+        """Perform pre update cleanup actions."""
+
+        # TODO: Remove in the future. This code is only necessary when
+        # updating from stx-10 to stx-11 STX-O release.
+        status = helm_utils.delete_helm_release(
+            release='osh-openstack-ingress', namespace=app_constants.HELM_NS_OPENSTACK)
+        LOG.info(status)

@@ -83,6 +83,7 @@ conf:
           WSGIScriptReloading On
           WSGIDaemonProcess horizon-http processes=5 threads=1 user=horizon group=horizon display-name=%{GROUP} python-home=/var/lib/openstack socket-user=www-data
           WSGIProcessGroup horizon-http
+          WSGIApplicationGroup %{GLOBAL}
           WSGIScriptAlias / /var/www/cgi-bin/horizon/django.wsgi
           WSGIPassAuthorization On
           RewriteEngine on

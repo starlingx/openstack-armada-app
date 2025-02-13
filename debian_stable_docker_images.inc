@@ -1,7 +1,3 @@
-upstream/openstack/openstack-aodh
-upstream/openstack/openstack-ironic
-upstream/openstack/python-barbican
-upstream/openstack/python-ceilometer
 upstream/openstack/python-cinder
 upstream/openstack/python-glance
 upstream/openstack/python-heat/openstack-heat

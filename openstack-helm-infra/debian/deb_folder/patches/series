@@ -17,3 +17,4 @@
 0017-Add-Kubernetes-name-label-to-helm-toolkit-template.patch
 0018-Add-support-for-multiple-hosts-in-a-daemonset.patch
 0019-Fix-upversion-breaking-changes.patch
+0020-removed-section-to-add-default-daemonset-to-global-l.patch

@@ -4,8 +4,6 @@ python3-k8sapp-openstack
 stx-openstack-helm-fluxcd
 ingress-nginx-helm
 upstream/openstack/openstack-pkg-tools
-upstream/openstack/python-aodhclient
-upstream/openstack/python-barbicanclient
 upstream/openstack/python-cinderclient
 upstream/openstack/python-glanceclient
 upstream/openstack/python-heatclient

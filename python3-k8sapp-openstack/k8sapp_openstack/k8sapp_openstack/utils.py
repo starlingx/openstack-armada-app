@@ -5,6 +5,7 @@
 #
 
 from grp import getgrnam
+import json
 import os
 from pathlib import Path
 from pwd import getpwnam
@@ -572,3 +573,36 @@ def is_openvswitch_enabled(hosts, labels_by_hostid) -> bool:
                     LOG.debug(f"Openvswitch label not found for host {host.id}")
     LOG.info("Openvswitch is not enabled on any of the hosts.")
     return False
+
+
+def update_helmrelease(release, patch):
+    """
+    Update the Helmrelease of a Helm chart.
+
+    Args:
+        release (str): The name of the Helmrelease to update.
+        patch (dict): Patch to apply to the Helmrelease.
+    """
+
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "patch", "helmrelease", release,
+        "-n", app_constants.HELM_NS_OPENSTACK,
+        "--type", "merge",
+        "-p", json.dumps(patch)
+    ]
+
+    try:
+        process = subprocess.run(
+                args=cmd,
+                capture_output=True,
+                text=True,
+                shell=False)
+
+        LOG.info(f"Stdout: {process.stdout}")
+        LOG.info(f"Stderr: {process.stderr}")
+        process.check_returncode()
+    except KubeApiException as e:
+        LOG.error(f"Failed to update helmrelease: {release}, with error: {e}")
+    except Exception as e:
+        LOG.error(f"Unexpected error while updating helmrelease: {e}")

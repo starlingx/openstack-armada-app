@@ -8,10 +8,10 @@ Subject: [PATCH] Descritpion: Add ipv6 support for keystone
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/init-template/init-script-template b/init-template/init-script-template
-index c0df791..2cd88a7 100644
+index d7149f5..b2e23b6 100644
 --- a/init-template/init-script-template
 +++ b/init-template/init-script-template
-@@ -57,7 +57,7 @@ if [ -n "${UWSGI_PORT}" ] && [ -n "${UWSGI_INI_PATH}" ] && [ -n "${UWSGI_INI_APP
+@@ -70,7 +70,7 @@ if [ -n "${UWSGI_PORT}" ] && [ -n "${UWSGI_INI_PATH}" ] && [ -n "${UWSGI_INI_APP
  			fi
  		fi
  	else
@@ -19,6 +19,7 @@ index c0df791..2cd88a7 100644
 +		UWSGI_BIND_IP="[::]"
  	fi
  
- 	if [ -n "${KEY_FILE}" ] && [ -n "${CERT_FILE}" ] ; then
+ 	if [ -n "${BIND_PARAMS}" ] ; then
 -- 
-2.17.1
+2.34.1
+

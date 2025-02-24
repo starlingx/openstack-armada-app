@@ -64,6 +64,8 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             elif hook_info.operation == constants.APP_REMOVE_OP and \
                     hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
                 return self._delete_app_specific_resources_post_remove(app_op, app, hook_info)
+            elif hook_info.operation == constants.APP_RECOVER_OP:
+                return self._recover_app_resources_failed_update()
 
         # Rbd
         elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_RBD:
@@ -429,4 +431,25 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # Uninstall helm release.
         status = helm_utils.delete_helm_release(
             release='osh-openstack-ingress', namespace=app_constants.HELM_NS_OPENSTACK)
+        LOG.info(status)
+
+    def _recover_app_resources_failed_update(self):
+        """ Perform resource recover after failed update"""
+
+        # TODO: Remove in the future. This code is only necessary when
+        # updating from stx-10 to stx-11 STX-O release.
+        release = 'ingress'
+        patch = {"spec": {"suspend": False}}
+
+        # Update helmrelease to revert changes
+        app_utils.update_helmrelease(release, patch)
+
+        # The new Ingress must be disabled and deleted before starting recovery
+        release_failed = 'ingress-nginx-openstack'
+        patch_failed = {"spec": {"suspend": True}}
+        app_utils.update_helmrelease(release_failed, patch_failed)
+
+        # Uninstall helm release.
+        status = helm_utils.delete_helm_release(
+            release=release_failed, namespace=app_constants.HELM_NS_OPENSTACK)
         LOG.info(status)

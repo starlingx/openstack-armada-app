@@ -67,6 +67,11 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+  security_context:
+    cinder_volume:
+      container:
+        cinder_volume:
+          privileged: true
 network:
   api:
     ingress:

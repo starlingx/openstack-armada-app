@@ -17,3 +17,4 @@
 0017-Add-pre-apply-cleanup-Job-to-STX-O-Helm-charts.patch
 0018-Define-values-for-NetApp-volume-backend.patch
 0019-Add-cluster-host-ip-env-var-to-nova.patch
+0020-Add-service-role-to-neutron-policy.patch

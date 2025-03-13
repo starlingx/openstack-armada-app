@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Wind River Systems, Inc.
+# Copyright (c) 2023-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -453,3 +453,12 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         status = helm_utils.delete_helm_release(
             release=release_failed, namespace=app_constants.HELM_NS_OPENSTACK)
         LOG.info(status)
+
+        # Downgrading is not officially supported for MariaDB:
+        # https://mariadb.com/kb/en/downgrading-between-major-versions-of-mariadb/
+        # Because of that, we need to delete the Helmrelease for the new MariaDB
+        # before deploying the old one.
+        app_utils.delete_kubernetes_resource(
+            resource_type='helmrelease',
+            resource_name='mariadb'
+        )

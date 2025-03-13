@@ -606,3 +606,33 @@ def update_helmrelease(release, patch):
         LOG.error(f"Failed to update helmrelease: {release}, with error: {e}")
     except Exception as e:
         LOG.error(f"Unexpected error while updating helmrelease: {e}")
+
+
+def delete_kubernetes_resource(resource_type, resource_name):
+    """
+    Delete a Kubernetes resource.
+
+    Args:
+        resource_type (str): The type of the Kubernetes resource.
+        resource_name (str): The name of the Kubernetes resource.
+    """
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "delete", resource_type, resource_name,
+        "-n", app_constants.HELM_NS_OPENSTACK
+    ]
+
+    try:
+        process = subprocess.run(
+                args=cmd,
+                capture_output=True,
+                text=True,
+                shell=False)
+
+        LOG.info(f"Stdout: {process.stdout}")
+        LOG.info(f"Stderr: {process.stderr}")
+        process.check_returncode()
+    except KubeApiException as e:
+        LOG.error(f"Failed to delete {resource_type}: {resource_name}, with error: {e}")
+    except Exception as e:
+        LOG.error(f"Unexpected error while deleting {resource_type}: {e}")

@@ -628,6 +628,128 @@ def update_helmrelease(release, patch):
         LOG.error(f"Unexpected error while updating helmrelease: {e}")
 
 
+def get_app_version_list(base_dir: str, app_name: str) -> list:
+    """
+    Retrieve a list of versions for a given application from YAML files.
+
+    Args:
+        base_dir (str): The base directory where application data is stored.
+        app_name (str): The name of the application.
+
+    Returns:
+        list: A list of versions for the specified application.
+    """
+    return os.listdir(os.path.join(base_dir, app_name))
+
+
+def get_image_list(image_dir: str) -> list:
+    """
+    Retrieve a list of images for a given application from YAML files.
+
+    Args:
+        image_dir (str): The base directory where application data is stored.
+
+    Returns:
+        list: A list of images for the specified application.
+    """
+    with open(image_dir, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)["download_images"]
+
+
+def get_residual_images(image_file_dir: str, app_version: str, app_version_list: list) -> list:
+    """
+    Retrieve a list of residual images for a given application.
+
+    Args:
+        image_file_dir (str): The directory containing the image files.
+        app_version (str): The specific version of the application.
+        app_version_list (list): A list of all available application versions.
+
+    Returns:
+        list: A list of residual images that are present in older versions
+              but not in the current version.
+    """
+
+    new_images_list = get_image_list(image_file_dir)
+    app_version_list.remove(app_version)
+
+    old_images_list = []
+    last_version = app_version
+    for version in app_version_list:
+        file_name = image_file_dir.replace(last_version, version)
+        old_images_list.extend(get_image_list(file_name))
+        last_version = version
+
+    return list(set(old_images_list) - set(new_images_list))
+
+
+def delete_residual_images(image_list: list):
+    """Remove a list of images from the system registry.
+    Args:
+        image (list): A list of image names to be removed.
+    """
+
+    image_json = list_crictl_images()
+
+    for image in image_list:
+        image_id = get_image_id(image, image_json)
+        if not image_id:
+            LOG.error(f"Image {image} not found in the system registry.")
+            continue
+        LOG.info(f"Removing residual image: {image}")
+        cmd = [
+            "crictl", "rmi", image_id
+        ]
+        try:
+            process = subprocess.run(
+                    args=["bash", "-c", f"source /etc/platform/openrc && {' '.join(cmd)}"],
+                    capture_output=True,
+                    text=True,
+                    shell=False)
+
+            LOG.info(f"Stdout: {process.stdout}")
+            LOG.info(f"Stderr: {process.stderr}")
+            process.check_returncode()
+        except Exception as e:
+            LOG.error(f"Unexpected error while removing image {image}: {e}")
+
+
+def list_crictl_images() -> json:
+    """List all images in the system registry.
+    Returns: A dict of images in the system registry.
+    """
+    cmd = [
+        "crictl", "images", "--output", "json"
+    ]
+    try:
+        process = subprocess.run(
+                args=["bash", "-c", f"source /etc/platform/openrc && {' '.join(cmd)}"],
+                capture_output=True,
+                text=True,
+                shell=False)
+
+        LOG.info(f"Stderr: {process.stderr}")
+        process.check_returncode()
+        return json.loads(process.stdout)
+    except Exception as e:
+        LOG.error(f"Unexpected error while listing images: {e}")
+        return None
+
+
+def get_image_id(image_name: str, image_json: json) -> str:
+    """Get the image ID from the system registry.
+    Args:
+        image_name (str): The name of the image.
+        image_json (json): The dict of images in the system registry.
+    Returns:
+        str: The image ID.
+    """
+    for image in image_json["images"]:
+        if image_name in image["repoTags"]:
+            return image["id"]
+    return None
+
+
 def get_number_of_controllers() -> int:
     """Get the number of controllers in the system
 

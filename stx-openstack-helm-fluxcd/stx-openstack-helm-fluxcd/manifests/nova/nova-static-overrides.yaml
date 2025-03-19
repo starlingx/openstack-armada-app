@@ -66,6 +66,12 @@ labels:
   test:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+annotations:
+  pod:
+    nova_api_metadata:
+      starlingx.io/core_pattern: "/dev/null"
+    nova_api_osapi:
+      starlingx.io/core_pattern: "/dev/null"
 images:
   tags:
     bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest

@@ -12,6 +12,10 @@ endpoints:
       name: osh-openstack-rabbitmq-rabbitmq
   identity:
     force_public_endpoint: true
+annotations:
+  pod:
+    neutron_server:
+      starlingx.io/core_pattern: "/dev/null"
 pod:
   replicas:
     server: 2

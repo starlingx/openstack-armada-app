@@ -12,6 +12,8 @@ Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
 [ Upversioned openstack-helm base commit to Caracal ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Add changes to rpc-server deployment ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Change-Id: Ic5d6461985e16dd41d51511caeefd5a0e95283f8
 ---
  cinder/templates/configmap-etc.yaml             |  4 ----
@@ -71,6 +73,7 @@ Change-Id: Ic5d6461985e16dd41d51511caeefd5a0e95283f8
  neutron/templates/daemonset-ovs-agent.yaml      |  2 --
  neutron/templates/daemonset-sriov-agent.yaml    |  2 --
  neutron/templates/deployment-ironic-agent.yaml  |  2 --
+ neutron/templates/deployment-rpc_server.yaml    |  4 ----
  neutron/templates/deployment-server.yaml        |  4 ----
  neutron/templates/job-db-drop.yaml              |  3 ---
  neutron/templates/job-db-init.yaml              |  3 ---
@@ -102,7 +105,7 @@ Change-Id: Ic5d6461985e16dd41d51511caeefd5a0e95283f8
  placement/templates/job-db-init.yaml            |  3 ---
  placement/templates/job-db-sync.yaml            |  5 +----
  placement/templates/secret-db.yaml              |  4 ----
- 88 files changed, 3 insertions(+), 315 deletions(-)
+ 89 files changed, 3 insertions(+), 319 deletions(-)
 
 diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
 index 1a26cc4f..2e83f374 100644
@@ -1128,6 +1131,29 @@ index 014c9adf..90d95d19 100644
 -{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_neutron_ironic_agent.volumes }}{{ toYaml $mounts_neutron_ironic_agent.volumes | indent 8 }}{{ end }}
  {{- end }}
+diff --git a/neutron/templates/deployment-rpc_server.yaml b/neutron/templates/deployment-rpc_server.yaml
+index a8a111d7..ca0cab62 100644
+--- a/neutron/templates/deployment-rpc_server.yaml
++++ b/neutron/templates/deployment-rpc_server.yaml
+@@ -193,9 +193,7 @@ spec:
+               mountPath: /etc/neutron/policy.yaml
+               subPath: policy.yaml
+               readOnly: true
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_neutron_rpc_server.volumeMounts }}{{ toYaml $mounts_neutron_rpc_server.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+         - name: pod-tmp
+@@ -220,8 +218,6 @@ spec:
+         - name: neutron-plugin-shared
+           emptyDir: {}
+         {{- end }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_neutron_rpc_server.volumes }}{{ toYaml $mounts_neutron_rpc_server.volumes | indent 8 }}{{ end }}
+ {{- end }}
 diff --git a/neutron/templates/deployment-server.yaml b/neutron/templates/deployment-server.yaml
 index 6b236a33..f8a2492b 100644
 --- a/neutron/templates/deployment-server.yaml
@@ -1688,3 +1714,4 @@ index 0e9214c4..44797b85 100644
 -{{- end }}
 -- 
 2.34.1
+

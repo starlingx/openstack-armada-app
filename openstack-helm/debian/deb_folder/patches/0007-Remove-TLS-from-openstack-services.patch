@@ -18,6 +18,8 @@ Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 [ Upversioned openstack-helm base commit to Caracal ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Add changes to rpc-server deployment ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Change-Id: Ibc0e53d95cfe43e0e04c9cc14bc81469fb919a40
 ---
  cinder/templates/bin/_cinder-api.sh.tpl       | 40 -----------
@@ -73,6 +75,7 @@ Change-Id: Ibc0e53d95cfe43e0e04c9cc14bc81469fb919a40
  keystone/templates/pod-rally-test.yaml        | 16 ++---
  neutron/templates/certificates.yaml           | 17 -----
  .../templates/daemonset-metadata-agent.yaml   |  4 +-
+ neutron/templates/deployment-rpc_server.yaml  |  4 +-
  neutron/templates/deployment-server.yaml      | 70 +------------------
  neutron/templates/ingress-server.yaml         |  4 --
  neutron/templates/job-bootstrap.yaml          |  2 +-
@@ -107,7 +110,7 @@ Change-Id: Ibc0e53d95cfe43e0e04c9cc14bc81469fb919a40
  placement/templates/job-ks-endpoints.yaml     |  2 +-
  placement/templates/job-ks-service.yaml       |  2 +-
  placement/templates/job-ks-user.yaml          |  2 +-
- 87 files changed, 127 insertions(+), 712 deletions(-)
+ 88 files changed, 129 insertions(+), 714 deletions(-)
  delete mode 100644 cinder/templates/certificates.yaml
  delete mode 100644 glance/templates/certificates.yaml
  delete mode 100644 heat/templates/certificates.yaml
@@ -1443,6 +1446,28 @@ index fc9a75ee..4625765a 100644
  {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_neutron_metadata_agent.volumes }}{{ toYaml $mounts_neutron_metadata_agent.volumes | indent 8 }}{{ end }}
  {{- end }}
+diff --git a/neutron/templates/deployment-rpc_server.yaml b/neutron/templates/deployment-rpc_server.yaml
+index 1866e21e..a8a111d7 100644
+--- a/neutron/templates/deployment-rpc_server.yaml
++++ b/neutron/templates/deployment-rpc_server.yaml
+@@ -194,7 +194,7 @@ spec:
+               subPath: policy.yaml
+               readOnly: true
+ {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.internal "path" "/etc/neutron/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
++{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_neutron_rpc_server.volumeMounts }}{{ toYaml $mounts_neutron_rpc_server.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+@@ -221,7 +221,7 @@ spec:
+           emptyDir: {}
+         {{- end }}
+ {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
++{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_neutron_rpc_server.volumes }}{{ toYaml $mounts_neutron_rpc_server.volumes | indent 8 }}{{ end }}
+ {{- end }}
 diff --git a/neutron/templates/deployment-server.yaml b/neutron/templates/deployment-server.yaml
 index b6b634d2..6b236a33 100644
 --- a/neutron/templates/deployment-server.yaml
@@ -2331,3 +2356,4 @@ index 056938bd..02602c15 100644
  {{- $_ := set $ksUserJob "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) -}}
 -- 
 2.34.1
+

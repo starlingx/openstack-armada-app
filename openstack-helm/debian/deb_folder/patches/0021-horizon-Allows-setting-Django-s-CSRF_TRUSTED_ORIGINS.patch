@@ -1,0 +1,42 @@
+From 776b29a26da2fae6f2aa575f401f3f4da873ab1c Mon Sep 17 00:00:00 2001
+From: Nicholas Kuechler <nkuechler@gmail.com>
+Date: Tue, 25 Jun 2024 11:53:09 -0500
+Subject: [PATCH 21/22] horizon: Allows setting Django's CSRF_TRUSTED_ORIGINS
+ in helm values file
+
+Change-Id: I8930b8df7c068c63ee19a7f3a29c66ef2b3ee820
+
+[ Cherry-picked to stx-openstack caracal ]
+Test Plan:
+[PASS] build stx-openstack tarball
+Related-Bug: #2103799
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+---
+ horizon/values.yaml | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/horizon/values.yaml b/horizon/values.yaml
+index 98f8ede2..6362ad87 100644
+--- a/horizon/values.yaml
++++ b/horizon/values.yaml
+@@ -217,6 +217,7 @@ conf:
+         show_openrc_file: "True"
+         csrf_cookie_secure: "False"
+         csrf_cookie_httponly: "False"
++        csrf_trusted_origins: []
+         enforce_password_check: "True"
+         # Set enable_pwd_validator to true to enforce password validator settings.
+         enable_pwd_validator: false
+@@ -312,6 +313,9 @@ conf:
+ 
+         SESSION_COOKIE_HTTPONLY = {{ .Values.conf.horizon.local_settings.config.session_cookie_httponly }}
+ 
++        # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
++        CSRF_TRUSTED_ORIGINS = {{ .Values.conf.horizon.local_settings.config.csrf_trusted_origins }}
++
+         # Overrides for OpenStack API versions. Use this setting to force the
+         # OpenStack dashboard to use a specific API version for a given service API.
+         # Versions specified here should be integers or floats, not strings.
+-- 
+2.34.1
+

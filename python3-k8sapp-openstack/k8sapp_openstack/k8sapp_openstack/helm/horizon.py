@@ -10,6 +10,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import get_services_fqdn_pattern
 
 
 class HorizonHelm(openstack.OpenstackBaseHelm):
@@ -115,6 +116,30 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
             local_settings_config.update({
                 'https_enabled': 'True',
             })
+
+        # After version 4.0, CSFR protection implemented by Django consults
+        # the Origin header and requires the CSRF_TRUSTED_ORIGINS config to be
+        # defined.
+        # Ref.: https://docs.djangoproject.com/en/4.2/releases/4.0/#csrf
+        csrf_trusted_origins = []
+        # Get the openstack endpoint public domain name
+        endpoint_domain = self._get_service_parameter(
+            constants.SERVICE_TYPE_OPENSTACK,
+            constants.SERVICE_PARAM_SECTION_OPENSTACK_HELM,
+            constants.SERVICE_PARAM_NAME_ENDPOINT_DOMAIN)
+        if endpoint_domain is not None:
+            # Define endpoint domain based on pattern
+            fqdn_pattern = get_services_fqdn_pattern()
+            service_endpoint = fqdn_pattern.format(
+                    service_name=self.SERVICE_NAME,
+                    endpoint_domain=str(endpoint_domain.value),
+            ).lower()
+            csrf_trusted_origins.append("%s://%s" %
+                                        (self._get_public_protocol(),
+                                         service_endpoint))
+        local_settings_config.update({
+            'csrf_trusted_origins': csrf_trusted_origins,
+        })
 
         lockout_retries = self._get_service_parameter('horizon', 'auth', 'lockout_retries')
         lockout_seconds = self._get_service_parameter('horizon', 'auth', 'lockout_seconds')

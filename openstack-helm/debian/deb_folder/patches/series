@@ -18,3 +18,5 @@
 0018-Define-values-for-NetApp-volume-backend.patch
 0019-Add-cluster-host-ip-env-var-to-nova.patch
 0020-Add-service-role-to-neutron-policy.patch
+0021-horizon-Allows-setting-Django-s-CSRF_TRUSTED_ORIGINS.patch
+0022-horizon-fix-templating-of-list-of-strings-for-CSRF_T.patch

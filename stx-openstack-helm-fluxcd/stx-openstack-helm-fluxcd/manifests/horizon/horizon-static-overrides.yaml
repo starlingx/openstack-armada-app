@@ -122,6 +122,8 @@ conf:
         keystone_multidomain_support: 'False'
         # OpenStack Help Documentation URL
         help_url: 'http://docs.openstack.org/2024.1/'
+        # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
+        csrf_trusted_origins: []
         # Pass any settings to the end of local_settings.py
         raw: { }
       template: |
@@ -168,6 +170,9 @@ conf:
         # settings to better secure the cookies from security exploits
         #CSRF_COOKIE_SECURE = True
         #SESSION_COOKIE_SECURE = True
+
+        # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
+        CSRF_TRUSTED_ORIGINS = [{{ include "helm-toolkit.utils.joinListWithCommaAndSingleQuotes" .Values.conf.horizon.local_settings.config.csrf_trusted_origins }}]
 
         # Overrides for OpenStack API versions. Use this setting to force the
         # OpenStack dashboard to use a specific API version for a given service API.

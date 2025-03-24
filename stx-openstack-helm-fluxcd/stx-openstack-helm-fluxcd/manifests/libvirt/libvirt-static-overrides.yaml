@@ -43,4 +43,5 @@ images:
     libvirt: docker.io/starlingx/stx-libvirt:master-debian-stable-latest
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     libvirt_exporter: null
+    kubectl: null
 ...

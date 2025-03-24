@@ -11,8 +11,7 @@ nameOverride: ingress-nginx-openstack
 controller:
   opentelemetry:
     image:
-      repository: registry.k8s.io/ingress-nginx/opentelemetry
-      tag: "v20230721-3e2062ee5"
+      image: null
   config:
     bind-address: '::'
     worker-processes: "4"
@@ -68,8 +67,7 @@ controller:
   admissionWebhooks:
     patch:
       image:
-        repository: registry.k8s.io/ingress-nginx/kube-webhook-certgen
-        tag: v1.4.1
+        image: null
     enabled: false
   updateStrategy:
     type: RollingUpdate

@@ -13,18 +13,20 @@ https://opendev.org/openstack/openstack-helm-infra/commit/954e338d17e2dc8394dcd0
 https://opendev.org/openstack/openstack-helm-infra/commit/475a0c4b44b9c815fbbafaf1b1d485c9d2973878
 https://opendev.org/openstack/openstack-helm-infra/commit/d27ea2474504653383d005adcbc043b34d62eccd
 
+[ Add tolerations to mariadb-controller pod definition ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  .../templates/snippets/_service_params.tpl    |  61 ++++++++
  .../templates/bin/_mariadb_controller.py.tpl  | 112 ++++++++++++++
  mariadb/templates/bin/_start.py.tpl           | 143 +-----------------
  mariadb/templates/configmap-bin.yaml          |   4 +
- mariadb/templates/deployment-controller.yaml  | 119 +++++++++++++++
+ mariadb/templates/deployment-controller.yaml  | 122 +++++++++++++++
  mariadb/templates/service-discovery.yaml      |   5 +
  mariadb/templates/service-master.yaml         |  33 ++++
  mariadb/templates/service.yaml                |   1 +
  mariadb/templates/statefulset.yaml            |  37 +----
  mariadb/values.yaml                           |  34 ++++-
- 10 files changed, 376 insertions(+), 173 deletions(-)
+ 10 files changed, 379 insertions(+), 173 deletions(-)
  create mode 100644 helm-toolkit/templates/snippets/_service_params.tpl
  create mode 100644 mariadb/templates/bin/_mariadb_controller.py.tpl
  create mode 100644 mariadb/templates/deployment-controller.yaml
@@ -426,10 +428,10 @@ index cc92eb69..7b6e18ab 100644
  {{- end }}
 diff --git a/mariadb/templates/deployment-controller.yaml b/mariadb/templates/deployment-controller.yaml
 new file mode 100644
-index 00000000..598d084a
+index 00000000..39ec8627
 --- /dev/null
 +++ b/mariadb/templates/deployment-controller.yaml
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,122 @@
 +{{/*
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -517,6 +519,9 @@ index 00000000..598d084a
 +{{ dict "envAll" $envAll "application" "controller" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 +      affinity:
 +{{ tuple $envAll "mariadb" "controller" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
++{{ if $envAll.Values.pod.tolerations.mariadb.enabled }}
++{{ tuple $envAll "mariadb" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
 +      nodeSelector:
 +        {{ .Values.labels.controller.node_selector_key }}: {{ .Values.labels.controller.node_selector_value }}
 +      initContainers:

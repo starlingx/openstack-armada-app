@@ -575,6 +575,33 @@ def is_openvswitch_enabled(hosts, labels_by_hostid) -> bool:
     return False
 
 
+def send_cmd_read_response(cmd: list[str], log: bool = True) -> str:
+    """
+    Send command and reads its response as a string
+
+    Args:
+        cmd (list[str]): List containing each entry of the command
+        log (bool): if True, print the logs (default)
+
+    Returns:
+        str: Command response, if successful
+    """
+    process = subprocess.run(
+        args=cmd,
+        capture_output=True,
+        text=True,
+        shell=False
+    )
+    if log:
+        if process.stdout.rstrip():
+            LOG.info(f"Stdout: {process.stdout.rstrip()}")
+        if process.stderr.rstrip():
+            LOG.info(f"Stderr: {process.stderr.rstrip()}")
+    process.check_returncode()
+
+    return process.stdout.rstrip()
+
+
 def update_helmrelease(release, patch):
     """
     Update the Helmrelease of a Helm chart.
@@ -593,19 +620,261 @@ def update_helmrelease(release, patch):
     ]
 
     try:
-        process = subprocess.run(
-                args=cmd,
-                capture_output=True,
-                text=True,
-                shell=False)
+        send_cmd_read_response(cmd)
 
-        LOG.info(f"Stdout: {process.stdout}")
-        LOG.info(f"Stderr: {process.stderr}")
-        process.check_returncode()
     except KubeApiException as e:
         LOG.error(f"Failed to update helmrelease: {release}, with error: {e}")
     except Exception as e:
         LOG.error(f"Unexpected error while updating helmrelease: {e}")
+
+
+def get_number_of_controllers() -> int:
+    """Get the number of controllers in the system
+
+    Returns:
+        int: Number of controllers
+    """
+
+    number_of_controllers = 0
+
+    try:
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "get", "hosts", "-o", "NAME", "--all-namespaces"
+        ]
+        controllers_str = send_cmd_read_response(cmd)
+        number_of_controllers = controllers_str.count('controller')
+    except Exception as e:
+        LOG.error(f"Unexpected error while getting number of controllers: {e}")
+
+    return number_of_controllers
+
+
+def check_and_create_snapshot_class(snapshot_class: str, path: str):
+    """
+    Check if a PVC Snapshot Class exists. If not, create the class.
+
+    Params:
+        snapshot_class (str): Name of the snapshot class
+        path (str): Path to temporary files
+    """
+
+    try:
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK,
+            "get", "volumesnapshotclasses.snapshot.storage.k8s.io", snapshot_class
+        ]
+        send_cmd_read_response(cmd)
+
+    except Exception:
+        # Create class
+        LOG.info(f"Trying to create snapshot class {snapshot_class}")
+        try:
+            snapclass_dict = {
+                "apiVersion": "snapshot.storage.k8s.io/v1",
+                "kind": "VolumeSnapshotClass",
+                "deletionPolicy": "Delete",
+                "driver": "rbd.csi.ceph.com",
+                "metadata": {
+                    "name": snapshot_class,
+                },
+                "parameters": {
+                    "clusterID": get_ceph_uuid(),
+                    "csi.storage.k8s.io/snapshotter-secret-name": "ceph-pool-kube-rbd",
+                    "csi.storage.k8s.io/snapshotter-secret-namespace": "kube-system",
+                    "snapshotNamePrefix": "rbd-snap-",
+                },
+            }
+
+            # Dumping config to json file
+            filename = f"{path}/{snapshot_class}-class.json"
+            with open(filename, "w") as fp:
+                json.dump(snapclass_dict, fp)
+
+            cmd = [
+                "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+                "create", "-f", filename
+            ]
+            send_cmd_read_response(cmd)
+
+            os.remove(filename)
+
+            LOG.info(f"Created new snapshot class '{snapshot_class}'")
+
+        except Exception as e:
+            LOG.error(f"Unexpected error while checking/creating snapshot class {snapshot_class}: {e}")
+
+
+def create_pvc_snapshot(snapshot_name: str, pvc_name: str, snapshot_class: str, path: str = "/tmp"):
+    """
+    Create a PVC snapshot
+
+    Params:
+        snapshot_name (str): Name of the snapshot
+        pvc_name (str): PVC whose snapshot will be taken
+        snapshot_class (str): Name of the snapshot class to be used
+        path (str): Path to temporary files
+    """
+
+    try:
+        # Check if snapshot class exists. If not, create it
+        LOG.info(f"Checking if snapshot class {snapshot_class} already exists.")
+        check_and_create_snapshot_class(snapshot_class, path)
+
+        # Snapshot config
+        snapshot_dict = {
+            "apiVersion": "snapshot.storage.k8s.io/v1",
+            "kind": "VolumeSnapshot",
+            "metadata": {
+                "name": snapshot_name,
+                "namespace": app_constants.HELM_NS_OPENSTACK,
+            },
+            "spec": {
+                "volumeSnapshotClassName": snapshot_class,
+                "source": {
+                    "persistentVolumeClaimName": pvc_name,
+                },
+            },
+        }
+
+        # Dumping config to json file
+        filename = f"{path}/{pvc_name}-snapshot.json"
+        with open(filename, "w") as fp:
+            json.dump(snapshot_dict, fp)
+
+        # Creating snapshot
+        LOG.info(f"Creating new PVC snapshot '{snapshot_name}'")
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "create", "-f", filename
+        ]
+        send_cmd_read_response(cmd)
+
+        os.remove(filename)
+
+    except Exception as e:
+        LOG.error(f"Unexpected error while creating PVC snapshot: {e}")
+
+
+def restore_pvc_snapshot(snapshot_name: str,
+                         pvc_name: str,
+                         statefulset_name: str,
+                         number_of_controllers: int = 1,
+                         path: str = "/tmp"):
+    """
+    Restore a PVC snapshot, if possible
+
+    Params:
+        snapshot_name (str): Name of the snapshot
+        pvc_name (str): PVC whose snapshot was taken of
+        statefulset_name (str): Name of the statefulset using the PVC
+        number_of_controllers (int): Number of controllers in the system
+        path (str): Path to temporary files
+    """
+    try:
+        # Check if snapshot exists
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK,
+            "get", "volumesnapshots.snapshot.storage.k8s.io", snapshot_name
+        ]
+        send_cmd_read_response(cmd)
+
+        # Set sts replicas to zero
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK,
+            "scale", "sts", statefulset_name, "--replicas=0"
+        ]
+        send_cmd_read_response(cmd)
+
+        # Get PVC capacity and storage class name
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK,
+            "get", "pvc", pvc_name,
+            "-o=custom-columns=C1:.spec.resources.requests.storage,C2:.spec.storageClassName",
+            "--no-headers"
+        ]
+        output = send_cmd_read_response(cmd)
+        capacity, storageclass_name = " ".join(output.split()).split(" ")
+
+        # Delete old PVC
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK,
+            "delete", "pvc", pvc_name
+        ]
+        send_cmd_read_response(cmd)
+
+        # Apply snapshot
+        pvc_snapshot_dict = {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": pvc_name,
+                "namespace": app_constants.HELM_NS_OPENSTACK,
+            },
+            "spec": {
+                "storageClassName": storageclass_name,
+                "dataSource": {
+                    "name": snapshot_name,
+                    "kind": "VolumeSnapshot",
+                    "apiGroup": "snapshot.storage.k8s.io",
+                },
+                "accessModes": [
+                    "ReadWriteOnce"
+                ],
+                "resources": {
+                    "requests": {
+                        "storage": capacity
+                    },
+                },
+            },
+        }
+
+        filename = f"{path}/{pvc_name}-snapshot-to-apply.json"
+        with open(filename, "w") as fp:
+            json.dump(pvc_snapshot_dict, fp)
+
+        LOG.info(f"Restoring PVC snapshot '{snapshot_name}'")
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "create", "-f", filename
+        ]
+        send_cmd_read_response(cmd)
+
+        os.remove(filename)
+
+        # Set sts replicas to number of controllers
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK,
+            "scale", "sts", statefulset_name, f"--replicas={number_of_controllers}"
+        ]
+        send_cmd_read_response(cmd)
+
+    except Exception as e:
+        LOG.error(f"Unexpected error while restoring PVC snapshot: {e}")
+
+
+def delete_snapshot(snapshot_name: str):
+    """
+    Restore a PVC snapshot, if possible
+
+    Params:
+        snapshot_name (str): Name of the snapshot to be removed
+    """
+    try:
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK,
+            "delete", "volumesnapshots.snapshot.storage.k8s.io", snapshot_name
+        ]
+        send_cmd_read_response(cmd)
+    except Exception as e:
+        LOG.error(f"Unexpected error while deleting PVC snapshot: {e}")
 
 
 def delete_kubernetes_resource(resource_type, resource_name):
@@ -616,22 +885,13 @@ def delete_kubernetes_resource(resource_type, resource_name):
         resource_type (str): The type of the Kubernetes resource.
         resource_name (str): The name of the Kubernetes resource.
     """
-    cmd = [
-        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
-        "delete", resource_type, resource_name,
-        "-n", app_constants.HELM_NS_OPENSTACK
-    ]
-
     try:
-        process = subprocess.run(
-                args=cmd,
-                capture_output=True,
-                text=True,
-                shell=False)
-
-        LOG.info(f"Stdout: {process.stdout}")
-        LOG.info(f"Stderr: {process.stderr}")
-        process.check_returncode()
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "delete", resource_type, resource_name,
+            "-n", app_constants.HELM_NS_OPENSTACK
+        ]
+        send_cmd_read_response(cmd)
     except KubeApiException as e:
         LOG.error(f"Failed to delete {resource_type}: {resource_name}, with error: {e}")
     except Exception as e:

@@ -65,7 +65,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
                 return self._delete_app_specific_resources_post_remove(app_op, app, hook_info)
             elif hook_info.operation == constants.APP_RECOVER_OP:
-                return self._recover_app_resources_failed_update()
+                return self._recover_actions(app)
 
         # Rbd
         elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_RBD:
@@ -93,7 +93,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_MANIFEST:
             if hook_info.operation == constants.APP_APPLY_OP and \
                     hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
-                return self._pre_update_cleanup_actions()
+                return self._pre_update_actions(app)
 
         # Default behavior
         super(OpenstackAppLifecycleOperator, self).app_lifecycle_actions(context, conductor_obj, app_op, app,
@@ -136,6 +136,15 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # The radosgw chart may have been enabled/disabled. Regardless of
             # the prior apply state, update the ceph config
             conductor_obj._update_radosgw_config(context)
+
+        # Delete PVC snapshots if existent
+        nc = app_utils.get_number_of_controllers()
+
+        for i in range(0, nc):
+            pvc_name = f"mysql-data-mariadb-server-{i}"
+            snapshot_name = f"snapshot-of-{pvc_name}"
+            LOG.info(f"Trying to delete snapshot '{snapshot_name}'")
+            app_utils.delete_snapshot(snapshot_name)
 
     def pre_remove(self, context, conductor_obj, hook_info):
         """Pre remove actions
@@ -417,6 +426,16 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             if group_exists:
                 ldap.delete_group(app_constants.CLIENTS_WORKING_DIR_GROUP)
 
+    def _pre_update_actions(self, app):
+        """Perform all pre update actions.
+
+        :param conductor_obj: conductor object
+        :param app: AppOperator.Application object
+
+        """
+        self._pre_update_backup_actions(app)
+        self._pre_update_cleanup_actions()
+
     def _pre_update_cleanup_actions(self):
         """Perform pre update cleanup actions."""
 
@@ -432,6 +451,31 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         status = helm_utils.delete_helm_release(
             release='osh-openstack-ingress', namespace=app_constants.HELM_NS_OPENSTACK)
         LOG.info(status)
+
+    def _pre_update_backup_actions(self, app):
+        """Perform pre update backup actions.
+
+        :param app: AppOperator.Application object
+
+        """
+        # Create mariadb's PVC snapshots
+        nc = app_utils.get_number_of_controllers()
+        SNAPSHOT_CLASS_NAME = "rbd-snapshot"
+
+        for i in range(0, nc):
+            pvc_name = f"mysql-data-mariadb-server-{i}"
+            snapshot_name = f"snapshot-of-{pvc_name}"
+            LOG.info(f"Trying to take a snapshot from PVC {pvc_name}")
+            app_utils.create_pvc_snapshot(snapshot_name, pvc_name, SNAPSHOT_CLASS_NAME, path=app.inst_path)
+
+    def _recover_actions(self, app):
+        """Perform all recover actions.
+
+        :param app: AppOperator.Application object
+
+        """
+        self._recover_backup_snapshot(app)
+        self._recover_app_resources_failed_update()
 
     def _recover_app_resources_failed_update(self):
         """ Perform resource recover after failed update"""
@@ -462,3 +506,19 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             resource_type='helmrelease',
             resource_name='mariadb'
         )
+
+    def _recover_backup_snapshot(self, app):
+        """Perform pre recover backup actions
+
+        :param app: AppOperator.Application object
+
+        """
+        # Restore mariadb's PVCs if snapshots were taken
+        nc = app_utils.get_number_of_controllers()
+        STATEFULSET_NAME = "mariadb-server"
+
+        for i in range(0, nc):
+            pvc_name = f"mysql-data-mariadb-server-{i}"
+            snapshot_name = f"snapshot-of-{pvc_name}"
+            LOG.info(f"Trying to restore a snapshot from PVC {pvc_name}")
+            app_utils.restore_pvc_snapshot(snapshot_name, pvc_name, STATEFULSET_NAME, path=app.inst_path)

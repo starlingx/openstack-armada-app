@@ -94,6 +94,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             if hook_info.operation == constants.APP_APPLY_OP and \
                     hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
                 return self._pre_update_actions(app)
+            elif hook_info.operation == constants.APP_APPLY_OP and \
+                    hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
+                return self._post_update_image_actions(app)
 
         # Default behavior
         super(OpenstackAppLifecycleOperator, self).app_lifecycle_actions(context, conductor_obj, app_op, app,
@@ -506,6 +509,20 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             resource_type='helmrelease',
             resource_name='mariadb'
         )
+
+    def _post_update_image_actions(self, app):
+        """Perform post update actions, deleting residual images.
+
+        :param app: AppOperator.Application object
+        """
+        images_base_dir = app.sync_imgfile.split(app.name)[0]
+        app_version_list = app_utils.get_app_version_list(images_base_dir, app.name)
+        if len(app_version_list) > 1:
+            LOG.info("Deleting unused images for app %s", app.name)
+            residual_images = app_utils.get_residual_images(app.sync_imgfile, app.version, app_version_list)
+
+            if len(residual_images) > 0:
+                app_utils.delete_residual_images(residual_images)
 
     def _recover_backup_snapshot(self, app):
         """Perform pre recover backup actions

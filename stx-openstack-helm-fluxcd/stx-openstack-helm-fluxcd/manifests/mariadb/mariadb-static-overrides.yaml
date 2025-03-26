@@ -32,6 +32,7 @@ images:
     mariadb: docker.io/openstackhelm/mariadb:ubuntu_focal-20250111
     mariadb_backup: quay.io/airshipit/porthole-mysqlclient-utility:2ddd25489a782675bbeaf723bb1442d757fe0cb3-ubuntu_focal
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    mariadb_controller: docker.io/openstackhelm/mariadb:ubuntu_focal-20250111
     scripted_test: null
 pod:
   probes:

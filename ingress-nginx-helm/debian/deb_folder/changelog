@@ -1,3 +1,9 @@
+ingress-nginx-helm (4.11-5) unstable; urgency=high
+
+  * App upversion: chart and image update to fix CVE-2025-1974
+
+ -- msoaresd <mateus.soaresdonascimento@windriver.com>  Thu, 27 Mar 2025 15:00:00 -0300
+
 ingress-nginx-helm (4.11-2) unstable; urgency=medium
 
   * Improvements on makefiles

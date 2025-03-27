@@ -12,6 +12,8 @@ This patch changes the name of the Ingress Helm Chart,
 so it differs from the one used by the platform.
 
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Updated maintainers and version ]
+Signed-off-by: Mateus Nascimento <mateus.soaresdonascimento@windriver.com>
 ---
  charts/ingress-nginx/Chart.yaml | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
@@ -20,15 +22,15 @@ diff --git a/charts/ingress-nginx/Chart.yaml b/charts/ingress-nginx/Chart.yaml
 index 3ee839a..31ed0a0 100644
 --- a/charts/ingress-nginx/Chart.yaml
 +++ b/charts/ingress-nginx/Chart.yaml
-@@ -19,7 +19,7 @@ maintainers:
- - name: rikatz
+@@ -17,7 +17,7 @@ maintainers:
+ - name: Gacko
  - name: strongjz
  - name: tao12345666333
 -name: ingress-nginx
 +name: ingress-nginx-openstack
  sources:
  - https://github.com/kubernetes/ingress-nginx
- version: 4.11.1
+ version: 4.11.5
 -- 
 2.34.1
 

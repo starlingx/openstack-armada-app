@@ -9,6 +9,10 @@ fullnameOverride: ingress-nginx-openstack
 nameOverride: ingress-nginx-openstack
 
 controller:
+  image:
+    repository: registry.k8s.io/ingress-nginx/controller
+    tag: "v1.11.1"
+    digest: null
   opentelemetry:
     image:
       image: null

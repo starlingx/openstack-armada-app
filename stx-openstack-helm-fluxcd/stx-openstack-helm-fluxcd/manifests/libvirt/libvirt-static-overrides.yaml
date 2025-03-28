@@ -35,6 +35,10 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+annotations:
+  pod:
+    libvirt:
+      starlingx.io/core_pattern: "/dev/null"
 images:
   tags:
     ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223

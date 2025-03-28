@@ -19,3 +19,4 @@
 0019-Fix-upversion-breaking-changes.patch
 0020-removed-section-to-add-default-daemonset-to-global-l.patch
 0021-Bring-necessary-upstream-commits.patch
+0022-Add-custom-pod-annotations-to-libvirt.patch

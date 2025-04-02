@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import os
+
 import mock
 from sysinv.common import constants
 from sysinv.helm import common as helm_common
@@ -263,3 +265,143 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             f"app={app_constants.CEPH_ROOK_MANAGER_APP}",
             app_constants.POD_SELECTOR_RUNNING
         )
+
+    @mock.patch('os.listdir', return_value=['1.0.0', '2.0.0', '3.0.0'])
+    def test_get_app_version_list(self, mock_listdir):
+        """Test get_app_version_list returns the correct list of versions."""
+        base_dir = '/fake/base/dir'
+        app_name = 'fake_app'
+        expected_versions = ['1.0.0', '2.0.0', '3.0.0']
+        result = app_utils.get_app_version_list(base_dir, app_name)
+        self.assertEqual(result, expected_versions)
+        mock_listdir.assert_called_once_with(os.path.join(base_dir, app_name))
+
+    @mock.patch('builtins.open', new_callable=mock.mock_open, read_data='{"download_images": ["image1", "image2"]}')
+    @mock.patch('yaml.safe_load', return_value={"download_images": ["image1", "image2"]})
+    def test_get_image_list(self, mock_yaml_load, mock_open):
+        """Test get_image_list returns the correct list of images."""
+        image_dir = '/fake/image/dir'
+        expected_images = ["image1", "image2"]
+        result = app_utils.get_image_list(image_dir)
+        self.assertEqual(result, expected_images)
+        mock_open.assert_called_once_with(image_dir, 'r', encoding='utf-8')
+        mock_yaml_load.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.get_image_list', side_effect=[
+        ["image1", "image2"],
+        ["image1", "image2", "image3"],
+        ["image1", "image4"]
+    ])
+    def test_get_residual_images(self, mock_get_image_list):
+        """Test get_residual_images returns the correct list of residual images."""
+        image_file_dir = '/fake/image/dir'
+        app_version = '2.0.0'
+        app_version_list = ['1.0.0', '2.0.0', '3.0.0']
+        expected_residual_images = ["image3", "image4"]
+        result = app_utils.get_residual_images(image_file_dir, app_version, app_version_list)
+        self.assertEqual(set(result), set(expected_residual_images))
+
+    @mock.patch('k8sapp_openstack.utils.list_crictl_images', return_value={
+        "images": [
+            {"repoTags": ["image1"], "id": "id1"},
+            {"repoTags": ["image2"], "id": "id2"}
+        ]
+    })
+    @mock.patch('k8sapp_openstack.utils.subprocess.run')
+    def test_delete_residual_images(self, mock_subprocess_run, mock_list_crictl_images):
+        """Test delete_residual_images removes the correct images."""
+        image_list = ["image1", "image3"]
+        mock_subprocess_run.return_value = mock.Mock()
+        app_utils.delete_residual_images(image_list)
+        mock_list_crictl_images.assert_called_once()
+        mock_subprocess_run.assert_called_once_with(
+            args=["bash", "-c", "source /etc/platform/openrc && crictl rmi id1"],
+            capture_output=True,
+            text=True,
+            shell=False
+        )
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response', return_value="controller-0\ncontroller-1")
+    def test_get_number_of_controllers(self, mock_send_cmd):
+        """Test get_number_of_controllers returns the correct count."""
+        result = app_utils.get_number_of_controllers()
+        self.assertEqual(result, 2)
+        mock_send_cmd.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    @mock.patch('builtins.open', new_callable=mock.mock_open)
+    @mock.patch('json.dump')
+    def test_check_and_create_snapshot_class(self, mock_json_dump, mock_open, mock_send_cmd):
+        """Test check_and_create_snapshot_class creates the snapshot class if not present."""
+        mock_send_cmd.side_effect = [Exception("Not found"), None]
+        snapshot_class = "test-snapshot-class"
+        path = "/tmp"
+        app_utils.check_and_create_snapshot_class(snapshot_class, path)
+        mock_send_cmd.assert_any_call([
+            "kubectl", "--kubeconfig", mock.ANY,
+            "-n", mock.ANY,
+            "get", "volumesnapshotclasses.snapshot.storage.k8s.io", snapshot_class
+        ])
+        mock_open.assert_called_once_with(f"{path}/{snapshot_class}-class.json", "w")
+        mock_json_dump.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    @mock.patch('builtins.open', new_callable=mock.mock_open)
+    @mock.patch('json.dump')
+    def test_create_pvc_snapshot(self, mock_json_dump, mock_open, mock_send_cmd):
+        """Test create_pvc_snapshot creates the snapshot correctly."""
+        snapshot_name = "test-snapshot"
+        pvc_name = "test-pvc"
+        snapshot_class = "test-snapshot-class"
+        path = "/tmp"
+        app_utils.create_pvc_snapshot(snapshot_name, pvc_name, snapshot_class, path)
+        mock_send_cmd.assert_any_call([
+            "kubectl", "--kubeconfig", mock.ANY,
+            "create", "-f", f"{path}/{pvc_name}-snapshot.json"
+        ])
+        mock_open.assert_called_once_with(f"{path}/{pvc_name}-snapshot.json", "w")
+        mock_json_dump.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    @mock.patch('builtins.open', new_callable=mock.mock_open)
+    @mock.patch('json.dump')
+    def test_restore_pvc_snapshot(self, mock_json_dump, mock_open, mock_send_cmd):
+        """Test restore_pvc_snapshot restores the snapshot correctly."""
+        snapshot_name = "test-snapshot"
+        pvc_name = "test-pvc"
+        statefulset_name = "test-sts"
+        number_of_controllers = 2
+        path = "/tmp"
+        mock_send_cmd.side_effect = [
+            None, None, "10Gi test-storage-class", None, None, None
+        ]
+        app_utils.restore_pvc_snapshot(snapshot_name, pvc_name, statefulset_name, number_of_controllers, path)
+        mock_send_cmd.assert_any_call([
+            "kubectl", "--kubeconfig", mock.ANY,
+            "create", "-f", f"{path}/{pvc_name}-snapshot-to-apply.json"
+        ])
+        mock_open.assert_called_once_with(f"{path}/{pvc_name}-snapshot-to-apply.json", "w")
+        mock_json_dump.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_delete_snapshot(self, mock_send_cmd):
+        """Test delete_snapshot deletes the snapshot correctly."""
+        snapshot_name = "test-snapshot"
+        app_utils.delete_snapshot(snapshot_name)
+        mock_send_cmd.assert_called_once_with([
+            "kubectl", "--kubeconfig", mock.ANY,
+            "-n", mock.ANY,
+            "delete", "volumesnapshots.snapshot.storage.k8s.io", snapshot_name
+        ])
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_delete_kubernetes_resource(self, mock_send_cmd):
+        """Test delete_kubernetes_resource deletes the resource correctly."""
+        resource_type = "pvc"
+        resource_name = "test-pvc"
+        app_utils.delete_kubernetes_resource(resource_type, resource_name)
+        mock_send_cmd.assert_called_once_with([
+            "kubectl", "--kubeconfig", mock.ANY,
+            "delete", resource_type, resource_name,
+            "-n", mock.ANY
+        ])

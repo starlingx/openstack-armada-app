@@ -90,6 +90,7 @@ conf:
       visibility: public
   glance:
     DEFAULT:
+      workers: 2
       bind_host: "::"
       registry_host: glance-reg.openstack.svc.cluster.local
       registry_port: 80

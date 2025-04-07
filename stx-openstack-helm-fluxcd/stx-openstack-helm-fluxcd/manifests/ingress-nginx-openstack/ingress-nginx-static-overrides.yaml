@@ -11,7 +11,7 @@ nameOverride: ingress-nginx-openstack
 controller:
   image:
     repository: registry.k8s.io/ingress-nginx/controller
-    tag: "v1.11.1"
+    tag: "v1.11.5"
     digest: null
   opentelemetry:
     image:

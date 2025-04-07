@@ -1,8 +1,8 @@
 #!/usr/bin/make -f
 # export DH_VERBOSE = 1
 
-export CHART_BASE_VERSION = 4.11.1
-export PATCH_VERSION = 2
+export CHART_BASE_VERSION = 4.11.5
+export PATCH_VERSION = 1
 export CHART_VERSION = $(CHART_BASE_VERSION)+STX.$(PATCH_VERSION)
 
 export ROOT = debian/tmp

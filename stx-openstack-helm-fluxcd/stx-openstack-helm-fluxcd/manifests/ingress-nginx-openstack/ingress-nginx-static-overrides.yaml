@@ -68,6 +68,8 @@ controller:
     openstack-control-plane: "enabled"
   service:
     type: ClusterIP
+    ipFamilyPolicy: PreferDualStack
+    ipFamilies: []
   admissionWebhooks:
     patch:
       image:

@@ -88,4 +88,7 @@ defaultBackend:
   enabled: false
 
 revisionHistoryLimit: 3
+
+imagePullSecrets:
+- name: default-registry-key
 ...

@@ -95,6 +95,18 @@ NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_P40_NAME = "nvidia-tesla-p40"
 NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_T4_PF_DEVICE = "1eb8"
 NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_T4_PF_NAME = "nvidia-tesla-t4-pf"
 
+# Ceph constants
+HELM_APP_ROOK_CEPH = constants.HELM_APP_ROOK_CEPH
+HELM_NS_ROOK_CEPH = 'rook-ceph'
+
+CEPH_ROOK_BACKEND_NAME = constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH_ROOK]
+CEPH_ROOK_IMAGE_DEFAULT_REPO = 'docker.io/openstackhelm/ceph-config-helper'
+CEPH_ROOK_IMAGE_DEFAULT_TAG = 'ubuntu_jammy_18.2.2-1-20240312'
+CEPH_ROOK_IMAGE_OVERRIDE = 'rook_ceph_config_helper'
+CEPH_ROOK_MANAGER_APP = 'rook-ceph-mgr'
+CEPH_ROOK_MANAGER_SVC = 'rook-ceph-mgr-restful'
+CEPH_ROOK_POLL_CRUSH_RULE = 'kube-rbd'
+
 CEPH_POOL_IMAGES_NAME = 'images'
 CEPH_POOL_IMAGES_CHUNK_SIZE = 256
 
@@ -105,6 +117,7 @@ CEPH_POOL_VOLUMES_NAME = 'cinder-volumes'
 CEPH_POOL_VOLUMES_APP_NAME = 'cinder-volumes'
 CEPH_POOL_VOLUMES_CHUNK_SIZE = 512
 
+CEPH_POOL_BACKUP_NAME = 'cinder.backups'
 CEPH_POOL_BACKUP_APP_NAME = 'cinder-backup'
 CEPH_POOL_BACKUP_CHUNK_SIZE = 256
 
@@ -127,3 +140,6 @@ OPENSTACK_CERT_CA = "openstack-cert-ca"
 FORCE_READ_CERT_FILES = False
 SERVICES_FQDN_PATTERN = "{service_name}.{endpoint_domain}"
 OPENSTACK_NETAPP_NAMESPACE = "trident"
+
+# Kubernetes
+POD_SELECTOR_RUNNING = "status.phase==Running"

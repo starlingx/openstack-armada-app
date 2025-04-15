@@ -17,6 +17,7 @@ images:
     dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
     bootstrap: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    rook_ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_jammy_18.2.2-1-20240312
   pull_policy: "IfNotPresent"
   local_registry:
     active: false

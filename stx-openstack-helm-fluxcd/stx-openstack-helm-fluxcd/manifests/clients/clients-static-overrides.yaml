@@ -13,6 +13,7 @@ images:
     openstack_clients: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
     bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    rook_ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_jammy_18.2.2-1-20240312
 pod:
   tolerations:
     clients:

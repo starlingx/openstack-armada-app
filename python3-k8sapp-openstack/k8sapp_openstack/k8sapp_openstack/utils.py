@@ -13,6 +13,7 @@ import re
 import shutil
 from typing import Generator
 
+from cephclient import wrapper as ceph
 from eventlet.green import subprocess
 from kubernetes.client.rest import ApiException as KubeApiException
 from oslo_log import log as logging
@@ -434,6 +435,31 @@ def get_ceph_uuid():
         return pattern.findall(line)[0]
 
 
+def get_rook_ceph_uuid():
+    """Get Rook Ceph secret UUID for storage backend configuration
+
+    :returns: str -- The Rook Ceph's secret UUID
+    """
+    uuid = None
+    if not is_rook_ceph_api_available():
+        LOG.error('Rook ceph API is not available')
+        return uuid
+
+    ceph_api = ceph.CephWrapper(
+        endpoint=f'http://{app_constants.CEPH_ROOK_MANAGER_SVC}.'
+                 f'{app_constants.HELM_NS_ROOK_CEPH}.'
+                 f'svc.cluster.local:{constants.CEPH_MGR_PORT}')
+    try:
+        response, fsid = ceph_api.fsid(body='text', timeout=10)
+        if not response.ok:
+            LOG.error(f"CEPH uuid request failed: {response.reason}")
+        else:
+            uuid = str(fsid.strip())
+    except Exception as e:
+        LOG.error(f"CEPH uuid request failed: {str(e)}")
+    return uuid
+
+
 def is_subcloud():
     db = dbapi.get_instance()
     system = db.isystem_get_one()
@@ -540,6 +566,54 @@ def is_netapp_available() -> bool:
     """
     netapp_backends = check_netapp_backends()
     return netapp_backends["nfs"] or netapp_backends["iscsi"]
+
+
+def is_rook_ceph_backend_available() -> bool:
+    """Check if Rook Ceph backend is available (configured and applied)
+
+    Returns:
+        bool: True if Rook Ceph backend is applied and configured
+    """
+    db = dbapi.get_instance()
+    if db is None:
+        LOG.error("Database API is not available")
+        return False
+
+    rook_backends = db.storage_backend_get_list_by_type(
+        backend_type=constants.SB_TYPE_CEPH_ROOK)
+    if (not rook_backends) or (len(rook_backends) == 0):
+        LOG.debug("No rook ceph backends available")
+        return False
+
+    state = rook_backends[0].state
+    task = rook_backends[0].task
+    available = (state == constants.SB_STATE_CONFIGURED) \
+                and (task == constants.APP_APPLY_SUCCESS)
+    LOG.info(f"rook_ceph_backend_available={available}, "
+             f"state={state}, task={task}")
+    return available
+
+
+def is_rook_ceph_api_available() -> bool:
+    """Check if Rook Ceph REST API is available (running)
+
+    Returns:
+        bool: True if Rook Ceph REST API is running
+    """
+    try:
+        label = f"app={app_constants.CEPH_ROOK_MANAGER_APP}"
+        field_selector = app_constants.POD_SELECTOR_RUNNING
+        kube = kubernetes.KubeOperator()
+        pods = kube.kube_get_pods_by_selector(app_constants.HELM_NS_ROOK_CEPH,
+                                              label,
+                                              field_selector)
+        if len(pods) > 0:
+            LOG.debug("Rook ceph API pods are available and in Running state")
+            return True
+    except Exception:
+        pass
+    LOG.info("Rook ceph API pods are not available or not in Running state")
+    return False
 
 
 def is_openvswitch_enabled(hosts, labels_by_hostid) -> bool:
@@ -1018,3 +1092,16 @@ def delete_kubernetes_resource(resource_type, resource_name):
         LOG.error(f"Failed to delete {resource_type}: {resource_name}, with error: {e}")
     except Exception as e:
         LOG.error(f"Unexpected error while deleting {resource_type}: {e}")
+
+
+def get_image_rook_ceph():
+    """Get client image to be used for rook ceph deployments
+
+    :returns: str -- The image in the formart <repository>:tag
+    """
+    return _get_value_from_application(
+        default_value=f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_REPO}:'
+                      f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_TAG}',
+        chart_name=app_constants.HELM_CHART_CLIENTS,
+        override_name=f'images.tags.{app_constants.CEPH_ROOK_IMAGE_OVERRIDE}'
+    )

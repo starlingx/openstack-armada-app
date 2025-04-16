@@ -53,17 +53,11 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
         if is_rook_ceph_backend_available():
-            rook_ceph_config_helper = get_image_rook_ceph()
-            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
-                overrides[common.HELM_NS_OPENSTACK],
-                {
-                    'images': {
-                        'tags': {
-                            'ceph_config_helper': rook_ceph_config_helper,
-                        }
-                    }
-                }
-            )
+            overrides[common.HELM_NS_OPENSTACK] =\
+                self._update_image_tag_overrides(
+                    overrides[common.HELM_NS_OPENSTACK],
+                    ['ceph_config_helper'],
+                    get_image_rook_ceph())
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
@@ -75,7 +69,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
 
     def _get_conf_overrides(self):
         admin_keyring = 'null'
-        if self._is_rook_ceph():
+        if is_rook_ceph_backend_available():
             admin_keyring = self._get_rook_ceph_admin_keyring()
 
         overrides = {

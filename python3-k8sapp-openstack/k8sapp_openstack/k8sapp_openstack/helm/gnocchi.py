@@ -44,17 +44,11 @@ class GnocchiHelm(openstack.OpenstackBaseHelm):
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
         if is_rook_ceph_backend_available():
-            rook_ceph_config_helper = get_image_rook_ceph()
-            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
-                overrides[common.HELM_NS_OPENSTACK],
-                {
-                    'images': {
-                        'tags': {
-                            'gnocchi_storage_init': rook_ceph_config_helper,
-                        }
-                    }
-                }
-            )
+            overrides[common.HELM_NS_OPENSTACK] =\
+                self._update_image_tag_overrides(
+                    overrides[common.HELM_NS_OPENSTACK],
+                    ['gnocchi_storage_init'],
+                    get_image_rook_ceph())
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]

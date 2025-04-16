@@ -261,6 +261,28 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
                 dictionary[key] = value
         return dictionary
 
+    def _update_image_tag_overrides(self,
+                                    overrides: dict,
+                                    images: list,
+                                    tag: str):
+        """Overrides the images.tags for a given list of images
+
+        Args:
+            overrides (dict): base overrides to be updated
+            images (list): list of images to be updated, as defined in the
+                           images.tags keys of the chart values
+            tags (str): new image to override the values of the the given
+                        images.tags. Must be in the standard <repo:tag> format
+        """
+        tags_overrides = dict(zip(images, [tag] * len(images)))
+        images_overrides = {
+            'images': {
+                'tags': tags_overrides
+            }
+        }
+        overrides_updated = self._update_overrides(overrides, images_overrides)
+        return overrides_updated
+
     def _get_endpoints_identity_overrides(self, service_name, users,
                                           service_users=()):
         # Returns overrides for admin and individual users
@@ -557,7 +579,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         return uefi_config
 
     def _get_ceph_client_overrides(self):
-        if self._is_rook_ceph():
+        if app_utils.is_rook_ceph_backend_available():
             return {
                 'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
             }
@@ -721,7 +743,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         try:
             kube = kubernetes.KubeOperator()
             keyring = kube.kube_get_secret(constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
-                 common.HELM_NS_STORAGE_PROVISIONER)
+                 app_constants.HELM_NS_ROOK_CEPH)
             return base64.b64decode(keyring.data['key']).decode('utf-8')
         except Exception:
             pass

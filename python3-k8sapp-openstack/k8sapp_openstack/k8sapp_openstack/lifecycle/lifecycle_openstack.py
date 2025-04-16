@@ -14,6 +14,7 @@ from oslo_log import log as logging
 from sysinv.api.controllers.v1 import utils
 from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.common import kubernetes
 from sysinv.helm import common
 from sysinv.helm import lifecycle_base as base
 from sysinv.helm import lifecycle_utils as lifecycle_utils
@@ -23,6 +24,7 @@ from sysinv.helm.lifecycle_constants import LifecycleConstants
 from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helpers import ldap
+from k8sapp_openstack.utils import is_rook_ceph_backend_available
 
 LOG = logging.getLogger(__name__)
 
@@ -208,29 +210,42 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         lifecycle_utils.create_local_registry_secrets(app_op, app, hook_info)
 
         try:
+            kube = kubernetes.KubeOperator()
+            # Create openstack namespace if it doesn't exist
             # Copy the latest configmap with the ceph monitor information
             # required by the application into the application namespace
-            if app_op._kube.kube_get_config_map(
+            if kube.kube_get_config_map(
                     self.APP_OPENSTACK_RESOURCE_CONFIG_MAP,
                     common.HELM_NS_OPENSTACK):
                 # Already have one. Delete it, in case it changed
-                app_op._kube.kube_delete_config_map(
+                kube.kube_delete_config_map(
                     self.APP_OPENSTACK_RESOURCE_CONFIG_MAP,
                     common.HELM_NS_OPENSTACK)
 
-            # Read rbd-storage-init config map and rename it to ceph-etc
-            config_map_body = app_op._kube.kube_read_config_map(
-                self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP,
-                common.HELM_NS_RBD_PROVISIONER)
+            if is_rook_ceph_backend_available():
+                # Read ceph-etc config map from rooh-ceph namespace
+                config_map_name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
+                config_map_ns = app_constants.HELM_NS_ROOK_CEPH
+            else:
+                # Read rbd-storage-init config map from kube-system namespace
+                config_map_name = self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP
+                config_map_ns = common.HELM_NS_RBD_PROVISIONER
 
-            config_map_body.metadata.resource_version = None
-            config_map_body.metadata.namespace = common.HELM_NS_OPENSTACK
-            config_map_body.metadata.name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
+            config_map_body = kube.kube_read_config_map(config_map_name,
+                                                        config_map_ns)
 
-            # Create configmap with correct name
-            app_op._kube.kube_create_config_map(
-                common.HELM_NS_OPENSTACK,
-                config_map_body)
+            if config_map_body:
+                config_map_body.metadata.resource_version = None
+                config_map_body.metadata.namespace = common.HELM_NS_OPENSTACK
+                config_map_body.metadata.name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
+
+                # Create configmap with correct name
+                kube.kube_create_config_map(
+                    common.HELM_NS_OPENSTACK,
+                    config_map_body)
+            else:
+                raise exception.LifecycleMissingInfo(
+                    f"Missing {self.APP_OPENSTACK_RESOURCE_CONFIG_MAP} config map")
 
             # Perform pre apply LDAP-related actions.
             self._pre_apply_ldap_actions(app)

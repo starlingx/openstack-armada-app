@@ -9,6 +9,8 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import get_image_rook_ceph
+from k8sapp_openstack.utils import is_rook_ceph_backend_available
 
 
 class GnocchiHelm(openstack.OpenstackBaseHelm):
@@ -37,6 +39,22 @@ class GnocchiHelm(openstack.OpenstackBaseHelm):
 
             overrides[common.HELM_NS_OPENSTACK] = \
                 self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
+        # The ceph client versions supported by baremetal and rook ceph backends
+        # are not necessarily the same. Therefore, the ceph client image must be
+        # dynamically configured based on the ceph backend currently deployed.
+        if is_rook_ceph_backend_available():
+            rook_ceph_config_helper = get_image_rook_ceph()
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {
+                    'images': {
+                        'tags': {
+                            'gnocchi_storage_init': rook_ceph_config_helper,
+                        }
+                    }
+                }
+            )
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]

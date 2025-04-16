@@ -15,10 +15,12 @@ from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import check_netapp_backends
 from k8sapp_openstack.utils import get_ceph_uuid
+from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import is_netapp_available
+from k8sapp_openstack.utils import is_rook_ceph_backend_available
 
 
-ROOK_CEPH_BACKEND_NAME = 'ceph-store'
+ROOK_CEPH_BACKEND_NAME = app_constants.CEPH_ROOK_BACKEND_NAME
 NETAPP_NFS_BACKEND_NAME = 'netapp-nfs'
 NETAPP_ISCSI_BACKEND_NAME = 'netapp-iscsi'
 
@@ -114,6 +116,23 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = \
                 self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
+
+        # The ceph client versions supported by baremetal and rook ceph backends
+        # are not necessarily the same. Therefore, the ceph client image must be
+        # dynamically configured based on the ceph backend currently deployed.
+        if is_rook_ceph_backend_available():
+            rook_ceph_config_helper = get_image_rook_ceph()
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {
+                    'images': {
+                        'tags': {
+                            'cinder_backup_storage_init': rook_ceph_config_helper,
+                            'cinder_storage_init': rook_ceph_config_helper
+                        }
+                    }
+                }
+            )
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]

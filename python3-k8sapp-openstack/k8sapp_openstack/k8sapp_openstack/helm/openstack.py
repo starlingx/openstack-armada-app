@@ -711,17 +711,11 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             app_name, chart_name, namespace)
 
     def _is_rook_ceph(self):
-        try:
-            # check function getLabels in rook/pkg/operator/ceph/cluster/mon/spec.go
-            # rook will assign label "mon_cluster=kube-system" to monitor pods
-            label = "mon_cluster=" + common.HELM_NS_STORAGE_PROVISIONER
-            kube = kubernetes.KubeOperator()
-            pods = kube.kube_get_pods_by_selector(common.HELM_NS_STORAGE_PROVISIONER, label, "")
-            if len(pods) > 0:
-                return True
-        except Exception:
-            pass
-        return False
+        # TODO: this function can be completely replaced by the app utils
+        # function in the future. For now, it will be left here for backward
+        # compatibility, reducing the code changes initially required for rook
+        # ceph integration.
+        return app_utils.is_rook_ceph_backend_available()
 
     def _get_rook_ceph_admin_keyring(self):
         try:

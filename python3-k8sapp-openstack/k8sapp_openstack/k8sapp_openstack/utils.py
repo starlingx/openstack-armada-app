@@ -409,6 +409,9 @@ def get_ceph_uuid():
 
     :returns: str -- The Ceph's secret UUID
     """
+    if is_rook_ceph_backend_available():
+        return get_rook_ceph_uuid()
+
     ceph_config_file = os.path.join(constants.CEPH_CONF_PATH,
                                     constants.SB_TYPE_CEPH_CONF_FILENAME)
 

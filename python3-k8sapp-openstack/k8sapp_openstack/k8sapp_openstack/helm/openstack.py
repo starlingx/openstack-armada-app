@@ -536,22 +536,32 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         # This path depends on OVMF packages and for starlingx
         # we don't care about aarch64.
         # This path will be used by nova-compute and libvirt pods.
-        uefi_loader_path = "/usr/share/OVMF"
+        uefi_loader_path = ["/usr/share/OVMF", "/usr/share/qemu"]
 
         uefi_config = {
             'volumes': [
                 {
                     'name': 'ovmf',
                     'hostPath': {
-                        'path': uefi_loader_path
+                        'path': uefi_loader_path[0]
+                    }
+                },
+                {
+                    'name': 'qemu-ovmf',
+                    'hostPath': {
+                        'path': uefi_loader_path[1]
                     }
                 }
             ],
             'volumeMounts': [
                 {
                     'name': 'ovmf',
-                    'mountPath': uefi_loader_path
+                    'mountPath': uefi_loader_path[0]
                 },
+                {
+                    'name': 'qemu-ovmf',
+                    'mountPath': uefi_loader_path[1]
+                }
             ]
         }
         return uefi_config

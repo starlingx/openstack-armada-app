@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from oslo_log import log as logging
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import storage_backend_conf
-from sysinv.common import utils
 from sysinv.helm import common
 from tsconfig import tsconfig as tsc
 
@@ -19,8 +19,8 @@ from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import is_netapp_available
 from k8sapp_openstack.utils import is_rook_ceph_backend_available
 
+LOG = logging.getLogger(__name__)
 
-ROOK_CEPH_BACKEND_NAME = app_constants.CEPH_ROOK_BACKEND_NAME
 NETAPP_NFS_BACKEND_NAME = 'netapp-nfs'
 NETAPP_ISCSI_BACKEND_NAME = 'netapp-iscsi'
 
@@ -57,7 +57,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         backend_overrides = self._get_common_backend_overrides()
 
         # Ceph and Rook Ceph are mutually exclusive, so it's either one or the other
-        if self._is_rook_ceph():
+        if is_rook_ceph_backend_available():
             cinder_overrides = self._get_conf_rook_ceph_cinder_overrides(cinder_overrides)
             backend_overrides = self._get_conf_rook_ceph_backends_overrides(backend_overrides)
             ceph_overrides = self._get_conf_rook_ceph_overrides()
@@ -121,18 +121,11 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
         if is_rook_ceph_backend_available():
-            rook_ceph_config_helper = get_image_rook_ceph()
-            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
-                overrides[common.HELM_NS_OPENSTACK],
-                {
-                    'images': {
-                        'tags': {
-                            'cinder_backup_storage_init': rook_ceph_config_helper,
-                            'cinder_storage_init': rook_ceph_config_helper
-                        }
-                    }
-                }
-            )
+            overrides[common.HELM_NS_OPENSTACK] =\
+                self._update_image_tag_overrides(
+                    overrides[common.HELM_NS_OPENSTACK],
+                    ['cinder_backup_storage_init', 'cinder_storage_init'],
+                    get_image_rook_ceph())
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
@@ -284,7 +277,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 'volume_backend_name': bk_name,
                 'volume_driver': 'cinder.volume.drivers.rbd.RBDDriver',
                 'rbd_pool': rbd_pool.encode('utf8', 'strict'),
-                'rbd_user': 'cinder',
+                'rbd_user': app_constants.CEPH_RBD_POOL_USER_CINDER,
                 'rbd_ceph_conf':
                     (constants.CEPH_CONF_PATH +
                      constants.SB_TYPE_CEPH_CONF_FILENAME),
@@ -415,10 +408,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # Retrieve the existing enabled_backends value, or set it to an empty string if not present
         existing_backends = cinder_overrides['DEFAULT'].get('enabled_backends', '')
 
-        # Append 'ceph-store' if it's not already in the enabled_backends list
+        # Append 'ceph-rook-store' if it's not already in the enabled_backends list
         backends_list = existing_backends.split(',') if existing_backends else []
-        if ROOK_CEPH_BACKEND_NAME not in backends_list:
-            backends_list.append(ROOK_CEPH_BACKEND_NAME)
+        if app_constants.CEPH_ROOK_BACKEND_NAME not in backends_list:
+            backends_list.append(app_constants.CEPH_ROOK_BACKEND_NAME)
 
         # Update Cinder overrides
         cinder_overrides['DEFAULT'].update({
@@ -426,26 +419,35 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             # If the user doesn't want Ceph Rook to be the default backend,
             # he can pass a Helm override changing this value, which will
             # override this value
-            'default_volume_type': ROOK_CEPH_BACKEND_NAME,
+            'default_volume_type': app_constants.CEPH_ROOK_BACKEND_NAME,
         })
         return cinder_overrides
 
     def _get_conf_rook_ceph_overrides(self):
-        replication = 2
-        if utils.is_aio_simplex_system(self.dbapi):
-            replication = 1
+        rook_backend = storage_backend_conf.StorageBackendConfig\
+            .get_configured_backend(self.dbapi, constants.SB_TYPE_CEPH_ROOK)
+        if not rook_backend:
+            LOG.error("No rook ceph backend configured")
+            return {}
+        replication, _ = storage_backend_conf\
+            .StorageBackendConfig\
+            .get_ceph_pool_replication(self.dbapi, ceph_backend=rook_backend)
+
+        chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
 
         pools = {
-            'cinder-volumes': {
-                'app_name': 'cinder-volumes',
-                'chunk_size': 8,
-                'crush_rule': 'kube-rbd',
+            f'{app_constants.CEPH_POOL_VOLUMES_NAME}': {
+                'app_name': app_constants.CEPH_POOL_VOLUMES_APP_NAME,
+                'chunk_size': min(chunk_size,
+                                  app_constants.CEPH_POOL_VOLUMES_CHUNK_SIZE),
+                'crush_rule': app_constants.CEPH_ROOK_POLL_CRUSH_RULE,
                 'replication': replication,
             },
-            'backup': {
-                'app_name': 'cinder-volumes',
-                'chunk_size': 8,
-                'crush_rule': 'kube-rbd',
+            f'{app_constants.CEPH_POOL_BACKUP_NAME}': {
+                'app_name': app_constants.CEPH_POOL_BACKUP_APP_NAME,
+                'chunk_size': min(chunk_size,
+                                  app_constants.CEPH_POOL_BACKUP_CHUNK_SIZE),
+                'crush_rule': app_constants.CEPH_ROOK_POLL_CRUSH_RULE,
                 'replication': replication,
             },
         }
@@ -458,12 +460,12 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         return ceph_override
 
     def _get_conf_rook_ceph_backends_overrides(self, backend_overrides):
-        backend_overrides[ROOK_CEPH_BACKEND_NAME] = {
+        backend_overrides[app_constants.CEPH_ROOK_BACKEND_NAME] = {
             'image_volume_cache_enabled': 'True',
-            'volume_backend_name': ROOK_CEPH_BACKEND_NAME,
+            'volume_backend_name': app_constants.CEPH_ROOK_BACKEND_NAME,
             'volume_driver': 'cinder.volume.drivers.rbd.RBDDriver',
-            'rbd_pool': 'cinder-volumes',
-            'rbd_user': 'cinder',
+            'rbd_pool': app_constants.CEPH_POOL_VOLUMES_NAME,
+            'rbd_user': app_constants.CEPH_RBD_POOL_USER_CINDER,
             'rbd_ceph_conf':
                 (constants.CEPH_CONF_PATH +
                  constants.SB_TYPE_CEPH_CONF_FILENAME),
@@ -472,14 +474,14 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         ceph_uuid = get_ceph_uuid()
         if ceph_uuid:
             backend_overrides['rbd1']['rbd_secret_uuid'] = ceph_uuid
-            backend_overrides[ROOK_CEPH_BACKEND_NAME]['rbd_secret_uuid'] = ceph_uuid
+            backend_overrides[app_constants.CEPH_ROOK_BACKEND_NAME]['rbd_secret_uuid'] = ceph_uuid
 
         return backend_overrides
 
     def _get_ceph_client_rook_overrides(self):
         return {
             'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
-            'internal_ceph_backend': ROOK_CEPH_BACKEND_NAME,
+            'internal_ceph_backend': app_constants.CEPH_ROOK_BACKEND_NAME,
         }
 
     def _get_ceph_client_overrides(self):

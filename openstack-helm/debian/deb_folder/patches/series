@@ -21,3 +21,4 @@
 0021-horizon-Allows-setting-Django-s-CSRF_TRUSTED_ORIGINS.patch
 0022-horizon-fix-templating-of-list-of-strings-for-CSRF_T.patch
 0023-Change-uWSGI-socket-to-allow-IPv6-binding.patch
+0024-Enable-ceph-pool-creation-for-AIO-systems.patch

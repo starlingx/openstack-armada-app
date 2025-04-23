@@ -25,11 +25,6 @@ from k8sapp_openstack.utils import is_rook_ceph_backend_available
 
 LOG = logging.getLogger(__name__)
 
-# Align ephemeral rbd_user with the cinder rbd_user so that the same libvirt
-# secret can be used for accessing both pools. This also aligns with the
-# behavior defined in nova/virt/libvirt/volume/net.py:_set_auth_config_rbd()
-RBD_POOL_USER = "cinder"
-
 DEFAULT_NOVA_PCI_ALIAS = [
     {"vendor_id": constants.NOVA_PCI_ALIAS_QAT_PF_VENDOR,
      "product_id": constants.NOVA_PCI_ALIAS_QAT_DH895XCC_PF_DEVICE,
@@ -88,7 +83,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.rbd_config = {}
 
     def get_overrides(self, namespace=None):
-        self._rook_ceph = self._is_rook_ceph()
+        self._rook_ceph = is_rook_ceph_backend_available()
 
         self.labels_by_hostid = self._get_host_labels()
         self.cpus_by_hostid = self._get_host_cpus()
@@ -169,18 +164,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
         if is_rook_ceph_backend_available():
-            rook_ceph_config_helper = get_image_rook_ceph()
-            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
-                overrides[common.HELM_NS_OPENSTACK],
-                {
-                    'images': {
-                        'tags': {
-                            'nova_service_cleaner': rook_ceph_config_helper,
-                            'nova_storage_init': rook_ceph_config_helper
-                        }
-                    }
-                }
-            )
+            overrides[common.HELM_NS_OPENSTACK] =\
+                self._update_image_tag_overrides(
+                    overrides[common.HELM_NS_OPENSTACK],
+                    ['nova_service_cleaner', 'nova_storage_init'],
+                    get_image_rook_ceph())
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
@@ -724,52 +712,29 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)
 
-    def _get_rook_ceph_rbd_ephemeral_storage(self):
-        ephemeral_storage_conf = {}
-        ephemeral_pools = []
-
-        # Get the values for replication and min replication from the storage
-        # backend attributes.
-        replication = 2
-        if utils.is_aio_simplex_system(self.dbapi):
-            replication = 1
-
-        # Form the dictionary with the info for the ephemeral pool.
-        # If needed, multiple pools can be specified.
-        ephemeral_pool = {
-            'rbd_pool_name': constants.CEPH_POOL_EPHEMERAL_NAME,
-            'rbd_user': RBD_POOL_USER,
-            'rbd_crush_rule': "storage_tier_ruleset",
-            'rbd_replication': replication,
-            'rbd_chunk_size': constants.CEPH_POOL_EPHEMERAL_PG_NUM
-        }
-        ephemeral_pools.append(ephemeral_pool)
-
-        ephemeral_storage_conf = {
-            'type': 'rbd',
-            'rbd_pools': ephemeral_pools
-        }
-
-        return ephemeral_storage_conf
-
     def _get_rbd_ephemeral_storage(self):
-        if self._rook_ceph:
-            return self._get_rook_ceph_rbd_ephemeral_storage()
-
         ephemeral_storage_conf = {}
         ephemeral_pools = []
 
-        # Get the values for replication and min replication from the storage
-        # backend attributes.
-        replication, min_replication = \
-            StorageBackendConfig.get_ceph_pool_replication(self.dbapi)
+        target = constants.SB_TYPE_CEPH_ROOK if self._rook_ceph\
+            else constants.SB_TYPE_CEPH
+        backend = StorageBackendConfig.get_configured_backend(self.dbapi,
+                                                              target)
+        if not backend:
+            LOG.error("No storage backend configured")
+            return {}
+        replication, _ = StorageBackendConfig.get_ceph_pool_replication(
+            api=self.dbapi,
+            ceph_backend=backend)
 
         # For now, the ephemeral pool will only be on the primary Ceph tier
-        rule_name = "{0}{1}{2}".format(
+        ceph_rule_name = "{0}{1}{2}".format(
             constants.SB_TIER_DEFAULT_NAMES[
                 constants.SB_TIER_TYPE_CEPH],
             constants.CEPH_CRUSH_TIER_SUFFIX,
             "-ruleset").replace('-', '_')
+        rook_ceph_rule_name = app_constants.CEPH_ROOK_POLL_CRUSH_RULE
+        rule_name = rook_ceph_rule_name if self._rook_ceph else ceph_rule_name
 
         chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
 
@@ -777,10 +742,15 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         # If needed, multiple pools can be specified.
         ephemeral_pool = {
             'rbd_pool_name': app_constants.CEPH_POOL_EPHEMERAL_NAME,
-            'rbd_user': RBD_POOL_USER,
+            # Align ephemeral rbd_user with the cinder rbd_user so that the same
+            # libvirt secret can be used for accessing both pools. This also
+            # aligns with the behavior defined in
+            # nova/virt/libvirt/volume/net.py:_set_auth_config_rbd()
+            'rbd_user': app_constants.CEPH_RBD_POOL_USER_CINDER,
             'rbd_crush_rule': rule_name,
             'rbd_replication': replication,
-            'rbd_chunk_size': min(chunk_size, app_constants.CEPH_POOL_EPHEMERAL_CHUNK_SIZE)
+            'rbd_chunk_size': min(chunk_size,
+                                  app_constants.CEPH_POOL_EPHEMERAL_CHUNK_SIZE)
         }
         ephemeral_pools.append(ephemeral_pool)
 

@@ -7,7 +7,6 @@
 
 from sysinv.common import constants
 from sysinv.common import exception
-from sysinv.common import utils
 from sysinv.common.storage_backend_conf import StorageBackendConfig
 from sysinv.helm import common
 
@@ -15,10 +14,6 @@ from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import is_rook_ceph_backend_available
-
-
-# Info used in the Glance Helm chart.
-RBD_STORE_USER = 'images'
 
 
 class GlanceHelm(openstack.OpenstackBaseHelm):
@@ -32,7 +27,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
     AUTH_USERS = ['glance']
 
     def get_overrides(self, namespace=None):
-        self._rook_ceph = self._is_rook_ceph()
+        self._rook_ceph = is_rook_ceph_backend_available()
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -53,17 +48,11 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
         if is_rook_ceph_backend_available():
-            rook_ceph_config_helper = get_image_rook_ceph()
-            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
-                overrides[common.HELM_NS_OPENSTACK],
-                {
-                    'images': {
-                        'tags': {
-                            'glance_storage_init': rook_ceph_config_helper,
-                        }
-                    }
-                }
-            )
+            overrides[common.HELM_NS_OPENSTACK] =\
+                self._update_image_tag_overrides(
+                    overrides[common.HELM_NS_OPENSTACK],
+                    ['glance_storage_init'],
+                    get_image_rook_ceph())
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
@@ -141,18 +130,16 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             rbd_store_pool = ""
             rbd_store_user = ""
             replication = 1
-        elif self._rook_ceph:
-            rbd_store_pool = constants.CEPH_POOL_IMAGES_NAME
-            rbd_store_user = RBD_STORE_USER
-
-            replication = 2
-            if utils.is_aio_simplex_system(self.dbapi):
-                replication = 1
         else:
             rbd_store_pool = app_constants.CEPH_POOL_IMAGES_NAME
-            rbd_store_user = RBD_STORE_USER
-            replication, min_replication = \
-                StorageBackendConfig.get_ceph_pool_replication(self.dbapi)
+            rbd_store_user = app_constants.CEPH_RBD_POOL_USER_GLANCE
+            target = constants.SB_TYPE_CEPH_ROOK if self._rook_ceph\
+                else constants.SB_TYPE_CEPH
+            backend = StorageBackendConfig.get_configured_backend(self.dbapi,
+                                                                  target)
+            replication, _ = StorageBackendConfig.get_ceph_pool_replication(
+                api=self.dbapi,
+                ceph_backend=backend)
 
         if not self._rook_ceph:
             # Only the primary Ceph tier is used for the glance images pool
@@ -162,7 +149,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                 constants.CEPH_CRUSH_TIER_SUFFIX,
                 "-ruleset").replace('-', '_')
         else:
-            rule_name = "storage_tier_ruleset"
+            rule_name = app_constants.CEPH_ROOK_POLL_CRUSH_RULE
 
         chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
 

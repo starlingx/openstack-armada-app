@@ -12,6 +12,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import is_openvswitch_dpdk_enabled
 from k8sapp_openstack.utils import is_openvswitch_enabled
 
 LOG = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                         }
                     }
                     # if ovs runs on host, auto bridge add is covered by sysinv
-                    if utils.get_vswitch_type(self.dbapi) == constants.VSWITCH_TYPE_NONE:
+                    if (is_openvswitch_enabled() or is_openvswitch_dpdk_enabled()):
                         host_neutron['conf'].update({
                             'auto_bridge_add': self._get_host_bridges(host)})
 
@@ -137,8 +138,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
             return 2, iface['ifname']
 
     def _get_datapath_type(self):
-        if (utils.get_vswitch_type(self.dbapi) ==
-                constants.VSWITCH_TYPE_OVS_DPDK):
+        if is_openvswitch_dpdk_enabled():
             return "netdev"
         else:
             return "system"
@@ -445,7 +445,6 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
 
     def _get_manifests_overrides(self):
         manifests_overrides = {}
-        hosts = self.dbapi.ihost_get_list()
-        openvswitch_enabled = is_openvswitch_enabled(hosts, self.labels_by_hostid)
+        openvswitch_enabled = is_openvswitch_enabled()
         manifests_overrides.update({'daemonset_l3_agent': openvswitch_enabled})
         return manifests_overrides

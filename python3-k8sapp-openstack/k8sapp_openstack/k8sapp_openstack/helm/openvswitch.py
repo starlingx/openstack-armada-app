@@ -1,16 +1,16 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from sysinv.common import constants
 from sysinv.common import exception
-from sysinv.common import utils
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import is_openvswitch_dpdk_enabled
+from k8sapp_openstack.utils import is_openvswitch_enabled
 
 
 class OpenvswitchHelm(openstack.OpenstackBaseHelm):
@@ -22,12 +22,11 @@ class OpenvswitchHelm(openstack.OpenstackBaseHelm):
     def _is_enabled(self, app_name, chart_name, namespace):
         # First, see if this chart is enabled by the user then adjust based on
         # system conditions
-        enabled = super(OpenvswitchHelm, self)._is_enabled(
-            app_name, chart_name, namespace)
-        if enabled and (utils.get_vswitch_type(self.dbapi) !=
-                        constants.VSWITCH_TYPE_NONE):
-            enabled = False
-        return enabled
+        if not super(OpenvswitchHelm, self)._is_enabled(app_name, chart_name, namespace):
+            return False
+
+        # Chart is enabled, let's check the node label
+        return is_openvswitch_enabled() or is_openvswitch_dpdk_enabled()
 
     def execute_manifest_updates(self, operator):
         # On application load, this chart in not included in the compute-kit

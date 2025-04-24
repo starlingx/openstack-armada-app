@@ -151,3 +151,13 @@ OPENSTACK_NETAPP_NAMESPACE = "trident"
 
 # Kubernetes
 POD_SELECTOR_RUNNING = "status.phase==Running"
+
+# Vswitch type node labels
+OPENVSWITCH_LABEL = "openvswitch=enabled"
+OPENVSWITCH_DPDK_LABEL = "openvswitch-dpdk=enabled"
+
+# Placeholder label when none is found
+VSWITCH_LABEL_NONE = "none"
+
+VSWITCH_LABEL_TYPE_NAMES = {OPENVSWITCH_LABEL: "ovs",
+                            OPENVSWITCH_DPDK_LABEL: "ovs-dpdk"}

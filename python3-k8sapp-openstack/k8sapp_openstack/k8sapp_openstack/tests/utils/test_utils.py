@@ -8,7 +8,6 @@ import os
 
 import mock
 from sysinv.common import constants
-from sysinv.helm import common as helm_common
 from sysinv.tests.db import base as dbbase
 
 from k8sapp_openstack import utils as app_utils
@@ -27,54 +26,83 @@ class UtilsTest(dbbase.ControllerHostTestCase):
     def test_is_openstack_https_ready_false(self, *_):
         self.assertFalse(app_utils.is_openstack_https_ready())
 
-    def test_is_openvswitch_enabled_true(self):
+    @staticmethod
+    def _get_mock_host_list(hosts: list):
+        mock_hosts = []
+        for host in hosts:
+            mock_host = mock.MagicMock()
+            for key, value in host.items():
+                setattr(mock_host, key, value)
+            mock_hosts.append(mock_host)
+        return mock_hosts
+
+    @staticmethod
+    def _get_mock_label_list(labels_by_host: dict):
+        mock_labels = []
+        for host_id, labels in labels_by_host.items():
+            for key, value in labels.items():
+                mock_label = mock.MagicMock()
+                mock_label.host_id = host_id
+                mock_label.label_key = key
+                mock_label.label_value = value
+                mock_labels.append(mock_label)
+        return mock_labels
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_is_openvswitch_enabled_true(self, mock_dbapi_get_instance):
         """Test is_openvswitch_enabled returns True when openvswitch
         is enabled.
         """
-        mock_host = mock.MagicMock()
-        mock_host.id = 1
-        mock_host.invprovision = constants.PROVISIONED
-        mock_host.ihost_action = constants.UNLOCK_ACTION
-        mock_label = mock.MagicMock()
-        mock_label.label_key = helm_common.LABEL_OPENVSWITCH
-        mock_label.label_value = helm_common.LABEL_VALUE_ENABLED
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            }
+        ])
 
-        hosts = [mock_host]
-        labels_by_hostid = {
-            mock_host.id: [mock_label]
-        }
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+                'openvswitch': 'enabled',
+            }
+        })
 
-        with mock.patch('k8sapp_openstack.utils.cutils.get_personalities',
-                        return_value=[constants.WORKER]), \
-            mock.patch('k8sapp_openstack.utils.cutils.has_openstack_compute',
-                return_value=True):
-            result = app_utils.is_openvswitch_enabled(hosts, labels_by_hostid)
-            self.assertTrue(result)
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
 
-    def test_is_openvswitch_enabled_false(self):
+        result = app_utils.is_openvswitch_enabled()
+        self.assertTrue(result)
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_is_openvswitch_enabled_false(self, mock_dbapi_get_instance):
         """Test is_openvswitch_enabled returns False when openvswitch
         is not enabled.
         """
-        mock_host = mock.MagicMock()
-        mock_host.id = 1
-        mock_host.invprovision = constants.PROVISIONED
-        mock_host.ihost_action = constants.UNLOCK_ACTION
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            }
+        ])
 
-        mock_label = mock.MagicMock()
-        mock_label.label_key = "fake_label"
-        mock_label.label_value = "fake_value"
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+                "fake_label": "fake_value",
+            }
+        })
 
-        hosts = [mock_host]
-        labels_by_hostid = {
-            mock_host.id: [mock_label]
-        }
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
 
-        with mock.patch('k8sapp_openstack.utils.cutils.get_personalities',
-                        return_value=[constants.WORKER]), \
-            mock.patch('k8sapp_openstack.utils.cutils.has_openstack_compute',
-                return_value=True):
-            result = app_utils.is_openvswitch_enabled(hosts, labels_by_hostid)
-            self.assertFalse(result)
+        result = app_utils.is_openvswitch_enabled()
+        self.assertFalse(result)
 
     @mock.patch('k8sapp_openstack.utils._get_value_from_application',
                 return_value=f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_REPO}:'
@@ -433,3 +461,226 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             "delete", resource_type, resource_name,
             "-n", mock.ANY
         ])
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_system_vswitch_labels_openvswitch(self, mock_dbapi_get_instance):
+        """Test if get_system_vswitch_labels returns the Openvswitch label.
+        """
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            }
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+                'openvswitch': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        result = app_utils.get_system_vswitch_labels(db_instance)
+        self.assertEqual(result, {app_constants.OPENVSWITCH_LABEL})
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_system_vswitch_labels_openvswitch_dpdk(self, mock_dbapi_get_instance):
+        """Test if get_system_vswitch_labels returns the Openvswitch-DPDK label.
+        """
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            }
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+                'openvswitch-dpdk': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        result = app_utils.get_system_vswitch_labels(db_instance)
+        self.assertEqual(result, {app_constants.OPENVSWITCH_DPDK_LABEL})
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_system_vswitch_labels_empty(self, mock_dbapi_get_instance):
+        """Test if get_system_vswitch_labels returns 'none' when no labels are found.
+        """
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            }
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        result = app_utils.get_system_vswitch_labels(db_instance)
+        self.assertEqual(result, {app_constants.VSWITCH_LABEL_NONE})
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_system_vswitch_labels_multiple_labels(self, mock_dbapi_get_instance):
+        """Test if get_system_vswitch_labels returns a set with size > 1
+         when multiple labels are found.
+        """
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            }
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+                'openvswitch': 'enabled',
+                'openvswitch-dpdk': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        result = app_utils.get_system_vswitch_labels(db_instance)
+        self.assertEqual(len(result), 2)
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_system_vswitch_labels_multiple_hosts_same_label(self, mock_dbapi_get_instance):
+        """Test if get_system_vswitch_labels returns one label when
+         when multiple hosts with the same label are found.
+        """
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            },
+            {
+                "id": 2,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            },
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+                'openvswitch': 'enabled',
+            },
+            2: {
+                'openstack-compute-node': 'enabled',
+                'openvswitch': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        result = app_utils.get_system_vswitch_labels(db_instance)
+        self.assertEqual(result, {app_constants.OPENVSWITCH_LABEL})
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_system_vswitch_labels_multiple_hosts_two_labels(self, mock_dbapi_get_instance):
+        """Test if get_system_vswitch_labels returns multiple labels
+         when multiple hosts with different labels are found.
+        """
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            },
+            {
+                "id": 2,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            },
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+                'openvswitch': 'enabled',
+            },
+            2: {
+                'openstack-compute-node': 'enabled',
+                'openvswitch-dpdk': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        result = app_utils.get_system_vswitch_labels(db_instance)
+        self.assertEqual(len(result), 2)
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_system_vswitch_labels_multiple_hosts_one_labels(self, mock_dbapi_get_instance):
+        """Test if get_system_vswitch_labels returns multiple labels with one as 'none' when
+         when one of the hosts is unlabeled.
+        """
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            },
+            {
+                "id": 2,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+            },
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+                'openvswitch': 'enabled',
+            },
+            2: {
+                'openstack-compute-node': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        result = app_utils.get_system_vswitch_labels(db_instance)
+        self.assertEqual(result, {app_constants.VSWITCH_LABEL_NONE,
+                                  app_constants.OPENVSWITCH_LABEL})

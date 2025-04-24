@@ -605,37 +605,177 @@ def is_rook_ceph_api_available() -> bool:
     return True
 
 
-def is_openvswitch_enabled(hosts, labels_by_hostid) -> bool:
+def is_openstack_enabled_compute_node(host, host_labels) -> bool:
+    """
+    Check if a given host follows a set of rules to be considered 'openstack enabled'.
+    The host must be a unlocked/provisioned Compute/Worker node.
+
+    Args:
+        host (ihost object): Host to be checked.
+        host_labels (dict):  A dictionary of labels associated with the host.
+
+    Returns:
+        bool: True if conditions are met; False otherwise.
+    """
+    if constants.COMPUTE_NODE_LABEL not in host_labels:
+        return False
+    if constants.WORKER not in cutils.get_personalities(host):
+        return False
+    if host.invprovision in [constants.PROVISIONED, constants.PROVISIONING]:
+        return True
+    if host.ihost_action in [constants.UNLOCK_ACTION, constants.FORCE_UNLOCK_ACTION]:
+        return True
+    return False
+
+
+def get_openstack_enabled_compute_nodes(hosts, labels_by_host) -> list:
+    """
+    Given a list of hosts, selects the ones that are 'openstack enabled'.
+
+    Args:
+        host (list): List of ihosts objects in the system.
+        labels_by_host (dict): Dict that associate labels with each host by its ID.
+
+    Returns:
+        list: Subset of hosts that are 'openstack enabled'.
+    """
+    enabled_hosts = []
+    for host in hosts:
+        if is_openstack_enabled_compute_node(host, labels_by_host.get(host.id, set())):
+            enabled_hosts.append(host)
+    return enabled_hosts
+
+
+def get_labels_by_host(labels) -> dict:
+    """
+    Given a set of labels, build a dict in the format 'host_id':'label=value' for
+    each label
+
+    Args:
+        labels (iterable): An iterable object containing a set os labels.
+
+    Returns:
+        dict: A dict in the format 'host_id':'label=value'
+    """
+    labels_by_host = dict()
+    for label in labels:
+        labels_by_host.setdefault(label.host_id, set()).add(
+            label.label_key + "=" + label.label_value.lower())
+    return labels_by_host
+
+
+def get_system_vswitch_labels(db, vswitch_label_type_names=None) -> set:
+    """
+    Check for the vswitch labels in the system and returns them as a set.
+
+    Args:
+        db (dbapi instance): Instance of the API's database.
+        vswitch_label_type_names (dict, optional): If passed as argument, the vswitch labels
+         will be checked against the contents of this parameter. If set to None it will
+         load the default values in the 'constants' definition file.
+
+    Returns:
+        set: The current system's vswitch labels, each one as a string
+        in the format 'name=enabled/disabled'.
+    """
+
+    vswitch_labels = set()
+
+    if not vswitch_label_type_names:
+        vswitch_label_type_names = app_constants.VSWITCH_LABEL_TYPE_NAMES
+    available_vswitch_labels = set(vswitch_label_type_names.keys())
+
+    hosts = db.ihost_get_list()
+    labels = db.label_get_all()
+
+    labels_by_host = get_labels_by_host(labels)
+    enabled_hosts = get_openstack_enabled_compute_nodes(hosts, labels_by_host)
+
+    if not enabled_hosts:
+        return set()
+
+    for host in enabled_hosts:
+        # Gets the labels that match the 'available_vswitch_labels' set.
+        host_vswitch_labels = available_vswitch_labels.intersection(labels_by_host.get(host.id))
+        if len(host_vswitch_labels) == 0:
+            host_vswitch_labels = {app_constants.VSWITCH_LABEL_NONE}
+        vswitch_labels = vswitch_labels | host_vswitch_labels
+
+    return vswitch_labels
+
+
+def get_current_vswitch_label(vswitch_label_type_names=None) -> str:
+    """
+    Returns the current vswitch label on the system.
+
+    Args:
+        vswitch_label_type_names (dict, optional): If passed as argument, the vswitch labels
+         will be checked against the contents of this parameter. If set to None it will
+         load the default values in the 'constants' definition file.
+
+    Returns:
+        str: the current valid vswitch label of the system; returns empty if invalid/not found
+    """
+
+    db = dbapi.get_instance()
+    if not db:
+        LOG.error("Database API is not available")
+        return ""
+
+    vswitch_labels = get_system_vswitch_labels(db, vswitch_label_type_names)
+
+    vswitch_label = ""
+    if len(vswitch_labels) == 1:
+        vswitch_label = next(iter(vswitch_labels))
+        if vswitch_label == app_constants.VSWITCH_LABEL_NONE:
+            LOG.error("No vswitch labels found on any openstack host in the system")
+            vswitch_label = ""
+        else:
+            LOG.info(f"Found {vswitch_label} vswitch label")
+    if len(vswitch_labels) > 1:
+        LOG.error("There are openstack hosts with divergent vswitch labels in the system.")
+    else:
+        LOG.error("There are no openstack-enabled compute nodes")
+    return vswitch_label
+
+
+def is_vswitch_enabled(vswitch_type_label, vswitch_label_type_names=None) -> bool:
+    """
+    Check if the given vswitch label is enabled.
+
+    Args:
+        vswitch_type_label (str): The vswitch label to be checked.
+        vswitch_label_type_names (dict, optional): If passed as argument, the vswitch labels
+         will be checked against the contents of this parameter. If set to None it will
+         load the default values in the 'constants' definition file.
+
+    Returns:
+        bool: True if vswitch label is found and enabled.
+    """
+
+    vswitch_label = get_current_vswitch_label(vswitch_label_type_names)
+
+    return vswitch_label == vswitch_type_label
+
+
+def is_openvswitch_enabled() -> bool:
     """
     Check if openvswitch is enabled.
 
-    Args:
-        hosts (list): A list of hosts registered in the database.
-        labels_by_hostid (dict): A dictionary of labels associated
-        with a specific host ID.
+    Returns:
+        bool: True if openvswitch is enabled.
+    """
+    return is_vswitch_enabled(app_constants.OPENVSWITCH_LABEL)
+
+
+def is_openvswitch_dpdk_enabled() -> bool:
+    """
+    Check if openvswitch-dpdk is enabled.
 
     Returns:
-        bool: True if openvswitch is enabled or False if it is not.
+        bool: True if openvswitch-dpdk is enabled.
     """
-    for host in hosts:
-        host_labels = labels_by_hostid.get(host.id, [])
-        if not host_labels:
-            LOG.debug(f"No labels found for host ID {host.id}")
-        labels = dict((label.label_key, label.label_value) for label in host_labels)
-        if (host.invprovision in [constants.PROVISIONED,
-                                  constants.PROVISIONING] or
-                host.ihost_action in [constants.UNLOCK_ACTION,
-                                      constants.FORCE_UNLOCK_ACTION]):
-            if (constants.WORKER in cutils.get_personalities(host) and
-                    cutils.has_openstack_compute(host_labels)):
-                if (helm_common.LABEL_OPENVSWITCH in labels):
-                    vswitch_label_value = labels.get(helm_common.LABEL_OPENVSWITCH)
-                    LOG.debug(f"Open vSwitch label value for host {host.id}: {vswitch_label_value}")
-                    return helm_common.LABEL_VALUE_ENABLED == vswitch_label_value.lower()
-                else:
-                    LOG.debug(f"Openvswitch label not found for host {host.id}")
-    LOG.info("Openvswitch is not enabled on any of the hosts.")
-    return False
+    return is_vswitch_enabled(app_constants.OPENVSWITCH_DPDK_LABEL)
 
 
 def send_cmd_read_response(cmd: list[str], log: bool = True) -> str:

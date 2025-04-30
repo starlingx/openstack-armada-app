@@ -16,7 +16,7 @@ spec:
   chart:
     spec:
       chart: ingress-nginx-openstack
-      version: 4.11.5+STX.1
+      version: 4.12.1+STX.1
       sourceRef:
         kind: HelmRepository
         name: starlingx

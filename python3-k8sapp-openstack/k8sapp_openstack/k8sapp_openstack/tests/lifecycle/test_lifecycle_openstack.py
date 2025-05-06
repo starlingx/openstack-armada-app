@@ -9,12 +9,17 @@ from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.helm.lifecycle_constants import LifecycleConstants
 from sysinv.tests.db import base as dbbase
+from sysinv.tests.db import utils as dbutils
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.lifecycle import lifecycle_openstack
 
 
-class OpenstackAppLifecycleOperatorTest(dbbase.ControllerHostTestCase):
+EXTENDED_VSWITCH_LABEL_NAMES = (app_constants.VSWITCH_LABEL_TYPE_NAMES |
+                                {"other-vswitch=enabled": "other-vswitch"})
+
+
+class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
     def setUp(self):
         super(OpenstackAppLifecycleOperatorTest, self).setUp()
         self.lifecycle = lifecycle_openstack.OpenstackAppLifecycleOperator()
@@ -255,7 +260,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.ControllerHostTestCase):
         self.lifecycle._recover_actions = mock.Mock()
 
         self.lifecycle._semantic_check_evaluate_app_reapply = mock.Mock()
-        self.lifecycle._pre_manual_apply_check = mock.Mock()
+        self.lifecycle._pre_apply_check = mock.Mock()
 
         self.lifecycle._pre_update_actions = mock.Mock()
         self.lifecycle._post_update_image_actions = mock.Mock()
@@ -271,7 +276,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.ControllerHostTestCase):
             mock_lifecycle_utils.create_rbd_provisioner_secrets,
             mock_lifecycle_utils.delete_rbd_provisioner_secrets,
             self.lifecycle._semantic_check_evaluate_app_reapply,
-            self.lifecycle._pre_manual_apply_check,
+            self.lifecycle._pre_apply_check,
             self.lifecycle._pre_update_actions,
             self.lifecycle._post_update_image_actions,
         ]
@@ -395,7 +400,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.ControllerHostTestCase):
                 ),
                 'assertions': [
                     self.lifecycle._semantic_check_evaluate_app_reapply.assert_called_once,
-                    self.lifecycle._pre_manual_apply_check.assert_not_called,
+                    self.lifecycle._pre_apply_check.assert_not_called,
                 ]
             },
             {
@@ -407,7 +412,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.ControllerHostTestCase):
                 ),
                 'assertions': [
                     self.lifecycle._semantic_check_evaluate_app_reapply.assert_not_called,
-                    self.lifecycle._pre_manual_apply_check.assert_called_once,
+                    self.lifecycle._pre_apply_check.assert_called_once,
                 ]
             },
         ]
@@ -499,3 +504,380 @@ class OpenstackAppLifecycleOperatorTest(dbbase.ControllerHostTestCase):
 
             for mocked_method in mocked_methods:
                 mocked_method.reset_mock()
+
+    def _create_hosts_and_labels(self, host_cfgs):
+        last_octet = 0
+        for name, config in host_cfgs.items():
+            subfunctions = [config["personality"]]
+            if subfunction := config.get("subfunction", None):  # noqa: E225,E231,E701,E999
+                subfunctions.append(subfunction)
+            host = dbutils.create_test_ihost(
+                uuid=None,
+                forisystemid=self.system.id,
+                hostname=name,
+                personality=config["personality"],
+                subfunctions=','.join(subfunctions),
+                invprovision=config.get("invprovision", constants.PROVISIONED),
+                mgmt_mac=f"1E:AA:03:4F:C0:{last_octet:02x}"
+            )
+            for label_key, label_value in config.get("labels", dict()).items():
+                self.dbapi.label_create(host.uuid, {"host_id": host.id,
+                                                    "label_key": label_key,
+                                                    "label_value": label_value})
+            last_octet += 1
+
+    def _test_semantic_check_vswitch_config(self, host_cfgs, exception_msg_regex=None):
+        self._create_hosts_and_labels(host_cfgs)
+        if exception_msg_regex:
+            self.assertRaisesRegex(
+                exception.LifecycleSemanticCheckException,
+                exception_msg_regex,
+                self.lifecycle._semantic_check_vswitch_config,
+                self.dbapi
+            )
+        else:
+            self.lifecycle._semantic_check_vswitch_config(self.dbapi)
+
+    def test_semantic_check_vswitch_config_pass_aio_sx(self):
+        self._test_semantic_check_vswitch_config({
+            "controller-0": {
+                "personality": constants.CONTROLLER,
+                "subfunction": constants.WORKER,
+                "labels": {
+                    "openstack-compute-node": "enabled",
+                    "openvswitch": "enabled",
+                }
+            },
+        })
+
+    def test_semantic_check_vswitch_config_fail_aio_sx_conflicting(self):
+        self._test_semantic_check_vswitch_config(
+            {
+                "controller-0": {
+                    "personality": constants.CONTROLLER,
+                    "subfunction": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                    }
+                },
+            },
+            "^There are conflicting vswitch configurations: "
+            "openvswitch-dpdk=enabled, openvswitch=enabled$"
+        )
+
+    def test_semantic_check_vswitch_config_fail_aio_sx_no_label(self):
+        self._test_semantic_check_vswitch_config(
+            {
+                "controller-0": {
+                    "personality": constants.CONTROLLER,
+                    "subfunction": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                    }
+                },
+            },
+            "^None of the openstack-enabled compute nodes have vswitch configured$"
+        )
+
+    def test_semantic_check_vswitch_config_pass_standard(self):
+        self._test_semantic_check_vswitch_config({
+            "controller-0": {
+                "personality": constants.CONTROLLER,
+                "labels": {
+                    "openstack-compute-node": "enabled",
+                    "openvswitch": "enabled",
+                    "openvswitch-dpdk": "enabled",
+                }
+            },
+            "controller-1": {
+                "personality": constants.CONTROLLER,
+                "labels": {
+                    "openstack-compute-node": "enabled",
+                }
+            },
+            "worker-0": {
+                "personality": constants.WORKER,
+                "labels": {
+                    "openstack-compute-node": "enabled",
+                    "openvswitch": "enabled",
+                }
+            },
+            "worker-1": {
+                "personality": constants.WORKER,
+                "labels": {
+                    "openstack-compute-node": "enabled",
+                    "openvswitch": "enabled",
+                }
+            },
+            "worker-2": {
+                "personality": constants.WORKER,
+                "invprovision": constants.UNPROVISIONED,
+                "labels": {
+                    "openstack-compute-node": "enabled",
+                    "openvswitch": "enabled",
+                    "openvswitch-dpdk": "enabled",
+                }
+            },
+            "worker-3": {
+                "personality": constants.WORKER,
+                "labels": {
+                    "openvswitch": "enabled",
+                    "openvswitch-dpdk": "enabled",
+                }
+            },
+            "worker-4": {
+                "personality": constants.WORKER,
+                "labels": {
+                    "not-a-vswitch-label": "enabled",
+                }
+            },
+        })
+
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_get_vswitch_label_type_names',
+                       return_value=EXTENDED_VSWITCH_LABEL_NAMES)
+    def test_semantic_check_vswitch_config_fail_standard_conflicting(self, *_):
+        self._test_semantic_check_vswitch_config(
+            {
+                "controller-0": {
+                    "personality": constants.CONTROLLER,
+                },
+                "worker-0": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                        "other-vswitch": "enabled",
+                    }
+                },
+                "worker-1": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                        "other-vswitch": "enabled",
+                    }
+                },
+                "worker-2": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                    }
+                },
+                "worker-3": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                        "other-vswitch": "enabled",
+                    }
+                },
+                "worker-4": {
+                    "personality": constants.WORKER,
+                    "invprovision": constants.UNPROVISIONED,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                        "other-vswitch": "enabled",
+                    }
+                },
+                "worker-5": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openvswitch": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                        "other-vswitch": "enabled",
+                    }
+                },
+            },
+            "^There are conflicting vswitch configurations: "
+            "openvswitch-dpdk=enabled, openvswitch=enabled, other-vswitch=enabled$"
+        )
+
+    def test_semantic_check_vswitch_config_fail_standard_no_labels(self):
+        self._test_semantic_check_vswitch_config(
+            {
+                "controller-0": {
+                    "personality": constants.CONTROLLER,
+                },
+                "worker-0": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "not-a-vswitch-label": "enabled",
+                    }
+                },
+                "worker-1": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "disabled",
+                    }
+                },
+                "worker-2": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                    }
+                },
+                "worker-3": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                    }
+                },
+                "worker-4": {
+                    "personality": constants.WORKER,
+                    "invprovision": constants.UNPROVISIONED,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                    }
+                },
+                "worker-5": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openvswitch-dpdk": "enabled",
+                    }
+                },
+            },
+            "^There are openstack-enabled compute nodes with no vswitch configuration$"
+        )
+
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_get_vswitch_label_type_names',
+                       return_value=EXTENDED_VSWITCH_LABEL_NAMES)
+    def test_semantic_check_vswitch_config_fail_standard_misconfigured(self, *_):
+        self._test_semantic_check_vswitch_config(
+            {
+                "controller-0": {
+                    "personality": constants.CONTROLLER,
+                },
+                "worker-0": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "other-vswitch": "enabled",
+                    }
+                },
+                "worker-1": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "other-vswitch": "enabled",
+                    }
+                },
+                "worker-2": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                    }
+                },
+                "worker-3": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "other-vswitch": "enabled",
+                    }
+                },
+                "worker-4": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                    }
+                },
+                "worker-5": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                    }
+                },
+                "worker-6": {
+                    "personality": constants.WORKER,
+                    "invprovision": constants.UNPROVISIONED,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "other-vswitch": "enabled",
+                        "openvswitch": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                    }
+                },
+                "worker-7": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "other-vswitch": "enabled",
+                        "openvswitch": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                    }
+                },
+            },
+            "^There are conflicting vswitch configurations: "
+            "openvswitch-dpdk=enabled, openvswitch=enabled, other-vswitch=enabled$"
+        )
+
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_get_vswitch_label_type_names',
+                       return_value=EXTENDED_VSWITCH_LABEL_NAMES)
+    def test_semantic_check_vswitch_config_fail_standard_no_labels_conflicting(self, *_):
+        self._test_semantic_check_vswitch_config(
+            {
+                "controller-0": {
+                    "personality": constants.CONTROLLER,
+                },
+                "worker-0": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "other-vswitch": "enabled",
+                    }
+                },
+                "worker-1": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                        "openvswitch-dpdk": "enabled",
+                    }
+                },
+                "worker-2": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                    }
+                },
+                "worker-3": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                    }
+                },
+                "worker-4": {
+                    "personality": constants.WORKER,
+                    "invprovision": constants.UNPROVISIONED,
+                    "labels": {
+                        "openstack-compute-node": "enabled",
+                        "openvswitch": "enabled",
+                    }
+                },
+                "worker-5": {
+                    "personality": constants.WORKER,
+                    "labels": {
+                        "openvswitch-dpdk": "enabled",
+                    }
+                },
+            },
+            "^There are openstack-enabled compute nodes with no vswitch configuration and "
+            "there are conflicting vswitch configurations: "
+            "openvswitch-dpdk=enabled, openvswitch=enabled, other-vswitch=enabled$"
+        )

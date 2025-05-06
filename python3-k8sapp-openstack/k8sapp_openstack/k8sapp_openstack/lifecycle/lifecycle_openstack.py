@@ -86,10 +86,11 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 elif hook_info.operation == constants.APP_UPDATE_OP:
                     raise exception.LifecycleSemanticCheckOperationNotSupported(
                         mode=constants.APP_LIFECYCLE_MODE_AUTO, op=constants.APP_UPDATE_OP, name=app.name)
-            elif hook_info.mode == constants.APP_LIFECYCLE_MODE_MANUAL and \
+            elif hook_info.mode in [constants.APP_LIFECYCLE_MODE_MANUAL,
+                                    constants.APP_LIFECYCLE_MODE_AUTO] and \
                     hook_info.operation == constants.APP_APPLY_OP and \
                         hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
-                return self._pre_manual_apply_check(conductor_obj, app, hook_info)
+                return self._pre_apply_check(conductor_obj, app, hook_info)
 
         # Manifest
         elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_MANIFEST:
@@ -338,7 +339,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 "Https semantic check failed."
             )
 
-    def _pre_manual_apply_check(self, conductor_obj, app, hook_info):
+    def _pre_apply_check(self, conductor_obj, app, hook_info):
         """Semantic check for evaluating app manual apply
 
         :param conductor_obj: conductor object
@@ -361,6 +362,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         # Check storage backends
         self._semantic_check_storage_backend_available()
+
+        # Check vswitch configuration
+        self._semantic_check_vswitch_config(conductor_obj.dbapi)
 
     def _semantic_check_storage_backend_available(self):
         """Checks if at least one of the supported storage backends
@@ -405,6 +409,33 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         :return: True certificate file is present. Otherwise, False.
         """
         return app_utils.is_openstack_https_ready()
+
+    def _get_vswitch_label_type_names(self):
+        return app_constants.VSWITCH_LABEL_TYPE_NAMES
+
+    def _semantic_check_vswitch_config(self, dbapi):
+        labels = app_utils.get_system_vswitch_labels(dbapi, self._get_vswitch_label_type_names())
+
+        if len(labels) == 0:
+            raise exception.LifecycleSemanticCheckException(
+                "There are no openstack-enabled compute nodes")
+        elif app_constants.VSWITCH_LABEL_NONE in labels:
+            labels.remove(app_constants.VSWITCH_LABEL_NONE)
+            if len(labels) == 0:
+                raise exception.LifecycleSemanticCheckException(
+                    "None of the openstack-enabled compute nodes have vswitch configured")
+            elif len(labels) == 1:
+                raise exception.LifecycleSemanticCheckException(
+                    "There are openstack-enabled compute nodes with no vswitch configuration")
+            else:
+                raise exception.LifecycleSemanticCheckException(
+                    "There are openstack-enabled compute nodes with no vswitch configuration "
+                    "and there are conflicting vswitch configurations: "
+                    f"{', '.join(sorted(labels))}")
+        elif len(labels) > 1:
+            raise exception.LifecycleSemanticCheckException(
+                "There are conflicting vswitch configurations: "
+                f"{', '.join(sorted(labels))}")
 
     def _pre_apply_ldap_actions(self, app):
         """Perform pre apply LDAP-related actions.

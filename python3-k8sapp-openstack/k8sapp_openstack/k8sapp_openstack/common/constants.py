@@ -106,6 +106,12 @@ CEPH_ROOK_IMAGE_OVERRIDE = 'rook_ceph_config_helper'
 CEPH_ROOK_MANAGER_APP = 'rook-ceph-mgr'
 CEPH_ROOK_MANAGER_SVC = 'rook-ceph-mgr-restful'
 CEPH_ROOK_POLL_CRUSH_RULE = 'kube-rbd'
+CEPH_ROOK_RBD_SECRET_NAME = 'rook-csi-rbd-provisioner'
+CEPH_ROOK_RBD_DRIVER = 'rook-ceph.rbd.csi.ceph.com'
+
+CEPH_RBD_SECRET_NAME = 'ceph-pool-kube-rbd'
+CEPH_RBD_DRIVER = 'rbd.csi.ceph.com'
+CEPH_RBD_SNAPSHOT_PREFIX = 'rbd-snap-'
 
 CEPH_RBD_POOL_USER_CINDER = "cinder"
 CEPH_RBD_POOL_USER_GLANCE = 'images'

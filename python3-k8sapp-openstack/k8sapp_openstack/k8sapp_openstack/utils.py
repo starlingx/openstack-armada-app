@@ -862,7 +862,8 @@ def check_and_create_snapshot_class(snapshot_class: str, path: str):
         cmd = [
             "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
             "-n", app_constants.HELM_NS_OPENSTACK,
-            "get", "volumesnapshotclasses.snapshot.storage.k8s.io", snapshot_class
+            "get", "volumesnapshotclasses.snapshot.storage.k8s.io",
+            snapshot_class
         ]
         send_cmd_read_response(cmd)
 
@@ -870,19 +871,29 @@ def check_and_create_snapshot_class(snapshot_class: str, path: str):
         # Create class
         LOG.info(f"Trying to create snapshot class {snapshot_class}")
         try:
+            if is_rook_ceph_backend_available():
+                secret_name = app_constants.CEPH_ROOK_RBD_SECRET_NAME
+                secret_ns = app_constants.HELM_NS_ROOK_CEPH
+                driver = app_constants.CEPH_ROOK_RBD_DRIVER
+                cluster_id = app_constants.HELM_APP_ROOK_CEPH
+            else:
+                secret_name = app_constants.CEPH_RBD_SECRET_NAME
+                secret_ns = helm_common.HELM_NS_RBD_PROVISIONER
+                driver = app_constants.CEPH_RBD_DRIVER
+                cluster_id = get_ceph_uuid()
             snapclass_dict = {
-                "apiVersion": "snapshot.storage.k8s.io/v1",
+                "apiVersion": 'snapshot.storage.k8s.io/v1',
                 "kind": "VolumeSnapshotClass",
                 "deletionPolicy": "Delete",
-                "driver": "rbd.csi.ceph.com",
+                "driver": driver,
                 "metadata": {
                     "name": snapshot_class,
                 },
                 "parameters": {
-                    "clusterID": get_ceph_uuid(),
-                    "csi.storage.k8s.io/snapshotter-secret-name": "ceph-pool-kube-rbd",
-                    "csi.storage.k8s.io/snapshotter-secret-namespace": "kube-system",
-                    "snapshotNamePrefix": "rbd-snap-",
+                    "clusterID": cluster_id,
+                    "csi.storage.k8s.io/snapshotter-secret-name": secret_name,
+                    "csi.storage.k8s.io/snapshotter-secret-namespace": secret_ns,
+                    "snapshotNamePrefix": app_constants.CEPH_RBD_SNAPSHOT_PREFIX,
                 },
             }
 
@@ -902,7 +913,8 @@ def check_and_create_snapshot_class(snapshot_class: str, path: str):
             LOG.info(f"Created new snapshot class '{snapshot_class}'")
 
         except Exception as e:
-            LOG.error(f"Unexpected error while checking/creating snapshot class {snapshot_class}: {e}")
+            LOG.error("Unexpected error while checking/creating snapshot"
+                      f"class {snapshot_class}: {e}")
 
 
 def create_pvc_snapshot(snapshot_name: str, pvc_name: str, snapshot_class: str, path: str = "/tmp"):

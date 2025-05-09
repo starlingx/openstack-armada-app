@@ -404,63 +404,28 @@ def delete_clients_working_directory(
     return True
 
 
-def get_ceph_uuid():
-    """Get Ceph secret UUID for Cinder backend configuration
+def get_ceph_fsid():
+    """Get Ceph fsid for storage backend configuration
 
-    :returns: str -- The Ceph's secret UUID
+    Returns:
+        str: Ceph's fsid if the request succeeds, None otherwise
     """
-    if is_rook_ceph_backend_available():
-        return get_rook_ceph_uuid()
-
-    ceph_config_file = os.path.join(constants.CEPH_CONF_PATH,
-                                    constants.SB_TYPE_CEPH_CONF_FILENAME)
-
-    # If the file doesn't exist, return nothing, as not to change
-    # the default value.
-    if not os.path.isfile(ceph_config_file):
-        LOG.warning(f"`{ceph_config_file}` does not exist. Using "
-                    "default configuration.")
-        return None
-
-    # Search for the line that contains the `fsid` parameter, which is
-    # the Ceph UUID required for Cinder's backend configuration.
-    with open(ceph_config_file) as file:
-        line = next((line for line in file if "fsid" in line), None)
-        if not line:
-            LOG.warning(f"`{ceph_config_file}` does not contain the "
-                        "'fsid' value. Using default configuration")
-            return None
-
-        # This Regex pattern searches for an UUID
-        pattern = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]"
-                             r"{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}",
-                             re.IGNORECASE)
-        return pattern.findall(line)[0]
-
-
-def get_rook_ceph_uuid():
-    """Get Rook Ceph secret UUID for storage backend configuration
-
-    :returns: str -- The Rook Ceph's secret UUID
-    """
-    uuid = None
-    if not is_rook_ceph_api_available():
-        LOG.error('Rook ceph API is not available')
-        return uuid
-
-    ceph_api = ceph.CephWrapper(
-        endpoint=f'http://{app_constants.CEPH_ROOK_MANAGER_SVC}.'
-                 f'{app_constants.HELM_NS_ROOK_CEPH}.'
-                 f'svc.cluster.local:{constants.CEPH_MGR_PORT}')
+    fsid = None
     try:
-        response, fsid = ceph_api.fsid(body='text', timeout=10)
-        if not response.ok:
-            LOG.error(f"CEPH uuid request failed: {response.reason}")
+        fsid = send_cmd_read_response(["ceph", "fsid"])
+        # Check if the response includes a UUID pattern
+        pattern = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]"
+                            r"{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}",
+                            re.IGNORECASE)
+        if len(pattern.findall(fsid)) > 0:
+            fsid = fsid.strip()
+            LOG.info(f'Ceph fsid {fsid} successfully recovered')
         else:
-            uuid = str(fsid.strip())
+            fsid = None
+            LOG.error("Ceph fsid not available through ceph fsid CLI")
     except Exception as e:
-        LOG.error(f"CEPH uuid request failed: {str(e)}")
-    return uuid
+        LOG.error(f"Ceph fsid CLI failed: {str(e)}")
+    return fsid
 
 
 def is_subcloud():
@@ -571,38 +536,51 @@ def is_netapp_available() -> bool:
     return netapp_backends["nfs"] or netapp_backends["iscsi"]
 
 
-def is_rook_ceph_backend_available() -> bool:
-    """Check if Rook Ceph backend is available (configured and applied)
+def is_ceph_backend_available(ceph_type: str =
+                              constants.SB_TYPE_CEPH) -> bool:
+    """Checks if the given Ceph storage backend type is available
+
+    Args:
+        backend (str): Ceph backend type (e.g., "ceph" or "ceph-rook").
 
     Returns:
-        bool: True if Rook Ceph backend is applied and configured
+        bool: True if the given Ceph backend type is available, False otherwise
     """
     db = dbapi.get_instance()
     if db is None:
         LOG.error("Database API is not available")
         return False
 
-    rook_backends = db.storage_backend_get_list_by_type(
-        backend_type=constants.SB_TYPE_CEPH_ROOK)
-    if (not rook_backends) or (len(rook_backends) == 0):
-        LOG.debug("No rook ceph backends available")
+    ceph_backends = db.storage_backend_get_list_by_type(
+        backend_type=ceph_type)
+    if (not ceph_backends) or (len(ceph_backends) == 0):
+        LOG.warning(f"No {ceph_type} backend available")
         return False
 
-    state = rook_backends[0].state
-    task = rook_backends[0].task
-    available = (state == constants.SB_STATE_CONFIGURED) \
-                and (task == constants.APP_APPLY_SUCCESS)
-    LOG.info(f"rook_ceph_backend_available={available}, "
-             f"state={state}, task={task}")
+    state = ceph_backends[0].state
+    task = ceph_backends[0].task
+
+    if ceph_type == constants.SB_TYPE_CEPH:
+        # Based on tests, for host ceph the task value cannot be verified as
+        # 'applied'. Sometimes we can see the task=None even for healthy ceph
+        available = (state == constants.SB_STATE_CONFIGURED)
+    else:
+        available = (state == constants.SB_STATE_CONFIGURED) \
+                    and (task == constants.APP_APPLY_SUCCESS)
+
+    if not available:
+        LOG.warning(f"{ceph_type} backend is not available - "
+                    f"state={state}, task={task}")
     return available
 
 
 def is_rook_ceph_api_available() -> bool:
-    """Check if Rook Ceph REST API is available (running)
+    """Check if Rook Ceph manager API is available (running and responding)
 
     Returns:
-        bool: True if Rook Ceph REST API is running
+        bool: True if Rook Ceph manager API is available, False otherwise
     """
+    # Check if Rook Ceph manager pods are running
     try:
         label = f"app={app_constants.CEPH_ROOK_MANAGER_APP}"
         field_selector = app_constants.POD_SELECTOR_RUNNING
@@ -610,13 +588,21 @@ def is_rook_ceph_api_available() -> bool:
         pods = kube.kube_get_pods_by_selector(app_constants.HELM_NS_ROOK_CEPH,
                                               label,
                                               field_selector)
-        if len(pods) > 0:
-            LOG.debug("Rook ceph API pods are available and in Running state")
-            return True
-    except Exception:
-        pass
-    LOG.info("Rook ceph API pods are not available or not in Running state")
-    return False
+        if len(pods) == 0:
+            LOG.error("Rook Ceph manager API is not running")
+            return False
+    except Exception as e:
+        LOG.warning(f"Cannot check Rook Ceph API pods: {str(e)}")
+
+    # Check if Rook Ceph manager API is responding
+    ceph_api = ceph.CephWrapper()
+    try:
+        ceph_api.fsid(body='text', timeout=10)
+    except Exception as e:
+        LOG.error(f"Rook Ceph manager API is not responding: {str(e)}")
+        return False
+    LOG.info("Rook Ceph manager API is available")
+    return True
 
 
 def is_openvswitch_enabled(hosts, labels_by_hostid) -> bool:
@@ -673,7 +659,7 @@ def send_cmd_read_response(cmd: list[str], log: bool = True) -> str:
         if process.stdout.rstrip():
             LOG.info(f"Stdout: {process.stdout.rstrip()}")
         if process.stderr.rstrip():
-            LOG.info(f"Stderr: {process.stderr.rstrip()}")
+            LOG.error(f"Stderr: {process.stderr.rstrip()}")
     process.check_returncode()
 
     return process.stdout.rstrip()
@@ -871,7 +857,7 @@ def check_and_create_snapshot_class(snapshot_class: str, path: str):
         # Create class
         LOG.info(f"Trying to create snapshot class {snapshot_class}")
         try:
-            if is_rook_ceph_backend_available():
+            if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
                 secret_name = app_constants.CEPH_ROOK_RBD_SECRET_NAME
                 secret_ns = app_constants.HELM_NS_ROOK_CEPH
                 driver = app_constants.CEPH_ROOK_RBD_DRIVER
@@ -880,7 +866,7 @@ def check_and_create_snapshot_class(snapshot_class: str, path: str):
                 secret_name = app_constants.CEPH_RBD_SECRET_NAME
                 secret_ns = helm_common.HELM_NS_RBD_PROVISIONER
                 driver = app_constants.CEPH_RBD_DRIVER
-                cluster_id = get_ceph_uuid()
+                cluster_id = get_ceph_fsid()
             snapclass_dict = {
                 "apiVersion": 'snapshot.storage.k8s.io/v1',
                 "kind": "VolumeSnapshotClass",

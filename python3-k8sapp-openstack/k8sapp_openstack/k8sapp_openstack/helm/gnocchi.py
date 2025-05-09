@@ -1,16 +1,17 @@
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import get_image_rook_ceph
-from k8sapp_openstack.utils import is_rook_ceph_backend_available
+from k8sapp_openstack.utils import is_ceph_backend_available
 
 
 class GnocchiHelm(openstack.OpenstackBaseHelm):
@@ -43,7 +44,7 @@ class GnocchiHelm(openstack.OpenstackBaseHelm):
         # The ceph client versions supported by baremetal and rook ceph backends
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
-        if is_rook_ceph_backend_available():
+        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
             overrides[common.HELM_NS_OPENSTACK] =\
                 self._update_image_tag_overrides(
                     overrides[common.HELM_NS_OPENSTACK],

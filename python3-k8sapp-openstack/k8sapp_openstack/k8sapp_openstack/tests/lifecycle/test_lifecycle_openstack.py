@@ -1,11 +1,12 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import mock
 from sysinv.common import constants
+from sysinv.common import exception
 from sysinv.helm.lifecycle_constants import LifecycleConstants
 from sysinv.tests.db import base as dbbase
 
@@ -37,6 +38,86 @@ class OpenstackAppLifecycleOperatorTest(dbbase.ControllerHostTestCase):
     )
     def test__semantic_check_openstack_https_ready(self, *_):
         self.assertTrue(self.lifecycle._semantic_check_openstack_https_ready())
+
+    def _rook_ceph_backend_available(self, ceph_type: str =
+                                     constants.SB_TYPE_CEPH):
+        return ceph_type == constants.SB_TYPE_CEPH_ROOK
+
+    def _ceph_backend_available(self, ceph_type: str =
+                                     constants.SB_TYPE_CEPH):
+        return ceph_type == constants.SB_TYPE_CEPH
+
+    @mock.patch('k8sapp_openstack.utils.is_rook_ceph_api_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils.get_ceph_fsid',
+                return_value='aa8c8da0-47de-4fad-8b5d-2c06be236fc8')
+    @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
+    def test_semantic_check_storage_backend_available_rook(
+        self,
+        mock_is_ceph_backend_available,
+        mock_get_ceph_fsid,
+        mock_is_rook_ceph_api_available
+    ):
+        """ Test _semantic_check_storage_backend_available for rook ceph
+        backend, api and fsid available.
+        """
+        mock_is_ceph_backend_available.side_effect = \
+            self._rook_ceph_backend_available
+        self.lifecycle._semantic_check_storage_backend_available()
+        mock_is_ceph_backend_available.assert_called()
+        mock_get_ceph_fsid.assert_called()
+        mock_is_rook_ceph_api_available.assert_called()
+
+    @mock.patch('k8sapp_openstack.utils.get_ceph_fsid',
+                return_value='aa8c8da0-47de-4fad-8b5d-2c06be236fc8')
+    @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
+    def test_semantic_check_storage_backend_available_ceph(
+        self,
+        mock_is_ceph_backend_available,
+        mock_get_ceph_fsid
+    ):
+        """ Test _semantic_check_storage_backend_available for host ceph
+        backend and fsid available.
+        """
+        mock_is_ceph_backend_available.side_effect = \
+            self._ceph_backend_available
+        self.lifecycle._semantic_check_storage_backend_available()
+        mock_is_ceph_backend_available.assert_called()
+        mock_get_ceph_fsid.assert_called()
+
+    @mock.patch('k8sapp_openstack.utils.get_ceph_fsid', return_value=None)
+    @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
+    def test_semantic_check_storage_backend_available_fsid_unavailable(
+        self,
+        mock_is_ceph_backend_available,
+        mock_get_ceph_fsid
+    ):
+        """ Test _semantic_check_storage_backend_available for host ceph
+        available and fsid unavailable.
+        """
+        mock_is_ceph_backend_available.side_effect = \
+            self._ceph_backend_available
+        try:
+            self.lifecycle._semantic_check_storage_backend_available()
+        except exception.LifecycleSemanticCheckException:
+            pass  # the exception is the expected result
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+        mock_get_ceph_fsid.assert_called()
+
+    @mock.patch('k8sapp_openstack.utils.get_ceph_fsid', return_value=None)
+    @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available',
+                side_effect=[False, False])
+    def test_semantic_check_storage_backend_available_no_backends(self, *_):
+        """ Test _semantic_check_storage_backend_available for both ceph
+        backends not available.
+        """
+        try:
+            self.lifecycle._semantic_check_storage_backend_available()
+        except exception.LifecycleSemanticCheckException:
+            pass  # the exception is the expected result
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.helm_utils')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')

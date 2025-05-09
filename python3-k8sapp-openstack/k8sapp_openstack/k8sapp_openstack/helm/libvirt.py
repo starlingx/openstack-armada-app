@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2023 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -11,9 +11,9 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
-from k8sapp_openstack.utils import get_ceph_uuid
+from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
-from k8sapp_openstack.utils import is_rook_ceph_backend_available
+from k8sapp_openstack.utils import is_ceph_backend_available
 
 
 class LibvirtHelm(openstack.OpenstackBaseHelm):
@@ -52,7 +52,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
         # The ceph client versions supported by baremetal and rook ceph backends
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
-        if is_rook_ceph_backend_available():
+        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
             overrides[common.HELM_NS_OPENSTACK] =\
                 self._update_image_tag_overrides(
                     overrides[common.HELM_NS_OPENSTACK],
@@ -69,7 +69,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
 
     def _get_conf_overrides(self):
         admin_keyring = 'null'
-        if is_rook_ceph_backend_available():
+        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
             admin_keyring = self._get_rook_ceph_admin_keyring()
 
         overrides = {
@@ -93,7 +93,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
             },
         }
 
-        ceph_uuid = get_ceph_uuid()
+        ceph_uuid = get_ceph_fsid()
         if ceph_uuid:
             overrides['ceph']['cinder'] = {
                 'secret_uuid': ceph_uuid,

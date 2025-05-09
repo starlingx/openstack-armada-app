@@ -24,7 +24,7 @@ from sysinv.helm.lifecycle_constants import LifecycleConstants
 from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helpers import ldap
-from k8sapp_openstack.utils import is_rook_ceph_backend_available
+from k8sapp_openstack.utils import is_ceph_backend_available
 
 LOG = logging.getLogger(__name__)
 
@@ -222,7 +222,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     self.APP_OPENSTACK_RESOURCE_CONFIG_MAP,
                     common.HELM_NS_OPENSTACK)
 
-            if is_rook_ceph_backend_available():
+            if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
                 # Read ceph-etc config map from rooh-ceph namespace
                 config_map_name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
                 config_map_ns = app_constants.HELM_NS_ROOK_CEPH
@@ -358,6 +358,46 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 "Application-apply rejected: operation is not allowed "
                 "while the node {} not in {} state.".format(
                     active_controller.hostname, constants.VIM_SERVICES_ENABLED))
+
+        # Check storage backends
+        self._semantic_check_storage_backend_available()
+
+    def _semantic_check_storage_backend_available(self):
+        """Checks if at least one of the supported storage backends
+        is available and ready for openstack deployment
+
+        Raises:
+            LifecycleSemanticCheckException: no storage backend available for
+                                             openstack deployment.
+        """
+        status = ""
+        fsid_available = False
+        rook_api_available = False
+        backend_available = False
+        ceph_available = app_utils.is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH
+        )
+        rook_ceph_available = app_utils.is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
+        status = f"ceph_available={ceph_available}, " \
+                 f"rook_ceph_available={rook_ceph_available}"
+        if rook_ceph_available:
+            rook_api_available = app_utils.is_rook_ceph_api_available()
+            fsid_available = app_utils.get_ceph_fsid() is not None
+            backend_available = rook_api_available and fsid_available
+            status += f", fsid_available={fsid_available}, " \
+                      f"rook_api_available={rook_api_available}"
+        elif ceph_available:
+            fsid_available = app_utils.get_ceph_fsid() is not None
+            backend_available = fsid_available
+            status += f", fsid_available={fsid_available}"
+
+        if not backend_available:
+            err_msg = "No storage backends available and ready for openstack " \
+                      f"deployment. status: {status}"
+            LOG.error(f"{err_msg}")
+            raise exception.LifecycleSemanticCheckException(err_msg)
 
     def _semantic_check_openstack_https_ready(self):
         """Return True if OpenStack HTTPS is ready for reapply.

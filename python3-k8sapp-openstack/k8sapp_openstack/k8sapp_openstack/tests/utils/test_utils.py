@@ -89,78 +89,41 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         self.assertEqual(result, expected)
         mock_get_value_from_application.assert_called_once()
 
-    @mock.patch('cephclient.wrapper.CephWrapper')
-    @mock.patch('k8sapp_openstack.utils.is_rook_ceph_api_available',
-                return_value=True)
-    def test_get_rook_ceph_uuid(self, mock_api_available, mock_ceph_wrapper):
-        """Test get_rook_ceph_uuid for rook ceph api available and responding ok
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value="89bd29e9-c505-4170-a097-04dc8e43c897")
+    def test_get_ceph_fsid(self, mock_send_cmd):
+        """Test get_ceph_fsid happy path
         """
-        mock_fsid = '89bd29e9-c505-4170-a097-04dc8e43c897'
-        mock_response = mock.MagicMock()
-        mock_response.ok = True
-        ceph_instance = mock_ceph_wrapper.return_value
-        ceph_instance.fsid.return_value = mock_response, mock_fsid
+        result = app_utils.get_ceph_fsid()
+        self.assertEqual(result, '89bd29e9-c505-4170-a097-04dc8e43c897')
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'])
 
-        result = app_utils.get_rook_ceph_uuid()
-        self.assertEqual(result, mock_fsid)
-        ceph_instance.fsid.assert_called_once()
-        mock_api_available.assert_called_once()
-
-    @mock.patch('cephclient.wrapper.CephWrapper')
-    @mock.patch('k8sapp_openstack.utils.is_rook_ceph_api_available',
-                return_value=True)
-    def test_get_rook_ceph_uuid_nok(self,
-                                    mock_api_available,
-                                    mock_ceph_wrapper):
-        """Test get_rook_ceph_uuid for rook ceph api available but not responding ok
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value="89bd29e9")
+    def test_get_ceph_fsid_invalid_pattern(self, mock_send_cmd):
+        """Test get_ceph_fsid for fsid not following the expected pattern
         """
-        mock_fsid = None
-        mock_response = mock.MagicMock()
-        mock_response.ok = False
-        ceph_instance = mock_ceph_wrapper.return_value
-        ceph_instance.fsid.return_value = mock_response, mock_fsid
-
-        result = app_utils.get_rook_ceph_uuid()
+        result = app_utils.get_ceph_fsid()
         self.assertEqual(result, None)
-        ceph_instance.fsid.assert_called_once()
-        mock_api_available.assert_called_once()
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'])
 
-    @mock.patch('cephclient.wrapper.CephWrapper')
-    @mock.patch('k8sapp_openstack.utils.is_rook_ceph_api_available',
-                return_value=False)
-    def test_get_rook_ceph_uuid_unavailable(self,
-                                            mock_api_available,
-                                            mock_ceph_wrapper):
-        """Test get_rook_ceph_uuid for rook ceph api not available
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value="")
+    def test_get_ceph_fsid_unavailable(self, mock_send_cmd):
+        """Test get_ceph_fsid for fsid unavailable
         """
-        mock_fsid = None
-        mock_response = mock.MagicMock()
-        mock_response.ok = False
-        ceph_instance = mock_ceph_wrapper.return_value
-        ceph_instance.fsid.return_value = mock_response, mock_fsid
-
-        result = app_utils.get_rook_ceph_uuid()
+        result = app_utils.get_ceph_fsid()
         self.assertEqual(result, None)
-        ceph_instance.fsid.assert_not_called()
-        mock_api_available.assert_called_once()
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'])
 
-    @mock.patch('cephclient.wrapper.CephWrapper')
-    @mock.patch('k8sapp_openstack.utils.is_rook_ceph_api_available',
-                return_value=True)
-    def test_get_rook_ceph_uuid_api_exception(self,
-                                              mock_api_available,
-                                              mock_ceph_wrapper):
-        """Test get_rook_ceph_uuid for rook ceph api exception
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                side_effect=Exception())
+    def test_get_ceph_fsid_cmd_failure(self, mock_send_cmd):
+        """Test get_ceph_fsid for command failure
         """
-        mock_response = mock.MagicMock()
-        mock_response.ok = False
-        ceph_instance = mock_ceph_wrapper.return_value
-        ceph_instance.fsid.side_effect = Exception()
-
-        result = app_utils.get_rook_ceph_uuid()
+        result = app_utils.get_ceph_fsid()
         self.assertEqual(result, None)
-        ceph_instance.fsid.assert_called_once()
-        mock_api_available.assert_called_once()
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'])
 
     @mock.patch('sysinv.db.api.get_instance')
     def test_is_rook_backend_available(self, mock_dbapi_get_instance):
@@ -172,7 +135,9 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance = mock_dbapi_get_instance.return_value
         db_instance.storage_backend_get_list_by_type.return_value = mock_backend_list
 
-        result = app_utils.is_rook_ceph_backend_available()
+        result = app_utils.is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
         self.assertEqual(result, True)
         db_instance.storage_backend_get_list_by_type.assert_called_once_with(
             backend_type=constants.SB_TYPE_CEPH_ROOK
@@ -189,7 +154,9 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance = mock_dbapi_get_instance.return_value
         db_instance.storage_backend_get_list_by_type.return_value = mock_backend_list
 
-        result = app_utils.is_rook_ceph_backend_available()
+        result = app_utils.is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
         self.assertEqual(result, False)
         db_instance.storage_backend_get_list_by_type.assert_called_once_with(
             backend_type=constants.SB_TYPE_CEPH_ROOK
@@ -206,7 +173,9 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance = mock_dbapi_get_instance.return_value
         db_instance.storage_backend_get_list_by_type.return_value = mock_backend_list
 
-        result = app_utils.is_rook_ceph_backend_available()
+        result = app_utils.is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
         self.assertEqual(result, False)
         db_instance.storage_backend_get_list_by_type.assert_called_once_with(
             backend_type=constants.SB_TYPE_CEPH_ROOK
@@ -216,7 +185,9 @@ class UtilsTest(dbbase.ControllerHostTestCase):
     def test_is_rook_backend_available_none_db(self, mock_dbapi_get_instance):
         """Test is_rook_backend_available for dbapi failure
         """
-        result = app_utils.is_rook_ceph_backend_available()
+        result = app_utils.is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
         self.assertEqual(result, False)
         mock_dbapi_get_instance.assert_called_once_with()
 
@@ -228,28 +199,85 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance = mock_dbapi_get_instance.return_value
         db_instance.storage_backend_get_list_by_type.return_value = mock_backend_list
 
-        result = app_utils.is_rook_ceph_backend_available()
+        result = app_utils.is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
         self.assertEqual(result, False)
         db_instance.storage_backend_get_list_by_type.assert_called_once_with(
             backend_type=constants.SB_TYPE_CEPH_ROOK
         )
 
+    @mock.patch('cephclient.wrapper.CephWrapper')
     @mock.patch('sysinv.common.kubernetes.KubeOperator')
-    def test_is_rook_ceph_api_available(self, mock_kube_operator):
+    def test_is_rook_ceph_api_available(
+        self,
+        mock_kube_operator,
+        mock_ceph_wrapper
+    ):
         """Test is_rook_backend_available for rook api pod in Running state
         """
+        # Mocks for Rook Ceph pods checking
         mock_pod_list = [mock.MagicMock()]
         mock_pod_list[0].metadata.name = \
             f'{app_constants.CEPH_ROOK_MANAGER_APP}-a-74cf47c859-8cgsx'
         kube_operator_instance = mock_kube_operator.return_value
         kube_operator_instance.kube_get_pods_by_selector.return_value = mock_pod_list
+
+        # Mocks for Rook Ceph API request
+        mock_fsid = '89bd29e9-c505-4170-a097-04dc8e43c897'
+        mock_response = mock.MagicMock()
+        mock_response.ok = True
+        ceph_instance = mock_ceph_wrapper.return_value
+        ceph_instance.fsid.return_value = mock_response, mock_fsid
+
         result = app_utils.is_rook_ceph_api_available()
+
+        # Ensures that the final result is as expected
         self.assertEqual(result, True)
+        # Ensures that rook ceph pods were checked
         kube_operator_instance.kube_get_pods_by_selector.assert_called_once_with(
             app_constants.HELM_NS_ROOK_CEPH,
             f"app={app_constants.CEPH_ROOK_MANAGER_APP}",
             app_constants.POD_SELECTOR_RUNNING
         )
+        # Ensures that API responsiveness was checked
+        ceph_instance.fsid.assert_called()
+
+    @mock.patch('cephclient.wrapper.CephWrapper')
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_is_rook_ceph_api_available_not_responding(
+        self,
+        mock_kube_operator,
+        mock_ceph_wrapper
+    ):
+        """Test is_rook_backend_available for rook api pod running but not
+        responding
+        """
+        # Mocks for Rook Ceph pods checking
+        mock_pod_list = [mock.MagicMock()]
+        mock_pod_list[0].metadata.name = \
+            f'{app_constants.CEPH_ROOK_MANAGER_APP}-a-74cf47c859-8cgsx'
+        kube_operator_instance = mock_kube_operator.return_value
+        kube_operator_instance.kube_get_pods_by_selector.return_value = mock_pod_list
+
+        # Mocks for Rook Ceph API request
+        mock_response = mock.MagicMock()
+        mock_response.ok = False
+        ceph_instance = mock_ceph_wrapper.return_value
+        ceph_instance.fsid.side_effect = Exception()
+
+        result = app_utils.is_rook_ceph_api_available()
+
+        # Ensures that the final result is as expected
+        self.assertEqual(result, False)
+        # Ensures that rook ceph pods were checked
+        kube_operator_instance.kube_get_pods_by_selector.assert_called_once_with(
+            app_constants.HELM_NS_ROOK_CEPH,
+            f"app={app_constants.CEPH_ROOK_MANAGER_APP}",
+            app_constants.POD_SELECTOR_RUNNING
+        )
+        # Ensures that API responsiveness was checked
+        ceph_instance.fsid.assert_called()
 
     @mock.patch('sysinv.common.kubernetes.KubeOperator')
     def test_is_rook_ceph_api_available_not_running(self, mock_kube_operator):

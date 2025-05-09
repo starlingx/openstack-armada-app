@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -589,7 +589,9 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         return uefi_config
 
     def _get_ceph_client_overrides(self):
-        if app_utils.is_rook_ceph_backend_available():
+        if app_utils.is_ceph_backend_available(
+                ceph_type=constants.SB_TYPE_CEPH_ROOK
+        ):
             return {
                 'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
             }
@@ -747,7 +749,9 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         # function in the future. For now, it will be left here for backward
         # compatibility, reducing the code changes initially required for rook
         # ceph integration.
-        return app_utils.is_rook_ceph_backend_available()
+        return app_utils.is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
 
     def _get_rook_ceph_admin_keyring(self):
         try:

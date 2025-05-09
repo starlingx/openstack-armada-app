@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,10 +14,10 @@ from tsconfig import tsconfig as tsc
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import check_netapp_backends
-from k8sapp_openstack.utils import get_ceph_uuid
+from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
+from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_netapp_available
-from k8sapp_openstack.utils import is_rook_ceph_backend_available
 
 LOG = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         backend_overrides = self._get_common_backend_overrides()
 
         # Ceph and Rook Ceph are mutually exclusive, so it's either one or the other
-        if is_rook_ceph_backend_available():
+        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
             cinder_overrides = self._get_conf_rook_ceph_cinder_overrides(cinder_overrides)
             backend_overrides = self._get_conf_rook_ceph_backends_overrides(backend_overrides)
             ceph_overrides = self._get_conf_rook_ceph_overrides()
@@ -120,7 +120,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # The ceph client versions supported by baremetal and rook ceph backends
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
-        if is_rook_ceph_backend_available():
+        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
             overrides[common.HELM_NS_OPENSTACK] =\
                 self._update_image_tag_overrides(
                     overrides[common.HELM_NS_OPENSTACK],
@@ -283,7 +283,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                      constants.SB_TYPE_CEPH_CONF_FILENAME),
             }
 
-            ceph_uuid = get_ceph_uuid()
+            ceph_uuid = get_ceph_fsid()
             if ceph_uuid:
                 backend_overrides[bk_name]['rbd_secret_uuid'] = ceph_uuid
 
@@ -471,7 +471,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                  constants.SB_TYPE_CEPH_CONF_FILENAME),
         }
 
-        ceph_uuid = get_ceph_uuid()
+        ceph_uuid = get_ceph_fsid()
         if ceph_uuid:
             backend_overrides['rbd1']['rbd_secret_uuid'] = ceph_uuid
             backend_overrides[app_constants.CEPH_ROOK_BACKEND_NAME]['rbd_secret_uuid'] = ceph_uuid

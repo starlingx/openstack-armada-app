@@ -18,10 +18,10 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
-from k8sapp_openstack.utils import get_ceph_uuid
+from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_services_fqdn_pattern
-from k8sapp_openstack.utils import is_rook_ceph_backend_available
+from k8sapp_openstack.utils import is_ceph_backend_available
 
 LOG = logging.getLogger(__name__)
 
@@ -83,7 +83,9 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.rbd_config = {}
 
     def get_overrides(self, namespace=None):
-        self._rook_ceph = is_rook_ceph_backend_available()
+        self._rook_ceph = is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
 
         self.labels_by_hostid = self._get_host_labels()
         self.cpus_by_hostid = self._get_host_cpus()
@@ -163,7 +165,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         # The ceph client versions supported by baremetal and rook ceph backends
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
-        if is_rook_ceph_backend_available():
+        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
             overrides[common.HELM_NS_OPENSTACK] =\
                 self._update_image_tag_overrides(
                     overrides[common.HELM_NS_OPENSTACK],
@@ -808,7 +810,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             },
         }
 
-        ceph_uuid = get_ceph_uuid()
+        ceph_uuid = get_ceph_fsid()
         if ceph_uuid:
             overrides['ceph']['cinder'] = {
                 'secret_uuid': ceph_uuid,

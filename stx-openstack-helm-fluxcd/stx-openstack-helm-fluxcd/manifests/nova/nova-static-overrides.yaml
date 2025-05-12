@@ -97,7 +97,7 @@ images:
     nova_service_cleaner: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     nova_spiceproxy: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_spiceproxy_assets: docker.io/starlingx/stx-nova:master-debian-stable-latest
-    nova_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
+    nova_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     nova_wait_for_computes_init: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     rabbit_init: docker.io/rabbitmq:3.9.0-management

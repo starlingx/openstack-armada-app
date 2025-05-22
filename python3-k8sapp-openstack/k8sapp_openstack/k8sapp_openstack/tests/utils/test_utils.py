@@ -48,8 +48,10 @@ class UtilsTest(dbbase.ControllerHostTestCase):
                 mock_labels.append(mock_label)
         return mock_labels
 
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     @mock.patch('sysinv.db.api.get_instance')
-    def test_is_openvswitch_enabled_true(self, mock_dbapi_get_instance):
+    def test_is_openvswitch_enabled_true(self, mock_dbapi_get_instance, *_):
         """Test is_openvswitch_enabled returns True when openvswitch
         is enabled.
         """
@@ -76,8 +78,10 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         result = app_utils.is_openvswitch_enabled()
         self.assertTrue(result)
 
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     @mock.patch('sysinv.db.api.get_instance')
-    def test_is_openvswitch_enabled_false(self, mock_dbapi_get_instance):
+    def test_is_openvswitch_enabled_false(self, mock_dbapi_get_instance, *_):
         """Test is_openvswitch_enabled returns False when openvswitch
         is not enabled.
         """
@@ -684,3 +688,21 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         result = app_utils.get_system_vswitch_labels(db_instance)
         self.assertEqual(result, {app_constants.VSWITCH_LABEL_NONE,
                                   app_constants.OPENVSWITCH_LABEL})
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+            return_value=app_constants.OPENVSWITCH_LABEL)
+    def test_get_current_vswitch_label_openvswitch(self, *_):
+        """Test if get_current_vswitch_label returns the Openvswitch label when
+         it is on the override file
+        """
+        result = app_utils.get_current_vswitch_label()
+        self.assertTrue(result, app_constants.OPENVSWITCH_LABEL)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+            return_value=app_constants.OPENVSWITCH_DPDK_LABEL)
+    def test_get_current_vswitch_label_openvswitch_dpdk(self, *_):
+        """Test if get_current_vswitch_label returns the Openvswitch-DPDK label when
+         it is on the override file
+        """
+        result = app_utils.get_current_vswitch_label()
+        self.assertTrue(result, app_constants.OPENVSWITCH_DPDK_LABEL)

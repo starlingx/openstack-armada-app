@@ -12,8 +12,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
-from k8sapp_openstack.utils import is_openvswitch_dpdk_enabled
-from k8sapp_openstack.utils import is_openvswitch_enabled
+from k8sapp_openstack.utils import get_current_vswitch_label
 
 LOG = logging.getLogger(__name__)
 
@@ -39,6 +38,12 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         self.interfaces_by_hostid = {}
         self.addresses_by_hostid = {}
 
+    def get_vswitch_label(self):
+        vswitch_label = get_current_vswitch_label(self.get_vswitch_type_label_names())
+        if len(vswitch_label) == 0:
+            vswitch_label = app_constants.VSWITCH_LABEL_NONE
+        return vswitch_label
+
     def get_overrides(self, namespace=None):
         self.ports_by_ifaceid = self._get_interface_ports()
         self.labels_by_hostid = self._get_host_labels()
@@ -58,6 +63,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                 'conf': self._get_conf_overrides(),
                 'manifests': self._get_manifests_overrides(),
                 'endpoints': self._get_endpoints_overrides(),
+                'vswitch_type': self.get_vswitch_label()
             }
         }
 
@@ -97,7 +103,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                         }
                     }
                     # if ovs runs on host, auto bridge add is covered by sysinv
-                    if (is_openvswitch_enabled() or is_openvswitch_dpdk_enabled()):
+                    if (self.is_openvswitch_enabled() or self.is_openvswitch_dpdk_enabled()):
                         host_neutron['conf'].update({
                             'auto_bridge_add': self._get_host_bridges(host)})
 
@@ -138,7 +144,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
             return 2, iface['ifname']
 
     def _get_datapath_type(self):
-        if is_openvswitch_dpdk_enabled():
+        if self.is_openvswitch_dpdk_enabled():
             return "netdev"
         else:
             return "system"
@@ -445,6 +451,6 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
 
     def _get_manifests_overrides(self):
         manifests_overrides = {}
-        openvswitch_enabled = is_openvswitch_enabled()
-        manifests_overrides.update({'daemonset_l3_agent': openvswitch_enabled})
+        ovs_or_ovs_dpdk_enabled = self.is_openvswitch_enabled() or self.is_openvswitch_dpdk_enabled()
+        manifests_overrides.update({'daemonset_l3_agent': ovs_or_ovs_dpdk_enabled})
         return manifests_overrides

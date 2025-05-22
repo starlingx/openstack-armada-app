@@ -33,6 +33,8 @@ class NeutronGetOverrideTest(NeutronHelmTestCase,
         self.neutron_helm.labels_by_hostid = {}
 
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     def test_neutron_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_NEUTRON,
@@ -78,6 +80,8 @@ class NeutronGetOverrideTest(NeutronHelmTestCase,
             app_constants.OPENSTACK_CERT_CA: 'fake'
         }
     )
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     def test_neutron_overrides_https_enabled(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_NEUTRON,
@@ -142,7 +146,7 @@ class NeutronGetOverrideTest(NeutronHelmTestCase,
             },
         })
 
-    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled',
                 return_value=True)
     def test_get_manifests_overrides_openvswitch_enabled(self, mock_is_openvswitch_enabled):
         """
@@ -156,9 +160,11 @@ class NeutronGetOverrideTest(NeutronHelmTestCase,
         overrides = self.neutron_helm._get_manifests_overrides()
         self.assertEqual({'daemonset_l3_agent': True}, overrides)
 
-    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled',
                 return_value=False)
-    def test_get_manifests_overrides_openvswitch_disabled(self, mock_is_openvswitch_enabled):
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_dpdk_enabled',
+                return_value=False)
+    def test_get_manifests_overrides_openvswitch_disabled(self, *_):
         """
         Test for the _get_manifests_overrides function to ensure the correct
         'daemonset_l3_agent' value is returned based on the openvswitch status.
@@ -188,11 +194,13 @@ class NeutronGetPerHostOverrideTest(NeutronHelmTestCase,
                 unit=i
             )
 
-    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled',
                 return_value=True)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
                 return_value=True)
     @mock.patch('sysinv.common.utils.has_openstack_compute', return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     def test_get_per_host_overrides_single_host(self, *_):
         """
         Test _get_per_host_overrides to ensure configurations are created only
@@ -205,11 +213,13 @@ class NeutronGetPerHostOverrideTest(NeutronHelmTestCase,
             overrides[0]['name']
         )
 
-    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled',
                 return_value=True)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
                 return_value=True)
     @mock.patch('sysinv.common.utils.has_openstack_compute', return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     def test_get_per_host_overrides_two_hosts_identical_configs(self, *_):
         """
         Test _get_per_host_overrides to ensure configurations are created only
@@ -226,10 +236,12 @@ class NeutronGetPerHostOverrideTest(NeutronHelmTestCase,
                 side_effect=lambda host: {f'br-phy-{host.hostname}': 54321})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
                 return_value=True)
-    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled',
                 return_value=True)
     @mock.patch('sysinv.common.utils.has_openstack_compute',
                 return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     def test_get_per_host_overrides_two_hosts_diff_configs(self, *_):
         """
         Test _get_per_host_overrides to ensure configurations are created only
@@ -250,11 +262,13 @@ class NeutronGetPerHostOverrideTest(NeutronHelmTestCase,
             overrides[1]['name']
         )
 
-    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled',
                 return_value=True)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
                 return_value=True)
     @mock.patch('sysinv.common.utils.has_openstack_compute', return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     def test_get_per_host_overrides_three_hosts_identical_configs(self, *_):
         """
         Test _get_per_host_overrides to ensure configurations are created only
@@ -271,10 +285,12 @@ class NeutronGetPerHostOverrideTest(NeutronHelmTestCase,
                 side_effect=lambda host: {f'br-phy-{host.hostname}': 54321})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
                 return_value=True)
-    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled',
                 return_value=True)
     @mock.patch('sysinv.common.utils.has_openstack_compute',
                 return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     def test_get_per_host_overrides_three_hosts_diff_configs(self, *_):
         """
         Test _get_per_host_overrides to ensure configurations are created only
@@ -309,10 +325,12 @@ class NeutronGetPerHostOverrideTest(NeutronHelmTestCase,
     )
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
                 return_value=True)
-    @mock.patch('k8sapp_openstack.helm.neutron.is_openvswitch_enabled',
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled',
                 return_value=True)
     @mock.patch('sysinv.common.utils.has_openstack_compute',
                 return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
     def test_get_per_host_overrides_four_hosts_half_alike_configs(self, *_):
         """
         Test _get_per_host_overrides to ensure configurations are created only

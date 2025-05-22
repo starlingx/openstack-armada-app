@@ -717,6 +717,17 @@ def get_current_vswitch_label(vswitch_label_type_names=None) -> str:
         str: the current valid vswitch label of the system; returns empty if invalid/not found
     """
 
+    if not vswitch_label_type_names:
+        vswitch_label_type_names = app_constants.VSWITCH_LABEL_TYPE_NAMES
+
+    vswitch_label = get_vswitch_label_from_override_file()
+    if vswitch_label in vswitch_label_type_names.keys():
+        LOG.debug("Vswitch label was found in override file.")
+        return vswitch_label
+
+    LOG.debug("Vswitch label was not found in override file. Searching compute labels.")
+
+    # If vswitch label not found in file or invalid, try to search in the nodes' labels
     db = dbapi.get_instance()
     if not db:
         LOG.error("Database API is not available")
@@ -732,11 +743,29 @@ def get_current_vswitch_label(vswitch_label_type_names=None) -> str:
             vswitch_label = ""
         else:
             LOG.info(f"Found {vswitch_label} vswitch label")
-    if len(vswitch_labels) > 1:
-        LOG.error("There are openstack hosts with divergent vswitch labels in the system.")
+    elif len(vswitch_labels) > 1:
+        if app_constants.VSWITCH_LABEL_NONE not in vswitch_labels:
+            LOG.error("There are openstack hosts with divergent vswitch labels in the system.")
+        else:
+            LOG.error("There are openstack hosts with divergent vswitch labels in the system"
+                      " and/or there are openstack hosts without vswitch labels.")
     else:
         LOG.error("There are no openstack-enabled compute nodes")
     return vswitch_label
+
+
+def get_vswitch_label_from_override_file() -> str:
+    """
+    Searches for the vswitch type label on the Neutron chart override file.
+
+    Returns:
+        str: Vswitch type label if found; VSWITCH_LABEL_NONE if not found.
+    """
+    return _get_value_from_application(
+        default_value=app_constants.VSWITCH_LABEL_NONE,
+        chart_name=app_constants.HELM_CHART_NEUTRON,
+        override_name="vswitch_type"
+    )
 
 
 def is_vswitch_enabled(vswitch_type_label, vswitch_label_type_names=None) -> bool:
@@ -758,24 +787,26 @@ def is_vswitch_enabled(vswitch_type_label, vswitch_label_type_names=None) -> boo
     return vswitch_label == vswitch_type_label
 
 
-def is_openvswitch_enabled() -> bool:
+def is_openvswitch_enabled(vswitch_label_type_names=None) -> bool:
     """
     Check if openvswitch is enabled.
 
     Returns:
         bool: True if openvswitch is enabled.
+        vswitch_label_type_names (dict, optional): Collection of possible vswitch labels
     """
-    return is_vswitch_enabled(app_constants.OPENVSWITCH_LABEL)
+    return is_vswitch_enabled(app_constants.OPENVSWITCH_LABEL, vswitch_label_type_names)
 
 
-def is_openvswitch_dpdk_enabled() -> bool:
+def is_openvswitch_dpdk_enabled(vswitch_label_type_names=None) -> bool:
     """
     Check if openvswitch-dpdk is enabled.
 
     Returns:
         bool: True if openvswitch-dpdk is enabled.
+        vswitch_label_type_names (dict, optional): Collection of possible vswitch labels
     """
-    return is_vswitch_enabled(app_constants.OPENVSWITCH_DPDK_LABEL)
+    return is_vswitch_enabled(app_constants.OPENVSWITCH_DPDK_LABEL, vswitch_label_type_names)
 
 
 def send_cmd_read_response(cmd: list[str], log: bool = True) -> str:

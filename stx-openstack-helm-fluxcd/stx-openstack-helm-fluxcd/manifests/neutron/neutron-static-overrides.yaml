@@ -270,4 +270,10 @@ conf:
         bridge_mappings: public:br-ex
       securitygroup:
         firewall_driver: openvswitch
+
+# Virtual switch type
+# This field is used to store the vswitch type based on the 
+# compute node labels. Defaults to 'none'.
+
+vswitch_type: none
 ...

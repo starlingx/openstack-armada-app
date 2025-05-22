@@ -753,6 +753,33 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
 
+    def get_vswitch_type_label_names(self) -> dict:
+        """
+        Get the available vswitch labels for this chart
+
+        Returns:
+            dict: The collection containing the available vswitch label names
+        """
+        return app_constants.VSWITCH_LABEL_TYPE_NAMES
+
+    def is_openvswitch_enabled(self) -> bool:
+        """
+        Check if Openvswitch is enabled
+
+        Returns:
+            bool: True if Openvswitch is enabled; False otherwise
+        """
+        return app_utils.is_openvswitch_enabled(self.get_vswitch_type_label_names())
+
+    def is_openvswitch_dpdk_enabled(self) -> bool:
+        """
+        Check if Openvswitch-DPDK is enabled
+
+        Returns:
+            bool: True if Openvswitch-DPDK is enabled; False otherwise
+        """
+        return app_utils.is_openvswitch_dpdk_enabled(self.get_vswitch_type_label_names())
+
     def _get_rook_ceph_admin_keyring(self):
         try:
             kube = kubernetes.KubeOperator()

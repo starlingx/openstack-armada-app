@@ -9,8 +9,6 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
-from k8sapp_openstack.utils import is_openvswitch_dpdk_enabled
-from k8sapp_openstack.utils import is_openvswitch_enabled
 
 
 class OpenvswitchHelm(openstack.OpenstackBaseHelm):
@@ -26,7 +24,7 @@ class OpenvswitchHelm(openstack.OpenstackBaseHelm):
             return False
 
         # Chart is enabled, let's check the node label
-        return is_openvswitch_enabled() or is_openvswitch_dpdk_enabled()
+        return self.is_openvswitch_enabled() or self.is_openvswitch_dpdk_enabled()
 
     def execute_manifest_updates(self, operator):
         # On application load, this chart in not included in the compute-kit

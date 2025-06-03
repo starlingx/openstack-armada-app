@@ -332,12 +332,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                         f"`{str(working_directory)}` permissions."
                     )
 
-        # Evaluate https reapply semantic check
-        if not self._semantic_check_openstack_https_ready():
-            raise exception.LifecycleSemanticCheckException(
-                "Https semantic check failed."
-            )
-
     def _pre_apply_check(self, conductor_obj, app, hook_info):
         """Semantic check for evaluating app manual apply
 
@@ -401,13 +395,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                       f"deployment. status: {status}"
             LOG.error(f"{err_msg}")
             raise exception.LifecycleSemanticCheckException(err_msg)
-
-    def _semantic_check_openstack_https_ready(self):
-        """Return True if OpenStack HTTPS is ready for reapply.
-
-        :return: True certificate file is present. Otherwise, False.
-        """
-        return app_utils.is_openstack_https_ready()
 
     def _get_vswitch_label_type_names(self):
         return app_constants.VSWITCH_LABEL_TYPE_NAMES

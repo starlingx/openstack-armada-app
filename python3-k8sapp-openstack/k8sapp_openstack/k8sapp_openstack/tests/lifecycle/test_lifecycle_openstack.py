@@ -24,26 +24,6 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         super(OpenstackAppLifecycleOperatorTest, self).setUp()
         self.lifecycle = lifecycle_openstack.OpenstackAppLifecycleOperator()
 
-    @mock.patch("k8sapp_openstack.utils.is_openstack_https_ready", return_value=False)
-    def test__semantic_check_openstack_https_not_ready(self, *_):
-        self.assertFalse(self.lifecycle._semantic_check_openstack_https_ready())
-
-    @mock.patch("k8sapp_openstack.utils.is_openstack_https_ready", return_value=True)
-    @mock.patch(
-        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
-        return_value='/etc/ssl/private/openstack/ca-cert.pem'
-    )
-    @mock.patch(
-        'k8sapp_openstack.utils.get_openstack_certificate_values',
-        return_value={
-            app_constants.OPENSTACK_CERT: 'fake',
-            app_constants.OPENSTACK_CERT_KEY: 'fake',
-            app_constants.OPENSTACK_CERT_CA: 'fake'
-        }
-    )
-    def test__semantic_check_openstack_https_ready(self, *_):
-        self.assertTrue(self.lifecycle._semantic_check_openstack_https_ready())
-
     def _rook_ceph_backend_available(self, ceph_type: str =
                                      constants.SB_TYPE_CEPH):
         return ceph_type == constants.SB_TYPE_CEPH_ROOK

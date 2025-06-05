@@ -25,5 +25,6 @@ pod:
 images:
   tags:
     garbd: docker.io/starlingx/stx-mariadb:master-debian-stable-latest
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     image_repo_sync: null
 ...

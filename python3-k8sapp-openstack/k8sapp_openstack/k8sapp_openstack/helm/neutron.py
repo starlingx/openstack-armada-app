@@ -153,7 +153,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         bridges = {}
         index = 0
         for iface in self.interfaces_by_hostid.get(host.id, []):
-            if self._is_data_network_type(iface):
+            if self._is_data_network_type(iface) or self._is_sriov_network_type(iface):
                 if any(dn.datanetwork_network_type in
                        [constants.DATANETWORK_TYPE_FLAT,
                         constants.DATANETWORK_TYPE_VLAN] for dn in
@@ -171,25 +171,24 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         bridge_mappings = ""
         index = 0
         for iface in self.interfaces_by_hostid.get(host.id, []):
-            if self._is_data_network_type(iface):
-                # obtain the assigned bridge for interface
-                brname = 'br-phy%d' % index
-                if brname:
-                    datanets = self.ifdatanets_by_ifaceid.get(iface.id, [])
-                    for datanet in datanets:
-                        dn_name = datanet['datanetwork_name'].strip()
-                        LOG.debug('_get_dynamic_ovs_agent_config '
-                                  'host=%s datanet=%s', host.hostname, dn_name)
-                        if (datanet.datanetwork_network_type ==
-                                constants.DATANETWORK_TYPE_VXLAN):
-                            local_ip = self._get_interface_primary_address(
-                                self.context, host, iface)
-                            tunnel_types = constants.DATANETWORK_TYPE_VXLAN
-                        elif (datanet.datanetwork_network_type in
-                              [constants.DATANETWORK_TYPE_FLAT,
-                               constants.DATANETWORK_TYPE_VLAN]):
-                            bridge_mappings += ('%s:%s,' % (dn_name, brname))
-                            index += 1
+            if self._is_data_network_type(iface) or self._is_sriov_network_type(iface):
+                datanets = self.ifdatanets_by_ifaceid.get(iface.id, [])
+                for datanet in datanets:
+                    dn_name = datanet['datanetwork_name'].strip()
+                    LOG.debug('_get_dynamic_ovs_agent_config '
+                              'host=%s datanet=%s', host.hostname, dn_name)
+                    if (self._is_data_network_type(iface) and
+                        datanet.datanetwork_network_type ==
+                            constants.DATANETWORK_TYPE_VXLAN):
+                        local_ip = self._get_interface_primary_address(
+                            self.context, host, iface)
+                        tunnel_types = constants.DATANETWORK_TYPE_VXLAN
+                    elif (datanet.datanetwork_network_type in
+                          [constants.DATANETWORK_TYPE_FLAT,
+                           constants.DATANETWORK_TYPE_VLAN]):
+                        brname = 'br-phy%d' % index
+                        bridge_mappings += ('%s:%s,' % (dn_name, brname))
+                        index += 1
 
         agent = {}
         ovs = {

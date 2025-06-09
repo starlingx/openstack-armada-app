@@ -124,29 +124,31 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         else:
             self.fail("LifecycleSemanticCheckException was not raised")
 
-    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.helm_utils')
-    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
-    def test__recover_app_resources_failed_update(self, mock_app_utils, mock_helm_utils, *_):
-        release = 'ingress'
-        patch = {"spec": {"suspend": False}}
+    @mock.patch('k8sapp_openstack.utils.delete_kubernetes_resource')
+    @mock.patch('k8sapp_openstack.utils.get_app_version_list',
+                return_value=['25.03-0', '25.09-0'])
+    def test__recover_app_resources_failed_update(
+        self,
+        mock_get_app_version_list,
+        mock_delete_kubernetes_resource
+    ):
+        """Test _recover_app_resources_failed_update for the app update
+        operation
+        """
+        app_op = mock.MagicMock()
+        app = mock.MagicMock()
+        app.name = 'stx-openstack'
+        app.version = '25.09-0'
+        app.sync_imgfile = ("/opt/platform/fluxcd/<stx version>/stx-openstack/"
+                            "25.03-0/stx-openstack-images.yaml")
 
-        release_failed = 'ingress-nginx-openstack'
-        patch_failed = {"spec": {"suspend": True}}
+        self.lifecycle._recover_app_resources_failed_update(app_op, app)
 
-        calls = [
-            mock.call(
-                release, patch
-            ),
-            mock.call(
-                release_failed, patch_failed,
-            )
-        ]
-
-        self.lifecycle._recover_app_resources_failed_update()
-
-        mock_app_utils.update_helmrelease.assert_has_calls(calls)
-        mock_helm_utils.delete_helm_release.assert_called_once_with(
-            release=release_failed, namespace=app_constants.HELM_NS_OPENSTACK
+        app_op._deregister_app_abort.assert_called_once_with(app.name)
+        mock_get_app_version_list.assert_called_once()
+        mock_delete_kubernetes_resource.assert_called_once_with(
+            resource_type='helmrelease',
+            resource_name='mariadb'
         )
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
@@ -179,9 +181,15 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         mock_app_utils.delete_snapshot.assert_has_calls(calls)
 
-    def test__pre_update_actions(self, *_):
-        app = mock.Mock()
-
+    @mock.patch('k8sapp_openstack.utils.get_app_version_list',
+                return_value=['25.03-0', '25.09-0'])
+    def test__pre_update_actions_update_op(self, *_):
+        """Test __pre_update_actions for the app update operation
+        """
+        app = mock.MagicMock()
+        app.name = 'stx-openstack'
+        app.sync_imgfile = ("/opt/platform/fluxcd/<stx version>/stx-openstack/"
+                            "25.03-0/stx-openstack-images.yaml")
         self.lifecycle._pre_update_backup_actions = mock.Mock()
         self.lifecycle._pre_update_cleanup_actions = mock.Mock()
 
@@ -189,6 +197,23 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         self.lifecycle._pre_update_backup_actions.assert_called_once_with(app)
         self.lifecycle._pre_update_cleanup_actions.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.get_app_version_list',
+                return_value=['25.03-0'])
+    def test__pre_update_actions_apply_op(self, *_):
+        """Test __pre_update_actions for the app apply operation
+        """
+        app = mock.MagicMock()
+        app.name = 'stx-openstack'
+        app.sync_imgfile = ("/opt/platform/fluxcd/<stx version>/stx-openstack/"
+                            "25.03-0/stx-openstack-images.yaml")
+        self.lifecycle._pre_update_backup_actions = mock.Mock()
+        self.lifecycle._pre_update_cleanup_actions = mock.Mock()
+
+        self.lifecycle._pre_update_actions(app)
+
+        self.lifecycle._pre_update_backup_actions.assert_not_called()
+        self.lifecycle._pre_update_cleanup_actions.assert_not_called()
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
     def test__pre_update_backup_actions(self, mock_app_utils, *_):
@@ -235,15 +260,19 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_app_utils.restore_pvc_snapshot.assert_has_calls(calls)
 
     def test__recover_actions(self, *_):
+        """Test _recover_actions
+        """
         app = mock.Mock()
+        app_op = mock.Mock()
 
         self.lifecycle._recover_backup_snapshot = mock.Mock()
         self.lifecycle._recover_app_resources_failed_update = mock.Mock()
 
-        self.lifecycle._recover_actions(app)
+        self.lifecycle._recover_actions(app_op, app)
 
         self.lifecycle._recover_backup_snapshot.assert_called_once_with(app)
-        self.lifecycle._recover_app_resources_failed_update.assert_called_once()
+        self.lifecycle._recover_app_resources_failed_update.\
+            assert_called_once_with(app_op, app)
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.lifecycle_utils')
     def test__app_lifecycle_actions(self, mock_lifecycle_utils, *_):

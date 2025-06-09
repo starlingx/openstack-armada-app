@@ -18,7 +18,6 @@ from sysinv.common import kubernetes
 from sysinv.helm import common
 from sysinv.helm import lifecycle_base as base
 from sysinv.helm import lifecycle_utils as lifecycle_utils
-from sysinv.helm import utils as helm_utils
 from sysinv.helm.lifecycle_constants import LifecycleConstants
 
 from k8sapp_openstack import utils as app_utils
@@ -67,7 +66,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
                 return self._delete_app_specific_resources_post_remove(app_op, app, hook_info)
             elif hook_info.operation == constants.APP_RECOVER_OP:
-                return self._recover_actions(app)
+                return self._recover_actions(app_op, app)
 
         # Rbd
         elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_RBD:
@@ -522,24 +521,19 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         :param app: AppOperator.Application object
 
         """
+        images_base_dir = app.sync_imgfile.split(app.name)[0]
+        app_version_list = sorted(
+            app_utils.get_app_version_list(images_base_dir, app.name)
+        )
+        if len(app_version_list) <= 1:
+            # Pre-update actions aren't required for apply operations
+            return
         self._pre_update_backup_actions(app)
         self._pre_update_cleanup_actions()
 
     def _pre_update_cleanup_actions(self):
         """Perform pre update cleanup actions."""
-
-        # TODO: Remove in the future. This code is only necessary when
-        # updating from stx-10 to stx-11 STX-O release.
-        release = 'ingress'
-        patch = {"spec": {"suspend": True}}
-
-        # Update helmrelease to not reconcile during update
-        app_utils.update_helmrelease(release, patch)
-
-        # Uninstall helm release.
-        status = helm_utils.delete_helm_release(
-            release='osh-openstack-ingress', namespace=app_constants.HELM_NS_OPENSTACK)
-        LOG.info(status)
+        return
 
     def _pre_update_backup_actions(self, app):
         """Perform pre update backup actions.
@@ -557,35 +551,55 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             LOG.info(f"Trying to take a snapshot from PVC {pvc_name}")
             app_utils.create_pvc_snapshot(snapshot_name, pvc_name, SNAPSHOT_CLASS_NAME, path=app.inst_path)
 
-    def _recover_actions(self, app):
+    def _recover_actions(self, app_op, app):
         """Perform all recover actions.
 
-        :param app: AppOperator.Application object
-
+        Args:
+            app_op (AppOperator): System Inventory AppOperator object
+            app (AppOperator.Application): Application we are recovering from
         """
         self._recover_backup_snapshot(app)
-        self._recover_app_resources_failed_update()
+        self._recover_app_resources_failed_update(app_op, app)
 
-    def _recover_app_resources_failed_update(self):
-        """ Perform resource recover after failed update"""
+    def _recover_app_resources_failed_update(self, app_op, app):
+        """Perform resource recover after failed update
 
-        # TODO: Remove in the future. This code is only necessary when
-        # updating from stx-10 to stx-11 STX-O release.
-        release = 'ingress'
-        patch = {"spec": {"suspend": False}}
+        Args:
+            app_op (AppOperator): System Inventory AppOperator object
+            app (AppOperator.Application): Application we are recovering from
+        """
 
-        # Update helmrelease to revert changes
-        app_utils.update_helmrelease(release, patch)
+        images_base_dir = app.sync_imgfile.split(app.name)[0]
+        app_version_list = sorted(
+            app_utils.get_app_version_list(images_base_dir, app.name)
+        )
+        if len(app_version_list) == 1:
+            LOG.error(f"Can't recover resources, only version "
+                      f"{app_version_list[0]} of {app.name} application is "
+                      "available on the system")
+            return
+        elif len(app_version_list) == 0:
+            LOG.error(f"Can't recover resources, no version of {app.name} "
+                      "application is available on the system")
+            return
 
-        # The new Ingress must be disabled and deleted before starting recovery
-        release_failed = 'ingress-nginx-openstack'
-        patch_failed = {"spec": {"suspend": True}}
-        app_utils.update_helmrelease(release_failed, patch_failed)
+        if app_version_list[0] != app.version:
+            from_version = app_version_list[0]
+        else:  # support for downgrading process
+            from_version = app_version_list[1]
+        to_version = app.version
+        LOG.info(f"Recovering {app.name} resources after the app failed to "
+                 f"update from version {from_version} to version {to_version}")
 
-        # Uninstall helm release.
-        status = helm_utils.delete_helm_release(
-            release=release_failed, namespace=app_constants.HELM_NS_OPENSTACK)
-        LOG.info(status)
+        # The following issue related to app recovery process being sunddenly
+        # aborted by the Application Framework (AppFwk) was fixed in
+        # starlingx master branch and might be included in stx-11 release:
+        # https://launchpad.net/bugs/2111929
+        # This ports the fix to the app lifecycle so the issue didn't affect the
+        # app update recovery on stx-10 platform. This might be removed for app
+        # versions supposed to run only on future versions of stx platform.
+        LOG.warn("Deregistering abort to start app recovery operation")
+        app_op._deregister_app_abort(app.name)
 
         # Downgrading is not officially supported for MariaDB:
         # https://mariadb.com/kb/en/downgrading-between-major-versions-of-mariadb/

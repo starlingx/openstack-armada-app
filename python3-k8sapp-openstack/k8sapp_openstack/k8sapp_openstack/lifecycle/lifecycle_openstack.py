@@ -45,59 +45,59 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         """
         # Operation
-        if hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_OPERATION:
+        if hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_OPERATION:
             if hook_info.operation == constants.APP_APPLY_OP:
-                if hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
+                if hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
                     return self.pre_apply(context, conductor_obj, app, hook_info)
-                elif hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
+                elif hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
                     return self.post_apply(context, conductor_obj, app, hook_info)
             elif hook_info.operation == constants.APP_REMOVE_OP:
-                if hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
+                if hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
                     return self.pre_remove(context, conductor_obj, hook_info)
-                elif hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
+                elif hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
                     return self.post_remove(context, conductor_obj, hook_info)
 
         # Resource
-        elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_RESOURCE:
+        elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_RESOURCE:
             if hook_info.operation == constants.APP_APPLY_OP and \
-                    hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
+                    hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
                 return self._create_app_specific_resources_pre_apply(app_op, app, hook_info)
             elif hook_info.operation == constants.APP_REMOVE_OP and \
-                    hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
+                    hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
                 return self._delete_app_specific_resources_post_remove(app_op, app, hook_info)
             elif hook_info.operation == constants.APP_RECOVER_OP:
                 return self._recover_actions(app_op, app)
 
         # Rbd
-        elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_RBD:
+        elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_RBD:
             if hook_info.operation == constants.APP_APPLY_OP and \
-                    hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
+                    hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
                 return lifecycle_utils.create_rbd_provisioner_secrets(app_op, app, hook_info)
             elif hook_info.operation == constants.APP_REMOVE_OP and \
-                    hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
+                    hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
                 return lifecycle_utils.delete_rbd_provisioner_secrets(app_op, app, hook_info)
 
         # Semantic checks
-        elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK:
-            if hook_info.mode == constants.APP_LIFECYCLE_MODE_AUTO:
+        elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK:
+            if hook_info.mode == LifecycleConstants.APP_LIFECYCLE_MODE_AUTO:
                 if hook_info.operation == constants.APP_EVALUATE_REAPPLY_OP:
                     return self._semantic_check_evaluate_app_reapply(app_op, app, hook_info)
                 elif hook_info.operation == constants.APP_UPDATE_OP:
                     raise exception.LifecycleSemanticCheckOperationNotSupported(
-                        mode=constants.APP_LIFECYCLE_MODE_AUTO, op=constants.APP_UPDATE_OP, name=app.name)
-            elif hook_info.mode in [constants.APP_LIFECYCLE_MODE_MANUAL,
-                                    constants.APP_LIFECYCLE_MODE_AUTO] and \
+                        mode=LifecycleConstants.APP_LIFECYCLE_MODE_AUTO, op=constants.APP_UPDATE_OP, name=app.name)
+            elif hook_info.mode in [LifecycleConstants.APP_LIFECYCLE_MODE_MANUAL,
+                                    LifecycleConstants.APP_LIFECYCLE_MODE_AUTO] and \
                     hook_info.operation == constants.APP_APPLY_OP and \
-                        hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
+                        hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
                 return self._pre_apply_check(conductor_obj, app, hook_info)
 
         # Manifest
-        elif hook_info.lifecycle_type == constants.APP_LIFECYCLE_TYPE_MANIFEST:
+        elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_MANIFEST:
             if hook_info.operation == constants.APP_APPLY_OP and \
-                    hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_PRE:
+                    hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
                 return self._pre_update_actions(app)
             elif hook_info.operation == constants.APP_APPLY_OP and \
-                    hook_info.relative_timing == constants.APP_LIFECYCLE_TIMING_POST:
+                    hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
                 return self._post_update_image_actions(app)
 
         # Default behavior

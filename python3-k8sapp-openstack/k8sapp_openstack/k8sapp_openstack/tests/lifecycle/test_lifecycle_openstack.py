@@ -313,9 +313,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         operation_cases = [
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_OPERATION,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_OPERATION,
                     operation=constants.APP_APPLY_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_PRE,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
                 ),
                 'assertions': [
                     self.lifecycle.pre_apply.assert_called_once,
@@ -324,9 +324,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_OPERATION,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_OPERATION,
                     operation=constants.APP_APPLY_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_POST,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_POST,
                 ),
                 'assertions': [
                     self.lifecycle.pre_apply.assert_not_called,
@@ -335,9 +335,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_OPERATION,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_OPERATION,
                     operation=constants.APP_REMOVE_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_PRE,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
                 ),
                 'assertions': [
                     self.lifecycle.pre_remove.assert_called,
@@ -346,9 +346,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_OPERATION,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_OPERATION,
                     operation=constants.APP_REMOVE_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_POST,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_POST,
                 ),
                 'assertions': [
                     self.lifecycle.pre_remove.assert_not_called,
@@ -360,9 +360,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         resource_cases = [
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_RESOURCE,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_RESOURCE,
                     operation=constants.APP_APPLY_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_PRE,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
                 ),
                 'assertions': [
                     self.lifecycle._create_app_specific_resources_pre_apply.assert_called_once,
@@ -372,9 +372,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_RESOURCE,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_RESOURCE,
                     operation=constants.APP_REMOVE_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_POST,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_POST,
                 ),
                 'assertions': [
                     self.lifecycle._create_app_specific_resources_pre_apply.assert_not_called,
@@ -384,7 +384,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_RESOURCE,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_RESOURCE,
                     operation=constants.APP_RECOVER_OP,
                 ),
                 'assertions': [
@@ -398,9 +398,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         rbd_cases = [
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_RBD,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_RBD,
                     operation=constants.APP_APPLY_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_PRE,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
                 ),
                 'assertions': [
                     mock_lifecycle_utils.create_rbd_provisioner_secrets.assert_called_once,
@@ -409,9 +409,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_RBD,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_RBD,
                     operation=constants.APP_REMOVE_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_POST,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_POST,
                 ),
                 'assertions': [
                     mock_lifecycle_utils.create_rbd_provisioner_secrets.assert_not_called,
@@ -423,9 +423,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         semantic_cases = [
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK,
                     operation=constants.APP_EVALUATE_REAPPLY_OP,
-                    mode=constants.APP_LIFECYCLE_MODE_AUTO,
+                    mode=LifecycleConstants.APP_LIFECYCLE_MODE_AUTO,
                 ),
                 'assertions': [
                     self.lifecycle._semantic_check_evaluate_app_reapply.assert_called_once,
@@ -434,10 +434,10 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK,
                     operation=constants.APP_APPLY_OP,
-                    mode=constants.APP_LIFECYCLE_MODE_MANUAL,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_PRE,
+                    mode=LifecycleConstants.APP_LIFECYCLE_MODE_MANUAL,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
                 ),
                 'assertions': [
                     self.lifecycle._semantic_check_evaluate_app_reapply.assert_not_called,
@@ -449,9 +449,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         manifest_cases = [
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_MANIFEST,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_MANIFEST,
                     operation=constants.APP_APPLY_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_PRE,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
                 ),
                 'assertions': [
                     self.lifecycle._pre_update_actions.assert_called,
@@ -460,9 +460,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
             {
                 'hook_info': mock.Mock(
-                    lifecycle_type=constants.APP_LIFECYCLE_TYPE_MANIFEST,
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_MANIFEST,
                     operation=constants.APP_APPLY_OP,
-                    relative_timing=constants.APP_LIFECYCLE_TIMING_POST,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_POST,
                 ),
                 'assertions': [
                     self.lifecycle._pre_update_actions.assert_not_called,

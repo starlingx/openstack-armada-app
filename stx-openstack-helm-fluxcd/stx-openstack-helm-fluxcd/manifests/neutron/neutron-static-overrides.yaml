@@ -272,8 +272,9 @@ conf:
         firewall_driver: openvswitch
 
 # Virtual switch type
-# This field is used to store the vswitch type based on the 
-# compute node labels. Defaults to 'none'.
-
-vswitch_type: none
+# This field is used to store the vswitch type based on the
+# compute node labels. Defaults to 'none'. It can be a combination
+# of values, like [openvswitch=enabled, dpdk=enabled] for ovs-dpdk
+vswitch_labels:
+  - none
 ...

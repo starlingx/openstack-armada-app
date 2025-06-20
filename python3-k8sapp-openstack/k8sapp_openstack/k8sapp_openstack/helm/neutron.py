@@ -38,11 +38,11 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         self.interfaces_by_hostid = {}
         self.addresses_by_hostid = {}
 
-    def get_vswitch_label(self):
-        vswitch_label = get_current_vswitch_label(self.get_vswitch_type_label_names())
-        if len(vswitch_label) == 0:
-            vswitch_label = app_constants.VSWITCH_LABEL_NONE
-        return vswitch_label
+    def get_vswitch_labels(self):
+        vswitch_labels = get_current_vswitch_label(self.get_vswitch_label_combinations())
+        if len(vswitch_labels) == 0:
+            vswitch_labels = {app_constants.VSWITCH_LABEL_NONE}
+        return list(vswitch_labels)
 
     def get_overrides(self, namespace=None):
         self.ports_by_ifaceid = self._get_interface_ports()
@@ -63,7 +63,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                 'conf': self._get_conf_overrides(),
                 'manifests': self._get_manifests_overrides(),
                 'endpoints': self._get_endpoints_overrides(),
-                'vswitch_type': self.get_vswitch_label()
+                'vswitch_labels': self.get_vswitch_labels()
             }
         }
 

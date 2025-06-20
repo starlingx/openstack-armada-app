@@ -490,8 +490,11 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance.ihost_get_list.return_value = mock_hosts
         db_instance.label_get_all.return_value = mock_labels
 
-        result = app_utils.get_system_vswitch_labels(db_instance)
-        self.assertEqual(result, {app_constants.OPENVSWITCH_LABEL})
+        labels, conflicts = app_utils.get_system_vswitch_labels(db_instance)
+
+        pass_condition = (labels == {app_constants.OPENVSWITCH_LABEL}
+                          and len(conflicts) == 0)
+        self.assertTrue(pass_condition)
 
     @mock.patch('sysinv.db.api.get_instance')
     def test_get_system_vswitch_labels_openvswitch_dpdk(self, mock_dbapi_get_instance):
@@ -509,7 +512,8 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         mock_labels = self._get_mock_label_list({
             1: {
                 'openstack-compute-node': 'enabled',
-                'openvswitch-dpdk': 'enabled',
+                'openvswitch': 'enabled',
+                'dpdk': 'enabled',
             }
         })
 
@@ -517,8 +521,11 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance.ihost_get_list.return_value = mock_hosts
         db_instance.label_get_all.return_value = mock_labels
 
-        result = app_utils.get_system_vswitch_labels(db_instance)
-        self.assertEqual(result, {app_constants.OPENVSWITCH_DPDK_LABEL})
+        labels, conflicts = app_utils.get_system_vswitch_labels(db_instance)
+
+        pass_condition = (labels == {app_constants.OPENVSWITCH_LABEL, app_constants.DPDK_LABEL}
+                          and len(conflicts) == 0)
+        self.assertTrue(pass_condition)
 
     @mock.patch('sysinv.db.api.get_instance')
     def test_get_system_vswitch_labels_empty(self, mock_dbapi_get_instance):
@@ -543,14 +550,20 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance.ihost_get_list.return_value = mock_hosts
         db_instance.label_get_all.return_value = mock_labels
 
-        result = app_utils.get_system_vswitch_labels(db_instance)
-        self.assertEqual(result, {app_constants.VSWITCH_LABEL_NONE})
+        labels, conflicts = app_utils.get_system_vswitch_labels(db_instance)
+
+        pass_condition = (conflicts == {app_constants.VSWITCH_LABEL_NONE}
+                          and len(labels) == 0)
+        self.assertTrue(pass_condition)
 
     @mock.patch('sysinv.db.api.get_instance')
     def test_get_system_vswitch_labels_multiple_labels(self, mock_dbapi_get_instance):
         """Test if get_system_vswitch_labels returns a set with size > 1
          when multiple labels are found.
         """
+
+        OTHER_VSWITCH_LABEL = "other-vswitch=enabled"
+
         mock_hosts = self._get_mock_host_list([
             {
                 "id": 1,
@@ -564,20 +577,29 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             1: {
                 'openstack-compute-node': 'enabled',
                 'openvswitch': 'enabled',
-                'openvswitch-dpdk': 'enabled',
+                'dpdk': 'enabled',
+                'other-vswitch': 'enabled',
             }
         })
+
+        mock_label_combinations = (app_constants.VSWITCH_ALLOWED_COMBINATIONS +
+                                   [{OTHER_VSWITCH_LABEL}])
 
         db_instance = mock_dbapi_get_instance.return_value
         db_instance.ihost_get_list.return_value = mock_hosts
         db_instance.label_get_all.return_value = mock_labels
 
-        result = app_utils.get_system_vswitch_labels(db_instance)
-        self.assertEqual(len(result), 2)
+        labels, conflicts = app_utils.get_system_vswitch_labels(db_instance,
+                                                                mock_label_combinations)
+
+        pass_condition = (conflicts == {app_constants.OPENVSWITCH_LABEL,
+                                        app_constants.DPDK_LABEL, OTHER_VSWITCH_LABEL}
+                          and len(labels) == 0)
+        self.assertTrue(pass_condition)
 
     @mock.patch('sysinv.db.api.get_instance')
     def test_get_system_vswitch_labels_multiple_hosts_same_label(self, mock_dbapi_get_instance):
-        """Test if get_system_vswitch_labels returns one label when
+        """Test if get_system_vswitch_labels returns one label
          when multiple hosts with the same label are found.
         """
         mock_hosts = self._get_mock_host_list([
@@ -610,8 +632,11 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance.ihost_get_list.return_value = mock_hosts
         db_instance.label_get_all.return_value = mock_labels
 
-        result = app_utils.get_system_vswitch_labels(db_instance)
-        self.assertEqual(result, {app_constants.OPENVSWITCH_LABEL})
+        labels, conflicts = app_utils.get_system_vswitch_labels(db_instance)
+
+        pass_condition = (labels == {app_constants.OPENVSWITCH_LABEL}
+                          and len(conflicts) == 0)
+        self.assertTrue(pass_condition)
 
     @mock.patch('sysinv.db.api.get_instance')
     def test_get_system_vswitch_labels_multiple_hosts_two_labels(self, mock_dbapi_get_instance):
@@ -640,7 +665,8 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             },
             2: {
                 'openstack-compute-node': 'enabled',
-                'openvswitch-dpdk': 'enabled',
+                'openvswitch': 'enabled',
+                'dpdk': 'enabled',
             }
         })
 
@@ -648,11 +674,14 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance.ihost_get_list.return_value = mock_hosts
         db_instance.label_get_all.return_value = mock_labels
 
-        result = app_utils.get_system_vswitch_labels(db_instance)
-        self.assertEqual(len(result), 2)
+        labels, conflicts = app_utils.get_system_vswitch_labels(db_instance)
+
+        pass_condition = (conflicts == {app_constants.OPENVSWITCH_LABEL, app_constants.DPDK_LABEL}
+                          and len(labels) == 0)
+        self.assertTrue(pass_condition)
 
     @mock.patch('sysinv.db.api.get_instance')
-    def test_get_system_vswitch_labels_multiple_hosts_one_labels(self, mock_dbapi_get_instance):
+    def test_get_system_vswitch_labels_multiple_hosts_one_label(self, mock_dbapi_get_instance):
         """Test if get_system_vswitch_labels returns multiple labels with one as 'none' when
          when one of the hosts is unlabeled.
         """
@@ -685,27 +714,109 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance.ihost_get_list.return_value = mock_hosts
         db_instance.label_get_all.return_value = mock_labels
 
-        result = app_utils.get_system_vswitch_labels(db_instance)
-        self.assertEqual(result, {app_constants.VSWITCH_LABEL_NONE,
-                                  app_constants.OPENVSWITCH_LABEL})
+        labels, conflicts = app_utils.get_system_vswitch_labels(db_instance)
+
+        pass_condition = (conflicts == {app_constants.VSWITCH_LABEL_NONE}
+                          and labels == {app_constants.OPENVSWITCH_LABEL})
+        self.assertTrue(pass_condition)
 
     @mock.patch('k8sapp_openstack.utils._get_value_from_application',
-            return_value=app_constants.OPENVSWITCH_LABEL)
-    def test_get_current_vswitch_label_openvswitch(self, *_):
+            return_value=[app_constants.OPENVSWITCH_LABEL])
+    def test_get_current_vswitch_label_openvswitch_from_file(self, *_):
         """Test if get_current_vswitch_label returns the Openvswitch label when
          it is on the override file
         """
         result = app_utils.get_current_vswitch_label()
-        self.assertTrue(result, app_constants.OPENVSWITCH_LABEL)
+        self.assertEqual(result, {app_constants.OPENVSWITCH_LABEL})
 
     @mock.patch('k8sapp_openstack.utils._get_value_from_application',
-            return_value=app_constants.OPENVSWITCH_DPDK_LABEL)
-    def test_get_current_vswitch_label_openvswitch_dpdk(self, *_):
+            return_value=[app_constants.OPENVSWITCH_LABEL, app_constants.DPDK_LABEL])
+    def test_get_current_vswitch_label_openvswitch_dpdk_from_file(self, *_):
         """Test if get_current_vswitch_label returns the Openvswitch-DPDK label when
          it is on the override file
         """
         result = app_utils.get_current_vswitch_label()
-        self.assertTrue(result, app_constants.OPENVSWITCH_DPDK_LABEL)
+        self.assertEqual(result, {app_constants.OPENVSWITCH_LABEL, app_constants.DPDK_LABEL})
+
+    @mock.patch('k8sapp_openstack.utils.get_system_vswitch_labels',
+                return_value=({app_constants.OPENVSWITCH_LABEL}, set()))
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=['none'])
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_current_vswitch_label_openvswitch(self, *_):
+        """
+        Test if get_current_vswitch_label returns the Openvswitch label
+        """
+        result = app_utils.get_current_vswitch_label()
+        self.assertEqual(result, {app_constants.OPENVSWITCH_LABEL})
+
+    @mock.patch('k8sapp_openstack.utils.get_system_vswitch_labels',
+                return_value=({app_constants.OPENVSWITCH_LABEL, app_constants.DPDK_LABEL},
+                              set()))
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=['none'])
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_current_vswitch_label_openvswitch_dpdk(self, *_):
+        """
+        Test if get_current_vswitch_label returns the Openvswitch-DPDK label
+        """
+        result = app_utils.get_current_vswitch_label()
+        self.assertEqual(result, {app_constants.OPENVSWITCH_LABEL, app_constants.DPDK_LABEL})
+
+    @mock.patch('k8sapp_openstack.utils.get_system_vswitch_labels',
+                return_value=(set(), set()))
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=['none'])
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_current_vswitch_label_empty(self, *_):
+        """
+        Test if get_current_vswitch_label returns empty set when both labels and
+        conflicts are empty
+        """
+        result = app_utils.get_current_vswitch_label()
+        self.assertEqual(len(result), 0)
+
+    @mock.patch('k8sapp_openstack.utils.get_system_vswitch_labels',
+                return_value=({app_constants.OPENVSWITCH_LABEL},
+                              {app_constants.VSWITCH_LABEL_NONE}))
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=['none'])
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_current_vswitch_label_conflict_none(self, *_):
+        """
+        Test if get_current_vswitch_label returns empty set when there are hosts
+        without vswitch labels
+        """
+        result = app_utils.get_current_vswitch_label()
+        self.assertEqual(len(result), 0)
+
+    @mock.patch('k8sapp_openstack.utils.get_system_vswitch_labels',
+                return_value=(set(), {
+                    app_constants.VSWITCH_LABEL_NONE,
+                    app_constants.OPENVSWITCH_LABEL, app_constants.DPDK_LABEL}))
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=['none'])
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_current_vswitch_label_conflict_none_and_mismatch(self, *_):
+        """
+        Test if get_current_vswitch_label returns empty set when there are hosts
+        without vswitch labels and hosts with mismatched labels
+        """
+        result = app_utils.get_current_vswitch_label()
+        self.assertEqual(len(result), 0)
+
+    @mock.patch('k8sapp_openstack.utils.get_system_vswitch_labels',
+                return_value=(set(), {app_constants.OPENVSWITCH_LABEL, app_constants.DPDK_LABEL}))
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=['none'])
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_current_vswitch_label_conflict_mismatch(self, *_):
+        """
+        Test if get_current_vswitch_label returns empty set when there are hosts
+        with mismatched labels
+        """
+        result = app_utils.get_current_vswitch_label()
+        self.assertEqual(len(result), 0)
 
     @mock.patch('sysinv.helm.utils.call_fluxcd_reconciliation')
     def test_force_app_reconciliation(self, mock_fluxcd_reconciliation):

@@ -396,32 +396,36 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             LOG.error(f"{err_msg}")
             raise exception.LifecycleSemanticCheckException(err_msg)
 
-    def _get_vswitch_label_type_names(self):
-        return app_constants.VSWITCH_LABEL_TYPE_NAMES
+    def _get_vswitch_label_combinations(self):
+        return app_constants.VSWITCH_ALLOWED_COMBINATIONS
 
     def _semantic_check_vswitch_config(self, dbapi):
-        labels = app_utils.get_system_vswitch_labels(dbapi, self._get_vswitch_label_type_names())
 
-        if len(labels) == 0:
-            raise exception.LifecycleSemanticCheckException(
-                "There are no openstack-enabled compute nodes")
-        elif app_constants.VSWITCH_LABEL_NONE in labels:
-            labels.remove(app_constants.VSWITCH_LABEL_NONE)
+        labels, conflicts = app_utils.get_system_vswitch_labels(
+            dbapi, self._get_vswitch_label_combinations())
+
+        if len(conflicts) == 0:
             if len(labels) == 0:
                 raise exception.LifecycleSemanticCheckException(
-                    "None of the openstack-enabled compute nodes have vswitch configured")
-            elif len(labels) == 1:
-                raise exception.LifecycleSemanticCheckException(
-                    "There are openstack-enabled compute nodes with no vswitch configuration")
+                    "There are no openstack-enabled compute nodes")
+        elif app_constants.VSWITCH_LABEL_NONE in conflicts:
+            conflicts.remove(app_constants.VSWITCH_LABEL_NONE)
+            if len(conflicts) == 0:
+                if len(labels) == 0:
+                    raise exception.LifecycleSemanticCheckException(
+                        "None of the openstack-enabled compute nodes have vswitch configured")
+                else:
+                    raise exception.LifecycleSemanticCheckException(
+                        "There are openstack-enabled compute nodes with no vswitch configuration")
             else:
                 raise exception.LifecycleSemanticCheckException(
                     "There are openstack-enabled compute nodes with no vswitch configuration "
                     "and there are conflicting vswitch configurations: "
-                    f"{', '.join(sorted(labels))}")
-        elif len(labels) > 1:
+                    f"{', '.join(sorted(conflicts))}")
+        elif len(conflicts) >= 1:
             raise exception.LifecycleSemanticCheckException(
                 "There are conflicting vswitch configurations: "
-                f"{', '.join(sorted(labels))}")
+                f"{', '.join(sorted(conflicts))}")
 
     def _pre_apply_ldap_actions(self, app):
         """Perform pre apply LDAP-related actions.

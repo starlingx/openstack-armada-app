@@ -648,6 +648,42 @@ def get_openstack_enabled_compute_nodes(hosts, labels_by_host) -> list:
     return enabled_hosts
 
 
+def squash_collection_elements(collection) -> set:
+    """
+    Given a collection of iterable objects (sets, lists, tuples), squash all
+    the unique elements into one single set
+
+    Args:
+        collection (collection of iterables): The collecton of iterables that will be
+         squashed
+
+    Returns:
+        set: A set containing the unique elements found in the collection items.
+    """
+    squashed = set()
+    for item in collection:
+        squashed.update(i for i in item)
+    return squashed
+
+
+def is_a_valid_vswitch_label_combination(vswitch_labels, label_combinations=None) -> bool:
+    """
+    Check if a given set of vswitch labels is a valid combination of labels.
+
+    Args:
+        vswitch_labels (set): Set of vswitch labels to be validated.
+        label_combinations (list, optional): If given, use this list of label
+         combinations to build the set of vswitch labels. If not given, it will
+         use the VSWITCH_ALLOWED_COMBINATIONS constant instead.
+
+    Returns:
+        bool: True if combination is valid, False otherwise
+    """
+    if not label_combinations:
+        label_combinations = app_constants.VSWITCH_ALLOWED_COMBINATIONS
+    return vswitch_labels in label_combinations
+
+
 def get_labels_by_host(labels) -> dict:
     """
     Given a set of labels, build a dict in the format 'host_id':'label=value' for
@@ -666,26 +702,31 @@ def get_labels_by_host(labels) -> dict:
     return labels_by_host
 
 
-def get_system_vswitch_labels(db, vswitch_label_type_names=None) -> set:
+def get_system_vswitch_labels(db, label_combinations=None) -> tuple[set, set]:
     """
     Check for the vswitch labels in the system and returns them as a set.
 
     Args:
         db (dbapi instance): Instance of the API's database.
-        vswitch_label_type_names (dict, optional): If passed as argument, the vswitch labels
-         will be checked against the contents of this parameter. If set to None it will
-         load the default values in the 'constants' definition file.
+        label_combinations (list, optional): If given, use this list of label
+         combinations to build the set of vswitch labels. If not given, it will
+         use the VSWITCH_ALLOWED_COMBINATIONS constant instead.
 
     Returns:
-        set: The current system's vswitch labels, each one as a string
-        in the format 'name=enabled/disabled'.
+        tuple: A tuple of 2 sets: (system_labels, conflicts). The first element
+        contains the set of valid system labels found and the second one is the
+        set of conflicting labels.
     """
 
-    vswitch_labels = set()
+    system_vswitch_labels = set()
+    conflicts = set()
 
-    if not vswitch_label_type_names:
-        vswitch_label_type_names = app_constants.VSWITCH_LABEL_TYPE_NAMES
-    available_vswitch_labels = set(vswitch_label_type_names.keys())
+    valid_combinations = set()
+    invalid_combinations = set()
+
+    if not label_combinations:
+        label_combinations = app_constants.VSWITCH_ALLOWED_COMBINATIONS
+    allowed_labels = squash_collection_elements(label_combinations)
 
     hosts = db.ihost_get_list()
     labels = db.label_get_all()
@@ -694,121 +735,149 @@ def get_system_vswitch_labels(db, vswitch_label_type_names=None) -> set:
     enabled_hosts = get_openstack_enabled_compute_nodes(hosts, labels_by_host)
 
     if not enabled_hosts:
-        return set()
+        # If no hosts were found, both sets must be empty
+        return set(), set()
 
+    # Here we loop through all enabled hosts, getting the vswitch labels combninations for
+    #  each one. Then we group the combinations as tuples into 'valid' and 'invalid' sets.
+    #  At the end we check if there are invalid combinations or there are more than one
+    #  valid combination to add them to the 'conflicts' set.
     for host in enabled_hosts:
-        # Gets the labels that match the 'available_vswitch_labels' set.
-        host_vswitch_labels = available_vswitch_labels.intersection(labels_by_host.get(host.id))
-        if len(host_vswitch_labels) == 0:
-            host_vswitch_labels = {app_constants.VSWITCH_LABEL_NONE}
-        vswitch_labels = vswitch_labels | host_vswitch_labels
+        # Get the labels that match the 'allowed_labels' set.
+        host_vswitch_labels = allowed_labels.intersection(labels_by_host.get(host.id))
+        if is_a_valid_vswitch_label_combination(host_vswitch_labels, label_combinations):
+            # Add the valid combination on this host to the 'valid' set
+            valid_combinations.add(tuple(host_vswitch_labels))
+        else:
+            # Invalid combination found on the host: add to the 'invalid' set
+            if len(host_vswitch_labels) == 0:
+                invalid_combinations.add((app_constants.VSWITCH_LABEL_NONE,))
+            else:
+                invalid_combinations.add(tuple(host_vswitch_labels))
 
-    return vswitch_labels
+    # Checking if different combinations were found on different hosts. If true, add
+    #  to the invalid set.
+    if len(valid_combinations) > 1:
+        invalid_combinations.update(valid_combinations)
+        valid_combinations = set()
+
+    # Squashing the valid vswitch label combinations into a set of labels
+    system_vswitch_labels = squash_collection_elements(valid_combinations)
+
+    # Squashing the invalid vswitch label combinations into a set of labels
+    conflicts = squash_collection_elements(invalid_combinations)
+
+    return system_vswitch_labels, conflicts
 
 
-def get_current_vswitch_label(vswitch_label_type_names=None) -> str:
+def get_current_vswitch_label(label_combinations=None) -> set:
     """
     Returns the current vswitch label on the system.
 
     Args:
-        vswitch_label_type_names (dict, optional): If passed as argument, the vswitch labels
-         will be checked against the contents of this parameter. If set to None it will
-         load the default values in the 'constants' definition file.
+        label_combinations (list, optional): If given, use this list of label
+         combinations to build the set of vswitch labels. If not given, it will
+         use the VSWITCH_ALLOWED_COMBINATIONS constant instead.
 
     Returns:
-        str: the current valid vswitch label of the system; returns empty if invalid/not found
+        set: the current valid vswitch label combination of the system;
+        returns empty if invalid/not found
     """
 
-    if not vswitch_label_type_names:
-        vswitch_label_type_names = app_constants.VSWITCH_LABEL_TYPE_NAMES
+    if not label_combinations:
+        label_combinations = app_constants.VSWITCH_ALLOWED_COMBINATIONS
 
-    vswitch_label = get_vswitch_label_from_override_file()
-    if vswitch_label in vswitch_label_type_names.keys():
+    current_vswitch_labels = get_vswitch_label_from_override_file()
+    if is_a_valid_vswitch_label_combination(current_vswitch_labels, label_combinations):
         LOG.debug("Vswitch label was found in override file.")
-        return vswitch_label
+        return current_vswitch_labels
 
     LOG.debug("Vswitch label was not found in override file. Searching compute labels.")
 
     # If vswitch label not found in file or invalid, try to search in the nodes' labels
     db = dbapi.get_instance()
     if not db:
-        LOG.error("Database API is not available")
-        return ""
+        LOG.error("Database API is not available.")
+        return set()
 
-    vswitch_labels = get_system_vswitch_labels(db, vswitch_label_type_names)
+    vswitch_labels, conflicts = get_system_vswitch_labels(db, label_combinations)
 
-    vswitch_label = ""
-    if len(vswitch_labels) == 1:
-        vswitch_label = next(iter(vswitch_labels))
-        if vswitch_label == app_constants.VSWITCH_LABEL_NONE:
-            LOG.error("No vswitch labels found on any openstack host in the system")
-            vswitch_label = ""
+    current_vswitch_labels = set()
+    if len(conflicts) == 0:
+        if len(vswitch_labels) > 0:
+            LOG.info(f"Vswitch labels found: {','.join(map(str, vswitch_labels))}.")
+            current_vswitch_labels = vswitch_labels
         else:
-            LOG.info(f"Found {vswitch_label} vswitch label")
-    elif len(vswitch_labels) > 1:
-        if app_constants.VSWITCH_LABEL_NONE not in vswitch_labels:
-            LOG.error("There are openstack hosts with divergent vswitch labels in the system.")
-        else:
-            LOG.error("There are openstack hosts with divergent vswitch labels in the system"
-                      " and/or there are openstack hosts without vswitch labels.")
+            LOG.error("There are no openstack-enabled compute nodes.")
     else:
-        LOG.error("There are no openstack-enabled compute nodes")
-    return vswitch_label
+        if len(conflicts) == 1:
+            if app_constants.VSWITCH_LABEL_NONE in conflicts:
+                if len(vswitch_labels) == 0:
+                    LOG.error("No vswitch labels found on any openstack host in the system.")
+                else:
+                    LOG.error("There are openstack hosts without vswitch labels.")
+        else:
+            if app_constants.VSWITCH_LABEL_NONE in conflicts:
+                LOG.error("There are openstack hosts with divergent vswitch labels in the system"
+                      " and/or there are openstack hosts without vswitch labels.")
+            else:
+                LOG.error("There are openstack hosts with divergent vswitch labels in the system.")
+
+    return current_vswitch_labels
 
 
-def get_vswitch_label_from_override_file() -> str:
+def get_vswitch_label_from_override_file() -> set:
     """
     Searches for the vswitch type label on the Neutron chart override file.
 
     Returns:
-        str: Vswitch type label if found; VSWITCH_LABEL_NONE if not found.
+        set: Vswitch type labels if found; {VSWITCH_LABEL_NONE} if not found.
     """
-    return _get_value_from_application(
-        default_value=app_constants.VSWITCH_LABEL_NONE,
+    labels = _get_value_from_application(
+        default_value=[app_constants.VSWITCH_LABEL_NONE],
         chart_name=app_constants.HELM_CHART_NEUTRON,
-        override_name="vswitch_type"
+        override_name="vswitch_labels"
     )
+    return set(labels)
 
 
-def is_vswitch_enabled(vswitch_type_label, vswitch_label_type_names=None) -> bool:
+def is_vswitch_combination_enabled(vswitch_combination, label_combinations=None) -> bool:
     """
-    Check if the given vswitch label is enabled.
+    Check if the given vswitch label combination is enabled.
 
     Args:
-        vswitch_type_label (str): The vswitch label to be checked.
-        vswitch_label_type_names (dict, optional): If passed as argument, the vswitch labels
-         will be checked against the contents of this parameter. If set to None it will
-         load the default values in the 'constants' definition file.
+        vswitch_combination (set): The vswitch label combination to be checked.
+        label_combinations (list, optional): Collection of possible vswitch label combinations
 
     Returns:
         bool: True if vswitch label is found and enabled.
     """
-
-    vswitch_label = get_current_vswitch_label(vswitch_label_type_names)
-
-    return vswitch_label == vswitch_type_label
+    vswitch_labels = get_current_vswitch_label(label_combinations)
+    return vswitch_labels == vswitch_combination
 
 
-def is_openvswitch_enabled(vswitch_label_type_names=None) -> bool:
+def is_openvswitch_enabled(label_combinations=None) -> bool:
     """
     Check if openvswitch is enabled.
 
     Returns:
         bool: True if openvswitch is enabled.
-        vswitch_label_type_names (dict, optional): Collection of possible vswitch labels
+        label_combinations (list, optional): Collection of possible vswitch label combinations
     """
-    return is_vswitch_enabled(app_constants.OPENVSWITCH_LABEL, vswitch_label_type_names)
+    return is_vswitch_combination_enabled({app_constants.OPENVSWITCH_LABEL}, label_combinations)
 
 
-def is_openvswitch_dpdk_enabled(vswitch_label_type_names=None) -> bool:
+def is_openvswitch_dpdk_enabled(label_combinations=None) -> bool:
     """
     Check if openvswitch-dpdk is enabled.
 
     Returns:
         bool: True if openvswitch-dpdk is enabled.
-        vswitch_label_type_names (dict, optional): Collection of possible vswitch labels
+        label_combinations (list, optional): Collection of possible vswitch label combinations
     """
-    return is_vswitch_enabled(app_constants.OPENVSWITCH_DPDK_LABEL, vswitch_label_type_names)
+    return is_vswitch_combination_enabled(
+        {app_constants.OPENVSWITCH_LABEL, app_constants.DPDK_LABEL}, label_combinations
+    )
 
 
 def send_cmd_read_response(cmd: list[str], log: bool = True) -> str:

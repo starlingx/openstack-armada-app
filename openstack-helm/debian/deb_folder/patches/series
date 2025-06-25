@@ -22,3 +22,4 @@
 0022-horizon-fix-templating-of-list-of-strings-for-CSRF_T.patch
 0023-Change-uWSGI-socket-to-allow-IPv6-binding.patch
 0024-Enable-ceph-pool-creation-for-AIO-systems.patch
+0025-Add-IPv6-compatibility-to-neutron-openvswitch-agent.patch

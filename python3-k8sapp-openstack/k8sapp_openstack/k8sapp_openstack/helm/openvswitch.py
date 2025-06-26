@@ -24,7 +24,7 @@ class OpenvswitchHelm(openstack.OpenstackBaseHelm):
             return False
 
         # Chart is enabled, let's check the node label
-        return self.is_openvswitch_enabled() or self.is_openvswitch_dpdk_enabled()
+        return self.is_openvswitch_enabled() and not self.is_openvswitch_dpdk_enabled()
 
     def execute_manifest_updates(self, operator):
         # On application load, this chart in not included in the compute-kit
@@ -43,7 +43,11 @@ class OpenvswitchHelm(openstack.OpenstackBaseHelm):
 
     def get_overrides(self, namespace=None):
         overrides = {
-            common.HELM_NS_OPENSTACK: {}
+            common.HELM_NS_OPENSTACK: {
+                'conf': {
+                    'ovs_dpdk': self.is_openvswitch_dpdk_enabled()
+                }
+            }
         }
 
         if namespace in self.SUPPORTED_NAMESPACES:

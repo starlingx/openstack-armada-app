@@ -597,6 +597,11 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             resource_name='mariadb'
         )
 
+        # Force FLuxCD reconciliation for all the application helmreleases.
+        # By default the AppFwk only force reconciliation for app updates,
+        # but not for app recovery
+        app_utils.force_app_reconciliation(app_op, app)
+
     def _post_update_image_actions(self, app):
         """Perform post update actions, deleting residual images.
 

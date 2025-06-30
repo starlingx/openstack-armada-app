@@ -21,8 +21,10 @@ from oslo_serialization import base64
 from sysinv.common import constants
 from sysinv.common import kubernetes
 from sysinv.common import utils as cutils
+from sysinv.conductor import kube_app
 from sysinv.db import api as dbapi
 from sysinv.helm import common as helm_common
+from sysinv.helm import utils as helm_utils
 import yaml
 
 from k8sapp_openstack.common import constants as app_constants
@@ -1277,3 +1279,31 @@ def get_image_rook_ceph():
         chart_name=app_constants.HELM_CHART_CLIENTS,
         override_name=f'images.tags.{app_constants.CEPH_ROOK_IMAGE_OVERRIDE}'
     )
+
+
+def force_app_reconciliation(app_op: kube_app.AppOperator,
+                             app: kube_app.AppOperator.Application):
+    """Force FluxCD reconciliation for all the app helmreleases
+
+    Args:
+        app_op (AppOperator): System Inventory AppOperator object
+        app (AppOperator.Application): Application we are recovering from
+    """
+    charts = {
+        c.metadata_name: {
+            "namespace": c.namespace,
+            "chart_label": c.chart_label,
+            "helm_repo_name": c.helm_repo_name
+        }
+        for c in app_op._get_list_of_charts(app)
+    }
+    for release_name, chart_obj in list(charts.items()):
+        LOG.info(f"Forcing FluxCD reconciliation for helmrelease {release_name}"
+                 f" of application {app.name} {app.version}")
+        try:
+            helm_utils.call_fluxcd_reconciliation(release_name,
+                                                  chart_obj["namespace"])
+        except Exception as e:
+            LOG.error(f"Error while forcing FluxCD reconciliation for "
+                      f"helmrelease {release_name} of application {app.name} "
+                      f"{app.version}: {e}")

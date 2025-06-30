@@ -706,3 +706,49 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         """
         result = app_utils.get_current_vswitch_label()
         self.assertTrue(result, app_constants.OPENVSWITCH_DPDK_LABEL)
+
+    @mock.patch('sysinv.helm.utils.call_fluxcd_reconciliation')
+    def test_force_app_reconciliation(self, mock_fluxcd_reconciliation):
+        """Test force_app_reconciliation to force fluxcd reconciliation for all
+        the app helm releases
+        """
+        helm_releases = [
+            "cinder",
+            "clients",
+            "fm-rest-api",
+            "glance",
+            "heat",
+            "horizon",
+            "ingress-nginx-openstack",
+            "keystone",
+            "libvirt",
+            "mariadb",
+            "memchaced",
+            "neutron",
+            "nginx-ports-control",
+            "nova",
+            "nova-api-proxy",
+            "openvswitch",
+            "pci-irq-affinity-agent",
+            "placement",
+            "rabbitmq"
+        ]
+        mock_chart_list = []
+        for chart in helm_releases:
+            mock_chart = mock.MagicMock()
+            mock_chart.metadata_name = chart
+            mock_chart.chart_label = chart
+            mock_chart.namespace = "openstack"
+            mock_chart.helm_repo_name = "starlingx"
+            mock_chart_list.append(mock_chart)
+        mock_app_op = mock.MagicMock()
+        mock_app_op._get_list_of_charts.return_value = mock_chart_list
+        mock_app = mock.MagicMock()
+        mock_app.name = 'stx-openstack'
+        mock_app.version = '25.09-0'
+
+        app_utils.force_app_reconciliation(mock_app_op, mock_app)
+
+        # Asserts that reconciliation is called for all the helm releases
+        for release in helm_releases:
+            mock_fluxcd_reconciliation.assert_any_call(release, "openstack")

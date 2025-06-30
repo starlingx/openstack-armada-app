@@ -104,13 +104,15 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         else:
             self.fail("LifecycleSemanticCheckException was not raised")
 
+    @mock.patch('k8sapp_openstack.utils.force_app_reconciliation')
     @mock.patch('k8sapp_openstack.utils.delete_kubernetes_resource')
     @mock.patch('k8sapp_openstack.utils.get_app_version_list',
                 return_value=['25.03-0', '25.09-0'])
     def test__recover_app_resources_failed_update(
         self,
         mock_get_app_version_list,
-        mock_delete_kubernetes_resource
+        mock_delete_kubernetes_resource,
+        mock_force_app_reconciliation
     ):
         """Test _recover_app_resources_failed_update for the app update
         operation
@@ -130,6 +132,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             resource_type='helmrelease',
             resource_name='mariadb'
         )
+        mock_force_app_reconciliation.assert_called_once()
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
     def test__post_apply(self, mock_app_utils, *_):

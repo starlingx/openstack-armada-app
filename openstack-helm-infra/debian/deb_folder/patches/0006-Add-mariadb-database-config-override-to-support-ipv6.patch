@@ -4,54 +4,77 @@ Date: Thu, 28 May 2020 08:03:42 +0000
 Subject: [PATCH] Add mariadb database config override to support ipv6
 
 Signed-off-by: Liu, ZhipengS <zhipengs.liu@intel.com>
-Change-Id: Ib00ac93863f342d7b8d36d9a2fe5c1e558bcc71d
+[ Enable Values.conf.database.config_override for mariadb option wsrep_provider_options override ]
+Signed-off-by: Chen, Haochuan Z <haochuan.z.chen@intel.com>
+[ Update the bind_address for IPv6]
+[ Update the gmcast listen_addrs for IPv6]
+[ Update "mariabackup" method to "rsync" .
+Taking the state snapshot between nodes was crashing the multinode deployments.]
+Signed-off-by: Johnny Chia <johnny.chialun@windriver.com>
 ---
- mariadb/templates/configmap-etc.yaml | 8 ++++++++
- mariadb/templates/statefulset.yaml   | 2 +-
- mariadb/values.yaml                  | 1 +
- 3 files changed, 10 insertions(+), 1 deletion(-)
+ mariadb/templates/configmap-etc.yaml |  5 +++++
+ mariadb/templates/statefulset.yaml   |  6 ++++++
+ mariadb/values.yaml                  | 10 ++++++++++
+ 3 files changed, 21 insertions(+)
 
 diff --git a/mariadb/templates/configmap-etc.yaml b/mariadb/templates/configmap-etc.yaml
-index 5367f18d..961cec26 100644
+index 5367f18d..e7bdba35 100644
 --- a/mariadb/templates/configmap-etc.yaml
 +++ b/mariadb/templates/configmap-etc.yaml
-@@ -24,6 +24,14 @@ data:
- {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "00_base" ) "key" "00-base.cnf" ) | indent 2 }}
+@@ -25,5 +25,10 @@ data:
  {{- if $envAll.Values.conf.database.config_override }}
  {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "config_override" ) "key" "20-override.cnf" ) | indent 2 }}
-+{{- else }}
+ {{- end }}
 +# A user override for conf.database.config_override might break the IPv6 system overrides, need including below ipv6
 +# config for ipv6 case in user override as well.
 +{{- if $envAll.Values.manifests.config_ipv6 }}
-+  20-override.cnf: |
-+    [mysqld]
-+    bind_address=::
++{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "config_ipv6" ) "key" "30-override.cnf" ) | indent 2 }}
 +{{- end }}
- {{- end }}
  {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "99_force" ) "key" "99-force.cnf" ) | indent 2 }}
  {{- end }}
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 350fe81c..4198a932 100644
+index 350fe81c..5be9ab46 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -267,7 +267,7 @@ spec:
-               mountPath: /etc/mysql/conf.d/00-base.cnf
-               subPath: 00-base.cnf
-               readOnly: true
--            {{- if .Values.conf.database.config_override }}
-+            {{- if or (.Values.conf.database.config_override) (.Values.manifests.config_ipv6) }}
-             - name: mariadb-etc
-               mountPath: /etc/mysql/conf.d/20-override.cnf
+@@ -273,6 +273,12 @@ spec:
                subPath: 20-override.cnf
+               readOnly: true
+             {{- end }}
++            {{- if .Values.manifests.config_ipv6 }}
++            - name: mariadb-etc
++              mountPath: /etc/mysql/conf.d/30-override.cnf
++              subPath: 30-override.cnf
++              readOnly: true
++            {{- end }}
+             - name: mariadb-etc
+               mountPath: /etc/mysql/conf.d/99-force.cnf
+               subPath: 99-force.cnf
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index a418d4dc..268e73bf 100644
+index a418d4dc..34eb665d 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -729,4 +729,5 @@ manifests:
+@@ -507,6 +507,15 @@ conf:
+     # config_override: |-
+     #   [mysqld]
+     #   wsrep_slave_threads=1
++    config_ipv6: |
++      [mysqld]
++      bind_address=::
++      wsrep_sst_method=rsync
++      {{ if .Values.manifests.certificates }}
++      wsrep_provider_options="socket.ssl_ca=/etc/mysql/certs/ca.crt; socket.ssl_cert=/etc/mysql/certs/tls.crt; socket.ssl_key=/etc/mysql/certs/tls.key; gmcast.listen_addr=tcp://[::]:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
++      {{ else }}
++      wsrep_provider_options="evs.suspect_timeout=PT30S; gmcast.peer_timeout=PT15S; gmcast.listen_addr=tcp://[::]:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
++      {{ end }}
+     99_force: |
+       [mysqld]
+       datadir=/var/lib/mysql
+@@ -729,4 +738,5 @@ manifests:
    service_error: false
    service: true
    statefulset: true
 +  config_ipv6: false
  ...
--- 
-2.34.1
+--
+2.43.0
+

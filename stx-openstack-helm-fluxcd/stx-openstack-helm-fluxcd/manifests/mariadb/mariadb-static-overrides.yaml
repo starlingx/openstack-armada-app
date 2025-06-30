@@ -76,4 +76,10 @@ conf:
       [mysqld]
       wait_timeout=3600
       wsrep_provider_options="gmcast.listen_addr=tcp://0.0.0.0:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
+    config_ipv6: |
+      [mysqld]
+      wait_timeout=3600
+      wsrep_provider_options="gmcast.listen_addr=tcp://[::]:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
+      bind_address=::
+      wsrep_sst_method=rsync
 ...

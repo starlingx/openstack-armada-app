@@ -1,0 +1,90 @@
+From 5aa6851cb3ac925d2fb00996fdd2d075b630df43 Mon Sep 17 00:00:00 2001
+From: Ingo Almendros Girao <ingo.almendrosgirao@windriver.com>
+Date: Wed, 25 Jun 2025 16:05:36 -0300
+Subject: [PATCH] Add IPv6 compatibility to neutron openvswitch agent
+
+This change adds automatic IP version detection to the neutron OVS
+agent initialization script.
+The fix introduces IP version auto-detection functions that
+dynamically choose between IPv4 and IPv6 commands based on the
+tunnel network CIDR format.
+
+Signed-off-by: Ingo Almendros Girao <ingo.almendrosgirao@windriver.com>
+---
+ .../_neutron-openvswitch-agent-init.sh.tpl    | 46 +++++++++++++++++--
+ 1 file changed, 43 insertions(+), 3 deletions(-)
+
+diff --git a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
+index bd0a64ac8..c843c5028 100644
+--- a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
++++ b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
+@@ -24,6 +24,42 @@ OVS_PID=$(cat /run/openvswitch/ovs-vswitchd.pid)
+ OVS_CTL=/run/openvswitch/ovs-vswitchd.${OVS_PID}.ctl
+ chown neutron: ${OVS_CTL}
+
++# IPv6/IPv4 compatibility functions
++function detect_ip_version {
++  local cidr="$1"
++  if [[ "$cidr" == *":"* ]]; then
++    echo "6"
++  else
++    echo "4"
++  fi
++}
++
++function get_tunnel_interface_fixed {
++  local cidr="$1"
++  local ip_version=$(detect_ip_version "$cidr")
++
++  if [[ "$ip_version" == "6" ]]; then
++    if [[ "$cidr" == "::/0" ]]; then
++      ip -6 route show default | awk '/dev/ { print $5; exit }'
++    else
++      ip -6 route show "$cidr" | awk '/dev/ { print $3; exit }'
++    fi
++  else
++    ip -4 route list "$cidr" | awk -F dev '{ print $2; exit }' | awk '{ print $1 }'
++  fi
++}
++
++function get_ip_address_from_interface_fixed {
++  local interface=$1
++  local ip_version="$2"
++
++  if [[ "$ip_version" == "6" ]]; then
++    ip -6 -o addr show "$interface" | awk '/scope global/ { print $4; exit }' | awk -F/ '{ print $1 }'
++  else
++    ip -4 -o addr s "${interface}" | awk '{ print $4; exit }' | awk -F '/' 'NR==1 {print $1}'
++  fi
++}
++
+ function get_dpdk_config_value {
+   values=${@:1:$#-1}
+   filter=${!#}
+@@ -452,8 +488,11 @@ if [[ -n "${tunnel_types}" ]] ; then
+             tunnel_network_cidr="0/0"
+         fi
+         # If there is not tunnel network gateway, exit
+-        tunnel_interface=$(ip -4 route list ${tunnel_network_cidr} | awk -F 'dev' '{ print $2; exit }' \
+-            | awk '{ print $1 }') || exit 1
++        tunnel_interface=$(get_tunnel_interface_fixed "${tunnel_network_cidr}")
++        if [ -z "${tunnel_interface}" ] ; then
++            echo "Could not find tunnel interface for CIDR: ${tunnel_network_cidr}"
++            exit 1
++        fi
+     fi
+ fi
+
+@@ -466,7 +505,8 @@ fi
+
+ # determine local-ip dynamically based on interface provided but only if tunnel_types is not null
+ if [[ -n "${tunnel_types}" ]] ; then
+-  LOCAL_IP=$(get_ip_address_from_interface ${tunnel_interface})
++  ip_version=$(detect_ip_version "${tunnel_network_cidr}")
++  LOCAL_IP=$(get_ip_address_from_interface_fixed ${tunnel_interface} ${ip_version})
+   if [ -z "${LOCAL_IP}" ] ; then
+     echo "Var LOCAL_IP is empty"
+     exit 1
+--
+2.34.1
+

@@ -1,28 +1,29 @@
 #
 # Copyright (c) 2019 Intel, Inc.
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 from sysinv.common import exception
-from sysinv.helm import base
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.helm import openstack
 
 
-class NginxPortsControlHelm(base.BaseHelm):
+class NginxPortsControlHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for nginx-ports-control chart"""
 
     CHART = app_constants.HELM_CHART_NGINX_PORTS_CONTROL
     HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_NGINX_PORTS_CONTROL
-    SUPPORTED_NAMESPACES = \
-        base.BaseHelm.SUPPORTED_NAMESPACES + [common.HELM_NS_OPENSTACK]
 
     def get_overrides(self, namespace=None):
         overrides = {
             common.HELM_NS_OPENSTACK: {
+                'manifests': {
+                    'global_network_policy': True
+                }
             }
         }
 

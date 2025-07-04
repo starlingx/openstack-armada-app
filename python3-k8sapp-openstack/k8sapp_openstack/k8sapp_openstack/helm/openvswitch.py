@@ -45,7 +45,9 @@ class OpenvswitchHelm(openstack.OpenstackBaseHelm):
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'conf': {
-                    'ovs_dpdk': self.is_openvswitch_dpdk_enabled()
+                    'ovs_dpdk': {
+                        'enabled': self.is_openvswitch_dpdk_enabled()
+                    }
                 }
             }
         }

@@ -1376,3 +1376,33 @@ def force_app_reconciliation(app_op: kube_app.AppOperator,
             LOG.error(f"Error while forcing FluxCD reconciliation for "
                       f"helmrelease {release_name} of application {app.name} "
                       f"{app.version}: {e}")
+
+
+def get_hosts_uuids() -> list[dict]:
+    """
+    Retrieve a list containing dicts relating each compute node
+    hostname in the system with its respective UUID
+
+    Returns:
+        list[dicts]: list of dicts containing the keys "name" and "uuid"
+        for each compute node found.
+    """
+    db = dbapi.get_instance()
+    hosts = db.ihost_get_list()
+    labels = db.label_get_all()
+
+    hosts_uuids_list = []
+
+    labels_by_host = get_labels_by_host(labels)
+    enabled_hosts = get_openstack_enabled_compute_nodes(hosts, labels_by_host)
+
+    for host in enabled_hosts:
+        hostname = str(host.hostname)
+        uuid = str(host.uuid)
+        hosts_uuids_list.append(
+            {
+                'name': hostname,
+                'uuid': uuid,
+            }
+        )
+    return hosts_uuids_list

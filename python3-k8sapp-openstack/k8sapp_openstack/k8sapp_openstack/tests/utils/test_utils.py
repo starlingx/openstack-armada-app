@@ -863,3 +863,152 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         # Asserts that reconciliation is called for all the helm releases
         for release in helm_releases:
             mock_fluxcd_reconciliation.assert_any_call(release, "openstack")
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_hosts_uuids(self, mock_dbapi_get_instance):
+        """
+        Test if get_hosts_uuids returns the given enabled compute nodes.
+        Must return data from all nodes.
+        """
+
+        MOCK_UUID_1 = "01234567-abcd-0123-abcd-0123456789ef"
+        MOCK_UUID_2 = "76543210-dcba-3210-dcba-fe9876543210"
+
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+                "hostname": "host1",
+                "uuid": MOCK_UUID_1
+            },
+            {
+                "id": 2,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+                "hostname": "host2",
+                "uuid": MOCK_UUID_2
+            },
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+            },
+            2: {
+                'openstack-compute-node': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        hosts_uuids = app_utils.get_hosts_uuids()
+
+        print(hosts_uuids)
+
+        self.assertTrue(all([
+            {'name': "host1", 'uuid': MOCK_UUID_1} in hosts_uuids,
+            {'name': "host2", 'uuid': MOCK_UUID_2} in hosts_uuids,
+        ]))
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_hosts_uuids_unprovisioned_locked(self, mock_dbapi_get_instance):
+        """
+        Test if get_hosts_uuids returns only the enabled compute nodes.
+        Must return data only for provisioned or unlocked nodes.
+        """
+
+        MOCK_UUID_1 = "01234567-abcd-0123-abcd-0123456789ef"
+        MOCK_UUID_2 = "76543210-dcba-3210-dcba-fe9876543210"
+
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.UNPROVISIONED,
+                "ihost_action": constants.LOCK_ACTION,
+                "subfunctions": constants.WORKER,
+                "hostname": "host1",
+                "uuid": MOCK_UUID_1
+            },
+            {
+                "id": 2,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+                "hostname": "host2",
+                "uuid": MOCK_UUID_2
+            },
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+            },
+            2: {
+                'openstack-compute-node': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        hosts_uuids = app_utils.get_hosts_uuids()
+
+        self.assertTrue(all([
+            {"name": "host1", "uuid": MOCK_UUID_1} not in hosts_uuids,
+            {"name": "host2", "uuid": MOCK_UUID_2} in hosts_uuids,
+        ]))
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_hosts_uuids_controller(self, mock_dbapi_get_instance):
+        """
+        Test if get_hosts_uuids returns only the enabled compute nodes.
+        Must return data only for worker nodes.
+        """
+
+        MOCK_UUID_1 = "01234567-abcd-0123-abcd-0123456789ef"
+        MOCK_UUID_2 = "76543210-dcba-3210-dcba-fe9876543210"
+
+        mock_hosts = self._get_mock_host_list([
+            {
+                "id": 1,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.CONTROLLER,
+                "hostname": "host1",
+                "uuid": MOCK_UUID_1
+            },
+            {
+                "id": 2,
+                "invprovision": constants.PROVISIONED,
+                "ihost_action": constants.UNLOCK_ACTION,
+                "subfunctions": constants.WORKER,
+                "hostname": "host2",
+                "uuid": MOCK_UUID_2
+            },
+        ])
+
+        mock_labels = self._get_mock_label_list({
+            1: {
+                'openstack-compute-node': 'enabled',
+            },
+            2: {
+                'openstack-compute-node': 'enabled',
+            }
+        })
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.ihost_get_list.return_value = mock_hosts
+        db_instance.label_get_all.return_value = mock_labels
+
+        hosts_uuids = app_utils.get_hosts_uuids()
+
+        self.assertTrue(all([
+            {"name": "host1", "uuid": MOCK_UUID_1} not in hosts_uuids,
+            {"name": "host2", "uuid": MOCK_UUID_2} in hosts_uuids,
+        ]))

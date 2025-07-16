@@ -19,6 +19,7 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import get_ceph_fsid
+from k8sapp_openstack.utils import get_hosts_uuids
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_services_fqdn_pattern
 from k8sapp_openstack.utils import is_ceph_backend_available
@@ -136,6 +137,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                     }
                 },
                 'ceph_client': self._get_ceph_client_overrides(),
+                'hosts_uuids': get_hosts_uuids(),
             }
         }
 

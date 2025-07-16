@@ -30,6 +30,7 @@ manifests:
   service_ingress_placement: false
   service_placement: false
   deployment_consoleauth: false
+  compute_uuid_self_provisioning: false
 labels:
   isApplication: false
   agent:

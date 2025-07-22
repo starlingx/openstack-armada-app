@@ -1,6 +1,6 @@
-From 5aa6851cb3ac925d2fb00996fdd2d075b630df43 Mon Sep 17 00:00:00 2001
+From 52230199164bc260ac07dd5260aee95789e19f9f Mon Sep 17 00:00:00 2001
 From: Ingo Almendros Girao <ingo.almendrosgirao@windriver.com>
-Date: Wed, 25 Jun 2025 16:05:36 -0300
+Date: Thu, 24 Jul 2025 23:08:32 -0300
 Subject: [PATCH] Add IPv6 compatibility to neutron openvswitch agent
 
 This change adds automatic IP version detection to the neutron OVS
@@ -10,15 +10,21 @@ dynamically choose between IPv4 and IPv6 commands based on the
 tunnel network CIDR format.
 
 Signed-off-by: Ingo Almendros Girao <ingo.almendrosgirao@windriver.com>
+
+[ fix IPv6 detection ]
+
+Added a verification of cidr before get the tunnel interface
+
+Signed-off-by: Ingo Almendros Girao <ingo.almendrosgirao@windriver.com>
 ---
- .../_neutron-openvswitch-agent-init.sh.tpl    | 46 +++++++++++++++++--
- 1 file changed, 43 insertions(+), 3 deletions(-)
+ .../_neutron-openvswitch-agent-init.sh.tpl    | 60 ++++++++++++++++++-
+ 1 file changed, 57 insertions(+), 3 deletions(-)
 
 diff --git a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
-index bd0a64ac8..c843c5028 100644
+index bd0a64ac8..b9caf8916 100644
 --- a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
 +++ b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
-@@ -24,6 +24,42 @@ OVS_PID=$(cat /run/openvswitch/ovs-vswitchd.pid)
+@@ -24,6 +24,49 @@ OVS_PID=$(cat /run/openvswitch/ovs-vswitchd.pid)
  OVS_CTL=/run/openvswitch/ovs-vswitchd.${OVS_PID}.ctl
  chown neutron: ${OVS_CTL}
 
@@ -34,6 +40,13 @@ index bd0a64ac8..c843c5028 100644
 +
 +function get_tunnel_interface_fixed {
 +  local cidr="$1"
++
++  if [[ "$cidr" == "0/0" ]]; then
++    if ip -6 addr show | grep -q "inet6.*scope global" && ! ip -4 addr show | grep -q "inet.*scope global"; then
++        cidr="::/0"
++    fi
++  fi
++
 +  local ip_version=$(detect_ip_version "$cidr")
 +
 +  if [[ "$ip_version" == "6" ]]; then
@@ -61,7 +74,7 @@ index bd0a64ac8..c843c5028 100644
  function get_dpdk_config_value {
    values=${@:1:$#-1}
    filter=${!#}
-@@ -452,8 +488,11 @@ if [[ -n "${tunnel_types}" ]] ; then
+@@ -452,8 +495,11 @@ if [[ -n "${tunnel_types}" ]] ; then
              tunnel_network_cidr="0/0"
          fi
          # If there is not tunnel network gateway, exit
@@ -75,16 +88,24 @@ index bd0a64ac8..c843c5028 100644
      fi
  fi
 
-@@ -466,7 +505,8 @@ fi
+@@ -466,7 +512,15 @@ fi
 
  # determine local-ip dynamically based on interface provided but only if tunnel_types is not null
  if [[ -n "${tunnel_types}" ]] ; then
 -  LOCAL_IP=$(get_ip_address_from_interface ${tunnel_interface})
-+  ip_version=$(detect_ip_version "${tunnel_network_cidr}")
++  tunnel_network_cidr_corrected="${tunnel_network_cidr}"
++  if [[ "${tunnel_network_cidr}" == "0/0" ]]; then
++    if ip -6 addr show | grep -q "inet6.*scope global" && ! ip -4 addr show | grep -q "inet.*scope global"; then
++      tunnel_network_cidr_corrected="::/0"
++    fi
++  fi
++
++  ip_version=$(detect_ip_version "${tunnel_network_cidr_corrected}")
 +  LOCAL_IP=$(get_ip_address_from_interface_fixed ${tunnel_interface} ${ip_version})
    if [ -z "${LOCAL_IP}" ] ; then
      echo "Var LOCAL_IP is empty"
      exit 1
 --
 2.34.1
+
 

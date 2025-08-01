@@ -170,7 +170,7 @@ images:
     neutron_sriov_agent_init: docker.io/starlingx/stx-neutron:master-debian-stable-latest
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     purge_test: null
-    rabbit_init: docker.io/rabbitmq:3.9.0-management
+    rabbit_init: docker.io/library/rabbitmq:3.9.29-management
     test: null
 network:
   backend:

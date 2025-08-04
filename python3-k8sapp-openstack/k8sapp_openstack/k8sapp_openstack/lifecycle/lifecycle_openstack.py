@@ -82,9 +82,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             if hook_info.mode == LifecycleConstants.APP_LIFECYCLE_MODE_AUTO:
                 if hook_info.operation == constants.APP_EVALUATE_REAPPLY_OP:
                     return self._semantic_check_evaluate_app_reapply(app_op, app, hook_info)
-                elif hook_info.operation == constants.APP_UPDATE_OP:
-                    raise exception.LifecycleSemanticCheckOperationNotSupported(
-                        mode=LifecycleConstants.APP_LIFECYCLE_MODE_AUTO, op=constants.APP_UPDATE_OP, name=app.name)
             elif hook_info.mode in [LifecycleConstants.APP_LIFECYCLE_MODE_MANUAL,
                                     LifecycleConstants.APP_LIFECYCLE_MODE_AUTO] and \
                     hook_info.operation == constants.APP_APPLY_OP and \

@@ -27,8 +27,8 @@ images:
     prometheus_rabbitmq_exporter_helm_tests: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     rabbitmq_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    scripted_test: docker.io/rabbitmq:3.9.0-management
-    rabbitmq: docker.io/rabbitmq:3.9.0
+    scripted_test: docker.io/library/rabbitmq:3.9.29-management
+    rabbitmq: docker.io/library/rabbitmq:3.9.29
 network:
   management:
     ingress:

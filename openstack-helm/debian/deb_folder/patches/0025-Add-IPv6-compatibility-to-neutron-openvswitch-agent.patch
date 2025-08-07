@@ -16,6 +16,18 @@ Signed-off-by: Ingo Almendros Girao <ingo.almendrosgirao@windriver.com>
 Added a verification of cidr before get the tunnel interface
 
 Signed-off-by: Ingo Almendros Girao <ingo.almendrosgirao@windriver.com>
+
+[ Removes IPv4 interfaces check from IPv6 detection]
+
+The platform's network interfaces are visible from ovs-agent container.
+Therefore, when OVS is deployed on IPv6 networks but the underlying platform
+uses IPv4 interfaces for any other purpose (e.g., PXE boot), the previous
+script would erroneously consider it an IPv4 deployment.
+
+This fix removes IPv4 interfaces check (ip -4 addr show) from the IPv6 detection
+procedure, keeping it based only on IPv6 interface check (ip -6 addr show ).
+
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 ---
  .../_neutron-openvswitch-agent-init.sh.tpl    | 60 ++++++++++++++++++-
  1 file changed, 57 insertions(+), 3 deletions(-)
@@ -42,7 +54,7 @@ index bd0a64ac8..b9caf8916 100644
 +  local cidr="$1"
 +
 +  if [[ "$cidr" == "0/0" ]]; then
-+    if ip -6 addr show | grep -q "inet6.*scope global" && ! ip -4 addr show | grep -q "inet.*scope global"; then
++    if ip -6 addr show | grep -q "inet6.*scope global"; then
 +        cidr="::/0"
 +    fi
 +  fi
@@ -95,7 +107,7 @@ index bd0a64ac8..b9caf8916 100644
 -  LOCAL_IP=$(get_ip_address_from_interface ${tunnel_interface})
 +  tunnel_network_cidr_corrected="${tunnel_network_cidr}"
 +  if [[ "${tunnel_network_cidr}" == "0/0" ]]; then
-+    if ip -6 addr show | grep -q "inet6.*scope global" && ! ip -4 addr show | grep -q "inet.*scope global"; then
++    if ip -6 addr show | grep -q "inet6.*scope global"; then
 +      tunnel_network_cidr_corrected="::/0"
 +    fi
 +  fi

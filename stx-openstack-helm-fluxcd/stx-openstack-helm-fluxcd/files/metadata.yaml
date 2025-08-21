@@ -16,11 +16,17 @@ upgrades:
 supported_k8s_version:
   minimum: 1.24.4
 
+dependent_apps:
+  - - name: rook-ceph
+      version: 25\.09-\d+
+      action: apply
+    - name: platform-integ-apps
+      version: 25\.09-\d+
+      action: apply
+
 behavior:
   platform_managed_app: yes
   evaluate_reapply:
-    after:
-      - platform-integ-apps
     triggers:
       - type: unlock
       - type: force-unlock

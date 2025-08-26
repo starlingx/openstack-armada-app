@@ -33,6 +33,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
     APP_KUBESYSTEM_RESOURCE_CONFIG_MAP = 'rbd-storage-init'
     APP_OPENSTACK_RESOURCE_CONFIG_MAP = 'ceph-etc'
     WAS_APPLIED = 'was_applied'
+    MAX_HOSTS_FOR_DETAILED_MSG = 5
 
     def app_lifecycle_actions(self, context, conductor_obj, app_op, app, hook_info):
         """ Perform lifecycle actions for an operation
@@ -356,6 +357,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # Check vswitch configuration
         self._semantic_check_vswitch_config(conductor_obj.dbapi)
 
+        # Check data network configuration
+        self._semantic_check_datanetwork_config(conductor_obj.dbapi)
+
     def _semantic_check_storage_backend_available(self):
         """Checks if at least one of the supported storage backends
         is available and ready for openstack deployment
@@ -423,6 +427,67 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             raise exception.LifecycleSemanticCheckException(
                 "There are conflicting vswitch configurations: "
                 f"{', '.join(sorted(conflicts))}")
+
+    def _semantic_check_datanetwork_config(self, dbapi):
+        hosts = dbapi.ihost_get_list()
+        labels = dbapi.label_get_all()
+
+        labels_by_host = app_utils.get_labels_by_host(labels)
+        enabled_hosts = app_utils.get_openstack_enabled_compute_nodes(hosts, labels_by_host)
+
+        db_ifdatanets = app_utils.get_interface_datanets(dbapi)
+
+        hosts_without_ifdatanets = set()
+        hosts_by_id = dict()
+        for host in enabled_hosts:
+            hosts_by_id[host.id] = host
+            hosts_without_ifdatanets.add(host.id)
+
+        datanets_by_iface = dict()
+        conflicted_ifaces = dict()
+        conflicted_iface_hosts = set()
+        for if_datanet in db_ifdatanets:
+            if if_datanet.forihostid not in hosts_by_id:
+                continue
+            hosts_without_ifdatanets.discard(if_datanet.forihostid)
+            ifdn_list = datanets_by_iface.setdefault(if_datanet.interface_id, [])
+            ifdn_list.append(if_datanet)
+            if len(ifdn_list) == 2:
+                # Comparison is made this way because if the interface has more than 1 associated
+                # datanet, it has to be placed in conflicted_ifaces just once. Since ifdn_list is
+                # incremented 1 by 1, if len(ifdn_list) is any number greater than 2, it means at
+                # some point it was 2, so the interface has already been placed in the dict.
+                conflicted_ifaces[if_datanet.interface_id] = {"host": if_datanet.forihostid,
+                                                              "ifname": if_datanet.ifname}
+                conflicted_iface_hosts.add(if_datanet.forihostid)
+
+        if conflicted_ifaces:
+            # If there are more than MAX_HOSTS_FOR_DETAILED_MSG hosts with conflicted interfaces,
+            # format exception message with host count only, to avoid too long messages.
+            if (count := len(conflicted_iface_hosts)) > self.MAX_HOSTS_FOR_DETAILED_MSG:
+                raise exception.LifecycleSemanticCheckException(
+                    f"There are {count} hosts in which multiple data networks are associated with "
+                    "the same interface")
+            items = []
+            for iface_id, data in conflicted_ifaces.items():
+                datanets = [dn.datanetwork_name for dn in datanets_by_iface[iface_id]]
+                host = hosts_by_id[data['host']].hostname
+                text = f"{data['ifname']} in {host} ({', '.join(datanets)})"
+                items.append(text)
+            raise exception.LifecycleSemanticCheckException(
+                f"Interfaces cannot have multiple associated data networks: {', '.join(items)}")
+
+        if (count := len(hosts_without_ifdatanets)) > 0:
+            # If there are more than MAX_HOSTS_FOR_DETAILED_MSG hosts without associated datanets,
+            # format exception message with host count only, to avoid too long messages.
+            if count > self.MAX_HOSTS_FOR_DETAILED_MSG:
+                raise exception.LifecycleSemanticCheckException(
+                    f"There are {count} hosts in which no data network is "
+                    "associated with an interface")
+            sorted_hosts = sorted(hosts_without_ifdatanets)
+            raise exception.LifecycleSemanticCheckException(
+                "The following hosts have no data networks associated with interfaces: "
+                f"{', '.join([hosts_by_id[id].hostname for id in sorted_hosts])}")
 
     def _pre_apply_ldap_actions(self, app):
         """Perform pre apply LDAP-related actions.

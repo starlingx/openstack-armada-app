@@ -1123,3 +1123,194 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         conductor_obj._update_vim_config.assert_not_called()
         conductor_obj._update_radosgw_config.assert_not_called()
+
+    def test_semantic_check_datanet_config_fail_multiple_datanets_in_same_interface(self):
+        """
+        Simulates configurations where multiple data networks are associated with the same
+        interface, in multiple openstack-enabled worker nodes, to assert that the semantic check
+        fails with the proper messages.
+        """
+
+        datanetworks = []
+        for dn_id in range(3):
+            datanetworks.append(dbutils.create_test_datanetwork(
+                name=f"dn{dn_id}",
+                network_type=constants.DATANETWORK_TYPE_VLAN,
+                mtu=1500))
+
+        def create_host_and_iface(index):
+            host = dbutils.create_test_ihost(
+                uuid=None,
+                forisystemid=self.system.id,
+                hostname=f"compute-{index}",
+                personality=constants.WORKER,
+                subfunctions=constants.WORKER,
+                invprovision=constants.PROVISIONED,
+                mgmt_mac=f"1E:AA:03:4F:C0:{index:02x}"
+            )
+
+            self.dbapi.label_create(host.uuid, {"host_id": host.id,
+                                                "label_key": "openstack-compute-node",
+                                                "label_value": "enabled"})
+
+            iface = dbutils.create_test_interface(
+                ifname=f"data{index}",
+                ifclass=constants.INTERFACE_CLASS_DATA,
+                forihostid=host.id,
+                ihost_uuid=host.uuid)
+
+            for dn in datanetworks:
+                dbutils.create_test_interface_datanetwork(interface_id=iface.id,
+                                                          datanetwork_id=dn.id)
+
+        for index in range(3):
+            create_host_and_iface(index)
+
+        # When host count is MAX_HOSTS_FOR_DETAILED_MSG or less, throws detailed message
+        self.assertRaisesRegex(
+            exception.LifecycleSemanticCheckException,
+            r"^Interfaces cannot have multiple associated data networks: data0 in compute-0 "
+            r"\(dn0, dn1, dn2\), data1 in compute-1 \(dn0, dn1, dn2\), "
+            r"data2 in compute-2 \(dn0, dn1, dn2\)$",
+            self.lifecycle._semantic_check_datanetwork_config,
+            self.dbapi
+        )
+
+        for index in range(3, 6):
+            create_host_and_iface(index)
+
+        # When host count is greater than MAX_HOSTS_FOR_DETAILED_MSG, throws generic message
+        self.assertRaisesRegex(
+            exception.LifecycleSemanticCheckException,
+            r"^There are 6 hosts in which multiple data networks are associated with the same "
+            r"interface$",
+            self.lifecycle._semantic_check_datanetwork_config,
+            self.dbapi
+        )
+
+    def test_semantic_check_datanet_config_fail_hosts_with_no_datanets(self):
+        """
+        Simulates configurations where openstack-enabled worker nodes have no data networks
+        associated with interfaces, to assert that the semantic check fails with the proper
+        messages.
+        """
+
+        def create_host(index):
+            host = dbutils.create_test_ihost(
+                uuid=None,
+                forisystemid=self.system.id,
+                hostname=f"compute-{index}",
+                personality=constants.WORKER,
+                subfunctions=constants.WORKER,
+                invprovision=constants.PROVISIONED,
+                mgmt_mac=f"1E:AA:03:4F:C0:{index:02x}"
+            )
+
+            self.dbapi.label_create(host.uuid, {"host_id": host.id,
+                                                "label_key": "openstack-compute-node",
+                                                "label_value": "enabled"})
+
+        for index in range(3):
+            create_host(index)
+
+        # When host count is MAX_HOSTS_FOR_DETAILED_MSG or less, throws detailed message
+        self.assertRaisesRegex(
+            exception.LifecycleSemanticCheckException,
+            r"^The following hosts have no data networks associated with interfaces: compute-0, "
+            r"compute-1, compute-2$",
+            self.lifecycle._semantic_check_datanetwork_config,
+            self.dbapi
+        )
+
+        for index in range(3, 6):
+            create_host(index)
+
+        # When host count is greater than MAX_HOSTS_FOR_DETAILED_MSG, throws generic message
+        self.assertRaisesRegex(
+            exception.LifecycleSemanticCheckException,
+            r"^There are 6 hosts in which no data network is associated with an interface$",
+            self.lifecycle._semantic_check_datanetwork_config,
+            self.dbapi
+        )
+
+    def test_semantic_check_datanet_config_pass(self):
+        """
+        Simulates a valid configuration for data networks to validate that the semantic check
+        passes and no exception is thrown.
+        """
+
+        datanets = []
+        for dn_id in range(2):
+            datanet = dbutils.create_test_datanetwork(
+                name=f"dn{dn_id}",
+                network_type=constants.DATANETWORK_TYPE_VLAN,
+                mtu=1500)
+            datanets.append(datanet)
+
+        for index in range(2):
+            host = dbutils.create_test_ihost(
+                uuid=None,
+                forisystemid=self.system.id,
+                hostname=f"compute-{index}",
+                personality=constants.WORKER,
+                subfunctions=constants.WORKER,
+                invprovision=constants.PROVISIONED,
+                mgmt_mac=f"1E:AA:03:4F:C0:{index:02x}"
+            )
+
+            self.dbapi.label_create(host.uuid, {"host_id": host.id,
+                                                "label_key": "openstack-compute-node",
+                                                "label_value": "enabled"})
+
+            if_id = 0
+            for datanet in datanets:
+                iface = dbutils.create_test_interface(
+                    ifname=f"data-{index}-{if_id}",
+                    ifclass=constants.INTERFACE_CLASS_DATA,
+                    forihostid=host.id,
+                    ihost_uuid=host.uuid)
+                dbutils.create_test_interface_datanetwork(
+                    interface_id=iface.id, datanetwork_id=datanet.id)
+                if_id += 1
+
+        compute_2 = dbutils.create_test_ihost(
+            uuid=None,
+            forisystemid=self.system.id,
+            hostname="compute-2",
+            personality=constants.WORKER,
+            subfunctions=constants.WORKER,
+            invprovision=constants.UNPROVISIONED,
+            mgmt_mac="1E:AA:03:4F:C0:02"
+        )
+
+        self.dbapi.label_create(host.uuid, {"host_id": compute_2.id,
+                                            "label_key": "openstack-compute-node",
+                                            "label_value": "enabled"})
+
+        # compute-2 does not have datanets associated to interfaces, but it is not provisioned,
+        # so the config is still valid.
+
+        compute_3 = dbutils.create_test_ihost(
+            uuid=None,
+            forisystemid=self.system.id,
+            hostname="compute-3",
+            personality=constants.WORKER,
+            subfunctions=constants.WORKER,
+            invprovision=constants.PROVISIONED,
+            mgmt_mac="1E:AA:03:4F:C0:03"
+        )
+
+        data_3_0 = dbutils.create_test_interface(
+            ifname="data-3-0",
+            ifclass=constants.INTERFACE_CLASS_DATA,
+            forihostid=compute_3.id,
+            ihost_uuid=compute_3.uuid)
+
+        for datanet in datanets:
+            dbutils.create_test_interface_datanetwork(
+                interface_id=data_3_0.id, datanetwork_id=datanet.id)
+
+        # compute-3 has two datanets associated to the same interface but it is not
+        # openstack-enabled, so the config is still valid.
+
+        self.lifecycle._semantic_check_datanetwork_config(self.dbapi)

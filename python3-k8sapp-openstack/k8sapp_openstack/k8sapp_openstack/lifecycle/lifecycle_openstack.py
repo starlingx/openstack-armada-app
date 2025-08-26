@@ -351,6 +351,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 "while the node {} not in {} state.".format(
                     active_controller.hostname, constants.VIM_SERVICES_ENABLED))
 
+        # Check system type
+        self._semantic_check_dc_system_type(app)
+
         # Check storage backends
         self._semantic_check_storage_backend_available()
 
@@ -697,3 +700,17 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             snapshot_name = f"snapshot-of-{pvc_name}"
             LOG.info(f"Trying to restore a snapshot from PVC {pvc_name}")
             app_utils.restore_pvc_snapshot(snapshot_name, pvc_name, STATEFULSET_NAME, path=app.inst_path)
+
+    def _semantic_check_dc_system_type(self, app):
+        """Check what type of DC system is running.
+
+        Raises:
+            LifecycleSemanticCheckException: Application cannot be applied
+                                            on Central Controller.
+        """
+        if app_utils.is_central_cloud():
+            LOG.info("%s apply rejected: application cannot be applied on "
+                     "Central Controller." % app.name)
+            raise exception.LifecycleSemanticCheckException(
+                "Application cannot be applied on Central Controller."
+            )

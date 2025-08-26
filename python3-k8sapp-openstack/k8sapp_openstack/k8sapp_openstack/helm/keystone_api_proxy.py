@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2023 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,8 +23,24 @@ class KeystoneApiProxyHelm(openstack.OpenstackBaseHelm):
     DCORCH_SERVICE_NAME = 'dcorch'
 
     def _is_enabled(self, app_name, chart_name, namespace):
-        # First, see if this chart is enabled by the user then adjust based on
-        # system conditions
+        """Determine whether this chart should be enabled.
+
+        This function verifies that the chart will be downloaded if the
+        user enabled the chart and it's Central Cloud. This is required
+        so that all container images are included during the download of
+        the charts, allowing subclouds to apply the stx-openstack application
+        successfully.
+
+        Args:
+            app_name (str): Name of the application (e.g., 'stx-openstack').
+            chart_name (str): Helm chart name.
+            namespace (str): Kubernetes namespace where the chart
+                would be deployed.
+
+        Returns:
+            bool: "True" only for enabled chart in Central Cloud.
+        """
+        # See if this chart is enabled by the user and block if isn't DC.
         enabled = super(KeystoneApiProxyHelm, self)._is_enabled(
             app_name, chart_name, namespace)
         if enabled and (self._distributed_cloud_role() !=
@@ -33,8 +49,8 @@ class KeystoneApiProxyHelm(openstack.OpenstackBaseHelm):
         return enabled
 
     def execute_manifest_updates(self, operator):
-        # This chart group is not included by default in the manifest. Insert as
-        # needed.
+        # This chart group is not included by default in the manifest. Insert
+        # as needed.
         if self._is_enabled(operator.APP,
                             self.CHART, common.HELM_NS_OPENSTACK):
             operator.manifest_chart_groups_insert(
@@ -43,7 +59,7 @@ class KeystoneApiProxyHelm(openstack.OpenstackBaseHelm):
 
     def execute_kustomize_updates(self, operator):
         if not self._is_enabled(operator.APP, self.CHART,
-                            common.HELM_NS_OPENSTACK):
+                                common.HELM_NS_OPENSTACK):
             operator.helm_release_resource_delete(self.CHART)
 
     def get_overrides(self, namespace=None):
@@ -98,7 +114,9 @@ class KeystoneApiProxyHelm(openstack.OpenstackBaseHelm):
 
     def _get_transport_url(self):
         host_url = (constants.CONTROLLER_FQDN if utils.is_fqdn_ready_to_use()
-                    else self._format_url_address(self._get_management_address()))
+                    else self._format_url_address(
+                        self._get_management_address())
+                    )
 
         auth_password = self._get_keyring_password('amqp', 'rabbit')
         transport_url = "rabbit://guest:%s@%s:5672" % (auth_password, host_url)
@@ -106,7 +124,9 @@ class KeystoneApiProxyHelm(openstack.OpenstackBaseHelm):
 
     def _get_database_connection(self):
         host_url = (constants.CONTROLLER_FQDN if utils.is_fqdn_ready_to_use()
-            else self._format_url_address(self._get_management_address()))
+                    else self._format_url_address(
+                        self._get_management_address())
+                    )
 
         auth_password = self._get_keyring_password(
             self.DCORCH_SERVICE_NAME, 'database')

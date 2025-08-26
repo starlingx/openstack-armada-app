@@ -176,19 +176,7 @@ class TestOpenstackFluxCDKustomizeOperator(unittest.TestCase):
         )
         dbapi.isystem_get_one = mock.Mock(return_value=system)
         self.fluxCDKustomizeOperator.platform_mode_kustomize_updates(dbapi, mode)
-
-        releases = (
-            self.fluxCDKustomizeOperator.APP_GROUP_SWIFT +
-            self.fluxCDKustomizeOperator.APP_GROUP_COMPUTE_KIT +
-            self.fluxCDKustomizeOperator.APP_GROUP_HEAT +
-            self.fluxCDKustomizeOperator.APP_GROUP_TELEMETRY
-        )
-
-        calls = []
-        for release in releases:
-            calls.append(mock.call(dbapi, app_constants.HELM_NS_OPENSTACK, release))
-
-        self.fluxCDKustomizeOperator.chart_remove.assert_has_calls(calls)
+        self.fluxCDKustomizeOperator.chart_remove.assert_not_called()
 
     def test_platform_mode_kustomize_updates(self, *_):
         """ Tests the other cenarios of platform_mode_kustomize_updates method

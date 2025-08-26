@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2023 Wind River Systems, Inc.
+# Copyright (c) 2022-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,7 +12,6 @@ from copy import deepcopy
 
 from oslo_log import log as logging
 from sysinv.common import constants
-from sysinv.common import exception
 from sysinv.helm import kustomize_base as base
 
 from k8sapp_openstack.common import constants as app_constants
@@ -187,35 +186,6 @@ class OpenstackFluxCDKustomizeOperator(base.FluxCDKustomizeOperator):
                                        app_constants.HELM_NS_OPENSTACK,
                                        self.resources_before_restore)
                 self.resources_before_restore = []
-
-            # When mode is OPENSTACK_RESTORE_NORMAL or None,
-            # bring up all the openstack services.
-            try:
-                system = dbapi.isystem_get_one()
-            except exception.NotFound:
-                LOG.exception("System %s not found.")
-                raise
-            if (
-                system.distributed_cloud_role
-                == constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER
-            ):
-                # remove the chart_groups not needed in this configuration
-                for release in self.APP_GROUP_SWIFT:
-                    self.chart_remove(dbapi,
-                                      app_constants.HELM_NS_OPENSTACK,
-                                      release)
-                for release in self.APP_GROUP_COMPUTE_KIT:
-                    self.chart_remove(dbapi,
-                                      app_constants.HELM_NS_OPENSTACK,
-                                      release)
-                for release in self.APP_GROUP_HEAT:
-                    self.chart_remove(dbapi,
-                                      app_constants.HELM_NS_OPENSTACK,
-                                      release)
-                for release in self.APP_GROUP_TELEMETRY:
-                    self.chart_remove(dbapi,
-                                      app_constants.HELM_NS_OPENSTACK,
-                                      release)
 
     def save_kustomize_for_deletion(self):
         # TODO: transcribe the manifest_openstack save_delete_manifest logic

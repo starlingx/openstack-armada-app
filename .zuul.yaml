@@ -102,7 +102,7 @@
     parent: tox
     description: |
       Run pep8 tests for k8sapp_openstack
-    nodeset: ubuntu-bionic
+    nodeset: debian-bullseye
     required-projects:
       - starlingx/config
       - starlingx/fault

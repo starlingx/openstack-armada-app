@@ -684,6 +684,21 @@ def is_a_valid_vswitch_label_combination(vswitch_labels, label_combinations=None
     return vswitch_labels in label_combinations
 
 
+def get_interface_datanets(db=None) -> dict:
+    """
+    Retrieves all interface data network objects from the given database
+
+    Args:
+        db: The database instance. If not given, the default instance is used.
+
+    Returns:
+        list: A list with the interface data network objects.
+    """
+    if db is None:
+        db = dbapi.get_instance()
+    return db.interface_datanetwork_get_all()
+
+
 def get_labels_by_host(labels) -> dict:
     """
     Given a set of labels, build a dict in the format 'host_id':'label=value' for

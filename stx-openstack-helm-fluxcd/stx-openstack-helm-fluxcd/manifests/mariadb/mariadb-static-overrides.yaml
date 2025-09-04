@@ -82,4 +82,6 @@ conf:
       wsrep_provider_options="gmcast.listen_addr=tcp://[::]:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
       bind_address=::
       wsrep_sst_method=rsync
+network:
+  ip_family_policy: PreferDualStack
 ...

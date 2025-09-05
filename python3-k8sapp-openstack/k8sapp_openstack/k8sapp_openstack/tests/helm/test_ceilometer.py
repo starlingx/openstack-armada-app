@@ -5,6 +5,7 @@
 #
 
 import mock
+from sysinv.common import exception
 from sysinv.helm import common
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
@@ -103,3 +104,25 @@ class CeilometerGetOverrideTest(CeilometerHelmTestCase,
                 'certificates': True,
             },
         })
+
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_ceilometer_overrides_invalid_namespace(self, *_):
+        """
+        Asserts that an exception is raised if an invalid namespace
+        is given when retrieving Helm override parameters.
+        """
+        self.assertRaises(exception.InvalidHelmNamespace,
+                          self.operator.get_helm_chart_overrides,
+                          app_constants.HELM_CHART_CEILOMETER,
+                          cnamespace=common.HELM_NS_DEFAULT)
+
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_ceilometer_overrides_missing_namespace(self, *_):
+        """
+        Tests that the default Helm override parameters
+        are returned when no namespace is passed.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CEILOMETER)
+        self.assertIsInstance(overrides, dict)
+        self.assertIn(common.HELM_NS_OPENSTACK, overrides)

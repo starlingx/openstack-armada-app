@@ -8,6 +8,7 @@ import os
 
 import mock
 from sysinv.common import constants
+from sysinv.common import exception
 from sysinv.tests.db import base as dbbase
 
 from k8sapp_openstack import utils as app_utils
@@ -1058,3 +1059,104 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         """Test is_central_cloud returns False when dbapi is unavailable"""
         result = app_utils.is_central_cloud()
         self.assertFalse(result)
+
+    def mock_address_pool_get(self, address_pool_uuid):
+        """
+        Get address-pool mock object
+
+        Args:
+            address_pool_uuid (str): address pool unique identifier
+        Returns:
+            mock.MagicMock(): address pool mock object matching the given uuid
+        """
+        mock_pools = [mock.MagicMock(), mock.MagicMock()]
+        mock_pools[0].uuid = "434e61be-3603-4082-a139-fb6a0514189a"
+        mock_pools[0].family = constants.IPV4_FAMILY
+        mock_pools[1].uuid = "b40b1db7-19cd-49a0-ae41-f586bee69a8c"
+        mock_pools[1].family = constants.IPV6_FAMILY
+        for pool in mock_pools:
+            if pool.uuid == address_pool_uuid:
+                return pool
+        return None
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_ip_families_single_stack(self, mock_dbapi_get_instance):
+        """ Test get_ip_families for single stack deployments
+        """
+        mock_network = mock.MagicMock()
+        mock_network.id = 7
+        mock_net_addr_pools = [mock.MagicMock()]
+        mock_net_addr_pools[0].address_pool_uuid = \
+            "434e61be-3603-4082-a139-fb6a0514189a"
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.network_get_by_type.return_value = mock_network
+        db_instance.network_addrpool_get_by_network_id.return_value = \
+            mock_net_addr_pools
+        db_instance.address_pool_get.side_effect = \
+            self.mock_address_pool_get
+
+        result = app_utils.get_ip_families()
+        self.assertEqual(result, {constants.IPV4_FAMILY})
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_ip_families_dual_stack(self, mock_dbapi_get_instance):
+        """ Test get_ip_families for Dual-Stack deployments
+        """
+        mock_network = mock.MagicMock()
+        mock_network.id = 7
+        mock_net_addr_pools = [mock.MagicMock(), mock.MagicMock()]
+        mock_net_addr_pools[0].address_pool_uuid = \
+            "434e61be-3603-4082-a139-fb6a0514189a"
+        mock_net_addr_pools[1].address_pool_uuid = \
+            "b40b1db7-19cd-49a0-ae41-f586bee69a8c"
+
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.network_get_by_type.return_value = mock_network
+        db_instance.network_addrpool_get_by_network_id.return_value = \
+            mock_net_addr_pools
+        db_instance.address_pool_get.side_effect = \
+            self.mock_address_pool_get
+
+        result = app_utils.get_ip_families()
+        self.assertEqual(result, {constants.IPV4_FAMILY, constants.IPV6_FAMILY})
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_ip_families_invalid_network(self, mock_dbapi_get_instance):
+        """ Test get_ip_families for invalid network type
+        """
+        db_instance = mock_dbapi_get_instance.return_value
+        network_type_exception = exception.NetworkTypeNotFound(
+            type=constants.NETWORK_TYPE_CLUSTER_SERVICE
+        )
+        db_instance.network_get_by_type.side_effect = network_type_exception
+
+        result = app_utils.get_ip_families()
+        self.assertEqual(result, set())
+
+    @mock.patch('k8sapp_openstack.utils.get_ip_families',
+                return_value={constants.IPV4_FAMILY})
+    def test_is_ipv4_on_ipv4(self, mock_get_ip_families):
+        """ Test is_ipv4 for IPv4 systems
+        """
+        result = app_utils.is_ipv4()
+        self.assertEqual(result, True)
+        mock_get_ip_families.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.get_ip_families',
+                return_value={constants.IPV6_FAMILY})
+    def test_is_ipv4_on_ipv6(self, mock_get_ip_families):
+        """ Test is_ipv4 for IPv6 systems
+        """
+        result = app_utils.is_ipv4()
+        self.assertEqual(result, False)
+        mock_get_ip_families.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.get_ip_families',
+                return_value={constants.IPV4_FAMILY, constants.IPV6_FAMILY})
+    def test_is_ipv4_on_dual_stack(self, mock_get_ip_families):
+        """ Test is_ipv4 for Dual-Stack systems
+        """
+        result = app_utils.is_ipv4()
+        self.assertEqual(result, False)
+        mock_get_ip_families.assert_called_once()

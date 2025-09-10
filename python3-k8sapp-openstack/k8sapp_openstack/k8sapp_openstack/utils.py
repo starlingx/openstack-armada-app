@@ -19,6 +19,7 @@ from kubernetes.client.rest import ApiException as KubeApiException
 from oslo_log import log as logging
 from oslo_serialization import base64
 from sysinv.common import constants
+from sysinv.common import exception
 from sysinv.common import kubernetes
 from sysinv.common import utils as cutils
 from sysinv.conductor import kube_app
@@ -1438,3 +1439,46 @@ def get_hosts_uuids() -> list[dict]:
             }
         )
     return hosts_uuids_list
+
+
+def get_ip_families() -> set:
+    """
+    Checks the current ip families supported by the cluster service network.
+
+    Returns:
+        set of int: ip families supported (4 or 6). The sysninv contants
+        IPV4_FAMILY and IPV6_FAMILY can be used to check the ip families.
+        returns an empty set if ip families are invalid or cannot be checked.
+    """
+    db = dbapi.get_instance()
+    try:
+        network = db.network_get_by_type(constants.NETWORK_TYPE_CLUSTER_SERVICE)
+    except exception.NetworkTypeNotFound:
+        LOG.error("Error checking ip families deployed. Invalid network type "
+                  f"{constants.NETWORK_TYPE_CLUSTER_SERVICE}")
+        return set()
+
+    ip_families = set()
+    net_addr_pools = db.network_addrpool_get_by_network_id(network.id)
+    for net_pool in net_addr_pools:
+        pool = db.address_pool_get(net_pool.address_pool_uuid)
+        ip_families.add(pool.family)
+
+    if len(ip_families) == 0:
+        LOG.error("Error checking ip families deployed. Couldn't recover "
+                  "address pools associated to the cluster service network.")
+    LOG.info(f"IP Families supported: {ip_families}")
+    return ip_families
+
+
+def is_ipv4() -> bool:
+    """
+    Check if the cluster service network is deployed on IPv4 only mode.
+
+    Returns:
+        bool: True if the cluster service network is deployed on IPv4 only mode,
+        False otherwise.
+    """
+    ip_families = get_ip_families()
+    return (constants.IPV4_FAMILY in ip_families) and \
+           (constants.IPV6_FAMILY not in ip_families)

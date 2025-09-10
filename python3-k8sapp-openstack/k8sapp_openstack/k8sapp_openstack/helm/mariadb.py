@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,6 +10,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import is_ipv4
 
 
 class MariadbHelm(openstack.OpenstackBaseHelm):
@@ -34,7 +35,7 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
                 },
                 'endpoints': self._get_endpoints_overrides(),
                 'manifests': {
-                    'config_ipv6': self._is_ipv6_cluster_service()
+                    'config_ipv6': not is_ipv4()
                 }
             }
         }

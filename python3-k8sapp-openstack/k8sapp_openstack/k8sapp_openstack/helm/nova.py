@@ -740,7 +740,10 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         rook_ceph_rule_name = app_constants.CEPH_ROOK_POLL_CRUSH_RULE
         rule_name = rook_ceph_rule_name if self._rook_ceph else ceph_rule_name
 
-        chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
+        if self._rook_ceph:
+            chunk_size = app_constants.ROOK_CEPH_POOL_NOVA_RBD_CHUNK_SIZE
+        else:
+            chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
 
         # Form the dictionary with the info for the ephemeral pool.
         # If needed, multiple pools can be specified.

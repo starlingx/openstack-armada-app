@@ -1,0 +1,94 @@
+From 534797f4235187f5f3d0a4a558ba487379855464 Mon Sep 17 00:00:00 2001
+From: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+Date: Fri, 12 Sep 2025 11:12:11 -0300
+Subject: [PATCH] Allow rook ceph auto estimation
+
+This patch aims to allow rook ceph to use his feature to auto estimate
+the pg_num per pool, to avoid a health warning issue on a simplex with
+a single osd where it was too many pg per osd.
+This issue only occurs on a simplex with only one osd.
+To allow the auto estimation feature of rook ceph the argument that
+add the minimum amount of pg must be removed, so ceph can estimate
+automatically.
+This patch also allows the retrocompatibility for ceph versions that
+do not support this auto estimation.
+
+Signed-off-by: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+---
+ cinder/templates/bin/_backup-storage-init.sh.tpl | 6 +++++-
+ cinder/templates/bin/_storage-init.sh.tpl        | 6 +++++-
+ glance/templates/bin/_storage-init.sh.tpl        | 6 +++++-
+ nova/templates/bin/_storage-init.sh.tpl          | 6 +++++-
+ 4 files changed, 20 insertions(+), 4 deletions(-)
+
+diff --git a/cinder/templates/bin/_backup-storage-init.sh.tpl b/cinder/templates/bin/_backup-storage-init.sh.tpl
+index 1601172a1..a9752e854 100644
+--- a/cinder/templates/bin/_backup-storage-init.sh.tpl
++++ b/cinder/templates/bin/_backup-storage-init.sh.tpl
+@@ -31,7 +31,11 @@ if [[ $STORAGE_BACKEND =~ 'cinder.backup.drivers.swift' ]] || \
+ elif [[ $STORAGE_BACKEND =~ 'cinder.backup.drivers.ceph' ]]; then
+   ceph -s
+   function ensure_pool () {
+-    ceph osd pool stats $1 || ceph osd pool create $1 $2
++    if [ "$2" -eq 0 ]; then
++      ceph osd pool stats $1 || ceph osd pool create $1
++    else
++      ceph osd pool stats $1 || ceph osd pool create $1 $2
++    fi
+ 
+     # As of the Luminous release, it is mandatory to enable applications on pools.
+     # To find out if the release is greater than (or equal to) Luminous, just check
+diff --git a/cinder/templates/bin/_storage-init.sh.tpl b/cinder/templates/bin/_storage-init.sh.tpl
+index 4d1c28e4e..53b0b071c 100644
+--- a/cinder/templates/bin/_storage-init.sh.tpl
++++ b/cinder/templates/bin/_storage-init.sh.tpl
+@@ -28,7 +28,11 @@ set -ex
+ if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
+   ceph -s
+   function ensure_pool () {
+-    ceph osd pool stats $1 || ceph osd pool create $1 $2
++    if [ "$2" -eq 0 ]; then
++      ceph osd pool stats $1 || ceph osd pool create $1
++    else
++      ceph osd pool stats $1 || ceph osd pool create $1 $2
++    fi
+ 
+     # As of the Luminous release, it is mandatory to enable applications on pools.
+     # To find out if the release is greater than (or equal to) Luminous, just check
+diff --git a/glance/templates/bin/_storage-init.sh.tpl b/glance/templates/bin/_storage-init.sh.tpl
+index 241c62e96..f780ff9e8 100644
+--- a/glance/templates/bin/_storage-init.sh.tpl
++++ b/glance/templates/bin/_storage-init.sh.tpl
+@@ -44,7 +44,11 @@ elif [ "x$STORAGE_BACKEND" == "xswift" ]; then
+ elif [ "x$STORAGE_BACKEND" == "xrbd" ]; then
+   ceph -s
+   function ensure_pool () {
+-    ceph osd pool stats "$1" || ceph osd pool create "$1" "$2"
++    if [ "$2" -eq 0 ]; then
++      ceph osd pool stats $1 || ceph osd pool create $1
++    else
++      ceph osd pool stats $1 || ceph osd pool create $1 $2
++    fi
+ 
+     # As of the Luminous release, it is mandatory to enable applications on pools.
+     # To find out if the release is greater than (or equal to) Luminous, just check
+diff --git a/nova/templates/bin/_storage-init.sh.tpl b/nova/templates/bin/_storage-init.sh.tpl
+index 70c71a9f4..ed56e27b9 100644
+--- a/nova/templates/bin/_storage-init.sh.tpl
++++ b/nova/templates/bin/_storage-init.sh.tpl
+@@ -28,7 +28,11 @@ set -ex
+ if [ "x$STORAGE_BACKEND" == "xrbd" ]; then
+   ceph -s
+   function ensure_pool () {
+-    ceph osd pool stats $1 || ceph osd pool create $1 $2
++    if [ "$2" -eq 0 ]; then
++      ceph osd pool stats $1 || ceph osd pool create $1
++    else
++      ceph osd pool stats $1 || ceph osd pool create $1 $2
++    fi
+     if [[ $(ceph mgr versions | awk '/version/{print $3}' | cut -d. -f1) -ge 12 ]]; then
+         ceph osd pool application enable $1 $3
+     fi
+-- 
+2.34.1
+

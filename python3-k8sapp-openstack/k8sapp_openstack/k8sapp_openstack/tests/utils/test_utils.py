@@ -1012,3 +1012,49 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             {"name": "host1", "uuid": MOCK_UUID_1} not in hosts_uuids,
             {"name": "host2", "uuid": MOCK_UUID_2} in hosts_uuids,
         ]))
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_is_central_cloud_true(self, mock_dbapi_get_instance):
+        """Test is_central_cloud returns True when system role is
+           Central Cloud.
+        """
+        system_mock = mock.MagicMock()
+        system_mock.distributed_cloud_role = \
+            constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.isystem_get_one.return_value = system_mock
+
+        result = app_utils.is_central_cloud()
+        self.assertTrue(result)
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_is_central_cloud_false(self, mock_dbapi_get_instance):
+        """Test is_central_cloud returns False when system role is not
+          Central Cloud.
+        """
+        system_mock = mock.MagicMock()
+        system_mock.distributed_cloud_role = "subcloud"
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.isystem_get_one.return_value = system_mock
+
+        result = app_utils.is_central_cloud()
+        self.assertFalse(result)
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_is_central_cloud_attribute_error(self, mock_dbapi_get_instance):
+        """Test is_central_cloud returns False if system object is missing
+           attribute.
+        """
+        system_mock = mock.MagicMock()
+        del system_mock.distributed_cloud_role  # forces AttributeError
+        db_instance = mock_dbapi_get_instance.return_value
+        db_instance.isystem_get_one.return_value = system_mock
+
+        result = app_utils.is_central_cloud()
+        self.assertFalse(result)
+
+    @mock.patch('sysinv.db.api.get_instance', return_value=None)
+    def test_is_central_cloud_no_db(self, mock_dbapi_get_instance):
+        """Test is_central_cloud returns False when dbapi is unavailable"""
+        result = app_utils.is_central_cloud()
+        self.assertFalse(result)

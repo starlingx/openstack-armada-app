@@ -1314,3 +1314,29 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         # openstack-enabled, so the config is still valid.
 
         self.lifecycle._semantic_check_datanetwork_config(self.dbapi)
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
+    def test__semantic_check_dc_system_type_rejects_central(self, mock_app_utils):
+        """Verify that application apply is rejected on Central Cloud (SystemController)."""
+        app = mock.Mock()
+
+        # Simulate Central Cloud
+        mock_app_utils.is_central_cloud.return_value = True
+
+        exc = self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_dc_system_type,
+            app
+        )
+        self.assertIn("cannot be applied on Central Controller", str(exc))
+        mock_app_utils.is_central_cloud.assert_called()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
+    def test__semantic_check_dc_system_type_allows_subcloud(self, mock_app_utils):
+        """Verify that application apply is allowed on Subcloud (not SystemController)."""
+        app = mock.Mock()
+
+        # Simulate Subcloud
+        mock_app_utils.is_central_cloud.return_value = False
+        self.lifecycle._semantic_check_dc_system_type(app)
+        mock_app_utils.is_central_cloud.assert_called()

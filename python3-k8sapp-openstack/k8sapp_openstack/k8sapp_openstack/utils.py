@@ -430,6 +430,23 @@ def get_ceph_fsid():
     return fsid
 
 
+def is_central_cloud():
+    db = dbapi.get_instance()
+    if not db:
+        LOG.error("Error checking Central Cloud. Database API isn't available")
+        return False
+
+    system = db.isystem_get_one()
+    try:
+        if (system.distributed_cloud_role ==
+           constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER):
+            return True
+        else:
+            LOG.info("System role isn't DC Central Cloud")
+    except AttributeError:
+        return False
+
+
 def is_subcloud():
     db = dbapi.get_instance()
     system = db.isystem_get_one()

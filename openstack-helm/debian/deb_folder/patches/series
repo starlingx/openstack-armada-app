@@ -24,3 +24,4 @@
 0024-Enable-ceph-pool-creation-for-AIO-systems.patch
 0025-Add-IPv6-compatibility-to-neutron-openvswitch-agent.patch
 0026-Copy-host-UUID-into-Nova-s-config-dir.patch
+0027-Add-retry-to-hostname-reading-by-neutron-agents.patch

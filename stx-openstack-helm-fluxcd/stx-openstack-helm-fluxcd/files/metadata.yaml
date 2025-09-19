@@ -7,8 +7,10 @@ disabled_charts:
 - barbican
 - ceilometer
 - ceph-rgw
+- dcdbsync
 - gnocchi
 - ironic
+- keystone-api-proxy
 
 upgrades:
   auto_update: true

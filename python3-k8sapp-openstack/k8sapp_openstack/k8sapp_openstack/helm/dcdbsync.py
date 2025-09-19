@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -21,13 +21,28 @@ class DcdbsyncHelm(openstack.OpenstackBaseHelm):
     SERVICE_NAME = app_constants.HELM_CHART_DCDBSYNC
 
     def _is_enabled(self, app_name, chart_name, namespace):
-        # First, see if this chart is enabled by the user then adjust based on
-        # system conditions
+        """Determine whether this chart should be enabled.
+
+        This function verifies that the chart will be downloaded if the
+        user enabled the chart and it's Central Cloud. This is required
+        so that all container images are included during the download the
+        charts, allowing subclouds to apply the stx-openstack application
+        successfully.
+
+        Args:
+            app_name (str): Name of the application (e.g., 'stx-openstack').
+            chart_name (str): Helm chart name.
+            namespace (str): Kubernetes namespace where the chart
+                would be deployed.
+
+        Returns:
+            bool: "True" only for enabled chart in Central Cloud.
+        """
+        # See if this chart is enabled by the user and block if isn't DC.
         enabled = super(DcdbsyncHelm, self)._is_enabled(
             app_name, chart_name, namespace)
-        if enabled \
-                and (self._distributed_cloud_role() !=
-                         constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER):
+        if enabled and (self._distributed_cloud_role() !=
+                        constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER):
             enabled = False
         return enabled
 
@@ -40,7 +55,7 @@ class DcdbsyncHelm(openstack.OpenstackBaseHelm):
 
     def execute_kustomize_updates(self, operator):
         if not self._is_enabled(operator.APP, self.CHART,
-                            common.HELM_NS_OPENSTACK):
+                                common.HELM_NS_OPENSTACK):
             operator.helm_release_resource_delete(self.CHART)
 
     def get_overrides(self, namespace=None):

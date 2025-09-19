@@ -4,11 +4,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from oslo_log import log as logging
 from sysinv.common import exception
 from sysinv.helm import common
 
+from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+
+
+LOG = logging.getLogger(__name__)
 
 
 class OpenvswitchHelm(openstack.OpenstackBaseHelm):
@@ -18,13 +23,38 @@ class OpenvswitchHelm(openstack.OpenstackBaseHelm):
     HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_OPENVSWITCH
 
     def _is_enabled(self, app_name, chart_name, namespace):
-        # First, see if this chart is enabled by the user then adjust based on
-        # system conditions
-        if not super(OpenvswitchHelm, self)._is_enabled(app_name, chart_name, namespace):
+        """Determine whether this chart should be enabled.
+
+        For Central Cloud (SystemController), this function ensures that the
+        chart is always considered enabled. This is required so that all
+        container images are included during the download the charts, allowing
+        subclouds to apply the stx-openstack application successfully.
+
+        Args:
+            app_name (str): Name of the application (e.g., 'stx-openstack').
+            chart_name (str): Helm chart name.
+            namespace (str): Kubernetes namespace where the chart
+                would be deployed.
+
+        Returns:
+            bool: Always "True" for Central Cloud to ensure images are
+            downloaded. For other environments, may defer to default logic.
+        """
+        # First, check if system's distributed cloud role is System Controller.
+        # Chart must be enabled during "application-upload --images" if it is.
+        if app_utils.is_central_cloud():
+            return True
+
+        # See if this chart is enabled by the user
+        if not super(OpenvswitchHelm, self)._is_enabled(
+                app_name, chart_name, namespace):
             return False
 
-        # Chart is enabled, let's check the node label
-        return self.is_openvswitch_enabled() and not self.is_openvswitch_dpdk_enabled()
+        # Enable chart only when standard Open vSwitch is used.
+        # When OVS runs with DPDK, a different dataplane management is required
+        # and enabling this chart would conflict with the DPDK deployment.
+        return self.is_openvswitch_enabled() and \
+            not self.is_openvswitch_dpdk_enabled()
 
     def execute_manifest_updates(self, operator):
         # On application load, this chart in not included in the compute-kit

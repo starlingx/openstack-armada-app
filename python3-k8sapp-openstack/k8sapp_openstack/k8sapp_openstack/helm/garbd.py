@@ -1,16 +1,20 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from sysinv.common import constants
+from oslo_log import log as logging
 from sysinv.common import exception
 from sysinv.common import utils
 from sysinv.helm import common
 
+from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+
+
+LOG = logging.getLogger(__name__)
 
 
 class GarbdHelm(openstack.OpenstackBaseHelm):
@@ -24,18 +28,36 @@ class GarbdHelm(openstack.OpenstackBaseHelm):
     HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_GARBD
 
     def _is_enabled(self, app_name, chart_name, namespace):
-        # First, see if this chart is enabled by the user then adjust based on
-        # system conditions
+        """Determine whether this chart should be enabled.
+
+        For Central Cloud (SystemController), this function ensures that the
+        chart is always considered enabled. This is required so that all
+        container images are included during the download the charts, allowing
+        subclouds to apply the stx-openstack application successfully.
+
+        Args:
+            app_name (str): Name of the application (e.g., 'stx-openstack').
+            chart_name (str): Helm chart name.
+            namespace (str): Kubernetes namespace where the chart
+                would be deployed.
+
+        Returns:
+            bool: Always "True" for Central Cloud to ensure images are
+            downloaded. For other environments, may defer to default logic.
+        """
+        # First, check if system's distributed cloud role is System Controller.
+        # Chart must be enabled during "application-upload --images" if it is.
+        if app_utils.is_central_cloud():
+            return True
+
+        # See if this chart is enabled by the user
         enabled = super(GarbdHelm, self)._is_enabled(
             app_name, chart_name, namespace)
 
-        # If there are fewer than 2 controllers or we're on AIO-DX or we are on
-        # distributed cloud system controller, we'll use a single mariadb server
-        # and so we don't want to run garbd.
+        # If there are fewer than 2 controllers or we're on AIO-DX
+        # we'll use a single mariadb server and so we don't want to run garbd.
         if enabled and (self._num_controllers() < 2 or
-                        utils.is_aio_duplex_system(self.dbapi) or
-                        (self._distributed_cloud_role() ==
-                         constants.DISTRIBUTED_CLOUD_ROLE_SYSTEMCONTROLLER)):
+                        utils.is_aio_duplex_system(self.dbapi)):
             enabled = False
         return enabled
 

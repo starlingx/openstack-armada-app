@@ -172,7 +172,7 @@ index 8e2c25e7c..c3a9ba7f0 100644
  
  {{- if and ( empty .Values.conf.neutron.DEFAULT.host ) ( .Values.pod.use_fqdn.neutron_agent ) }}
 +
-+HOST_NAME=hostname --fqdn 2>/dev/null || true)
++HOST_NAME=$(hostname --fqdn 2>/dev/null || true)
 +
 +# If the neutron agent can't get the node host name, try again
 +

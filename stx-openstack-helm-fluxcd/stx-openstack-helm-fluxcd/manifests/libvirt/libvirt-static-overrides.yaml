@@ -19,6 +19,18 @@ conf:
     enabled: true
   kubernetes:
     cgroup: "k8s-infra"
+    cgroup_controllers:
+      - blkio
+      - cpu
+      - devices
+      - freezer
+      - hugetlb
+      - memory
+      - net_cls
+      - perf_event
+      - rdma
+      - misc
+      - pids
 libvirt:
   listen_addr: "::"
 pod:

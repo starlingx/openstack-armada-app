@@ -432,21 +432,16 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         replication, _ = storage_backend_conf\
             .StorageBackendConfig\
             .get_ceph_pool_replication(self.dbapi, ceph_backend=rook_backend)
-
-        chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
-
         pools = {
             f'{app_constants.CEPH_POOL_VOLUMES_NAME}': {
                 'app_name': app_constants.CEPH_POOL_VOLUMES_APP_NAME,
-                'chunk_size': min(chunk_size,
-                                  app_constants.CEPH_POOL_VOLUMES_CHUNK_SIZE),
+                'chunk_size': app_constants.ROOK_CEPH_POOL_CINDER_VOLUME_CHUNK_SIZE,
                 'crush_rule': app_constants.CEPH_ROOK_POLL_CRUSH_RULE,
                 'replication': replication,
             },
             f'{app_constants.CEPH_POOL_BACKUP_NAME}': {
                 'app_name': app_constants.CEPH_POOL_BACKUP_APP_NAME,
-                'chunk_size': min(chunk_size,
-                                  app_constants.CEPH_POOL_BACKUP_CHUNK_SIZE),
+                'chunk_size': app_constants.ROOK_CEPH_POOL_CINDER_BACKUP_CHUNK_SIZE,
                 'crush_rule': app_constants.CEPH_ROOK_POLL_CRUSH_RULE,
                 'replication': replication,
             },

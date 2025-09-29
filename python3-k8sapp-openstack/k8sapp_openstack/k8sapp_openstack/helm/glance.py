@@ -153,7 +153,10 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         else:
             rule_name = app_constants.CEPH_ROOK_POLL_CRUSH_RULE
 
-        chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
+        if self._rook_ceph:
+            chunk_size = app_constants.ROOK_CEPH_POOL_GLANCE_CHUNK_SIZE
+        else:
+            chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
 
         conf = {
             'glance': {

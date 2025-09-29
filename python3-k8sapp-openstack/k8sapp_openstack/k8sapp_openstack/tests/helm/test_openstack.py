@@ -282,13 +282,13 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         result = self.helm._get_service_default_dns_name(app_constants.HELM_CHART_KEYSTONE)
         self.assertIn(app_constants.HELM_CHART_KEYSTONE, result)
 
-    @mock.patch("k8sapp_openstack.helm.openstack.app_utils.is_ceph_backend_available", return_value=True)
+    @mock.patch("k8sapp_openstack.helm.openstack.app_utils.is_ceph_backend_available", return_value=(True, ""))
     def test_get_ceph_client_overrides_rook(self, *_):
         """Matches the default backend user secret name."""
         result = self.helm._get_ceph_client_overrides()
         self.assertIn("user_secret_name", result)
 
-    @mock.patch("k8sapp_openstack.helm.openstack.app_utils.is_ceph_backend_available", return_value=False)
+    @mock.patch("k8sapp_openstack.helm.openstack.app_utils.is_ceph_backend_available", return_value=(False, ""))
     @mock.patch("sysinv.common.storage_backend_conf.K8RbdProvisioner.get_user_secret_name", return_value="secret")
     def test_get_ceph_client_overrides_rbd(self, *_):
         """Matches the stored backend user secret name."""

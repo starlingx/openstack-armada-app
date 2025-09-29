@@ -56,8 +56,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         cinder_overrides = self._get_common_cinder_overrides()
         backend_overrides = self._get_common_backend_overrides()
 
+        self._rook_ceph, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
         # Ceph and Rook Ceph are mutually exclusive, so it's either one or the other
-        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
+        if self._rook_ceph:
             cinder_overrides = self._get_conf_rook_ceph_cinder_overrides(cinder_overrides)
             backend_overrides = self._get_conf_rook_ceph_backends_overrides(backend_overrides)
             ceph_overrides = self._get_conf_rook_ceph_overrides()
@@ -120,7 +121,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # The ceph client versions supported by baremetal and rook ceph backends
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
-        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
+        if self._rook_ceph:
             overrides[common.HELM_NS_OPENSTACK] =\
                 self._update_image_tag_overrides(
                     overrides[common.HELM_NS_OPENSTACK],

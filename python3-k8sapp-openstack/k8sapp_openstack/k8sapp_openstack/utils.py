@@ -564,18 +564,22 @@ def is_ceph_backend_available(ceph_type: str =
         backend (str): Ceph backend type (e.g., "ceph" or "ceph-rook").
 
     Returns:
-        bool: True if the given Ceph backend type is available, False otherwise
+        tuple[bool, str]:
+            bool: True if the given Ceph backend type is available, False otherwise
+            message: Message complementing the return when bool is false
     """
     db = dbapi.get_instance()
     if db is None:
-        LOG.error("Database API is not available")
-        return False
+        message = app_constants.DB_API_NOT_AVAILABLE
+        LOG.error(message)
+        return False, message
 
     ceph_backends = db.storage_backend_get_list_by_type(
         backend_type=ceph_type)
     if (not ceph_backends) or (len(ceph_backends) == 0):
-        LOG.warning(f"No {ceph_type} backend available")
-        return False
+        message = f"No {ceph_type} backend available"
+        LOG.warning(message)
+        return False, message
 
     state = ceph_backends[0].state
     task = ceph_backends[0].task
@@ -588,10 +592,11 @@ def is_ceph_backend_available(ceph_type: str =
         available = (state == constants.SB_STATE_CONFIGURED) \
                     and (task == constants.APP_APPLY_SUCCESS)
 
-    if not available:
-        LOG.warning(f"{ceph_type} backend is not available - "
+    if not available and ceph_type == constants.SB_TYPE_CEPH_ROOK:
+        LOG.error(f"{ceph_type} backend is not available - "
                     f"state={state}, task={task}")
-    return available
+        return False, app_constants.CEPH_BACKEND_NOT_CONFIGURED
+    return available, ""
 
 
 def is_rook_ceph_api_available() -> bool:
@@ -1131,8 +1136,11 @@ def check_and_create_snapshot_class(snapshot_class: str, path: str):
     except Exception:
         # Create class
         LOG.info(f"Trying to create snapshot class {snapshot_class}")
+
+        rook_ceph, _ = is_ceph_backend_available(
+                ceph_type=constants.SB_TYPE_CEPH_ROOK)
         try:
-            if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
+            if rook_ceph:
                 secret_name = app_constants.CEPH_ROOK_RBD_SECRET_NAME
                 secret_ns = app_constants.HELM_NS_ROOK_CEPH
                 driver = app_constants.CEPH_ROOK_RBD_DRIVER

@@ -589,9 +589,10 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         return uefi_config
 
     def _get_ceph_client_overrides(self):
-        if app_utils.is_ceph_backend_available(
-                ceph_type=constants.SB_TYPE_CEPH_ROOK
-        ):
+        self._rook_ceph, _ = app_utils.is_ceph_backend_available(
+                ceph_type=constants.SB_TYPE_CEPH_ROOK)
+
+        if self._rook_ceph:
             return {
                 'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
             }
@@ -749,9 +750,10 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         # function in the future. For now, it will be left here for backward
         # compatibility, reducing the code changes initially required for rook
         # ceph integration.
-        return app_utils.is_ceph_backend_available(
-            ceph_type=constants.SB_TYPE_CEPH_ROOK
-        )
+        self._rook_ceph, _ = app_utils.is_ceph_backend_available(
+                ceph_type=constants.SB_TYPE_CEPH_ROOK)
+
+        return self._rook_ceph
 
     def get_vswitch_label_combinations(self) -> list:
         """

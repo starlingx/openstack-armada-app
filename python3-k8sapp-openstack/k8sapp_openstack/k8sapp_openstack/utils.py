@@ -1482,3 +1482,33 @@ def is_ipv4() -> bool:
     ip_families = get_ip_families()
     return (constants.IPV4_FAMILY in ip_families) and \
            (constants.IPV6_FAMILY not in ip_families)
+
+
+def get_server_list() -> str:
+    """
+    Retrieve a list of servers for all projects
+
+    Returns:
+        str: The output to the command to list servers.
+    """
+    cmd = [
+        "openstack", "server", "list", "--all-projects"
+    ]
+    try:
+        process = subprocess.run(
+                args=["bash", "-c", f"source /var/opt/openstack/admin-openrc && {' '.join(cmd)}"],
+                capture_output=True,
+                text=True,
+                shell=False)
+
+        LOG.info(f"Stdout: {process.stdout}")
+        LOG.info(f"Stderr: {process.stderr}")
+        process.check_returncode()
+        servers = str(process.stdout)
+        return servers.strip()
+    except Exception as e:
+        LOG.error(f"Unexpected error while retrieving servers list: {e}")
+        # If the app fails to apply or is aborted before the clients pod is up
+        # it will fall in this exception. This will return an empty string
+        # to ensure that the return is not None
+        return ""

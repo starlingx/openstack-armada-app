@@ -5,6 +5,7 @@
 #
 
 import os
+import subprocess
 
 import mock
 from sysinv.common import constants
@@ -1160,3 +1161,53 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         result = app_utils.is_ipv4()
         self.assertEqual(result, False)
         mock_get_ip_families.assert_called_once()
+
+    @mock.patch("k8sapp_openstack.utils.subprocess.run")
+    def test_get_server_list_success(self, mock_run):
+        """ Test get_server_list for a successful call with servers available
+        """
+        mock_process = mock.MagicMock()
+        mock_process.stdout = "server1\nserver2\n"
+        mock_process.stderr = ""
+        mock_process.check_returncode.return_value = None
+        mock_run.return_value = mock_process
+
+        result = app_utils.get_server_list()
+
+        assert result == "server1\nserver2"
+        mock_run.assert_called_once_with(
+            args=["bash", "-c", "source /var/opt/openstack/admin-openrc && openstack server list --all-projects"],
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+
+    @mock.patch("k8sapp_openstack.utils.subprocess.run")
+    def test_get_server_list_nonzero_exit(self, mock_run):
+        """ Test get_server_list for a non zero exit code
+        """
+        mock_process = mock.MagicMock()
+        mock_process.stdout = ""
+        mock_process.stderr = "Error: something went wrong"
+        mock_process.check_returncode.side_effect = subprocess.CalledProcessError(
+            returncode=1, cmd="openstack server list"
+        )
+        mock_run.return_value = mock_process
+
+        result = app_utils.get_server_list()
+
+        assert result == ""
+
+    @mock.patch("k8sapp_openstack.utils.subprocess.run")
+    def test_get_server_list_no_servers(self, mock_run):
+        """ Test get_server_list for a successful call with no servers available
+        """
+        mock_process = mock.MagicMock()
+        mock_process.stdout = "\n"
+        mock_process.stderr = ""
+        mock_process.check_returncode.return_value = None
+        mock_run.return_value = mock_process
+
+        result = app_utils.get_server_list()
+
+        assert result == ""

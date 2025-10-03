@@ -46,6 +46,26 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         """Tests that namespaces match the list of supported namespaces."""
         self.assertEqual(self.helm.get_namespaces(), self.helm.SUPPORTED_NAMESPACES)
 
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service')
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.context', new={})
+    def test_get_service_config_multiple_services(self, mock_get_service, *_):
+        """Tests the retrieval of configuration set parameters of services."""
+        mock_get_service.side_effect = [
+            {"test": "name"},
+            {"test2": "name2"}
+        ]
+        service1 = app_constants.HELM_CHART_KEYSTONE
+        service2 = app_constants.HELM_CHART_NOVA
+
+        result1 = self.helm._get_service_config(service1)
+        result2 = self.helm._get_service_config(service2)
+        self.assertEqual(result1, {"test": "name"})
+        self.assertEqual(result2, {"test2": "name2"})
+        self.assertEqual(
+            set(self.helm.context['_service_configs'].keys()),
+            {service1, service2}
+        )
+
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=None)
     def test_get_service_parameters_dbapi_none(self, *_):
         """Asserts on empty service parameters when dbapi is unavailable."""
@@ -161,6 +181,38 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
             self.helm._get_service_region_name(app_constants.HELM_CHART_KEYSTONE),
             b"RegionTwo")
 
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._region_config',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_config',
+                return_value=mock.Mock(capabilities={'service_name': app_constants.HELM_CHART_KEYSTONE}))
+    def test_get_configured_service_name_with_region_config(self, *_):
+        """Tests the service name retrieval with an associated region."""
+        self.assertEqual(self.helm._get_configured_service_name(app_constants.HELM_CHART_KEYSTONE),
+                        app_constants.HELM_CHART_KEYSTONE)
+
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._region_config',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_config',
+                return_value=mock.Mock(capabilities={'v1_service_name': app_constants.HELM_CHART_KEYSTONE + 'v1'}))
+    def test_get_configured_service_name_with_version(self, *_):
+        """Tests the retrieval of a service name and version."""
+        self.assertEqual(self.helm._get_configured_service_name(
+            app_constants.HELM_CHART_KEYSTONE, version='v1'),
+            app_constants.HELM_CHART_KEYSTONE + 'v1')
+
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._region_config',
+                return_value=False)
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_config',
+                return_value=mock.Mock(capabilities={'service_name': app_constants.HELM_CHART_KEYSTONE}))
+    def test_get_configured_service_name_no_region_config(self, *_):
+        """Tests the retrieval of a service name with missing region cofiguration."""
+        self.assertEqual(self.helm._get_configured_service_name(
+            app_constants.HELM_CHART_KEYSTONE, version='v2'),
+            app_constants.HELM_CHART_KEYSTONE + 'v2')
+        self.assertEqual(self.helm._get_configured_service_name(
+            app_constants.HELM_CHART_KEYSTONE),
+            app_constants.HELM_CHART_KEYSTONE)
+
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_config',
             return_value=mock.Mock(capabilities={'service_type': "stype"}))
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._region_config',
@@ -185,6 +237,15 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         self.helm._region_config = mock.Mock(return_value=False)
         self.assertIsNone(self.helm._get_configured_service_type(app_constants.HELM_CHART_KEYSTONE))
 
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.helm_override_get',
+                return_value=mock.Mock(system_overrides={'test': "name"}))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    @mock.patch('sysinv.common.utils.find_openstack_app', return_value=mock.Mock(id=1))
+    def test_get_or_generate_password(self, *_):
+        """Tests on general purpose password retrieval or generation."""
+        pw = self.helm._get_or_generate_password('chart', 'ns', 'test')
+        self.assertEqual(pw, b'name')
+
     @mock.patch('k8sapp_openstack.utils.get_services_fqdn_pattern',
                 return_value="{service_name}.{endpoint_domain}")
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_parameter',
@@ -206,6 +267,16 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         self.assertEqual(pw, b"pw")
         self.assertEqual(self.helm.context['_ceph_passwords'][app_constants.HELM_CHART_KEYSTONE]["user"], b"pw")
 
+    @mock.patch("sysinv.common.utils.find_openstack_app", return_value=mock.Mock(id=1))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.helm_override_get',
+                return_value=mock.Mock(system_overrides={"privatekey": "priv", "publickey": "pub"}))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    def test_get_or_generate_ssh_keys(self, *_):
+        """Asserts on the contents of generated SSH keys."""
+        priv, pub = self.helm._get_or_generate_ssh_keys("chart", "ns")
+        self.assertEqual(priv, "priv")
+        self.assertEqual(pub, "pub")
+
     def test_get_service_default_dns_name(self):
         """Tests the formatting of services' DNS names."""
         result = self.helm._get_service_default_dns_name(app_constants.HELM_CHART_KEYSTONE)
@@ -224,11 +295,53 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         result = self.helm._get_ceph_client_overrides()
         self.assertEqual(result["user_secret_name"], "secret")
 
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.interface_network_get_all',
+                return_value=[mock.Mock(interface_id=1), mock.Mock(interface_id=2)])
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    def test_get_interface_networks(self, *_):
+        """Tests the handling of interfaces network information."""
+        result = self.helm._get_interface_networks()
+        self.assertIn(1, result)
+        self.assertIn(2, result)
+
+    @mock.patch("k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_interface_networks",
+                return_value={
+                    1: [mock.Mock(interface_id=1, network_id=2)]
+                })
+    def test_get_interface_network_query_found(self, *_):
+        """Tests querying of available network interfaces."""
+        result = self.helm._get_interface_network_query(1, 2)
+        self.assertEqual(result.interface_id, 1)
+        self.assertEqual(result.network_id, 2)
+
     @mock.patch("k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_interface_networks", return_value={})
     def test_get_interface_network_query_not_found(self, *_):
         """Asserts on exception when no matching network interfaces are found."""
         self.assertRaises(openstack.exception.InterfaceNetworkNotFoundByHostInterfaceNetwork,
                           self.helm._get_interface_network_query, 1, 3)
+
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_host_interfaces',
+                return_value={1: [mock.Mock(id=2)]})
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_interface_network_query')
+    def test_get_cluster_host_iface(self, get_interface_network_query, *_):
+        """Tests querying of cluster host network interfaces."""
+        fake_host = mock.Mock(id=1)
+        result = self.helm._get_cluster_host_iface(fake_host, 3)
+        self.assertEqual(result.id, 2)
+        get_interface_network_query.assert_called_once_with(2, 3)
+
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_cluster_host_iface',
+                return_value=mock.Mock(id=3))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.network_get_by_type',
+                return_value=mock.Mock(id=2))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    def test_get_cluster_host_ip(self, *_):
+        """Tests the querying the network address of cluster hosts."""
+        fake_host = mock.Mock(id=1)
+        fake_addr = mock.Mock(interface_id=3, address="10.0.0.1")
+        addresses_by_hostid = {1: [fake_addr]}
+        result = self.helm._get_cluster_host_ip(fake_host, addresses_by_hostid)
+        self.assertEqual(result, "10.0.0.1")
 
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._is_enabled', return_value=False)
     def test_execute_kustomize_updates(self, *_):
@@ -247,12 +360,3 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
     def test_get_ca_file(self):
         """Matches the default certificate authority file path."""
         self.assertEqual(self.helm.get_ca_file(), "/etc/ssl/certs/openstack-helm.crt")
-
-    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.helm_override_get',
-                return_value=mock.Mock(system_overrides={'test': "name"}))
-    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
-    @mock.patch('sysinv.common.utils.find_openstack_app', return_value=mock.Mock(id=1))
-    def test_get_or_generate_password(self, *_):
-        """Tests on general purpose password retrieval or generation."""
-        pw = self.helm._get_or_generate_password('chart', 'ns', 'test')
-        self.assertEqual(pw, b'name')

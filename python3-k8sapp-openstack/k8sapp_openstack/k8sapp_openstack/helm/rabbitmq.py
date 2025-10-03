@@ -31,7 +31,7 @@ class RabbitmqHelm(openstack.OpenstackBaseHelm):
             common.HELM_NS_OPENSTACK: {
                 'pod': {
                     'replicas': {
-                        'server': self._num_controllers()
+                        'server': self._num_provisioned_controllers()
                     },
                     'resources': {
                         'enabled': limit_enabled,

@@ -104,6 +104,32 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         else:
             self.fail("LifecycleSemanticCheckException was not raised")
 
+    @mock.patch("k8sapp_openstack.utils.get_server_list")
+    def test_semantic_check_openstack_vms_created_no_servers(self, mock_get_server_list):
+        """ Test _semantic_check_openstack_vms_created for no servers
+        """
+        mock_get_server_list.return_value = []
+
+        try:
+            self.lifecycle._semantic_check_openstack_vms_created()
+        except exception.LifecycleSemanticCheckException as e:
+            self.fail(f"Unexpected LifecycleSemanticCheckException raised: {e}")
+
+        mock_get_server_list.assert_called_once()
+
+    @mock.patch("k8sapp_openstack.utils.get_server_list")
+    def test_semantic_check_openstack_vms_created_with_servers(self, mock_get_server_list):
+        """ Test _semantic_check_openstack_vms_created for with servers
+        """
+        mock_get_server_list.return_value = ["server1"]
+
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_openstack_vms_created
+        )
+
+        mock_get_server_list.assert_called_once()
+
     @mock.patch('k8sapp_openstack.utils.force_app_reconciliation')
     @mock.patch('k8sapp_openstack.utils.delete_kubernetes_resource')
     @mock.patch('k8sapp_openstack.utils.get_app_version_list',
@@ -273,6 +299,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         self.lifecycle._semantic_check_evaluate_app_reapply = mock.Mock()
         self.lifecycle._pre_apply_check = mock.Mock()
+        self.lifecycle._pre_remove_check = mock.Mock()
 
         self.lifecycle._pre_update_actions = mock.Mock()
         self.lifecycle._post_update_image_actions = mock.Mock()
@@ -289,6 +316,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             mock_lifecycle_utils.delete_rbd_provisioner_secrets,
             self.lifecycle._semantic_check_evaluate_app_reapply,
             self.lifecycle._pre_apply_check,
+            self.lifecycle._pre_remove_check,
             self.lifecycle._pre_update_actions,
             self.lifecycle._post_update_image_actions,
         ]
@@ -413,6 +441,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
                 'assertions': [
                     self.lifecycle._semantic_check_evaluate_app_reapply.assert_called_once,
                     self.lifecycle._pre_apply_check.assert_not_called,
+                    self.lifecycle._pre_remove_check.assert_not_called,
                 ]
             },
             {
@@ -425,6 +454,20 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
                 'assertions': [
                     self.lifecycle._semantic_check_evaluate_app_reapply.assert_not_called,
                     self.lifecycle._pre_apply_check.assert_called_once,
+                    self.lifecycle._pre_remove_check.assert_not_called,
+                ]
+            },
+            {
+                'hook_info': mock.Mock(
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK,
+                    operation=constants.APP_REMOVE_OP,
+                    mode=LifecycleConstants.APP_LIFECYCLE_MODE_MANUAL,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
+                ),
+                'assertions': [
+                    self.lifecycle._semantic_check_evaluate_app_reapply.assert_not_called,
+                    self.lifecycle._pre_apply_check.assert_not_called,
+                    self.lifecycle._pre_remove_check.assert_called_once,
                 ]
             },
         ]

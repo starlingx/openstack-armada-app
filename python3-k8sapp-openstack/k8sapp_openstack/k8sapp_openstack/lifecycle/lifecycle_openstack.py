@@ -88,6 +88,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     hook_info.operation == constants.APP_APPLY_OP and \
                         hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
                 return self._pre_apply_check(conductor_obj, app, hook_info)
+            elif hook_info.mode == LifecycleConstants.APP_LIFECYCLE_MODE_MANUAL and \
+                    hook_info.operation == constants.APP_REMOVE_OP and \
+                         hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
+                return self._pre_remove_check(conductor_obj, app, hook_info)
 
         # Manifest
         elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_MANIFEST:
@@ -362,6 +366,29 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         # Check data network configuration
         self._semantic_check_datanetwork_config(conductor_obj.dbapi)
+
+    def _pre_remove_check(self, conductor_obj, app, hook_info):
+        """Semantic check for evaluating app manual remove
+
+        :param conductor_obj: conductor object
+        :param app: AppOperator.Application object
+        :param hook_info: LifecycleHookInfo object
+
+        """
+
+        # Check if all servers were deleted before removing application
+        self._semantic_check_openstack_vms_created()
+
+    def _semantic_check_openstack_vms_created(self):
+        """Evaluate app remove conditions."""
+
+        # Fail if any servers are loaded.
+        if len(app_utils.get_server_list()) == 0:
+            LOG.info("Openstack has no server created, proceeding with application remove")
+        else:
+            raise exception.LifecycleSemanticCheckException(
+                "There are OpenStack instances created in the system."
+                " Please delete all Openstack instances before removing the application")
 
     def _semantic_check_storage_backend_available(self):
         """Checks if at least one of the supported storage backends

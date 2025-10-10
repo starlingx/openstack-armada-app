@@ -30,7 +30,7 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
                 'pod': {
                     'replicas': {
                         'server': self._num_server_replicas(),
-                        'ingress': self._num_controllers()
+                        'controller': self._num_server_replicas()
                     }
                 },
                 'endpoints': self._get_endpoints_overrides(),

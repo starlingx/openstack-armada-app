@@ -21,3 +21,4 @@
 0021-Add-custom-pod-annotations-to-libvirt.patch
 0022-Update-ipFamilyPolicy-to-support-DualStack.patch
 0023-Update-libvirt-cgroup-controllers-initiation.patch
+0024-Add-cluster-host-ip-env-var-to-libvirt.patch

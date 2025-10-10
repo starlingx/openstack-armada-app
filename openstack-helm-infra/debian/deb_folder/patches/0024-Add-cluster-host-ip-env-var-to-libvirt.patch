@@ -1,0 +1,113 @@
+From 5469ed56ad4eb6192d9ab5e96961aafdc43e8da5 Mon Sep 17 00:00:00 2001
+From: Thiago Miranda <tmarques@windriver.com>
+Date: Mon, 6 Oct 2025 07:37:39 -0300
+Subject: [PATCH] [PATCH] Add cluster host ip env var to libvirt
+
+This patch reads the libvirt configuration from
+/etc/libvirt/libvirtd.conf and writes them to a new Libvirt
+configuration file located at /tmp/libvirtd.conf, with the only
+difference being that the field listen_addr will be updated to contain
+the cluster host IP configured in an environment variable. This new
+configuration file will be used by the Libvirt controller container.
+
+This patch aims to assist in the task of changing the IP acquisition
+method for Libvirt controller pods to an environment variable-based
+approach that will provide the cluster IP address to the Libvirt
+controller container. Since the Libvirt configuration file located at
+/etc/libvirt is read-only, the solution of creating a new configuration
+file was used, following a similar approach that is already used by
+Nova.
+
+Signed-off-by: Thiago Miranda <tmarques@windriver.com>
+---
+ libvirt/templates/bin/_libvirt.sh.tpl    | 45 +++++++++++++++++++++++-
+ libvirt/templates/daemonset-libvirt.yaml |  6 ++++
+ 2 files changed, 50 insertions(+), 1 deletion(-)
+
+diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
+index af1b4f5e..d061a99b 100644
+--- a/libvirt/templates/bin/_libvirt.sh.tpl
++++ b/libvirt/templates/bin/_libvirt.sh.tpl
+@@ -16,6 +16,49 @@ limitations under the License.
+ 
+ set -ex
+ 
++# Check if environment variable exists
++if [ -z "$CLUSTER_HOST_IP" ]; then
++  echo "Error: CLUSTER_HOST_IP environment variable is not set."
++  exit 1
++fi
++
++# Set input and output files
++INPUT_FILE="/etc/libvirt/libvirtd.conf"
++OUTPUT_FILE="/tmp/libvirtd.conf"
++
++# Check if the output directory exists
++if [ ! -d "$(dirname "$OUTPUT_FILE")" ]; then
++  echo "Error: Output directory does not exist."
++  exit 1
++fi
++
++# Set fields to replace with cluster host ip
++declare -A CONFIG_CHANGES
++CONFIG_CHANGES["listen_addr"]="$CLUSTER_HOST_IP"
++
++# Clear output file before writing
++: > "$OUTPUT_FILE"
++
++# Loop through the lines of the input file
++while IFS= read -r line || [ -n "$line" ]; do
++
++  # Loop through the dictionary of field and update the values
++  for field in "${!CONFIG_CHANGES[@]}"; do
++    new_value="${CONFIG_CHANGES[$field]}"
++
++    if [[ "$line" =~ ^[[:space:]]*$field[[:space:]]*= ]]; then
++      line="$field = \"$new_value\""
++      break
++    fi
++  done
++
++  # Write the line (modified or unmodified) to the output file
++  if ! echo "$line" >> "$OUTPUT_FILE"; then
++    echo "Error: Failed to write to output file."
++    exit 1
++  fi
++done < "$INPUT_FILE"
++
+ # NOTE(mnaser): This will move the VNC certificates into the expected location.
+ if [ -f /tmp/vnc.crt ]; then
+   mkdir -p /etc/pki/libvirt-vnc
+@@ -158,4 +201,4 @@ EOF
+ fi
+ 
+ # NOTE(vsaienko): changing CGROUP is required as restart of the pod will cause domains restarts
+-cgexec -g ${CGROUPS%,}:/osh-libvirt systemd-run --scope --slice=system libvirtd --listen
++cgexec -g ${CGROUPS%,}:/osh-libvirt systemd-run --scope --slice=system libvirtd --listen -f /tmp/libvirtd.conf
+diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
+index 94d2ff05..8f227a55 100644
+--- a/libvirt/templates/daemonset-libvirt.yaml
++++ b/libvirt/templates/daemonset-libvirt.yaml
+@@ -176,6 +176,10 @@ spec:
+ {{ tuple $envAll $envAll.Values.pod.resources.libvirt | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+ {{ dict "envAll" $envAll "application" "libvirt" "container" "libvirt" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+           env:
++            - name: CLUSTER_HOST_IP
++              valueFrom:
++                fieldRef:
++                  fieldPath: status.hostIP
+           {{- if .Values.conf.ceph.enabled }}
+             - name: CEPH_CINDER_USER
+               value: "{{ .Values.conf.ceph.cinder.user }}"
+@@ -195,6 +199,8 @@ spec:
+ {{ dict "envAll" . "component" "libvirt" "container" "libvirt" "type" "readiness" "probeTemplate" (include "libvirtReadinessProbeTemplate" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+ {{ dict "envAll" . "component" "libvirt" "container" "libvirt" "type" "liveness" "probeTemplate" (include "libvirtLivenessProbeTemplate" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+           command:
++            - bash
++            - -c
+             - /tmp/libvirt.sh
+           lifecycle:
+             preStop:
+-- 
+2.34.1
+

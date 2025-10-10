@@ -22,7 +22,7 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
     AUTH_USERS = ['mariadb']
 
     def _num_server_replicas(self):
-        return self._num_controllers()
+        return self._num_provisioned_controllers()
 
     def get_overrides(self, namespace=None):
         overrides = {

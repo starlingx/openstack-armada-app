@@ -51,18 +51,18 @@ controller:
       requiredDuringSchedulingIgnoredDuringExecution:
       - labelSelector:
           matchExpressions:
-          - key: release_group
+          - key: app.kubernetes.io/name
             operator: In
             values:
             - ingress-nginx-openstack
-          - key: application
+          - key: app.kubernetes.io/instance
             operator: In
             values:
             - ingress-nginx-openstack
-          - key: component
+          - key: app.kubernetes.io/component
             operator: In
             values:
-            - server
+            - controller
         topologyKey: kubernetes.io/hostname
   nodeSelector:
     openstack-control-plane: "enabled"

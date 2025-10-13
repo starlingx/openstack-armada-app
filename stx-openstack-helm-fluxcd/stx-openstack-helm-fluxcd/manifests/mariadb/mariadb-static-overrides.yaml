@@ -58,8 +58,6 @@ pod:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
-      - effect: NoExecute
-        operator: Exists
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule

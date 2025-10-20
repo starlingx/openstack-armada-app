@@ -29,9 +29,7 @@ spec:
   upgrade:
     disableHooks: False
   dependsOn:
-    - name: ingress-nginx-openstack
-      namespace: openstack
-    - name: nginx-ports-control
+    - name: mariadb
       namespace: openstack
   valuesFrom:
     - kind: Secret

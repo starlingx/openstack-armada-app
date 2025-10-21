@@ -1,7 +1,7 @@
-From 5469ed56ad4eb6192d9ab5e96961aafdc43e8da5 Mon Sep 17 00:00:00 2001
+From acfe99420d70086e40c303f95288a651b7a0d4aa Mon Sep 17 00:00:00 2001
 From: Thiago Miranda <tmarques@windriver.com>
 Date: Mon, 6 Oct 2025 07:37:39 -0300
-Subject: [PATCH] [PATCH] Add cluster host ip env var to libvirt
+Subject: [PATCH] Add cluster host ip env var to libvirt
 
 This patch reads the libvirt configuration from
 /etc/libvirt/libvirtd.conf and writes them to a new Libvirt
@@ -20,15 +20,15 @@ Nova.
 
 Signed-off-by: Thiago Miranda <tmarques@windriver.com>
 ---
- libvirt/templates/bin/_libvirt.sh.tpl    | 45 +++++++++++++++++++++++-
- libvirt/templates/daemonset-libvirt.yaml |  6 ++++
- 2 files changed, 50 insertions(+), 1 deletion(-)
+ libvirt/templates/bin/_libvirt.sh.tpl    | 26 +++++++++++++++++++++++-
+ libvirt/templates/daemonset-libvirt.yaml |  6 ++++++
+ 2 files changed, 31 insertions(+), 1 deletion(-)
 
 diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
-index af1b4f5e..d061a99b 100644
+index af1b4f5e..1e6bca4c 100644
 --- a/libvirt/templates/bin/_libvirt.sh.tpl
 +++ b/libvirt/templates/bin/_libvirt.sh.tpl
-@@ -16,6 +16,49 @@ limitations under the License.
+@@ -16,6 +16,30 @@ limitations under the License.
  
  set -ex
  
@@ -48,37 +48,18 @@ index af1b4f5e..d061a99b 100644
 +  exit 1
 +fi
 +
-+# Set fields to replace with cluster host ip
-+declare -A CONFIG_CHANGES
-+CONFIG_CHANGES["listen_addr"]="$CLUSTER_HOST_IP"
++# Set listen_addr to replace with cluster host ip
++LISTEN_ADDR="$CLUSTER_HOST_IP"
++LISTEN_ADDR_FIELD="listen_addr"
++LISTEN_ADDR_REGEX="^[[:space:]]*$LISTEN_ADDR_FIELD[[:space:]]*=.*"
++LISTEN_ADDR_REPL="$LISTEN_ADDR_FIELD = \"$LISTEN_ADDR\""
 +
-+# Clear output file before writing
-+: > "$OUTPUT_FILE"
-+
-+# Loop through the lines of the input file
-+while IFS= read -r line || [ -n "$line" ]; do
-+
-+  # Loop through the dictionary of field and update the values
-+  for field in "${!CONFIG_CHANGES[@]}"; do
-+    new_value="${CONFIG_CHANGES[$field]}"
-+
-+    if [[ "$line" =~ ^[[:space:]]*$field[[:space:]]*= ]]; then
-+      line="$field = \"$new_value\""
-+      break
-+    fi
-+  done
-+
-+  # Write the line (modified or unmodified) to the output file
-+  if ! echo "$line" >> "$OUTPUT_FILE"; then
-+    echo "Error: Failed to write to output file."
-+    exit 1
-+  fi
-+done < "$INPUT_FILE"
++sed -E "s|$LISTEN_ADDR_REGEX|$LISTEN_ADDR_REPL|" "$INPUT_FILE" > "$OUTPUT_FILE"
 +
  # NOTE(mnaser): This will move the VNC certificates into the expected location.
  if [ -f /tmp/vnc.crt ]; then
    mkdir -p /etc/pki/libvirt-vnc
-@@ -158,4 +201,4 @@ EOF
+@@ -158,4 +182,4 @@ EOF
  fi
  
  # NOTE(vsaienko): changing CGROUP is required as restart of the pod will cause domains restarts

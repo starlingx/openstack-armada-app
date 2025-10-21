@@ -24,6 +24,8 @@ class GnocchiHelm(openstack.OpenstackBaseHelm):
     AUTH_USERS = ['gnocchi']
 
     def get_overrides(self, namespace=None):
+        self._rook_ceph, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
+
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'pod': self._get_pod_overrides(),
@@ -44,7 +46,7 @@ class GnocchiHelm(openstack.OpenstackBaseHelm):
         # The ceph client versions supported by baremetal and rook ceph backends
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
-        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
+        if self._rook_ceph:
             overrides[common.HELM_NS_OPENSTACK] =\
                 self._update_image_tag_overrides(
                     overrides[common.HELM_NS_OPENSTACK],

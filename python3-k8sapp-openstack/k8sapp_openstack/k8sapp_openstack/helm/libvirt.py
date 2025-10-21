@@ -31,6 +31,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
         }
         self.labels_by_hostid = {}
         self.addresses_by_hostid = {}
+        self._rook_ceph, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
 
     def get_overrides(self, namespace=None):
         self.labels_by_hostid = self._get_host_labels()
@@ -52,7 +53,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
         # The ceph client versions supported by baremetal and rook ceph backends
         # are not necessarily the same. Therefore, the ceph client image must be
         # dynamically configured based on the ceph backend currently deployed.
-        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
+        if self._rook_ceph:
             overrides[common.HELM_NS_OPENSTACK] =\
                 self._update_image_tag_overrides(
                     overrides[common.HELM_NS_OPENSTACK],
@@ -69,7 +70,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
 
     def _get_conf_overrides(self):
         admin_keyring = 'null'
-        if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
+        if self._rook_ceph:
             admin_keyring = self._get_rook_ceph_admin_keyring()
 
         overrides = {

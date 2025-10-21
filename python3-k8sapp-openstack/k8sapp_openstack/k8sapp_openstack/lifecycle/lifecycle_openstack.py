@@ -224,36 +224,53 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     self.APP_OPENSTACK_RESOURCE_CONFIG_MAP,
                     common.HELM_NS_OPENSTACK)
 
-            if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK):
-                # Read ceph-etc config map from rooh-ceph namespace
-                config_map_name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
-                config_map_ns = app_constants.HELM_NS_ROOK_CEPH
-            else:
-                # Read rbd-storage-init config map from kube-system namespace
-                config_map_name = self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP
-                config_map_ns = common.HELM_NS_RBD_PROVISIONER
-
-            config_map_body = kube.kube_read_config_map(config_map_name,
-                                                        config_map_ns)
-
-            if config_map_body:
-                config_map_body.metadata.resource_version = None
-                config_map_body.metadata.namespace = common.HELM_NS_OPENSTACK
-                config_map_body.metadata.name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
-
-                # Create configmap with correct name
-                kube.kube_create_config_map(
-                    common.HELM_NS_OPENSTACK,
-                    config_map_body)
-            else:
-                raise exception.LifecycleMissingInfo(
-                    f"Missing {self.APP_OPENSTACK_RESOURCE_CONFIG_MAP} config map")
+            # Create required storage backend configmap
+            self._pre_apply_copy_storage_backend_config(kube)
 
             # Perform pre apply LDAP-related actions.
             self._pre_apply_ldap_actions(app)
         except Exception as e:
             LOG.error(e)
             raise
+
+    def _pre_apply_copy_storage_backend_config(self, kube):
+        """Creates the respective config map from the selected storage backend.
+        Called when creating specific app resources during pre-apply cycle.
+
+        :param kube: AppOperator object
+
+        Raises:
+            LifecycleMissingInfo: Reports an issue when reading the source config map.
+        """
+        available, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
+
+        if available:
+            LOG.info("Read ceph-etc config map from rook-ceph namespace")
+            src_config_map_name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
+            src_config_map_ns = app_constants.HELM_NS_ROOK_CEPH
+        elif not available and message == app_constants.CEPH_BACKEND_NOT_CONFIGURED:
+            raise exception.InvalidStorageBackend(backend=constants.SB_TYPE_CEPH_ROOK)
+        elif not available and message == app_constants.DB_API_NOT_AVAILABLE:
+            raise ConnectionError("Database API is not available")
+        else:
+            LOG.info("Read rbd-storage-init config map from kube-system namespace")
+            src_config_map_name = self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP
+            src_config_map_ns = common.HELM_NS_RBD_PROVISIONER
+
+        config_map_body = kube.kube_read_config_map(src_config_map_name, src_config_map_ns)
+
+        if not config_map_body:
+            raise exception.LifecycleMissingInfo(
+                f"Missing storage backend config map: {src_config_map_ns}/{src_config_map_name}")
+
+        config_map_body.metadata.resource_version = None
+        config_map_body.metadata.namespace = common.HELM_NS_OPENSTACK
+        config_map_body.metadata.name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
+
+        # Create configmap with correct name
+        kube.kube_create_config_map(
+            common.HELM_NS_OPENSTACK,
+            config_map_body)
 
     def _semantic_check_evaluate_app_reapply(self, app_op, app, hook_info):
         """Semantic check for evaluating app reapply
@@ -402,10 +419,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         fsid_available = False
         rook_api_available = False
         backend_available = False
-        ceph_available = app_utils.is_ceph_backend_available(
+        ceph_available, _ = app_utils.is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH
         )
-        rook_ceph_available = app_utils.is_ceph_backend_available(
+        rook_ceph_available, _ = app_utils.is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
         status = f"ceph_available={ceph_available}, " \

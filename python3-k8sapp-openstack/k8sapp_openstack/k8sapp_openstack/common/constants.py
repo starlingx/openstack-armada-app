@@ -172,3 +172,7 @@ VSWITCH_ALLOWED_COMBINATIONS = [
     # OVS-DPDK
     {OPENVSWITCH_LABEL, DPDK_LABEL},
 ]
+
+# Return messages from ceph configmap creation
+CEPH_BACKEND_NOT_CONFIGURED = "Not configured"
+DB_API_NOT_AVAILABLE = "Database API is not available"

@@ -169,10 +169,11 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance = mock_dbapi_get_instance.return_value
         db_instance.storage_backend_get_list_by_type.return_value = mock_backend_list
 
-        result = app_utils.is_ceph_backend_available(
+        result, message = app_utils.is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
         self.assertEqual(result, True)
+        self.assertEqual(message, "")
         db_instance.storage_backend_get_list_by_type.assert_called_once_with(
             backend_type=constants.SB_TYPE_CEPH_ROOK
         )
@@ -188,10 +189,11 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance = mock_dbapi_get_instance.return_value
         db_instance.storage_backend_get_list_by_type.return_value = mock_backend_list
 
-        result = app_utils.is_ceph_backend_available(
+        result, message = app_utils.is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
         self.assertEqual(result, False)
+        self.assertEqual(message, app_constants.CEPH_BACKEND_NOT_CONFIGURED)
         db_instance.storage_backend_get_list_by_type.assert_called_once_with(
             backend_type=constants.SB_TYPE_CEPH_ROOK
         )
@@ -207,10 +209,11 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance = mock_dbapi_get_instance.return_value
         db_instance.storage_backend_get_list_by_type.return_value = mock_backend_list
 
-        result = app_utils.is_ceph_backend_available(
+        result, message = app_utils.is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
         self.assertEqual(result, False)
+        self.assertEqual(message, app_constants.CEPH_BACKEND_NOT_CONFIGURED)
         db_instance.storage_backend_get_list_by_type.assert_called_once_with(
             backend_type=constants.SB_TYPE_CEPH_ROOK
         )
@@ -219,10 +222,11 @@ class UtilsTest(dbbase.ControllerHostTestCase):
     def test_is_rook_backend_available_none_db(self, mock_dbapi_get_instance):
         """Test is_rook_backend_available for dbapi failure
         """
-        result = app_utils.is_ceph_backend_available(
+        result, message = app_utils.is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
         self.assertEqual(result, False)
+        self.assertEqual(message, app_constants.DB_API_NOT_AVAILABLE)
         mock_dbapi_get_instance.assert_called_once_with()
 
     @mock.patch('sysinv.db.api.get_instance')
@@ -233,10 +237,11 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         db_instance = mock_dbapi_get_instance.return_value
         db_instance.storage_backend_get_list_by_type.return_value = mock_backend_list
 
-        result = app_utils.is_ceph_backend_available(
+        result, message = app_utils.is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
         self.assertEqual(result, False)
+        self.assertEqual(message, f"No {constants.SB_TYPE_CEPH_ROOK} backend available")
         db_instance.storage_backend_get_list_by_type.assert_called_once_with(
             backend_type=constants.SB_TYPE_CEPH_ROOK
         )

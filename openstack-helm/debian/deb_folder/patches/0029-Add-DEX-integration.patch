@@ -1,0 +1,65 @@
+From f6682cb0e48131ed7cdf10abf00929976e09d29e Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Thu, 23 Oct 2025 10:07:47 -0300
+Subject: [PATCH] Add DEX integration
+
+Dex is an Opensource identity provider that acts as identity
+broker, that allows applications to use a single OpenID
+Connect (OIDC) integration to authenticate users against
+various existing identity providers. It is delivered to Starlingx
+through the oidc-auth-apps application.
+
+This patch integrates DEX to StarligX Openstack using a
+federated SSO provider and creating the necessary openstack
+resources to allow STX-O to use DEX as an identity provider.
+
+Change-Id: I8540dce2dd0f1d1100872cec0ddf3a9e6df9ae81
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+--
+ keystone/values.yaml | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/keystone/values.yaml b/keystone/values.yaml
+index 7e262d5f9..5690ddf5e 100644
+--- a/keystone/values.yaml
++++ b/keystone/values.yaml
+@@ -565,6 +565,36 @@ conf:
+       # NOTE(vdrok): The following two options have effect only for SQL backend
+       lockout_failure_attempts: 5
+       lockout_duration: 1800
++  federation:
++    dex_idp:
++      # Enable DEX integration
++      enabled: false
++      provider_name: "dex"
++      provider_remote_id: "https://0.0.0.0:30556/dex" # This IP is the one used in the DEX configuration
++      protocol_name: "openid"
++      group_name: "federated_users"
++      project_name: "federation"
++      mapping_name: "dex_mapping"
++      default_mapping: |
++        [{
++          local": [{
++            "user": {"name": "{0}"},
++            "group": {"name": "{{ .Values.conf.federation.dex_idp.group_name }}", "domain": {"name": "Default"}}
++          }],
++          "remote": [{"type": "OIDC-email"}]
++        }]
++      # Add DEX extra bootstrap commands to keystone bootstrap
++      bootstrap:
++        enabled: true
++        script: |
++          openstack role create member 2>/dev/null || true
++          openstack group create {{ .Values.conf.federation.dex_idp.group_name }} 2>/dev/null || true
++          openstack project create {{ .Values.conf.federation.dex_idp.project_name }} 2>/dev/null || true
++          openstack role add --group {{ .Values.conf.federation.dex_idp.group_name }} --project f{{ .Values.conf.federation.dex_idp.project_name }} member 2>/dev/null || true
++          openstack identity provider create {{ .Values.conf.federation.dex_idp.provider_name }} --remote-id {{ .Values.conf.federation.dex_idp.provider_remote_id }} 2>/dev/null || true
++          openstack mapping create --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }} 2>/dev/null || \
++          openstack mapping set --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }}
++          openstack federation protocol create {{ .Values.conf.federation.dex_idp.protocol_name }} --identity-provider {{ .Values.conf.federation.dex_idp.provider_name }} --mapping {{ .Values.conf.federation.dex_idp.mapping_name }} 2>/dev/null || true
+   # NOTE(lamt) We can leverage multiple domains with different
+   # configurations as outlined in
+   # https://docs.openstack.org/keystone/pike/admin/identity-domain-specific-config.html.
+-- 
+2.34.1
+

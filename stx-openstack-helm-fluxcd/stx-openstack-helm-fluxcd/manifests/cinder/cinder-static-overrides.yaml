@@ -95,4 +95,20 @@ conf:
       auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
 storage: rbd
+
+storage_conf:
+  storage_backends:
+    - name: ceph
+      enabled: true
+    - name: netapp-nfs
+      enabled: false
+    - name: netapp-iscsi
+      enabled: false
+    - name: netapp-fc
+      enabled: false
+  volume_storage_class_priority:
+    - ceph
+    - netapp-nfs
+    - netapp-iscsi
+    - netapp-fc
 ...

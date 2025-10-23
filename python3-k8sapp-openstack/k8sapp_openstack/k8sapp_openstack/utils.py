@@ -83,6 +83,23 @@ def _get_value_from_application(default_value, chart_name, override_name):
     return value
 
 
+def is_user_overrides_available(chart_name, override_name) -> bool:
+    """
+    Checks if a Helm Chart has user overrides defined
+
+    :param chart_name: The name of the chart to look for the overrides
+    :param override_name: The name of the field in values.yaml
+
+    :returns: bool -- True if user overrides exists for the given field; False otherwise
+    """
+    override = _get_value_from_application(
+        default_value=None,
+        chart_name=chart_name,
+        override_name=override_name
+    )
+    return override is not None
+
+
 def get_services_fqdn_pattern() -> str:
     """Get services FQDN configuration pattern
 
@@ -493,66 +510,144 @@ def _get_file_content(filename):
         return f.read()
 
 
-def check_netapp_backends() -> dict:
+def is_netapp_storageclass_available() -> bool:
     """
-    Check for the presence of NetApp backends (NFS and iSCSI) using `tridentctl`.
-
-    Calling the 'tridentctl' directly does not work with the STX-Openstack plugins,
-    so we have to run the command inside of the 'trident-main' container.
+    Check if there are any NetApp storageclasses defined in the system
 
     Returns:
-        dict: A dictionary indicating the availability of `nfs` and `iscsi` backends.
-              Example: {"nfs": True, "iscsi": False}
+        bool: True if at least one NetApp storageclass was found; false
+        otherwise
+    """
+    try:
+        # Formatting output to get storageclasses names with the trident provisioner only
+        jsonpath = (
+            f"{{range .items[?(@.provisioner==\"{app_constants.NETAPP_STORAGECLASS_NAME}\")]}}"
+            r"{.metadata.name}"
+            "{\"\\n\"}"
+            r"{end}'"
+        )
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "get", "storageclass",
+            "-o", f"jsonpath={jsonpath}"
+        ]
+        storageclass_info = send_cmd_read_response(cmd, log=False)
+
+        if not storageclass_info:
+            LOG.warning(f"Unable to find storageclass '{app_constants.NETAPP_STORAGECLASS_NAME}'")
+            return False
+        return True
+    except Exception as e:
+        LOG.error(f"Unexpected error while fetching NetApp storageclasses: {e}")
+        return False
+
+
+def check_netapp_backends() -> dict:
+    """
+    Check for the presence of NetApp backends (NFS, iSCSI and SCSi via FC) using
+    either the user overrides or the auto-discovery feature
+
+    Returns:
+        dict: A dictionary indicating the availability of 'nfs', 'iscsi' or 'fc' backends.
+              Example: {"nfs": True, "iscsi": False, "fc": False}
+    """
+    if is_user_overrides_available(app_constants.HELM_CHART_CINDER,
+                                   app_constants.OVERRIDE_STORAGE_BACKENDS):
+        enabled_backends = get_enabled_storage_backends_from_override()
+        backends_map = {"nfs": False, "iscsi": False, "fc": False}
+        backends_map["nfs"] = app_constants.NETAPP_NFS_BACKEND_NAME in enabled_backends
+        backends_map["iscsi"] = app_constants.NETAPP_ISCSI_BACKEND_NAME in enabled_backends
+        backends_map["fc"] = app_constants.NETAPP_FC_BACKEND_NAME in enabled_backends
+        return backends_map
+
+    return netapp_backends_auto_discovery()
+
+
+def netapp_backends_auto_discovery() -> dict:
+    """
+    Check for the presence of NetApp backends (NFS, iSCSI and SCSi via FC) using
+    storageclasses and tridentbackends objects
+
+    Calling the 'tridentctl' directly does not work with the STX-Openstack plugins,
+    so we use kubectl instead
+
+    Returns:
+        dict: A dictionary indicating the availability of 'nfs', 'iscsi' or 'fc' backends.
+              Example: {"nfs": True, "iscsi": False, "fc": False}
     """
     namespace = _get_value_from_application(
         default_value=app_constants.OPENSTACK_NETAPP_NAMESPACE,
         chart_name=app_constants.HELM_CHART_CLIENTS,
         override_name="netAppNamespace")
 
-    backends_map = {"nfs": False, "iscsi": False}
+    backends_map = {"nfs": False, "iscsi": False, "fc": False}
 
     try:
         kube = kubernetes.KubeOperator()
 
         # Get the controller pod for NetApp
-        pods = kube.kube_get_pods_by_selector(namespace, f"app={app_constants.NETAPP_CONTROLLER_LABEL}", "")
+        pods = kube.kube_get_pods_by_selector(namespace,
+                                              f"app={app_constants.NETAPP_CONTROLLER_LABEL}", "")
         if not pods:
-            return {"nfs": False, "iscsi": False}
-        pod_name = pods[0].metadata.name
+            LOG.error(f"No pods were found in '{namespace}' namespace"
+                      f" with 'app={app_constants.NETAPP_CONTROLLER_LABEL}' label")
+            return backends_map
 
-        # Not using the `kube_exec_container_stream` function from the KubeOperator
-        # here, as it is prone to error
+        # Checking if we have NetApp storageclasses
+        if not is_netapp_storageclass_available():
+            return backends_map
+
+        # Searching for available NetApp backend protocols
+        # The output will be in the format:
+        # <Storage Drive Name>:<NAS Type>:<SAN Type>
+        # Examples: ontap-nas:nfs:iscsi (since the type is 'ontap-nas', we'll retrieve 'nfs')
+        #           ontap-san:nfs:iscsi (since the type is 'ontap-san', we'll retrieve 'iscsi')
+        jsonpath = (
+            r"'{range .items[*]}"
+            r"{.config.ontap_config.storageDriverName}"
+            "{\":\"}"
+            r"{.config.ontap_config.nasType}"
+            "{\":\"}"
+            r"{.config.ontap_config.sanType}"
+            "{\"\\n\"}"
+            r"{end}'"
+        )
         cmd = [
             "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
             "-n", namespace,
-            "exec", "-it", pod_name,
-            "-c", app_constants.NETAPP_MAIN_CONTAINER_NAME,
-            "--", "tridentctl", "get", "backends"
+            "get", "tridentbackends",
+            "-o", f"jsonpath={jsonpath}"
         ]
-        backend_info = subprocess.run(
-                args=cmd,
-                capture_output=True,
-                text=True,
-                check=True,
-                shell=False)
-
-        if not backend_info.stdout:
+        protocol_info = send_cmd_read_response(cmd, log=False)
+        if not protocol_info:
+            LOG.error("Unable to get trident backends")
             return backends_map
 
-        backends_map["nfs"] = bool(re.search(r"ontap-nas", backend_info.stdout))
-        backends_map["iscsi"] = bool(re.search(r"ontap-san", backend_info.stdout))
+        protocols_found = []
+        for info in protocol_info.split("\n"):
+            if "ontap-nas" in info:
+                protocols_found.append(info.split(":")[1])
+            elif "ontap-san" in info:
+                protocols_found.append(info.split(":")[2])
+
+        # Updating backends_map
+        if protocols_found:
+            for k in backends_map.keys():
+                backends_map[k] = k in protocols_found
+
         return backends_map
+
     except KubeApiException as e:
         LOG.error(f"Failed to get trident controller pod name: {e}")
         return backends_map
     except subprocess.CalledProcessError as e:
         LOG.error(
-            "Tridentctl command did not return successful return code: "
+            "Kubectl command did not return successful return code: "
             f"{e.returncode}. Error message was: {e.output}"
         )
         return backends_map
     except subprocess.TimeoutExpired as e:
-        LOG.error(f"Tridentctl command timed out: {e}")
+        LOG.error(f"Kubectl command timed out: {e}")
         return backends_map
     except Exception as e:
         LOG.error(f"Unexpected error while fetching NetApp backends: {e}")
@@ -560,13 +655,13 @@ def check_netapp_backends() -> dict:
 
 
 def is_netapp_available() -> bool:
-    """Returns true or false if NetApp backend is available
+    """Checks if NetApp backend is available
 
     Returns:
-        bool: True if Netapp backend is available or False if it is not
+        bool: True if Netapp backend is available; False otherwise
     """
     netapp_backends = check_netapp_backends()
-    return netapp_backends["nfs"] or netapp_backends["iscsi"]
+    return any(netapp_backends.values())
 
 
 def is_ceph_backend_available(ceph_type: str =
@@ -890,6 +985,47 @@ def get_vswitch_label_from_override_file() -> set:
         override_name="vswitch_labels"
     )
     return set(labels)
+
+
+def get_enabled_storage_backends_from_override() -> list:
+    """
+    Retrieves the available storage backends from Cinder's
+    override file
+
+    Returns:
+        list: a list of enabled backends names (for instance,
+        ["ceph", "netap_nfs"]), as defined in the overrides file
+    """
+
+    storage_backends = _get_value_from_application(
+        default_value=app_constants.DEFAULT_STORAGE_BACKEND_SELECT,
+        chart_name=app_constants.HELM_CHART_CINDER,
+        override_name=app_constants.OVERRIDE_STORAGE_BACKENDS
+    )
+
+    if storage_backends:
+        return [backend["name"] for backend in storage_backends if backend["enabled"]]
+    else:
+        return []
+
+
+def get_storage_backends_priority_list(chart) -> list:
+    """
+    Retrieves the list of storage backends' priority from
+    the given override file.
+
+        Args:
+        chart: Helm Chart name
+
+    Returns:
+        list: a list with the storage backend ordered by
+        priority
+    """
+    return _get_value_from_application(
+        default_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST,
+        chart_name=chart,
+        override_name=app_constants.OVERRIDE_STORAGE_PRIORITY
+    )
 
 
 def is_vswitch_combination_enabled(vswitch_combination, label_combinations=None) -> bool:

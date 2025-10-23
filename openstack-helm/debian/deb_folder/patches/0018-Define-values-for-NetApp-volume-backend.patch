@@ -1,4 +1,4 @@
-From 790882f068d747320bb8adf50007a0d0e418eb4c Mon Sep 17 00:00:00 2001
+From 7fc492bf45e30514f113e7b47938fc7c7259d066 Mon Sep 17 00:00:00 2001
 From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 Date: Tue, 12 Nov 2024 10:17:18 -0300
 Subject: [PATCH] Define values for NetApp volume backend
@@ -14,18 +14,29 @@ some overrides to the conf.cinder.backends.netapp-nfs and
 conf.nfs_shares or the conf.cinder.backends.netapp-iscsi values, and
 add the netapp drivers to the enabled_backends list.
 
+Change-Id: I94ed1e232b1d64ca98744a1eccf7363d5fc666a8
 Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+
+[Added FC support, default backend selector and priorities]
+
+Added some new fields regarding the Fiber Channel Protocol in
+addition to NFS and iSCSI. Also, added a list that allows the
+user to manually select the default backend via overrides and
+to set the backends' priorities if there are multiple enabled.
+
+Change-Id: I00919573fed352c2df568e59f8d8d940b05d9c73
+Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 ---
  cinder/templates/configmap-etc.yaml     |  1 +
- cinder/templates/deployment-volume.yaml |  4 ++++
- cinder/values.yaml                      | 26 +++++++++++++++++++++++++
- 3 files changed, 31 insertions(+)
+ cinder/templates/deployment-volume.yaml |  4 ++
+ cinder/values.yaml                      | 52 +++++++++++++++++++++++++
+ 3 files changed, 57 insertions(+)
 
 diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
-index 1b1b4f02..7c2dcb7d 100644
+index 2e83f3740..685966fe1 100644
 --- a/cinder/templates/configmap-etc.yaml
 +++ b/cinder/templates/configmap-etc.yaml
-@@ -169,6 +169,7 @@ data:
+@@ -179,6 +179,7 @@ data:
    cinder_sudoers: {{ $envAll.Values.conf.cinder_sudoers | b64enc }}
    rootwrap.conf: {{ $envAll.Values.conf.rootwrap | b64enc }}
    resource_filters.json: {{ toJson .Values.conf.resource_filters | b64enc }}
@@ -34,10 +45,10 @@ index 1b1b4f02..7c2dcb7d 100644
  {{- $filePrefix := replace "_" "-"  $key }}
    {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index 63eb2422..567009ce 100755
+index 3b1d14110..348aa66fb 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
-@@ -187,6 +187,10 @@ spec:
+@@ -188,6 +188,10 @@ spec:
                mountPath: /etc/cinder/conf/backends.conf
                subPath: backends.conf
                readOnly: true
@@ -49,7 +60,7 @@ index 63eb2422..567009ce 100755
              - name: etcceph
                mountPath: /etc/ceph
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index ba1189e3..293c94a2 100644
+index ef0d9615e..b52b94dc7 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
 @@ -773,6 +773,10 @@ conf:
@@ -63,7 +74,7 @@ index ba1189e3..293c94a2 100644
    ceph:
      override:
      append:
-@@ -945,6 +949,28 @@ conf:
+@@ -945,6 +949,38 @@ conf:
        image_volume_cache_enabled: true
        image_volume_cache_max_size_gb: 200
        image_volume_cache_max_count: 50
@@ -89,9 +100,42 @@ index ba1189e3..293c94a2 100644
 +      netapp_password: netapp-password
 +      netapp_vserver: netapp-vserver
 +      netapp_storage_family: ontap_cluster
++    netapp-fc:
++      volume_driver: cinder.volume.drivers.netapp.common.NetAppDriver
++      volume_backend_name: netapp-fc
++      netapp_storage_protocol: fc
++      netapp_server_hostname: 127.0.0.1
++      netapp_server_port: 80
++      netapp_login: netapp-login
++      netapp_password: netapp-password
++      netapp_vserver: netapp-vserver
++      netapp_storage_family: ontap_cluster
    rally_tests:
      run_tempest: false
      clean_up: |
+@@ -1468,6 +1504,22 @@ tls:
+   oslo_messaging: false
+   oslo_db: false
+ 
++storage_conf:
++  storage_backends:
++    - name: ceph
++      enabled: true
++    - name: netapp-nfs
++      enabled: false
++    - name: netapp-iscsi
++      enabled: false
++    - name: netapp-fc
++      enabled: false
++  volume_storage_class_priority:
++    - ceph
++    - netapp-nfs
++    - netapp-iscsi
++    - netapp-fc
++
+ manifests:
+   certificates: false
+   configmap_bin: true
 -- 
 2.34.1
 

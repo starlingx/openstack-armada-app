@@ -1436,3 +1436,183 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         mock_requests_get.assert_called_once_with(
             "https://dex.example/probe", timeout=3, verify=False
         )
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value="ontap-nas:nfs:iscsi")
+    @mock.patch('k8sapp_openstack.utils.is_netapp_storageclass_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='trident')
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available',
+                return_value=False)
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_check_netapp_backends_nfs(self, mock_kube_operator, *_):
+        """ Test if check_netapp_backends can find the 'nfs' backend
+        """
+        # Mocks for Netapp pods checking
+        mock_pod_list = [mock.MagicMock()]
+        kube_operator_instance = mock_kube_operator.return_value
+        kube_operator_instance.kube_get_pods_by_selector.return_value = mock_pod_list
+
+        backends_map = app_utils.check_netapp_backends()
+
+        assert backends_map["nfs"]
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value="ontap-san:nfs:iscsi")
+    @mock.patch('k8sapp_openstack.utils.is_netapp_storageclass_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='trident')
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available',
+                return_value=False)
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_check_netapp_backends_iscsi(self, mock_kube_operator, *_):
+        """ Test if check_netapp_backends can find the 'iscsi' backend
+        """
+        mock_pod_list = [mock.MagicMock()]
+        kube_operator_instance = mock_kube_operator.return_value
+        kube_operator_instance.kube_get_pods_by_selector.return_value = mock_pod_list
+
+        backends_map = app_utils.check_netapp_backends()
+
+        assert backends_map["iscsi"]
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value="ontap-san:nfs:fc")
+    @mock.patch('k8sapp_openstack.utils.is_netapp_storageclass_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='trident')
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available',
+                return_value=False)
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_check_netapp_backends_fc(self, mock_kube_operator, *_):
+        """ Test if check_netapp_backends can find the 'fc' backend
+        """
+        mock_pod_list = [mock.MagicMock()]
+        kube_operator_instance = mock_kube_operator.return_value
+        kube_operator_instance.kube_get_pods_by_selector.return_value = mock_pod_list
+
+        backends_map = app_utils.check_netapp_backends()
+
+        assert backends_map["fc"]
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value="ontap-san:nfs:iscsi\nontap-nas:nfs:iscsi")
+    @mock.patch('k8sapp_openstack.utils.is_netapp_storageclass_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='trident')
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available',
+                return_value=False)
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_check_netapp_backends_multiple(self, mock_kube_operator, *_):
+        """ Test if check_netapp_backends can find multiple backends
+        """
+        mock_pod_list = [mock.MagicMock()]
+        kube_operator_instance = mock_kube_operator.return_value
+        kube_operator_instance.kube_get_pods_by_selector.return_value = mock_pod_list
+
+        backends_map = app_utils.check_netapp_backends()
+
+        assert backends_map["nfs"] and backends_map["iscsi"]
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value="")
+    @mock.patch('k8sapp_openstack.utils.is_netapp_storageclass_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='trident')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override',
+                return_value=["ceph"])
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available',
+                return_value=False)
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_check_netapp_backends_none(self, mock_kube_operator, *_):
+        """ Test if check_netapp_backends returns a backend_map with all
+            values set to false when no backends are available
+        """
+        mock_pod_list = [mock.MagicMock()]
+        kube_operator_instance = mock_kube_operator.return_value
+        kube_operator_instance.kube_get_pods_by_selector.return_value = mock_pod_list
+
+        backends_map = app_utils.check_netapp_backends()
+
+        assert not any(backends_map.values())
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_enabled_storage_backends_from_override_netapp_nfs(self, mock_get_values):
+        """ Test if get_enabled_storage_backends_from_override selects netapp-nfs
+            when it's the only backend enabled
+        """
+        mock_get_values.return_value = [
+            {"name": "ceph", "enabled": False},
+            {"name": "netapp-nfs", "enabled": True},
+            {"name": "netapp-iscsi", "enabled": False},
+            {"name": "netapp-fc", "enabled": False},
+        ]
+
+        enabled_backends = app_utils.get_enabled_storage_backends_from_override()
+        assert enabled_backends == ["netapp-nfs"]
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_enabled_storage_backends_from_override_multiple(self, mock_get_values):
+        """ Test if get_enabled_storage_backends_from_override selects all the
+            enabled backends found
+        """
+        mock_get_values.return_value = [
+            {"name": "ceph", "enabled": True},
+            {"name": "netapp-nfs", "enabled": False},
+            {"name": "netapp-iscsi", "enabled": True},
+            {"name": "netapp-fc", "enabled": False},
+        ]
+
+        enabled_backends = app_utils.get_enabled_storage_backends_from_override()
+        assert enabled_backends == ["ceph", "netapp-iscsi"]
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_enabled_storage_backends_from_override_none(self, mock_get_values):
+        """ Test if get_enabled_storage_backends_from_override returns an empty
+            list if no backend is enabled
+        """
+        mock_get_values.return_value = [
+            {"name": "ceph", "enabled": False},
+            {"name": "netapp-nfs", "enabled": False},
+            {"name": "netapp-iscsi", "enabled": False},
+            {"name": "netapp-fc", "enabled": False},
+        ]
+
+        enabled_backends = app_utils.get_enabled_storage_backends_from_override()
+        assert len(enabled_backends) == 0
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_storage_backends_priority_list(self, mock_get_values):
+        """ Test if get_storage_backends_priority_list works properly
+        """
+        chart = app_constants.HELM_CHART_CINDER
+        mock_get_values.return_value = [
+            "netapp-nfs", "ceph", "netapp-iscsi", "netapp-fc"
+        ]
+
+        priority_list = app_utils.get_storage_backends_priority_list(chart)
+        assert priority_list == ["netapp-nfs", "ceph", "netapp-iscsi", "netapp-fc"]
+
+    @mock.patch('k8sapp_openstack.utils.is_netapp_storageclass_available', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value='trident')
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_check_netapp_backends_from_override(self, mock_kube_operator, mock_enabled_backends, *_):
+        """ Test if check_netapp_backends returns a backend_map with the
+            values present in the override file
+        """
+        mock_pod_list = [mock.MagicMock()]
+        kube_operator_instance = mock_kube_operator.return_value
+        kube_operator_instance.kube_get_pods_by_selector.return_value = mock_pod_list
+
+        mock_enabled_backends.return_value = ["netapp-nfs"]
+
+        backends_map = app_utils.check_netapp_backends()
+
+        assert backends_map["nfs"]

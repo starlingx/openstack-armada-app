@@ -15,14 +15,14 @@ from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import check_netapp_backends
 from k8sapp_openstack.utils import get_ceph_fsid
+from k8sapp_openstack.utils import get_enabled_storage_backends_from_override
 from k8sapp_openstack.utils import get_image_rook_ceph
+from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_netapp_available
+from k8sapp_openstack.utils import is_user_overrides_available
 
 LOG = logging.getLogger(__name__)
-
-NETAPP_NFS_BACKEND_NAME = 'netapp-nfs'
-NETAPP_ISCSI_BACKEND_NAME = 'netapp-iscsi'
 
 
 class CinderHelm(openstack.OpenstackBaseHelm):
@@ -34,6 +34,23 @@ class CinderHelm(openstack.OpenstackBaseHelm):
     SERVICE_NAME = app_constants.HELM_CHART_CINDER
     SERVICE_TYPE = 'volume'
     AUTH_USERS = ['cinder']
+
+    def _init_volume_priority_map(self):
+        """
+        Initialize a dict mapping volume backends with it's
+        respective priorities, to be used after checking the enabled
+        backends. The values are as follows:
+
+        -1: Backend is disabled or not found
+         0: Highest priority
+         1, 2, 3: The higher the number, the lower is the priority
+
+         This initializes all volume backends with -1
+        """
+        self.VOLUME_PRIORITY_LIST = get_storage_backends_priority_list(self.CHART)
+        self.priority_map = dict()
+        for i in self.VOLUME_PRIORITY_LIST:
+            self.priority_map[i] = -1
 
     def _get_mount_overrides(self):
         overrides = {
@@ -55,19 +72,38 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # the configuration for the specific backends
         cinder_overrides = self._get_common_cinder_overrides()
         backend_overrides = self._get_common_backend_overrides()
+        self._init_volume_priority_map()
+        self._rook_ceph = False
 
-        self._rook_ceph, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
-        # Ceph and Rook Ceph are mutually exclusive, so it's either one or the other
-        if self._rook_ceph:
-            cinder_overrides = self._get_conf_rook_ceph_cinder_overrides(cinder_overrides)
-            backend_overrides = self._get_conf_rook_ceph_backends_overrides(backend_overrides)
-            ceph_overrides = self._get_conf_rook_ceph_overrides()
-            ceph_client_overrides = self._get_ceph_client_rook_overrides()
+        if is_user_overrides_available(self.CHART, app_constants.OVERRIDE_STORAGE_BACKENDS):
+            enabled_backends_override = get_enabled_storage_backends_from_override()
         else:
-            cinder_overrides = self._get_conf_ceph_cinder_overrides(cinder_overrides)
-            backend_overrides = self._get_conf_ceph_backends_overrides(backend_overrides)
-            ceph_overrides = self._get_conf_ceph_overrides()
-            ceph_client_overrides = self._get_ceph_client_overrides()
+            enabled_backends_override = None
+
+        # Check if ceph is enabled by the user or if there are no user overrides (default)
+        if (not enabled_backends_override) or ("ceph" in enabled_backends_override):
+            self._rook_ceph, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
+            # Ceph and Rook Ceph are mutually exclusive, so it's either one or the other
+            if self._rook_ceph:
+                cinder_overrides = self._get_conf_rook_ceph_cinder_overrides(cinder_overrides)
+                backend_overrides = self._get_conf_rook_ceph_backends_overrides(backend_overrides)
+                ceph_overrides = self._get_conf_rook_ceph_overrides()
+                ceph_client_overrides = self._get_ceph_client_rook_overrides()
+            else:
+                cinder_overrides = self._get_conf_ceph_cinder_overrides(cinder_overrides)
+                backend_overrides = self._get_conf_ceph_backends_overrides(backend_overrides)
+                ceph_overrides = self._get_conf_ceph_overrides()
+                ceph_client_overrides = self._get_ceph_client_overrides()
+            # Update priority map for ceph:
+            # We set the value of 'ceph' field based on its position in the priority list
+            self.priority_map["ceph"] = self.VOLUME_PRIORITY_LIST.index("ceph") if (
+                "ceph" in self.VOLUME_PRIORITY_LIST) else -1
+            ceph_enabled = True
+        else:
+            # This means ceph is disabled
+            ceph_overrides = dict()
+            ceph_client_overrides = dict()
+            ceph_enabled = False
 
         # Add NetApp configuration
         cinder_volume_read_only_filesystem = True
@@ -79,6 +115,25 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
             cinder_overrides = self._get_conf_netapp_cinder_overrides(cinder_overrides)
             backend_overrides = self._get_conf_netapp_backends_overrides(backend_overrides)
+
+            # Update priority map for netapp backend
+            # First we select only the enabled netapp backends
+            netapp_enabled_backends = [
+                f"netapp-{b}" for b in netapp_backends.keys() if netapp_backends[b]]
+            # Then we set the value in map accordingly to the position in the priority list
+            for backend in netapp_enabled_backends:
+                self.priority_map[backend] = self.VOLUME_PRIORITY_LIST.index(backend) if (
+                    backend in self.VOLUME_PRIORITY_LIST) else -1
+
+        # Setting default volume type if it's not already 'ceph'
+        # First, eliminate all disabled backends from the map
+        filtered_pmap = {key: value for key, value in self.priority_map.items() if value > -1}
+        # Then sort it
+        sorted_pmap = sorted(filtered_pmap, key=lambda item: item[1])
+        # The lowest positive value will be the default volume type
+        default_volume_type = sorted_pmap[0]
+        if default_volume_type != "ceph":
+            cinder_overrides['DEFAULT']['default_volume_type'] = default_volume_type
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -113,6 +168,11 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 'ceph_client': ceph_client_overrides
             }
         }
+
+        # Remove unused overrides
+        if not ceph_enabled:
+            overrides[common.HELM_NS_OPENSTACK]['conf'].pop('ceph', 0)
+            overrides[common.HELM_NS_OPENSTACK].pop('ceph_client', 0)
 
         if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = \
@@ -233,8 +293,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # Get available NetApp backends
         netapp_backends = check_netapp_backends()
         netapp_array = [
-            NETAPP_NFS_BACKEND_NAME if netapp_backends.get("nfs") else None,
-            NETAPP_ISCSI_BACKEND_NAME if netapp_backends.get("iscsi") else None,
+            app_constants.NETAPP_NFS_BACKEND_NAME if netapp_backends.get("nfs") else None,
+            app_constants.NETAPP_ISCSI_BACKEND_NAME if netapp_backends.get("iscsi") else None,
+            app_constants.NETAPP_FC_BACKEND_NAME if netapp_backends.get("fc") else None,
         ]
 
         # Remove None values
@@ -293,19 +354,29 @@ class CinderHelm(openstack.OpenstackBaseHelm):
     def _get_conf_netapp_backends_overrides(self, backend_overrides):
         cinder_netapp_driver = 'cinder.volume.drivers.netapp.common.NetAppDriver'
 
-        backend_overrides[NETAPP_NFS_BACKEND_NAME] = {
+        backend_overrides[app_constants.NETAPP_NFS_BACKEND_NAME] = {
             'volume_driver': cinder_netapp_driver,
-            'volume_backend_name': NETAPP_NFS_BACKEND_NAME,
+            'volume_backend_name': app_constants.NETAPP_NFS_BACKEND_NAME,
             'netapp_storage_family': 'ontap_cluster',
             'netapp_storage_protocol': 'nfs',
             'nfs_shares_config': '/etc/cinder/nfs.shares'
         }
-        backend_overrides[NETAPP_ISCSI_BACKEND_NAME] = {
+        backend_overrides[app_constants.NETAPP_ISCSI_BACKEND_NAME] = {
             'volume_driver': cinder_netapp_driver,
-            'volume_backend_name': NETAPP_ISCSI_BACKEND_NAME,
+            'volume_backend_name': app_constants.NETAPP_ISCSI_BACKEND_NAME,
             'netapp_storage_family': 'ontap_cluster',
             'netapp_storage_protocol': 'iscsi',
         }
+        backend_overrides[app_constants.NETAPP_FC_BACKEND_NAME] = {
+            'volume_driver': cinder_netapp_driver,
+            'volume_backend_name': app_constants.NETAPP_FC_BACKEND_NAME,
+            'netapp_storage_family': 'ontap_cluster',
+            'netapp_storage_protocol': 'fc',
+        }
+        # TODO: For full FC support, we'll need to include Zoning config, as it's described
+        # in the documentation
+        # https://netapp-openstack-dev.github.io/openstack-docs/wallaby/cinder/configuration/cinder_config_files/unified_driver_ontap/section_cinder-conf-fcp.html
+        # https://netapp-openstack-dev.github.io/openstack-docs/wallaby/cinder/configuration/cinder_config_files/section_fibre-channel.html
 
         return backend_overrides
 

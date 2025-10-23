@@ -101,6 +101,8 @@ NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_T4_PF_NAME = "nvidia-tesla-t4-pf"
 HELM_APP_ROOK_CEPH = constants.HELM_APP_ROOK_CEPH
 HELM_NS_ROOK_CEPH = 'rook-ceph'
 
+CEPH_BACKEND_NAME = constants.SB_TYPE_CEPH
+
 CEPH_ROOK_BACKEND_NAME = constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH_ROOK]
 CEPH_ROOK_IMAGE_DEFAULT_REPO = 'docker.io/openstackhelm/ceph-config-helper'
 CEPH_ROOK_IMAGE_DEFAULT_TAG = 'ubuntu_jammy_18.2.2-1-20240312'
@@ -148,6 +150,25 @@ CLIENTS_WORKING_DIR_USER = "sysadmin"
 # NetApp definitions
 NETAPP_CONTROLLER_LABEL = "controller.csi.trident.netapp.io"
 NETAPP_MAIN_CONTAINER_NAME = "trident-main"
+NETAPP_STORAGECLASS_NAME = "csi.trident.netapp.io"
+NETAPP_NFS_BACKEND_NAME = 'netapp-nfs'
+NETAPP_ISCSI_BACKEND_NAME = 'netapp-iscsi'
+NETAPP_FC_BACKEND_NAME = 'netapp-fc'
+
+# Storage backends overrides
+OVERRIDE_STORAGE_BACKENDS = "storage_conf.storage_backends"
+
+# Volume priority
+OVERRIDE_STORAGE_PRIORITY = "storage_conf.volume_storage_class_priority"
+DEFAULT_VOLUME_PRIORITY_LIST = [
+    CEPH_BACKEND_NAME,
+    NETAPP_NFS_BACKEND_NAME,
+    NETAPP_ISCSI_BACKEND_NAME,
+    NETAPP_FC_BACKEND_NAME
+]
+
+# Storage backends default option
+DEFAULT_STORAGE_BACKEND_SELECT = [{"name": "ceph", "enabled": True}]
 
 # STX-Openstack configuration values
 OPENSTACK_CERT = "openstack-cert"

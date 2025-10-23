@@ -25,12 +25,39 @@ class CinderConversionTestCase(test_plugins.K8SAppOpenstackAppMixin,
 
 class CinderGetOverrideTest(CinderConversionTestCase,
                             dbbase.ControllerHostTestCase):
-    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+
+    @mock.patch(
+        'k8sapp_openstack.utils.is_openstack_https_ready',
+        return_value=False
+    )
     @mock.patch(
         'k8sapp_openstack.utils.check_netapp_backends',
-        return_value={'nfs': False, 'iscsi': False}
+        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.check_netapp_backends',
+        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["ceph"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_enabled_storage_backends_from_override',
+        return_value=["ceph"]
     )
     def test_cinder_overrides(self, *_):
+        """
+        Test if cinder overrides are loaded correctly
+        """
         dbutils.create_test_host_fs(name='image-conversion',
                                     forihostid=self.host.id)
         overrides = self.operator.get_helm_chart_overrides(
@@ -60,9 +87,18 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             }
         })
 
-    @mock.patch('os.path.exists', return_value=True)
-    @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
-    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
+    @mock.patch(
+            'os.path.exists',
+            return_value=True
+    )
+    @mock.patch(
+        'six.moves.builtins.open',
+        mock.mock_open(read_data="fake")
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.is_openstack_https_ready',
+        return_value=True
+    )
     @mock.patch(
         'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
         return_value='/etc/ssl/private/openstack/ca-cert.pem'
@@ -77,9 +113,33 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     )
     @mock.patch(
         'k8sapp_openstack.utils.check_netapp_backends',
-        return_value={'nfs': False, 'iscsi': False}
+        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.check_netapp_backends',
+        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["ceph"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_enabled_storage_backends_from_override',
+        return_value=["ceph"]
     )
     def test_cinder_overrides_https_enabled(self, *_):
+        """
+        Test if cinder overrides with the additional HTTPS
+        certificate parameters are loaded correctly
+        """
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_CINDER,
             cnamespace=common.HELM_NS_OPENSTACK)
@@ -153,3 +213,274 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                 'certificates': True,
             },
         })
+
+    @mock.patch(
+        'k8sapp_openstack.utils.is_openstack_https_ready',
+        return_value=False
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.check_netapp_backends',
+        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.check_netapp_backends',
+        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_user_overrides_available',
+        return_value=False
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.is_user_overrides_available',
+        return_value=False
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["ceph", "netapp-nfs", "netapp-iscsi", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
+        return_value=(False, "")
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value=dict()
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        return_value=dict()
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value=dict()
+    )
+    def test_set_default_storage_backend_ceph(self, *_):
+        """
+        Test if ceph is defined as the default storage backend
+        if we don't specify any user overrides
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CINDER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        enabled_backends = overrides['conf']['cinder']['DEFAULT']['enabled_backends']
+        default_backend = overrides['conf']['cinder']['DEFAULT']['default_volume_type']
+
+        pass_condition_1 = set(enabled_backends.split(',')) == {'ceph'}
+        pass_condition_2 = default_backend == 'ceph'
+
+        assert pass_condition_1 and pass_condition_2
+
+    @mock.patch(
+        'k8sapp_openstack.utils.is_openstack_https_ready',
+        return_value=False
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.check_netapp_backends',
+        return_value={'nfs': True, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.check_netapp_backends',
+        return_value={'nfs': True, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["ceph", "netapp-nfs", "netapp-iscsi", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_enabled_storage_backends_from_override',
+        return_value=["netapp-nfs"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.get_enabled_storage_backends_from_override',
+        return_value=["netapp-nfs"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
+        return_value=(False, "")
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value=dict()
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        return_value=dict()
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value=dict()
+    )
+    def test_set_default_storage_backend_netapp_ceph_disabled(self, *_):
+        """
+        Test if netapp is defined as the default storage backend
+        if we disable ceph and enable netapp via user overrides
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CINDER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        enabled_backends = overrides['conf']['cinder']['DEFAULT']['enabled_backends']
+        default_backend = overrides['conf']['cinder']['DEFAULT']['default_volume_type']
+
+        pass_condition_1 = set(enabled_backends.split(',')) == {'netapp-nfs'}
+        pass_condition_2 = default_backend == 'netapp-nfs'
+
+        assert pass_condition_1 and pass_condition_2
+
+    @mock.patch(
+        'k8sapp_openstack.utils.is_openstack_https_ready',
+        return_value=False
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.check_netapp_backends',
+        return_value={'nfs': True, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.check_netapp_backends',
+        return_value={'nfs': True, 'iscsi': False, 'fc': False}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["netapp-nfs", "ceph", "netapp-iscsi", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_enabled_storage_backends_from_override',
+        return_value=["ceph", "netapp-nfs"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.get_enabled_storage_backends_from_override',
+        return_value=["ceph", "netapp-nfs"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
+        return_value=(False, "")
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value=dict()
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        return_value=dict()
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value=dict()
+    )
+    def test_set_default_storage_backend_netapp_ceph_enabled(self, *_):
+        """
+        Test if netapp is defined as the default storage backend
+        if change the priority via user overrides, while both ceph and
+        netapp backends are enabled
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CINDER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        enabled_backends = overrides['conf']['cinder']['DEFAULT']['enabled_backends']
+        default_backend = overrides['conf']['cinder']['DEFAULT']['default_volume_type']
+
+        pass_condition_1 = set(enabled_backends.split(',')) == {'ceph', 'netapp-nfs'}
+        pass_condition_2 = default_backend == 'netapp-nfs'
+
+        assert pass_condition_1 and pass_condition_2
+
+    @mock.patch(
+        'k8sapp_openstack.utils.is_openstack_https_ready',
+        return_value=False
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.check_netapp_backends',
+        return_value={'nfs': True, 'iscsi': True, 'fc': True}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.check_netapp_backends',
+        return_value={'nfs': True, 'iscsi': True, 'fc': True}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.is_user_overrides_available',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["netapp-iscsi", "ceph", "netapp-nfs", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_enabled_storage_backends_from_override',
+        return_value=["ceph", "netapp-nfs", "netapp-iscsi", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.get_enabled_storage_backends_from_override',
+        return_value=["ceph", "netapp-nfs", "netapp-iscsi", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
+        return_value=(False, "")
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value=dict()
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        return_value=dict()
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value=dict()
+    )
+    def test_set_default_storage_backend_multiple_netapp_ceph_enabled(self, *_):
+        """
+        Test if netapp-iscsi is defined as the default storage backend
+        if change the priority via user overrides, while ceph and
+        multiple netapp backends are enabled
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CINDER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        enabled_backends = overrides['conf']['cinder']['DEFAULT']['enabled_backends']
+        default_backend = overrides['conf']['cinder']['DEFAULT']['default_volume_type']
+
+        pass_condition_1 = set(enabled_backends.split(',')) == {
+            'ceph', 'netapp-nfs', 'netapp-iscsi', 'netapp-fc'}
+        pass_condition_2 = default_backend == 'netapp-iscsi'
+
+        assert pass_condition_1 and pass_condition_2

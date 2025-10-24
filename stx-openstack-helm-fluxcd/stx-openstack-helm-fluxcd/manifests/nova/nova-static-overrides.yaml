@@ -143,12 +143,22 @@ pod:
         # https://bugs.launchpad.net/starlingx/+bug/1956229
         runAsUser: 0
   probes:
-    readiness:
-      nova_scheduler:
-        enabled: false
-    liveness:
-      nova_scheduler:
-        enabled: false
+    api-osapi:
+      default:
+        liveness:
+          enabled: True
+          params:
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+        readiness:
+          enabled: True
+          params:
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
 conf:
   ceph:
     enabled: true

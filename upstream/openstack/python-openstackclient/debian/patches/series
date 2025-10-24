@@ -2,3 +2,4 @@
 0002-Add-location-parameter-for-volume-backup-creation.patch
 0003-Support-location-metadata-for-volume-backups.patch
 0004-Fix-Volume-backup-restore-output.patch
+0005-Volume-backup-support-with-Openstack-plugin.patch

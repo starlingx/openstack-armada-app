@@ -15,12 +15,64 @@ resources to allow STX-O to use DEX as an identity provider.
 
 Change-Id: I8540dce2dd0f1d1100872cec0ddf3a9e6df9ae81
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
---
- keystone/values.yaml | 30 ++++++++++++++++++++++++++++++
- 1 file changed, 30 insertions(+)
+---
+ keystone/templates/bin/_bootstrap.sh.tpl |  4 ++++
+ keystone/templates/configmap-bin.yaml    |  8 +++++++
+ keystone/templates/job-bootstrap.yaml    |  8 ++++++-
+ keystone/values.yaml                     | 30 ++++++++++++++++++++++++
+ 4 files changed, 49 insertions(+), 1 deletion(-)
 
+diff --git a/keystone/templates/bin/_bootstrap.sh.tpl b/keystone/templates/bin/_bootstrap.sh.tpl
+index c325824d8..7b268548c 100644
+--- a/keystone/templates/bin/_bootstrap.sh.tpl
++++ b/keystone/templates/bin/_bootstrap.sh.tpl
+@@ -17,3 +17,7 @@ limitations under the License.
+ set -ex
+ 
+ {{ .Values.bootstrap.script | default "echo 'Not Enabled'" }}
++
++if [ -f /tmp/dex-bootstrap.sh ]; then
++   bash /tmp/dex-bootstrap.sh
++fi
+diff --git a/keystone/templates/configmap-bin.yaml b/keystone/templates/configmap-bin.yaml
+index 45512d3ec..d55ed5672 100644
+--- a/keystone/templates/configmap-bin.yaml
++++ b/keystone/templates/configmap-bin.yaml
+@@ -55,4 +55,12 @@ data:
+ {{ tuple "bin/_domain-manage.py.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   rabbit-init.sh: |
+ {{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
++{{- if .Values.conf.federation.dex_idp.enabled}}
++  dex_mapping.json: |
++{{ .Values.conf.federation.dex_idp.default_mapping | indent 4 }}
++{{- if .Values.conf.federation.dex_idp.bootstrap.enabled }}
++  dex-bootstrap.sh: |
++{{ tpl .Values.conf.federation.dex_idp.bootstrap.script . | indent 4 }}
++{{- end }}
++{{- end }}
+ {{- end }}
+diff --git a/keystone/templates/job-bootstrap.yaml b/keystone/templates/job-bootstrap.yaml
+index 37ce4a481..cae003b9b 100644
+--- a/keystone/templates/job-bootstrap.yaml
++++ b/keystone/templates/job-bootstrap.yaml
+@@ -17,8 +17,14 @@ helm.sh/hook: post-install,post-upgrade
+ helm.sh/hook-weight: "5"
+ {{- end }}
+ 
++{{- $podVolMounts := list }}
++{{- if and (.Values.conf.federation.dex_idp.bootstrap.enabled) (.Values.conf.federation.dex_idp.enabled) }}
++{{- $podVolMounts = append $podVolMounts (dict "name" "bootstrap-sh" "mountPath" "/tmp/dex_mapping.json" "subPath" "dex_mapping.json" "readOnly" true) }}
++{{- $podVolMounts = append $podVolMounts (dict "name" "bootstrap-sh" "mountPath" "/tmp/dex-bootstrap.sh" "subPath" "dex-bootstrap.sh" "readOnly" true) }}
++{{- end }}
++
+ {{- if and .Values.manifests.job_bootstrap .Values.bootstrap.enabled }}
+-{{- $bootstrapJob := dict "envAll" . "serviceName" "keystone" "keystoneUser" .Values.bootstrap.ks_user "logConfigFile" .Values.conf.keystone.DEFAULT.log_config_append "jobAnnotations" (include "metadata.annotations.job.bootstrap" . | fromYaml) -}}
++{{- $bootstrapJob := dict "envAll" . "serviceName" "keystone" "keystoneUser" .Values.bootstrap.ks_user "logConfigFile" .Values.conf.keystone.DEFAULT.log_config_append "jobAnnotations" (include "metadata.annotations.job.bootstrap" . | fromYaml) "podVolMounts" $podVolMounts -}}
+ {{- if and ( or .Values.manifests.certificates .Values.tls.identity) .Values.secrets.tls.identity.api.public -}}
+ {{- $_ := set $bootstrapJob "tlsSecret" .Values.secrets.tls.identity.api.public -}}
+ {{- end -}}
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index 7e262d5f9..5690ddf5e 100644
+index 7e262d5f9..f388f5332 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
 @@ -565,6 +565,36 @@ conf:
@@ -39,7 +91,7 @@ index 7e262d5f9..5690ddf5e 100644
 +      mapping_name: "dex_mapping"
 +      default_mapping: |
 +        [{
-+          local": [{
++          "local": [{
 +            "user": {"name": "{0}"},
 +            "group": {"name": "{{ .Values.conf.federation.dex_idp.group_name }}", "domain": {"name": "Default"}}
 +          }],
@@ -62,4 +114,3 @@ index 7e262d5f9..5690ddf5e 100644
    # https://docs.openstack.org/keystone/pike/admin/identity-domain-specific-config.html.
 -- 
 2.34.1
-

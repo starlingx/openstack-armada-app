@@ -9,11 +9,13 @@ PIP_PACKAGES="\
   python-ldap \
   python-openstackclient
 "
+DIST_PACKAGES="libapache2-mod-auth-openidc"
 DIST_REPOS="OS"
 PROFILES="fluent apache"
 CUSTOMIZATION="\
     ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \
     ln -s /etc/apache2/mods-available/wsgi.conf /etc/apache2/mods-enabled/wsgi.conf && \
+    a2enmod auth_openidc || true && \
     sed -i \"s/getattr(base64, 'decodebytes', base64.decodestring)/getattr(base64, 'decodebytes')/g\" /var/lib/openstack/lib/python3.9/site-packages/saml2/saml.py && \
     sed -i \"s/getattr(base64, 'encodebytes', base64.encodestring)/getattr(base64, 'encodebytes')/g\" /var/lib/openstack/lib/python3.9/site-packages/saml2/saml.py
 "

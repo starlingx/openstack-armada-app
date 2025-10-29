@@ -25,6 +25,7 @@ class KeystoneHelmTestCase(test_plugins.K8SAppOpenstackAppMixin,
 
 class KeystoneGetOverrideTest(KeystoneHelmTestCase,
                             dbbase.ControllerHostTestCase):
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value="")
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_keystone_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
@@ -45,6 +46,7 @@ class KeystoneGetOverrideTest(KeystoneHelmTestCase,
 
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value="")
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
     @mock.patch(
         'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
@@ -109,6 +111,7 @@ class KeystoneGetOverrideTest(KeystoneHelmTestCase,
             },
         })
 
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value="")
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_keystone_overrides_invalid_namespace(self, *_):
         """
@@ -120,6 +123,7 @@ class KeystoneGetOverrideTest(KeystoneHelmTestCase,
                           app_constants.HELM_CHART_KEYSTONE,
                           cnamespace=common.HELM_NS_DEFAULT)
 
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value="")
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_keystone_overrides_missing_namespace(self, *_):
         """

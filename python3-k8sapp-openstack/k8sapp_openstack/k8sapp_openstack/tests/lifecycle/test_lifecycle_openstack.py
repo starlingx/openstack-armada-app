@@ -33,6 +33,8 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
                                      constants.SB_TYPE_CEPH):
         return ceph_type == constants.SB_TYPE_CEPH, ""
 
+    @mock.patch('k8sapp_openstack.utils.check_netapp_backends',
+                return_value={"nfs": False, "iscsi": False, "fc": False})
     @mock.patch('k8sapp_openstack.utils.is_rook_ceph_api_available',
                 return_value=True)
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid',
@@ -42,7 +44,8 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         self,
         mock_is_ceph_backend_available,
         mock_get_ceph_fsid,
-        mock_is_rook_ceph_api_available
+        mock_is_rook_ceph_api_available,
+        mock_check_netapp_backends
     ):
         """ Test _semantic_check_storage_backend_available for rook ceph
         backend, api and fsid available.
@@ -51,16 +54,20 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             self._rook_ceph_backend_available
         self.lifecycle._semantic_check_storage_backend_available()
         mock_is_ceph_backend_available.assert_called()
+        mock_check_netapp_backends.assert_called()
         mock_get_ceph_fsid.assert_called()
         mock_is_rook_ceph_api_available.assert_called()
 
+    @mock.patch('k8sapp_openstack.utils.check_netapp_backends',
+                return_value={"nfs": False, "iscsi": False, "fc": False})
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid',
                 return_value='aa8c8da0-47de-4fad-8b5d-2c06be236fc8')
     @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
     def test_semantic_check_storage_backend_available_ceph(
         self,
         mock_is_ceph_backend_available,
-        mock_get_ceph_fsid
+        mock_get_ceph_fsid,
+        mock_check_netapp_backends
     ):
         """ Test _semantic_check_storage_backend_available for host ceph
         backend and fsid available.
@@ -69,14 +76,38 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             self._ceph_backend_available
         self.lifecycle._semantic_check_storage_backend_available()
         mock_is_ceph_backend_available.assert_called()
+        mock_check_netapp_backends.assert_called()
         mock_get_ceph_fsid.assert_called()
 
+    @mock.patch('k8sapp_openstack.utils.check_netapp_backends',
+                return_value={"nfs": True, "iscsi": False, "fc": False})
+    @mock.patch('k8sapp_openstack.utils.get_ceph_fsid', return_value=None)
+    @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
+    def test_semantic_check_storage_backend_available_netapp_nfs(
+        self,
+        mock_is_ceph_backend_available,
+        mock_get_ceph_fsid,
+        mock_check_netapp_backends,
+    ):
+        """ Test _semantic_check_storage_backend_available for netapp backend
+        backend available.
+        """
+        mock_is_ceph_backend_available.side_effect = \
+            self._ceph_backend_available
+        self.lifecycle._semantic_check_storage_backend_available()
+        mock_is_ceph_backend_available.assert_called()
+        mock_check_netapp_backends.assert_called()
+        mock_get_ceph_fsid.assert_called()
+
+    @mock.patch('k8sapp_openstack.utils.check_netapp_backends',
+                return_value={"nfs": False, "iscsi": False, "fc": False})
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid', return_value=None)
     @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
     def test_semantic_check_storage_backend_available_fsid_unavailable(
         self,
         mock_is_ceph_backend_available,
-        mock_get_ceph_fsid
+        mock_get_ceph_fsid,
+        mock_check_netapp_backends,
     ):
         """ Test _semantic_check_storage_backend_available for host ceph
         available and fsid unavailable.
@@ -90,7 +121,10 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         else:
             self.fail("LifecycleSemanticCheckException was not raised")
         mock_get_ceph_fsid.assert_called()
+        mock_check_netapp_backends.assert_called()
 
+    @mock.patch('k8sapp_openstack.utils.check_netapp_backends',
+                return_value={"nfs": False, "iscsi": False, "fc": False})
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid', return_value=None)
     @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available',
                 side_effect=[(False, ""), (False, "")])

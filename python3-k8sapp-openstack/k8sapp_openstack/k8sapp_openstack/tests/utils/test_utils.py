@@ -10,6 +10,7 @@ import subprocess
 import mock
 from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.common import kubernetes
 from sysinv.tests.db import base as dbbase
 
 from k8sapp_openstack import utils as app_utils
@@ -1616,3 +1617,26 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         backends_map = app_utils.check_netapp_backends()
 
         assert backends_map["nfs"]
+
+    @mock.patch("k8sapp_openstack.utils.subprocess.run")
+    def test_get_netapp_storage_class_name(self, mock_run):
+        """ Tests if get_netapp_storage_class_name returns a valid
+            storage class name for netapp.
+         """
+        mock_process = mock.MagicMock()
+        mock_process.stdout = "netapp-nas-backend ontap-nas"
+        mock_process.stderr = ""
+        mock_process.check_returncode.return_value = None
+        mock_run.return_value = mock_process
+
+        result = app_utils.get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_NFS)
+
+        assert result == "netapp-nas-backend"
+        mock_run.assert_called_once_with(
+            args=["kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "get", "sc", "-o", "custom-columns=NAME:.metadata.name,TYPE:.parameters.backendType"],
+            capture_output=True,
+            text=True,
+            check=True,
+            shell=False
+        )

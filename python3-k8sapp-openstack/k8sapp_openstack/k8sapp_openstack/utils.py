@@ -1671,6 +1671,84 @@ def get_server_list() -> str:
         return ""
 
 
+def get_available_volume_backends() -> dict:
+    """
+    Searches for all available backends volume available.
+
+    Returns:
+        dict[string, string]: A dictionary containing the backend volumes with corresponding
+        storage class name.
+    """
+    rook_ceph = is_ceph_backend_available(
+        ceph_type=constants.SB_TYPE_CEPH_ROOK
+    )
+    netapp_backend = check_netapp_backends()
+
+    available_volume_backends = {
+        "ceph": app_constants.BACKEND_DEFAULT_STORAGE_CLASS if rook_ceph else "",
+        "netapp-nfs":
+            get_netapp_storage_class_name(
+                app_constants.BACKEND_TYPE_NETAPP_NFS
+            ) if netapp_backend.get("nfs", False) else "",
+        "netapp-iscsi":
+            get_netapp_storage_class_name(
+                app_constants.BACKEND_TYPE_NETAPP_ISCSI
+            ) if netapp_backend.get("iscsi", False) else "",
+        "netapp-fc": "",
+    }
+    return available_volume_backends
+
+
+def get_netapp_storage_class_name(backend_type) -> str:
+    """
+    Check for the storage class name for NetApp backends based on a backend-type.
+
+    Returns:
+        str: A string indicating the backends class_name
+              Example: "netapp-nas-backend"
+    """
+    class_name = ""
+
+    try:
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "get", "sc", "-o", "custom-columns=NAME:.metadata.name,TYPE:.parameters.backendType"
+        ]
+
+        storage_classes_info = subprocess.run(
+            args=cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            shell=False)
+
+        if not storage_classes_info.stdout:
+            return class_name
+
+        # Need to manually search for the backend type and parse the string
+        lines = storage_classes_info.stdout.splitlines()
+        for line in lines:
+            if backend_type in line:
+                class_name = line.split(" ")[0]
+        return class_name
+
+    except KubeApiException as e:
+        LOG.error(f"Failed to get kubectl sc: {e}")
+        return class_name
+    except subprocess.CalledProcessError as e:
+        LOG.error(
+            "kubectl command did not return successful return code: "
+            f"{e.returncode}. Error message was: {e.output}"
+        )
+        return class_name
+    except subprocess.TimeoutExpired as e:
+        LOG.error(f"kubectl command timed out: {e}")
+        return class_name
+    except Exception as e:
+        LOG.error(f"Unexpected error while fetching NetApp backends: {e}")
+        return class_name
+
+
 def is_dex_enabled() -> bool:
     """
     Determine whether DEX integration is enabled in Keystone overrides.

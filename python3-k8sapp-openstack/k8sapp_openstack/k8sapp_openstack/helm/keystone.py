@@ -6,13 +6,18 @@
 
 import os
 
+from oslo_log import log as logging
 from six.moves import configparser
+from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.db import api as dbapi
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import is_dex_enabled
 
+LOG = logging.getLogger(__name__)
 
 OPENSTACK_PASSWORD_RULES_FILE = '/etc/keystone/password-rules.conf'
 
@@ -219,7 +224,8 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
     def _get_conf_overrides(self):
         return {
             'keystone': self._get_conf_keystone_overrides(),
-            'policy': self._get_conf_policy_overrides()
+            'policy': self._get_conf_policy_overrides(),
+            'federation': self._get_oidc_overrides()
         }
 
     def _region_config(self):
@@ -315,3 +321,29 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
                 }
             }
         }
+
+    def _get_oidc_overrides(self):
+        db = dbapi.get_instance()
+        dex_enabled = is_dex_enabled()
+        # since this will only be used if dex_idp.enabled is true, it can be ammended to the
+        # overrides even if oidc is not applied
+        return {
+            'dex_idp': {
+                'provider_remote_id': self.get_dex_issuer_url(db, dex_enabled)
+            }
+        }
+
+    def get_dex_issuer_url(self, db, dex_enabled):
+
+        try:
+            oidc_issuer_url = db.service_parameter_get_one(
+                service=constants.SERVICE_TYPE_KUBERNETES,
+                section=constants.SERVICE_PARAM_SECTION_KUBERNETES_APISERVER,
+                name=constants.SERVICE_PARAM_NAME_OIDC_ISSUER_URL)
+            return oidc_issuer_url.value
+        except Exception as e:
+            if dex_enabled:
+                LOG.error(f"Failed to retrieve OIDC issuer URL: {e}")
+                raise exception.NotFound("Failed to retrieve OIDC issuer URL")
+            else:
+                return ""

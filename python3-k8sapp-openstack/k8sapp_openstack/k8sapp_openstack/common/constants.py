@@ -154,6 +154,9 @@ NETAPP_STORAGECLASS_NAME = "csi.trident.netapp.io"
 NETAPP_NFS_BACKEND_NAME = 'netapp-nfs'
 NETAPP_ISCSI_BACKEND_NAME = 'netapp-iscsi'
 NETAPP_FC_BACKEND_NAME = 'netapp-fc'
+BACKEND_DEFAULT_STORAGE_CLASS = "general"
+BACKEND_TYPE_NETAPP_NFS = "ontap-nas"
+BACKEND_TYPE_NETAPP_ISCSI = "ontap-san"
 
 # NetApp Default and Placeholder Values
 NETAPP_CINDER_VOLUME_DRIVER = "cinder.volume.drivers.netapp.common.NetAppDriver"

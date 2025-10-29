@@ -1,0 +1,57 @@
+From cdad5b37e60f36d9b88e0e2ec79c666fffbcfae8 Mon Sep 17 00:00:00 2001
+From: jchialun <johnny.chialung@windriver.com>
+Date: Wed, 19 Nov 2025 14:56:26 -0500
+Subject: [PATCH 1/1] Add volume storage class priorities
+
+Added volume_storage_class_priority list to values.yaml file to enable
+external applications to update the value. This list represents the
+priority order for creation of the Kubernetes PVCs StorageClasses for
+MariaDB and RabbitMQ. The highest available storage class will be
+selected as the k8s volume storageClass
+
+Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
+---
+ mariadb/values.yaml  | 8 ++++++++
+ rabbitmq/values.yaml | 7 +++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index 9eb81231..66740a2c 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -740,6 +740,14 @@ network_policy:
+ # Set helm3_hook: false in case helm2 is used.
+ helm3_hook: true
+
++storage_conf:
++  volume_storage_class_priority:
++    - "ceph"
++    - "netapp-nfs"
++    - "netapp-iscsi"
++    - "netapp-fc"
++
++
+ manifests:
+   certificates: false
+   configmap_bin: true
+diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
+index fbb98414..99b2833c 100644
+--- a/rabbitmq/values.yaml
++++ b/rabbitmq/values.yaml
+@@ -441,6 +441,13 @@ io_thread_pool:
+   enabled: false
+   size: 64
+
++storage_conf:
++  volume_storage_class_priority:
++    - "ceph"
++    - "netapp-nfs"
++    - "netapp-iscsi"
++    - "netapp-fc"
++
+ manifests:
+   certificates: false
+   configmap_bin: true
+-- 
+2.43.0
+

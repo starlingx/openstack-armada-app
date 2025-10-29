@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2020 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -9,6 +9,8 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import get_available_volume_backends
+from k8sapp_openstack.utils import get_storage_backends_priority_list
 
 
 class RabbitmqHelm(openstack.OpenstackBaseHelm):
@@ -26,6 +28,15 @@ class RabbitmqHelm(openstack.OpenstackBaseHelm):
             io_thread_pool_size = 64
         elif io_thread_pool_size > 1024:
             io_thread_pool_size = 1024
+
+        available_backend = get_available_volume_backends()
+        default_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_RABBITMQ)
+        priority_storage_class = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
+
+        for priority in default_priority_list:
+            if available_backend.get(priority, ""):
+                priority_storage_class = available_backend.get(priority)
+                break
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -56,6 +67,9 @@ class RabbitmqHelm(openstack.OpenstackBaseHelm):
                 'endpoints': self._get_endpoints_overrides(),
                 'manifests': {
                     'config_ipv6': self._is_ipv6_cluster_service()
+                },
+                'volume': {
+                    'class_name': priority_storage_class,
                 }
             }
         }

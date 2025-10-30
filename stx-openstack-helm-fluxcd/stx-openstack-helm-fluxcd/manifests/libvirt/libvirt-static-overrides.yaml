@@ -54,7 +54,7 @@ annotations:
 images:
   tags:
     ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
-    dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     libvirt: docker.io/starlingx/stx-libvirt:master-debian-stable-latest
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest

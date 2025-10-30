@@ -10,7 +10,7 @@ images:
   tags:
     openvswitch_db_server: docker.io/starlingx/stx-ovs:master-debian-stable-latest
     openvswitch_vswitchd: docker.io/starlingx/stx-ovs:master-debian-stable-latest
-    dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
   pull_policy: "IfNotPresent"

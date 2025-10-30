@@ -11,6 +11,7 @@ labels:
 images:
   tags:
     pci_irq_affinity_agent: docker.io/starlingx/stx-pci-irq-affinity-agent:master-debian-stable-latest
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
 tolerations:
   - key: node-role.kubernetes.io/master
     operator: Exists

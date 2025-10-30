@@ -14,7 +14,7 @@ release_group: null
 images:
   tags:
     openstack_clients: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
-    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     bootstrap: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     rook_ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_jammy_18.2.2-1-20240312

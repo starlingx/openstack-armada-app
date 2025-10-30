@@ -76,7 +76,7 @@ network_policy:
 images:
   pull_policy: IfNotPresent
   tags:
-    dep_check: 'quay.io/stackanetes/kubernetes-entrypoint:v0.3.1'
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     garbd: 'docker.io/starlingx/stx-mariadb:master-centos-stable-latest'
     image_repo_sync: docker.io/docker:17.07.0
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest

@@ -23,7 +23,7 @@ images:
   tags:
     ks_endpoints: docker.io/openstackhelm/heat:pike
     keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-debian-stable-latest
-    dep_check: quay.io/stackanetes/kubernetes-entrypoint:v0.3.1
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
   pullPolicy: IfNotPresent
   local_registry:

@@ -1,0 +1,22 @@
+#
+# Copyright (c) 2025 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+commonLabels:
+  chart_group: prometheus-openstack-exporter
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: prometheus-openstack-exporter-static-overrides
+    files:
+      - prometheus-openstack-exporter-static-overrides.yaml
+  - name: prometheus-openstack-exporter-system-overrides
+    files:
+      - prometheus-openstack-exporter-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

@@ -176,3 +176,6 @@ VSWITCH_ALLOWED_COMBINATIONS = [
 # Return messages from ceph configmap creation
 CEPH_BACKEND_NOT_CONFIGURED = "Not configured"
 DB_API_NOT_AVAILABLE = "Database API is not available"
+
+# StarlingX applications:
+OIDC_AUTH_APP = constants.HELM_APP_OIDC_AUTH

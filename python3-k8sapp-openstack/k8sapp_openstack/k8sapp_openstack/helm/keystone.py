@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -8,13 +8,13 @@ import os
 
 from oslo_log import log as logging
 from six.moves import configparser
-from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.db import api as dbapi
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import get_dex_issuer_url
 from k8sapp_openstack.utils import is_dex_enabled
 
 LOG = logging.getLogger(__name__)
@@ -323,27 +323,28 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
         }
 
     def _get_oidc_overrides(self):
+        """
+        Generate OIDC override values for Dex integration.
+
+        This function builds the OIDC override dictionary containing the
+        `provider_remote_id`, which is derived from the system's Dex issuer URL.
+        The value is added even if the OIDC application itself is not applied,
+        since it is only used when `dex_idp.enabled` is set to True.
+
+        Returns:
+            dict: A dictionary with the Dex OIDC override in the format:
+                {
+                    'dex_idp': {
+                        'provider_remote_id': <issuer_url or empty string>
+                    }
+                }
+        """
         db = dbapi.get_instance()
         dex_enabled = is_dex_enabled()
-        # since this will only be used if dex_idp.enabled is true, it can be ammended to the
+        # Because this will only be used if dex_idp.enabled is true, it can be ammended to the
         # overrides even if oidc is not applied
         return {
             'dex_idp': {
-                'provider_remote_id': self.get_dex_issuer_url(db, dex_enabled)
+                'provider_remote_id': get_dex_issuer_url(db, dex_enabled)
             }
         }
-
-    def get_dex_issuer_url(self, db, dex_enabled):
-
-        try:
-            oidc_issuer_url = db.service_parameter_get_one(
-                service=constants.SERVICE_TYPE_KUBERNETES,
-                section=constants.SERVICE_PARAM_SECTION_KUBERNETES_APISERVER,
-                name=constants.SERVICE_PARAM_NAME_OIDC_ISSUER_URL)
-            return oidc_issuer_url.value
-        except Exception as e:
-            if dex_enabled:
-                LOG.error(f"Failed to retrieve OIDC issuer URL: {e}")
-                raise exception.NotFound("Failed to retrieve OIDC issuer URL")
-            else:
-                return ""

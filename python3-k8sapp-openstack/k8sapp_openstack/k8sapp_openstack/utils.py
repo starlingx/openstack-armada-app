@@ -1536,14 +1536,44 @@ def get_server_list() -> str:
 
 
 def is_dex_enabled() -> bool:
-    """ Retrieves if DEX integration has been enabled by user
+    """
+    Determine whether DEX integration is enabled in Keystone overrides.
 
     Returns:
-        bool: Whether user has enabled or not DEX integration.
+        bool: True if DEX integration is enabled, False otherwise.
     """
     enabled = _get_value_from_application(
-        default_value="false",
+        default_value=False,
         chart_name=app_constants.HELM_CHART_KEYSTONE,
-        override_name="conf.federation.dex_idp.enabled").lower()
+        override_name="conf.federation.dex_idp.enabled")
 
-    return enabled == 'true'
+    return enabled
+
+
+def get_dex_issuer_url(db, dex_enabled) -> str:
+    """
+    Retrieve the OIDC issuer URL from system parameters.
+
+    Args:
+        db: The system database instance.
+        dex_enabled (bool): Indicates if Dex is enabled via user overrides.
+
+    Returns:
+        str: The OIDC issuer URL if it exists. Returns an empty string if Dex is disabled
+            and the parameter is not found.
+
+    Raises:
+        NotFound: If Dex is enabled but the OIDC issuer URL cannot be retrieved.
+    """
+    try:
+        oidc_issuer_url = db.service_parameter_get_one(
+            service=constants.SERVICE_TYPE_KUBERNETES,
+            section=constants.SERVICE_PARAM_SECTION_KUBERNETES_APISERVER,
+            name=constants.SERVICE_PARAM_NAME_OIDC_ISSUER_URL)
+        return oidc_issuer_url.value
+    except Exception as e:
+        if dex_enabled:
+            LOG.error(f"Failed to retrieve OIDC issuer URL: {e}")
+            raise exception.NotFound("Failed to retrieve OIDC issuer URL")
+        else:
+            return ""

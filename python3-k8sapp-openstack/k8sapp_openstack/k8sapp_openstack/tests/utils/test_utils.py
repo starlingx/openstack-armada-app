@@ -1218,27 +1218,52 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         assert result == ""
 
     @mock.patch("k8sapp_openstack.utils._get_value_from_application")
-    def test_returns_true_when_enabled_true(self, mock_get_value):
-        mock_get_value.return_value = "true"
+    def test_is_dex_enabled_returns_true(self, mock_get_value):
+        mock_get_value.return_value = True
 
         result = app_utils.is_dex_enabled()
         self.assertTrue(result)
         mock_get_value.assert_called_once_with(
-            default_value="false",
+            default_value=False,
             chart_name=app_constants.HELM_CHART_KEYSTONE,
             override_name="conf.federation.dex_idp.enabled",
         )
 
     @mock.patch("k8sapp_openstack.utils._get_value_from_application")
-    def test_returns_false_when_enabled_false(self, mock_get_value):
-        mock_get_value.return_value = "false"
+    def test_is_dex_enabled_returns_false(self, mock_get_value):
+        """ test is_dex_enabled for when dex_ipd.enabled equals false
+        """
+        mock_get_value.return_value = False
 
         result = app_utils.is_dex_enabled()
         self.assertFalse(result)
 
-    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
-    def test_returns_false_when_enabled_other(self, mock_get_value):
-        mock_get_value.return_value = "anything_else"
+    def test_get_dex_issuer_url_enabled_success(self):
+        """ Test get_dex_issuer_url with successfully retrieving parameter
+        """
+        db_mock = mock.Mock()
+        db_mock.service_parameter_get_one.return_value.value = "https://dex.example.com"
 
-        result = app_utils.is_dex_enabled()
-        self.assertFalse(result)
+        result = app_utils.get_dex_issuer_url(db_mock, dex_enabled=True)
+        assert result == "https://dex.example.com"
+
+    def test_get_dex_issuer_url_enabled_not_found(self):
+        """ Test get_dex_issuer_url with dex enabled but not configured
+        """
+        db_mock = mock.Mock()
+        db_mock.service_parameter_get_one.side_effect = Exception("DB error")
+
+        self.assertRaises(
+            exception.NotFound,
+            app_utils.get_dex_issuer_url,
+            db_mock,
+            dex_enabled=True)
+
+    def test_get_dex_issuer_url_disabled_not_found(self):
+        """ Test get_dex_issuer_url with dex disabled
+        """
+        db_mock = mock.Mock()
+        db_mock.service_parameter_get_one.side_effect = Exception("DB error")
+
+        result = app_utils.get_dex_issuer_url(db_mock, dex_enabled=False)
+        assert result == ""

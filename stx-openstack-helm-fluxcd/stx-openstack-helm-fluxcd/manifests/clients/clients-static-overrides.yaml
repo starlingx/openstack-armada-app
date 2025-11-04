@@ -14,6 +14,7 @@ images:
     bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     rook_ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_jammy_18.2.2-1-20240312
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
 pod:
   tolerations:
     clients:

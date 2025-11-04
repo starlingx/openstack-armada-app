@@ -17,6 +17,7 @@ override_dh_auto_build:
 	make openvswitch
 	make rabbitmq
 	make ceph-rgw
+	make prometheus-openstack-exporter
 
 override_dh_auto_install:
 	# Install the chart tar files.

@@ -38,4 +38,5 @@ resources:
   - ceilometer
   - gnocchi
   - clients
+  - prometheus-openstack-exporter
 ...

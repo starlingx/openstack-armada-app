@@ -6,68 +6,68 @@
 
 ---
 release_group: osh-openstack-horizon
-labels:
-  isApplication: false
 images:
   tags:
-    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     dep_check: quay.io/airshipit/kubernetes-entrypoint:v1.0.0
     horizon: docker.io/starlingx/stx-horizon:master-debian-stable-latest
     horizon_db_sync: docker.io/starlingx/stx-horizon:master-debian-stable-latest
+    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    horizon: docker.io/starlingx/stx-horizon:master-debian-stable-latest
+    test: null
     image_repo_sync: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
-    test: null
-manifests:
-  pod_helm_test: false
-  secret_keystone: false
+  pull_policy: "IfNotPresent"
+  local_registry:
+    active: false
+    exclude:
+      - dep_check
+      - image_repo_sync
+# Use selenium v4 syntax
+selenium_v4: true
+labels:
+  isApplication: false
+  dashboard:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  job:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  test:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
 network:
   dashboard:
     ingress:
+      public: true
       classes:
         namespace: "nginx-openstack"
         cluster: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/proxy-body-size: 300m
+  external_policy_local: false
   node_port:
     enabled: 'true'
     port: 31000
-pod:
-  tolerations:
-    horizon:
-      enabled: true
-      tolerations:
-      - key: node-role.kubernetes.io/master
-        operator: Exists
-        effect: NoSchedule
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule  
-      - key: openstack-compute-node
-        operator: Exists
-        effect: NoSchedule
-  resources:
-    enabled: true
-    server:
-      requests:
-        ephemeral-storage: "25000Ki"
-  mounts:
-    horizon:
-      horizon:
-        # Branding directory mount
-        volumeMounts:
-          - mountPath: /opt/branding
-            name: horizon-branding
-        volumes:
-          - hostPath:
-              path: /opt/branding
-              type: Directory
-            name: horizon-branding
 conf:
   software:
     apache2:
+      binary: apache2
+      start_parameters: -DFOREGROUND
+      site_dir: /etc/apache2/sites-enabled
+      conf_dir: /etc/apache2/conf-available
+      mods_dir: /etc/apache2/mods-available
+      a2enmod:
+        - headers
+        - rewrite
       a2dismod:
         - status || sed -i 's/LoadModule status_module/#LoadModule status_module/' /etc/httpd/conf.modules.d/00-base.conf
-      site_dir: /etc/apache2/sites-enabled
   horizon:
+    branding:
+      logo:
+      logo_splash:
+      favicon:
     apache: |
       Listen :::{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
@@ -109,8 +109,147 @@ conf:
           CustomLog /dev/stdout combined env=!forwarded
           CustomLog /dev/stdout proxy env=forwarded
       </Virtualhost>
+    security: |
+      #
+      # Disable access to the entire file system except for the directories that
+      # are explicitly allowed later.
+      #
+      # This currently breaks the configurations that come with some web application
+      # Debian packages.
+      #
+      #<Directory />
+      #   AllowOverride None
+      #   Require all denied
+      #</Directory>
+
+      # Changing the following options will not really affect the security of the
+      # server, but might make attacks slightly more difficult in some cases.
+
+      #
+      # ServerTokens
+      # This directive configures what you return as the Server HTTP response
+      # Header. The default is 'Full' which sends information about the OS-Type
+      # and compiled in modules.
+      # Set to one of:  Full | OS | Minimal | Minor | Major | Prod
+      # where Full conveys the most information, and Prod the least.
+      ServerTokens Prod
+
+      #
+      # Optionally add a line containing the server version and virtual host
+      # name to server-generated pages (internal error documents, FTP directory
+      # listings, mod_status and mod_info output etc., but not CGI generated
+      # documents or custom error documents).
+      # Set to "EMail" to also include a mailto: link to the ServerAdmin.
+      # Set to one of:  On | Off | EMail
+      ServerSignature Off
+
+      #
+      # Allow TRACE method
+      #
+      # Set to "extended" to also reflect the request body (only for testing and
+      # diagnostic purposes).
+      #
+      # Set to one of:  On | Off | extended
+      TraceEnable Off
+
+      #
+      # Forbid access to version control directories
+      #
+      # If you use version control systems in your document root, you should
+      # probably deny access to their directories. For example, for subversion:
+      #
+      #<DirectoryMatch "/\.svn">
+      #   Require all denied
+      #</DirectoryMatch>
+
+      #Security-Settings
+      # Setting this header will prevent MSIE from interpreting files as something
+      # else than declared by the content type in the HTTP headers.
+      # Requires mod_headers to be enabled.
+      #
+      Header set X-Content-Type-Options: "nosniff"
+      Header set X-Permitted-Cross-Domain-Policies: "none"
+      # Setting this header will prevent other sites from embedding pages from this
+      # site as frames. This defends against clickjacking attacks.
+      # Requires mod_headers to be enabled.
+      #
+    custom_panels: {}
+    ## For example, _5000_disable_project_vg_snapshots.py
+    # _5000_disable_project_vg_snapshots: |
+    #   PANEL = 'vg_snapshots'
+    #   PANEL_DASHBOARD = 'project'
+    #   PANEL_GROUP = 'volumes'
+    #   REMOVE_PANEL = True
+    ## https://docs.openstack.org/horizon/latest/configuration/pluggable_panels.html#id2
+    local_settings_d: {}
+    ## For example, _50_monasca_ui_settings.py
+    # _50_monasca_ui_settings: |
+    #   from django.conf import settings
+    #   # Grafana button titles/file names (global across all projects):
+    #   GRAFANA_LINKS = []
+    #   DASHBOARDS = getattr(settings, 'GRAFANA_LINKS', GRAFANA_LINKS)
+
     local_settings:
       config:
+        # Use "True" and "False" as Titlecase strings with quotes, boolean
+        # values will not work
+        horizon_secret_key: 9aee62c0-5253-4a86-b189-e0fb71fa503c
+        debug: "False"
+        use_ssl: "False"
+        endpoint_type: "internalURL"
+        # Turn off domain support as we aren't using
+        keystone_multidomain_support: "False"
+        keystone_default_domain: Default
+        disable_password_reveal: "True"
+        show_openrc_file: "True"
+        csrf_cookie_secure: "False"
+        csrf_cookie_httponly: "False"
+        # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
+        csrf_trusted_origins: []
+        enforce_password_check: "True"
+        # Set enable_pwd_validator to true to enforce password validator settings.
+        enable_pwd_validator: false
+        pwd_validator_regex: '(?=.*[a-zA-Z])(?=.*\d).{8,}|(?=.*\d)(?=.*\W).{8,}|(?=.*\W)(?=.*[a-zA-Z]).{8,}'
+        pwd_validator_help_text: '_("Your password must be at least eight (8) characters in length and must include characters from at least two (2) of these groupings: alpha, numeric, and special characters.")'
+        session_cookie_secure: "False"
+        session_cookie_httponly: "False"
+        secure_proxy_ssl_header: false
+        password_autocomplete: "False"
+        disallow_iframe_embed: "False"
+        allowed_hosts:
+          - '*'
+        horizon_images_upload_mode: 'legacy'
+        openstack_cinder_features:
+          enable_backup: "True"
+        openstack_neutron_network:
+          enable_router: "True"
+          enable_quotas: "True"
+          enable_ipv6: "True"
+          enable_distributed_router: "False"
+          enable_ha_router: "False"
+          enable_lb: "True"
+          enable_firewall: "True"
+          enable_vpn: "True"
+          enable_fip_topology_check: "True"
+        openstack_enable_password_retrieve: "False"
+        auth:
+          sso:
+            enabled: False
+            initial_choice: "credentials"
+          idp_mapping:
+            - name: "acme_oidc"
+              label: "Acme Corporation - OpenID Connect"
+              idp: "myidp1"
+              protocol: "oidc"
+            - name: "acme_saml2"
+              label: "Acme Corporation - SAML2"
+              idp: "myidp2"
+              protocol: "saml2"
+        log_level: "DEBUG"
+        # Pass any settings to the end of local_settings.py
+        raw: {}
+        openstack_api_versions:
+          container_infra: "1.10"
         # Region Modes
         ss_enabled: 'False'
         dc_mode: 'False'
@@ -118,14 +257,8 @@ conf:
         https_enabled: 'False'
         lockout_period_sec: '300'
         lockout_retries_num: '3'
-        # Turn off domain support as we aren't using
-        keystone_multidomain_support: 'False'
         # OpenStack Help Documentation URL
         help_url: 'http://docs.openstack.org/2024.1/'
-        # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
-        csrf_trusted_origins: []
-        # Pass any settings to the end of local_settings.py
-        raw: { }
       template: |
         import os
 
@@ -873,4 +1006,455 @@ conf:
         {{- range $option, $value := .Values.conf.horizon.local_settings.config.raw }}
         {{ $option }} = {{ toJson $value }}
         {{- end }}
+    policy:
+      ceilometer:
+        context_is_admin: 'role:admin'
+        context_is_owner: 'user_id:%(target.user_id)s'
+        context_is_project: 'project_id:%(target.project_id)s'
+        segregation: 'rule:context_is_admin'
+      heat:
+        'actions:action': 'rule:deny_stack_user'
+        'build_info:build_info': 'rule:deny_stack_user'
+        'cloudformation:CancelUpdateStack': 'rule:deny_stack_user'
+        'cloudformation:CreateStack': 'rule:deny_stack_user'
+        'cloudformation:DeleteStack': 'rule:deny_stack_user'
+        'cloudformation:DescribeStackEvents': 'rule:deny_stack_user'
+        'cloudformation:DescribeStackResource': ''
+        'cloudformation:DescribeStackResources': 'rule:deny_stack_user'
+        'cloudformation:DescribeStacks': 'rule:deny_stack_user'
+        'cloudformation:EstimateTemplateCost': 'rule:deny_stack_user'
+        'cloudformation:GetTemplate': 'rule:deny_stack_user'
+        'cloudformation:ListStackResources': 'rule:deny_stack_user'
+        'cloudformation:ListStacks': 'rule:deny_stack_user'
+        'cloudformation:UpdateStack': 'rule:deny_stack_user'
+        'cloudformation:ValidateTemplate': 'rule:deny_stack_user'
+        'cloudwatch:DeleteAlarms': 'rule:deny_stack_user'
+        'cloudwatch:DescribeAlarmHistory': 'rule:deny_stack_user'
+        'cloudwatch:DescribeAlarms': 'rule:deny_stack_user'
+        'cloudwatch:DescribeAlarmsForMetric': 'rule:deny_stack_user'
+        'cloudwatch:DisableAlarmActions': 'rule:deny_stack_user'
+        'cloudwatch:EnableAlarmActions': 'rule:deny_stack_user'
+        'cloudwatch:GetMetricStatistics': 'rule:deny_stack_user'
+        'cloudwatch:ListMetrics': 'rule:deny_stack_user'
+        'cloudwatch:PutMetricAlarm': 'rule:deny_stack_user'
+        'cloudwatch:PutMetricData': ''
+        'cloudwatch:SetAlarmState': 'rule:deny_stack_user'
+        context_is_admin: 'role:admin'
+        deny_everybody: '!'
+        deny_stack_user: 'not role:heat_stack_user'
+        'events:index': 'rule:deny_stack_user'
+        'events:show': 'rule:deny_stack_user'
+        'resource:index': 'rule:deny_stack_user'
+        'resource:mark_unhealthy': 'rule:deny_stack_user'
+        'resource:metadata': ''
+        'resource:show': 'rule:deny_stack_user'
+        'resource:signal': ''
+        'resource_types:OS::Cinder::EncryptedVolumeType': 'rule:context_is_admin'
+        'resource_types:OS::Cinder::VolumeType': 'rule:context_is_admin'
+        'resource_types:OS::Manila::ShareType': 'rule:context_is_admin'
+        'resource_types:OS::Neutron::QoSBandwidthLimitRule': 'rule:context_is_admin'
+        'resource_types:OS::Neutron::QoSPolicy': 'rule:context_is_admin'
+        'resource_types:OS::Nova::Flavor': 'rule:context_is_admin'
+        'resource_types:OS::Nova::HostAggregate': 'rule:context_is_admin'
+        'service:index': 'rule:context_is_admin'
+        'software_configs:create': 'rule:deny_stack_user'
+        'software_configs:delete': 'rule:deny_stack_user'
+        'software_configs:global_index': 'rule:deny_everybody'
+        'software_configs:index': 'rule:deny_stack_user'
+        'software_configs:show': 'rule:deny_stack_user'
+        'software_deployments:create': 'rule:deny_stack_user'
+        'software_deployments:delete': 'rule:deny_stack_user'
+        'software_deployments:index': 'rule:deny_stack_user'
+        'software_deployments:metadata': ''
+        'software_deployments:show': 'rule:deny_stack_user'
+        'software_deployments:update': 'rule:deny_stack_user'
+        'stacks:abandon': 'rule:deny_stack_user'
+        'stacks:create': 'rule:deny_stack_user'
+        'stacks:delete': 'rule:deny_stack_user'
+        'stacks:delete_snapshot': 'rule:deny_stack_user'
+        'stacks:detail': 'rule:deny_stack_user'
+        'stacks:environment': 'rule:deny_stack_user'
+        'stacks:export': 'rule:deny_stack_user'
+        'stacks:generate_template': 'rule:deny_stack_user'
+        'stacks:global_index': 'rule:deny_everybody'
+        'stacks:index': 'rule:deny_stack_user'
+        'stacks:list_outputs': 'rule:deny_stack_user'
+        'stacks:list_resource_types': 'rule:deny_stack_user'
+        'stacks:list_snapshots': 'rule:deny_stack_user'
+        'stacks:list_template_functions': 'rule:deny_stack_user'
+        'stacks:list_template_versions': 'rule:deny_stack_user'
+        'stacks:lookup': ''
+        'stacks:preview': 'rule:deny_stack_user'
+        'stacks:preview_update': 'rule:deny_stack_user'
+        'stacks:preview_update_patch': 'rule:deny_stack_user'
+        'stacks:resource_schema': 'rule:deny_stack_user'
+        'stacks:restore_snapshot': 'rule:deny_stack_user'
+        'stacks:show': 'rule:deny_stack_user'
+        'stacks:show_output': 'rule:deny_stack_user'
+        'stacks:show_snapshot': 'rule:deny_stack_user'
+        'stacks:snapshot': 'rule:deny_stack_user'
+        'stacks:template': 'rule:deny_stack_user'
+        'stacks:update': 'rule:deny_stack_user'
+        'stacks:update_patch': 'rule:deny_stack_user'
+        'stacks:validate_template': 'rule:deny_stack_user'
+    # list of panels to enable for horizon
+    # this requires that the panels are already installed in the horizon image, if they are not
+    # nothing will be added
+    # the name of the panel should be the name of the dir where the panel is installed
+    # for example heat_dashboard, cloudkittydashboard or neutron_taas_dashboard
+    extra_panels:
+      - heat_dashboard
+      - neutron_taas_dashboard
+dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+          - horizon-image-repo-sync
+        services:
+          - endpoint: node
+            service: local_image_registry
+  static:
+    dashboard:
+      jobs:
+        - horizon-db-sync
+      services:
+        - endpoint: internal
+          service: oslo_cache
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
+    db_drop:
+      services:
+        - endpoint: internal
+          service: oslo_db
+    db_init:
+      services:
+        - endpoint: internal
+          service: oslo_db
+    db_sync:
+      jobs:
+        - horizon-db-init
+      services:
+        - endpoint: internal
+          service: oslo_db
+    image_repo_sync:
+      services:
+        - endpoint: internal
+          service: local_image_registry
+    tests:
+      services:
+        - endpoint: internal
+          service: dashboard
+pod:
+  security_context:
+    horizon:
+      pod:
+        runAsUser: 42424
+      container:
+        horizon:
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          runAsUser: 0
+    db_sync:
+      pod:
+        runAsUser: 42424
+      container:
+        horizon_db_sync:
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          runAsUser: 0
+    test:
+      pod:
+        runAsUser: 42424
+      container:
+        horizon_test:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+  affinity:
+    anti:
+      type:
+        default: preferredDuringSchedulingIgnoredDuringExecution
+      topologyKey:
+        default: kubernetes.io/hostname
+      weight:
+        default: 10
+  tolerations:
+    horizon:
+      enabled: true
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: openstack-compute-node
+          operator: Exists
+          effect: NoSchedule
+  mounts:
+    horizon_db_init:
+      init_container: null
+      horizon_db_init:
+        volumeMounts:
+        volumes:
+    horizon_db_sync:
+      init_container: null
+      horizon_db_sync:
+        volumeMounts:
+        volumes:
+    horizon:
+      init_container: null
+      horizon:
+        # Branding directory mount
+        volumeMounts:
+          - mountPath: /opt/branding
+            name: horizon-branding
+        volumes:
+          - hostPath:
+              path: /opt/branding
+              type: Directory
+            name: horizon-branding
+    horizon_tests:
+      init_container: null
+      horizon_tests:
+        volumeMounts:
+        volumes:
+  replicas:
+    server: 1
+  lifecycle:
+    upgrades:
+      deployments:
+        revision_history: 3
+        pod_replacement_strategy: RollingUpdate
+        rolling_update:
+          max_unavailable: 1
+          max_surge: 3
+    disruption_budget:
+      horizon:
+        min_available: 0
+    termination_grace_period:
+      horizon:
+        timeout: 30
+  resources:
+    enabled: true
+    server:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+        ephemeral-storage: "25000Ki"
+      limits:
+        memory: "1024Mi"
+        cpu: "2000m"
+    jobs:
+      db_init:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      db_sync:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      db_drop:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      image_repo_sync:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+      tests:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
+# Names of secrets used by bootstrap and environmental checks
+secrets:
+  identity:
+    admin: horizon-keystone-admin
+  oslo_db:
+    admin: horizon-db-admin
+    horizon: horizon-db-user
+  tls:
+    dashboard:
+      dashboard:
+        public: horizon-tls-public
+        internal: horizon-tls-web
+  oci_image_registry:
+    horizon: horizon-oci-image-registry
+tls:
+  identity: false
+# typically overridden by environmental
+# values, but should include all endpoints
+# required by this chart
+endpoints:
+  cluster_domain_suffix: cluster.local
+  local_image_registry:
+    name: docker-registry
+    namespace: docker-registry
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        node: 5000
+  oci_image_registry:
+    name: oci-image-registry
+    namespace: oci-image-registry
+    auth:
+      enabled: false
+      horizon:
+        username: horizon
+        password: password
+    hosts:
+      default: localhost
+    host_fqdn_override:
+      default: null
+    port:
+      registry:
+        default: null
+  identity:
+    name: keystone
+    auth:
+      admin:
+        region_name: RegionOne
+        username: admin
+        password: password
+        project_name: admin
+        user_domain_name: default
+        project_domain_name: default
+    hosts:
+      default: keystone
+      internal: keystone-api
+    host_fqdn_override:
+      default: null
+    path:
+      default: /v3
+    scheme:
+      default: http
+    port:
+      api:
+        default: 80
+        internal: 5000
+  oslo_cache:
+    hosts:
+      default: memcached
+    host_fqdn_override:
+      default: null
+    port:
+      memcache:
+        default: 11211
+  dashboard:
+    name: horizon
+    hosts:
+      default: horizon-int
+      public: horizon
+    host_fqdn_override:
+      default: null
+      # NOTE(portdirect): this chart supports TLS for fqdn over-ridden public
+      # endpoints using the following format:
+      # public:
+      #   host: null
+      #   tls:
+      #     crt: null
+      #     key: null
+    path:
+      default: null
+    scheme:
+      default: http
+    port:
+      web:
+        default: 80
+  oslo_db:
+    auth:
+      admin:
+        username: root
+        password: password
+        secret:
+          tls:
+            internal: mariadb-tls-direct
+      horizon:
+        username: horizon
+        password: password
+    hosts:
+      default: mariadb
+    host_fqdn_override:
+      default: null
+    path: /horizon
+    scheme: mysql+pymysql
+    port:
+      mysql:
+        default: 3306
+  # NOTE(tp6510): these endpoints allow for things like DNS lookups and ingress
+  # They are using to enable the Egress K8s network policy.
+  kube_dns:
+    namespace: kube-system
+    name: kubernetes-dns
+    hosts:
+      default: kube-dns
+    host_fqdn_override:
+      default: null
+    path:
+      default: null
+    scheme: http
+    port:
+      dns:
+        default: 53
+        protocol: UDP
+  ingress:
+    namespace: null
+    name: ingress
+    hosts:
+      default: ingress
+    port:
+      ingress:
+        default: 80
+network_policy:
+  horizon:
+    ingress:
+      - {}
+    egress:
+      - {}
+# NOTE(helm_hook): helm_hook might break for helm2 binary.
+# set helm3_hook: false when using the helm2 binary.
+helm3_hook: true
+manifests:
+  certificates: false
+  configmap_bin: true
+  configmap_etc: true
+  configmap_logo: false
+  deployment: true
+  ingress_api: true
+  job_pre_apply_cleanup: true
+  job_db_init: true
+  job_db_sync: true
+  job_db_drop: false
+  job_image_repo_sync: true
+  pdb: true
+  pod_helm_test: false
+  network_policy: false
+  secret_db: true
+  secret_ingress_tls: true
+  secret_keystone: false
+  secret_registry: true
+  service_ingress: true
+  service: true
 ...

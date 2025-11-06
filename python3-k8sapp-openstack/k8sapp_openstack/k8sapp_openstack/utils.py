@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-
 from grp import getgrnam
 import json
 import os
@@ -18,6 +17,7 @@ from eventlet.green import subprocess
 from kubernetes.client.rest import ApiException as KubeApiException
 from oslo_log import log as logging
 from oslo_serialization import base64
+import requests
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import kubernetes
@@ -1577,3 +1577,128 @@ def get_dex_issuer_url(db, dex_enabled) -> str:
             raise exception.NotFound("Failed to retrieve OIDC issuer URL")
         else:
             return ""
+
+
+def get_dex_health_check_config() -> dict:
+    """
+    Return Dex health check settings drawn from Helm overrides.
+
+    Returns:
+        dict: A dictionary containing timeout, retries, verify and endpoint entries
+              that define how the Dex health endpoint should be probed.
+    """
+
+    defaults = {
+        "timeout": app_constants.DEX_HEALTH_CHECK_DEFAULT_TIMEOUT,
+        "retries": app_constants.DEX_HEALTH_CHECK_DEFAULT_RETRIES,
+        "verify": app_constants.DEX_HEALTH_CHECK_DEFAULT_VERIFY,
+        "endpoint": app_constants.DEX_HEALTH_CHECK_DEFAULT_ENDPOINT,
+    }
+
+    timeout = _get_value_from_application(
+        default_value=defaults["timeout"],
+        chart_name=app_constants.HELM_CHART_KEYSTONE,
+        override_name="conf.federation.dex_conf.timeout",
+    )
+    retries = _get_value_from_application(
+        default_value=defaults["retries"],
+        chart_name=app_constants.HELM_CHART_KEYSTONE,
+        override_name="conf.federation.dex_conf.retries",
+    )
+    verify = _get_value_from_application(
+        default_value=defaults["verify"],
+        chart_name=app_constants.HELM_CHART_KEYSTONE,
+        override_name="conf.federation.dex_conf.verify",
+    )
+    endpoint = _get_value_from_application(
+        default_value=defaults["endpoint"],
+        chart_name=app_constants.HELM_CHART_KEYSTONE,
+        override_name="conf.federation.dex_conf.probe_endpoint",
+    )
+
+    config = {
+        "timeout": timeout,
+        "retries": retries,
+        "verify": verify,
+        "endpoint": endpoint,
+    }
+
+    return config
+
+
+def oidc_parameters_exist(db) -> bool:
+    """
+    Check if all required OIDC parameters are present in the system.
+
+    Args:
+        db: Sysinv DB connection used to query service parameters.
+
+    Returns:
+        bool: True when every required OIDC parameter exists, False otherwise.
+    """
+
+    required_params = [
+        constants.SERVICE_PARAM_NAME_OIDC_ISSUER_URL,
+        constants.SERVICE_PARAM_NAME_OIDC_CLIENT_ID,
+        constants.SERVICE_PARAM_NAME_OIDC_USERNAME_CLAIM,
+        constants.SERVICE_PARAM_NAME_OIDC_GROUPS_CLAIM,
+    ]
+
+    for param in required_params:
+        try:
+            db.service_parameter_get_one(
+                service=constants.SERVICE_TYPE_KUBERNETES,
+                section=constants.SERVICE_PARAM_SECTION_KUBERNETES_APISERVER,
+                name=param,
+            )
+        except Exception as e:
+            LOG.warning(f"OIDC parameter missing: {param} ({e})")
+            return False
+
+    return True
+
+
+def check_dex_healthy(db, dex_enabled) -> bool:
+    """
+    Check Dex health using the OIDC issuer URL (/healthz endpoint).
+
+    Args:
+        db: Sysinv DB connection used to obtain service parameters.
+        dex_enabled (bool): Flag indicating whether Dex should be considered enabled.
+
+    Returns:
+        bool: True when the health endpoint responds successfully, False otherwise.
+    """
+
+    issuer_url = get_dex_issuer_url(db, dex_enabled)
+    if not issuer_url:
+        LOG.warning("Dex issuer URL is empty.")
+        return False
+
+    health_cfg = get_dex_health_check_config()
+
+    verify_option = health_cfg.get("verify", app_constants.DEX_HEALTH_CHECK_DEFAULT_VERIFY)
+    retries = health_cfg.get("retries", app_constants.DEX_HEALTH_CHECK_DEFAULT_RETRIES)
+    timeout = health_cfg.get("timeout", app_constants.DEX_HEALTH_CHECK_DEFAULT_TIMEOUT)
+    endpoint = health_cfg.get("endpoint", app_constants.DEX_HEALTH_CHECK_DEFAULT_ENDPOINT)
+    health_url = issuer_url.rstrip("/") + endpoint
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = requests.get(health_url, timeout=timeout, verify=verify_option)
+
+            if not response.ok:
+                LOG.warning(
+                    f"Dex health check attempt {attempt}/{retries} failed "
+                    f"(HTTP {response.status_code})."
+                )
+            else:
+                LOG.info("Dex health check passed.")
+                return True
+        except requests.exceptions.RequestException as exc:
+            LOG.error(
+                "Error during Dex health check on attempt "
+                f"{attempt}/{retries}: {exc}"
+            )
+
+    return False

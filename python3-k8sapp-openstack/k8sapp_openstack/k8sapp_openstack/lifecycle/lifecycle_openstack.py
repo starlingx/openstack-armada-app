@@ -23,7 +23,10 @@ from sysinv.helm.lifecycle_constants import LifecycleConstants
 from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helpers import ldap
+from k8sapp_openstack.utils import check_dex_healthy
 from k8sapp_openstack.utils import is_ceph_backend_available
+from k8sapp_openstack.utils import is_dex_enabled
+from k8sapp_openstack.utils import oidc_parameters_exist
 
 LOG = logging.getLogger(__name__)
 
@@ -384,6 +387,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # Check data network configuration
         self._semantic_check_datanetwork_config(conductor_obj.dbapi)
 
+        # Check OIDC configuration when the feature is enabled
+        self._semantic_check_oidc_config(conductor_obj.dbapi)
+
     def _pre_remove_check(self, conductor_obj, app, hook_info):
         """Semantic check for evaluating app manual remove
 
@@ -443,6 +449,23 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                       f"deployment. status: {status}"
             LOG.error(f"{err_msg}")
             raise exception.LifecycleSemanticCheckException(err_msg)
+
+    def _semantic_check_oidc_config(self, dbapi):
+        """Validate Dex enablement, health and mandatory OIDC parameters.
+
+        Args:
+            dbapi: Sysinv DB connection used to query service parameters.
+
+        Raises:
+            LifecycleSemanticCheckException: Missing OIDC parameters on subcloud.
+            LifecycleSemanticCheckException: Dex health check failed.
+        """
+        if is_dex_enabled():
+            if not oidc_parameters_exist(dbapi):
+                raise exception.LifecycleSemanticCheckException("Missing OIDC parameters.")
+
+            if not check_dex_healthy(dbapi, True):
+                raise exception.LifecycleSemanticCheckException("Dex health check failed.")
 
     def _get_vswitch_label_combinations(self):
         return app_constants.VSWITCH_ALLOWED_COMBINATIONS

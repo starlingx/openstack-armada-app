@@ -1,4 +1,4 @@
-From f6682cb0e48131ed7cdf10abf00929976e09d29e Mon Sep 17 00:00:00 2001
+From e252d383d9973c33192b5e4b969b5f777947df63 Mon Sep 17 00:00:00 2001
 From: Daniel Caires <DanielMarques.Caires@windriver.com>
 Date: Thu, 23 Oct 2025 10:07:47 -0300
 Subject: [PATCH] Add DEX integration
@@ -15,12 +15,14 @@ resources to allow STX-O to use DEX as an identity provider.
 
 Change-Id: I8540dce2dd0f1d1100872cec0ddf3a9e6df9ae81
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Add DEX http requests configurations ]
+Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
 ---
- keystone/templates/bin/_bootstrap.sh.tpl |  4 ++++
- keystone/templates/configmap-bin.yaml    |  8 +++++++
- keystone/templates/job-bootstrap.yaml    |  8 ++++++-
- keystone/values.yaml                     | 30 ++++++++++++++++++++++++
- 4 files changed, 49 insertions(+), 1 deletion(-)
+ keystone/templates/bin/_bootstrap.sh.tpl |  4 +++
+ keystone/templates/configmap-bin.yaml    |  8 ++++++
+ keystone/templates/job-bootstrap.yaml    |  8 +++++-
+ keystone/values.yaml                     | 35 ++++++++++++++++++++++++
+ 4 files changed, 54 insertions(+), 1 deletion(-)
 
 diff --git a/keystone/templates/bin/_bootstrap.sh.tpl b/keystone/templates/bin/_bootstrap.sh.tpl
 index c325824d8..7b268548c 100644
@@ -72,14 +74,19 @@ index 37ce4a481..cae003b9b 100644
  {{- $_ := set $bootstrapJob "tlsSecret" .Values.secrets.tls.identity.api.public -}}
  {{- end -}}
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index 7e262d5f9..f388f5332 100644
+index 7e262d5f9..71493ac23 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
-@@ -565,6 +565,36 @@ conf:
+@@ -565,6 +565,41 @@ conf:
        # NOTE(vdrok): The following two options have effect only for SQL backend
        lockout_failure_attempts: 5
        lockout_duration: 1800
 +  federation:
++    dex_conf:
++      verify: False
++      retries: 1
++      timeout: 5
++      probe_endpoint: "/healthz"
 +    dex_idp:
 +      # Enable DEX integration
 +      enabled: false
@@ -114,3 +121,4 @@ index 7e262d5f9..f388f5332 100644
    # https://docs.openstack.org/keystone/pike/admin/identity-domain-specific-config.html.
 -- 
 2.34.1
+

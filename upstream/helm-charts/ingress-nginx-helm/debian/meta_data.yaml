@@ -1,7 +1,7 @@
 ---
 debname: ingress-nginx-helm
 debver: 4.12-1
-src_path: ${MY_REPO}/stx/openstack-armada-app/ingress-nginx-helm
+src_path: ${MY_REPO}/stx/openstack-armada-app/upstream/helm-charts/ingress-nginx-helm
 dl_path:
   name: ingress-nginx-helm-chart-4.12.1.tar.gz
   url: https://github.com/kubernetes/ingress-nginx/archive/refs/tags/helm-chart-4.12.1.tar.gz

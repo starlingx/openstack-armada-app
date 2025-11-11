@@ -15,6 +15,7 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import get_dex_issuer_url
+from k8sapp_openstack.utils import get_external_service_url
 from k8sapp_openstack.utils import is_dex_enabled
 
 LOG = logging.getLogger(__name__)
@@ -225,7 +226,10 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
         return {
             'keystone': self._get_conf_keystone_overrides(),
             'policy': self._get_conf_policy_overrides(),
-            'federation': self._get_oidc_overrides()
+            'federation': {
+                **self._get_oidc_overrides(),
+                **self._get_external_federation_urls()
+            }
         }
 
     def _region_config(self):
@@ -348,3 +352,41 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
                 'provider_remote_id': get_dex_issuer_url(db, dex_enabled)
             }
         }
+
+    def _get_external_federation_urls(self):
+        """
+        Discover and return external URLs for federation/WebSSO configuration.
+
+        This function retrieves the external URLs needed for Keystone federation
+        with DEX IdP. The URLs are discovered based on:
+        - FQDN configuration (endpoint_domain must be configured)
+        - OpenStack HTTPS/TLS readiness
+
+        Returns:
+            dict: A dictionary with external URLs in the format:
+                {
+                    'external': {
+                        'keystone': <external_keystone_url>,
+                        'horizon': <external_horizon_url>,
+                        'dex': <dex_issuer_url>
+                    }
+                }
+        """
+        db = dbapi.get_instance()
+        dex_enabled = is_dex_enabled()
+        https_ready = self._is_openstack_https_ready()
+
+        # Discover external URLs
+        external_keystone_url = get_external_service_url(db, 'keystone', https_ready)
+        external_horizon_url = get_external_service_url(db, 'horizon', https_ready)
+        external_dex_url = get_dex_issuer_url(db, dex_enabled)
+
+        result = {
+            'external': {
+                'keystone': external_keystone_url,
+                'horizon': external_horizon_url,
+                'dex': external_dex_url
+            }
+        }
+
+        return result

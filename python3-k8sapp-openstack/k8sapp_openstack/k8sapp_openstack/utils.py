@@ -1838,3 +1838,42 @@ def check_dex_healthy(db, dex_enabled) -> bool:
             )
 
     return False
+
+
+def get_external_service_url(dbapi, service_name, https_ready):
+    """
+    Construct external URL for an OpenStack service.
+
+    Args:
+        dbapi: Database API instance
+        service_name (str): The name of the service (e.g., 'keystone', 'horizon')
+        https_ready (bool): True if HTTPS/TLS is configured, False for HTTP
+
+    Returns:
+        str: External service URL (e.g., "https://keystone.example.com")
+             Returns empty string if endpoint_domain is not configured
+
+    Examples:
+        >>> get_external_service_url(db, 'keystone', True)
+        'https://keystone.example.com'
+        >>> get_external_service_url(db, 'horizon', False)
+        'http://horizon.example.com'
+    """
+    try:
+        endpoint_domain = dbapi.service_parameter_get_one(
+            service=constants.SERVICE_TYPE_OPENSTACK,
+            section=constants.SERVICE_PARAM_SECTION_OPENSTACK_HELM,
+            name=constants.SERVICE_PARAM_NAME_ENDPOINT_DOMAIN)
+
+        if endpoint_domain:
+            fqdn_pattern = get_services_fqdn_pattern()
+            location = fqdn_pattern.format(
+                service_name=service_name,
+                endpoint_domain=str(endpoint_domain.value)
+            ).lower()
+            protocol = 'https' if https_ready else 'http'
+            return f"{protocol}://{location}"
+    except Exception:
+        pass
+
+    return ""

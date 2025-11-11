@@ -1437,6 +1437,53 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             "https://dex.example/probe", timeout=3, verify=False
         )
 
+    @mock.patch('k8sapp_openstack.utils.get_services_fqdn_pattern')
+    def test_get_external_service_url_keystone_https(self, mock_fqdn_pattern):
+        """Test get_external_service_url with Keystone, FQDN configured and HTTPS"""
+        mock_fqdn_pattern.return_value = "{service_name}.{endpoint_domain}"
+        endpoint_param = mock.Mock()
+        endpoint_param.value = "example.com"
+        db_mock = mock.Mock()
+        db_mock.service_parameter_get_one.return_value = endpoint_param
+
+        result = app_utils.get_external_service_url(
+            dbapi=db_mock,
+            service_name='keystone',
+            https_ready=True
+        )
+
+        assert result == "https://keystone.example.com"
+
+    @mock.patch('k8sapp_openstack.utils.get_services_fqdn_pattern')
+    def test_get_external_service_url_horizon_http(self, mock_fqdn_pattern):
+        """Test get_external_service_url with Horizon, FQDN configured and HTTP"""
+        mock_fqdn_pattern.return_value = "{service_name}.{endpoint_domain}"
+        endpoint_param = mock.Mock()
+        endpoint_param.value = "example.com"
+        db_mock = mock.Mock()
+        db_mock.service_parameter_get_one.return_value = endpoint_param
+
+        result = app_utils.get_external_service_url(
+            dbapi=db_mock,
+            service_name='horizon',
+            https_ready=False
+        )
+
+        assert result == "http://horizon.example.com"
+
+    def test_get_external_service_url_without_fqdn(self):
+        """Test get_external_service_url returns empty string when FQDN not configured"""
+        db_mock = mock.Mock()
+        db_mock.service_parameter_get_one.side_effect = Exception("Not found")
+
+        result = app_utils.get_external_service_url(
+            dbapi=db_mock,
+            service_name='keystone',
+            https_ready=True
+        )
+
+        assert result == ""
+
     @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
                 return_value="ontap-nas:nfs:iscsi")
     @mock.patch('k8sapp_openstack.utils.is_netapp_storageclass_available',

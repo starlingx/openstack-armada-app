@@ -1267,3 +1267,172 @@ class UtilsTest(dbbase.ControllerHostTestCase):
 
         result = app_utils.get_dex_issuer_url(db_mock, dex_enabled=False)
         assert result == ""
+
+    @staticmethod
+    def _return_default(default_value, *_, **__):
+        return default_value
+
+    @staticmethod
+    def _override_timeout_only(default_value, *_, **kwargs):
+        if kwargs.get('override_name') == "conf.federation.dex_conf.timeout":
+            return 10
+        return default_value
+
+    @staticmethod
+    def _override_all_health_checks(default_value, *_, **kwargs):
+        overrides = {
+            "conf.federation.dex_conf.timeout": 30,
+            "conf.federation.dex_conf.retries": 5,
+            "conf.federation.dex_conf.verify": True,
+            "conf.federation.dex_conf.probe_endpoint": "/probe",
+        }
+        return overrides.get(kwargs.get('override_name'), default_value)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_dex_health_check_config_defaults(self, mock_get_value):
+        """Ensure defaults are returned when no overrides exist."""
+        mock_get_value.side_effect = self._return_default
+
+        expected_config = {
+            "timeout": app_constants.DEX_HEALTH_CHECK_DEFAULT_TIMEOUT,
+            "retries": app_constants.DEX_HEALTH_CHECK_DEFAULT_RETRIES,
+            "verify": app_constants.DEX_HEALTH_CHECK_DEFAULT_VERIFY,
+            "endpoint": app_constants.DEX_HEALTH_CHECK_DEFAULT_ENDPOINT,
+        }
+        config = app_utils.get_dex_health_check_config()
+
+        self.assertEqual(config, expected_config)
+        self.assertEqual(mock_get_value.call_count, 4)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_dex_health_check_config_partial_override(self, mock_get_value):
+        """Ensure single override updates only its specific field."""
+        mock_get_value.side_effect = self._override_timeout_only
+
+        expected_config = {
+            "timeout": 10,
+            "retries": app_constants.DEX_HEALTH_CHECK_DEFAULT_RETRIES,
+            "verify": app_constants.DEX_HEALTH_CHECK_DEFAULT_VERIFY,
+            "endpoint": app_constants.DEX_HEALTH_CHECK_DEFAULT_ENDPOINT,
+        }
+        config = app_utils.get_dex_health_check_config()
+
+        self.assertEqual(config, expected_config)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_dex_health_check_config_full_override(self, mock_get_value):
+        """Ensure overrides can customize every health-check option."""
+        mock_get_value.side_effect = self._override_all_health_checks
+
+        expected_config = {"timeout": 30, "retries": 5, "verify": True, "endpoint": "/probe"}
+        config = app_utils.get_dex_health_check_config()
+
+        self.assertEqual(config, expected_config)
+
+    def test_oidc_parameters_exist_all_present(self):
+        """Ensure True is returned when every OIDC parameter exists."""
+        db = mock.MagicMock()
+
+        result = app_utils.oidc_parameters_exist(db)
+
+        self.assertTrue(result)
+        self.assertEqual(db.service_parameter_get_one.call_count, 4)
+
+    def test_oidc_parameters_exist_missing_value(self):
+        """Ensure False is returned when any OIDC parameter lookup fails."""
+        db = mock.MagicMock()
+        db.service_parameter_get_one.side_effect = [
+            mock.MagicMock(),
+            Exception("missing parameter"),
+        ]
+
+        result = app_utils.oidc_parameters_exist(db)
+
+        self.assertFalse(result)
+        self.assertEqual(db.service_parameter_get_one.call_count, 2)
+
+    @mock.patch('k8sapp_openstack.utils.get_dex_health_check_config',
+                return_value={"timeout": app_constants.DEX_HEALTH_CHECK_DEFAULT_TIMEOUT,
+                              "retries": app_constants.DEX_HEALTH_CHECK_DEFAULT_RETRIES,
+                              "verify": app_constants.DEX_HEALTH_CHECK_DEFAULT_VERIFY,
+                              "endpoint": app_constants.DEX_HEALTH_CHECK_DEFAULT_ENDPOINT})
+    @mock.patch('k8sapp_openstack.utils.get_dex_issuer_url', return_value="")
+    @mock.patch('k8sapp_openstack.utils.requests.get')
+    def test_check_dex_healthy_missing_issuer(
+        self, mock_requests_get, mock_get_dex_issuer_url, _
+    ):
+        """Ensure the check fails fast when the issuer URL is missing."""
+        result = app_utils.check_dex_healthy(mock.MagicMock(), dex_enabled=True)
+
+        self.assertFalse(result)
+        mock_get_dex_issuer_url.assert_called_once()
+        mock_requests_get.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils.get_dex_health_check_config',
+                return_value={"timeout": 2, "retries": 2, "verify": True, "endpoint": "/healthz"})
+    @mock.patch('k8sapp_openstack.utils.get_dex_issuer_url',
+                return_value="https://dex.example")
+    @mock.patch('k8sapp_openstack.utils.requests.get')
+    def test_check_dex_healthy_success(
+        self, mock_requests_get, mock_get_dex_issuer_url, _
+    ):
+        """Ensure Dex health check succeeds on HTTP 200 responses."""
+        response = mock.MagicMock()
+        response.status_code = app_constants.DEX_HEALTHY_STATUS_CODE
+        response.ok = True
+        response.text = "ok"
+        mock_requests_get.return_value = response
+
+        result = app_utils.check_dex_healthy(mock.MagicMock(), dex_enabled=True)
+
+        self.assertTrue(result)
+        mock_get_dex_issuer_url.assert_called_once()
+        mock_requests_get.assert_called_once_with(
+            "https://dex.example/healthz", timeout=2, verify=True
+        )
+
+    @mock.patch('k8sapp_openstack.utils.get_dex_health_check_config',
+                return_value={"timeout": 1, "retries": 2, "verify": False, "endpoint": "/healthz"})
+    @mock.patch('k8sapp_openstack.utils.get_dex_issuer_url',
+                return_value="https://dex.example")
+    @mock.patch('k8sapp_openstack.utils.requests.get')
+    def test_check_dex_healthy_non_success_status(
+        self, mock_requests_get, mock_get_dex_issuer_url, _
+    ):
+        """Ensure Dex health check retries and ultimately fails on non-200."""
+        response = mock.MagicMock()
+        response.status_code = 500
+        response.ok = False
+        response.text = "must fail"
+        mock_requests_get.return_value = response
+
+        result = app_utils.check_dex_healthy(mock.MagicMock(), dex_enabled=True)
+
+        self.assertFalse(result)
+        self.assertEqual(mock_requests_get.call_count, 2)
+        mock_get_dex_issuer_url.assert_called_once()
+        mock_requests_get.assert_called_with(
+            "https://dex.example/healthz", timeout=1, verify=False
+        )
+
+    @mock.patch('k8sapp_openstack.utils.get_dex_health_check_config',
+                return_value={"timeout": 3, "retries": 1, "verify": False, "endpoint": "/probe"})
+    @mock.patch('k8sapp_openstack.utils.get_dex_issuer_url',
+                return_value="https://dex.example")
+    @mock.patch('k8sapp_openstack.utils.requests.get')
+    def test_check_dex_healthy_uses_probe_endpoint_override(
+        self, mock_requests_get, mock_get_dex_issuer_url, _
+    ):
+        """Ensure custom probe endpoint is appended to issuer URL."""
+        response = mock.MagicMock()
+        response.status_code = app_constants.DEX_HEALTHY_STATUS_CODE
+        response.ok = True
+        response.text = "ok"
+        mock_requests_get.return_value = response
+
+        result = app_utils.check_dex_healthy(mock.MagicMock(), dex_enabled=True)
+
+        self.assertTrue(result)
+        mock_requests_get.assert_called_once_with(
+            "https://dex.example/probe", timeout=3, verify=False
+        )

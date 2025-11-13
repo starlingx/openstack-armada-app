@@ -19,10 +19,10 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
 ---
  keystone/templates/bin/_bootstrap.sh.tpl |  4 +++
- keystone/templates/configmap-bin.yaml    |  8 ++++++
- keystone/templates/job-bootstrap.yaml    |  8 +++++-
- keystone/values.yaml                     | 35 ++++++++++++++++++++++++
- 4 files changed, 54 insertions(+), 1 deletion(-)
+ keystone/templates/configmap-bin.yaml    |  8 +++++
+ keystone/templates/job-bootstrap.yaml    |  8 ++++-
+ keystone/values.yaml                     | 43 ++++++++++++++++++++++++
+ 4 files changed, 62 insertions(+), 1 deletion(-)
 
 diff --git a/keystone/templates/bin/_bootstrap.sh.tpl b/keystone/templates/bin/_bootstrap.sh.tpl
 index c325824d8..7b268548c 100644
@@ -46,7 +46,7 @@ index 45512d3ec..d55ed5672 100644
  {{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
 +{{- if .Values.conf.federation.dex_idp.enabled}}
 +  dex_mapping.json: |
-+{{ .Values.conf.federation.dex_idp.default_mapping | indent 4 }}
++{{ tpl .Values.conf.federation.dex_idp.default_mapping . | indent 4 }}
 +{{- if .Values.conf.federation.dex_idp.bootstrap.enabled }}
 +  dex-bootstrap.sh: |
 +{{ tpl .Values.conf.federation.dex_idp.bootstrap.script . | indent 4 }}
@@ -74,14 +74,22 @@ index 37ce4a481..cae003b9b 100644
  {{- $_ := set $bootstrapJob "tlsSecret" .Values.secrets.tls.identity.api.public -}}
  {{- end -}}
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index 7e262d5f9..71493ac23 100644
+index 7e262d5f9..d1a4bea83 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
-@@ -565,6 +565,41 @@ conf:
+@@ -565,6 +565,49 @@ conf:
        # NOTE(vdrok): The following two options have effect only for SQL backend
        lockout_failure_attempts: 5
        lockout_duration: 1800
 +  federation:
++    wsgi:
++      OIDCClaimPrefix: "OIDC-"
++      OIDCRemoteUserClaim: "email"
++      OIDCScope: "openid profile email"
++      OIDCClientID: "stx-oidc-client-app"
++      OIDCResponseType: "code"
++      OIDCSSLValidateServer: "Off"
++      OIDCPassClaimsAs: "both"
 +    dex_conf:
 +      verify: False
 +      retries: 1
@@ -121,4 +129,3 @@ index 7e262d5f9..71493ac23 100644
    # https://docs.openstack.org/keystone/pike/admin/identity-domain-specific-config.html.
 -- 
 2.34.1
-

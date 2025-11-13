@@ -564,6 +564,15 @@ conf:
       lockout_failure_attempts: 5
       lockout_duration: 1800
   federation:
+    wsgi:
+      OIDCClaimPrefix: "OIDC-"
+      OIDCRemoteUserClaim: "email"
+      OIDCScope: "openid profile email"
+      OIDCClientID: "stx-oidc-client-app"
+      OIDCResponseType: "code"
+      OIDCSSLValidateServer: "Off"
+      OIDCPassClaimsAs: "both"
+      OIDCOAuthSSLValidateServer: "Off"
     dex_idp:
       # Enable DEX integration
       enabled: false
@@ -822,6 +831,50 @@ conf:
     WSGISocketPrefix /var/run/apache2/wsgi
 
     <VirtualHost *:{{ $portInt }}>
+        {{- if .Values.conf.federation.dex_idp.enabled}}
+        # Load OIDC secrets and fail if it does not exists
+        {{- $dexSecret := lookup "v1" "Secret" .Release.Namespace "openstack-dex-credentials" -}}
+        {{- if not $dexSecret }}
+        {{- fail "Secret 'openstack-dex-credentials' not found in namespace" -}}
+        {{- end }}
+        {{- $dexPassword := index $dexSecret.data "password" -}}
+        {{- $dexPassphrase := index $dexSecret.data "passphrase" -}}
+
+        # OIDC Provider Configuration
+        OIDCProviderMetadataURL {{ .Values.conf.federation.external.dex }}/.well-known/openid-configuration
+        OIDCClientID {{ .Values.conf.federation.wsgi.OIDCClientID }}
+        OIDCClientSecret {{ $dexPassword }}
+
+        # Redirect URIs for WebSSO flows
+        OIDCRedirectURI {{ .Values.conf.federation.external.keystone }}/v3/auth/OS-FEDERATION/websso/redirect
+        OIDCRedirectURI {{ .Values.conf.federation.external.keystone }}/v3/auth/OS-FEDERATION/identity_providers/dex/protocols/openid/websso/redirect
+
+        # Claim configuration
+        OIDCClaimPrefix "{{ .Values.conf.federation.wsgi.OIDCClaimPrefix }}"
+        OIDCRemoteUserClaim {{ .Values.conf.federation.wsgi.OIDCRemoteUserClaim }}
+        OIDCScope "{{ .Values.conf.federation.wsgi.OIDCScope }}"
+
+        # Authorization code flow
+        OIDCResponseType "{{ .Values.conf.federation.wsgi.OIDCResponseType }}"
+
+        # Self-signed certificates support
+        OIDCSSLValidateServer {{ .Values.conf.federation.wsgi.OIDCSSLValidateServer }}
+
+        # Pass claims to Keystone
+        OIDCPassClaimsAs {{ .Values.conf.federation.wsgi.OIDCPassClaimsAs }}
+        OIDCCryptoPassphrase {{ $dexPassphrase }}
+
+        # Cache directory
+        OIDCCacheDir /var/cache/apache2/mod_auth_openidc
+
+        # JWK refresh
+        OIDCJWKSRefreshInterval 300
+
+        # OAuth2 token verification
+        OIDCOAuthVerifyJwksUri {{ .Values.conf.federation.external.dex }}/keys
+        OIDCOAuthSSLValidateServer {{ .Values.conf.federation.wsgi.OIDCOAuthSSLValidateServer }}
+        {{- end }}
+
         WSGIDaemonProcess keystone-public processes=5 threads=1 user=keystone group=keystone display-name=%{GROUP} python-home=/var/lib/openstack socket-user=www-data
         WSGIProcessGroup keystone-public
         WSGIScriptAlias / /var/www/cgi-bin/keystone/keystone-wsgi-public

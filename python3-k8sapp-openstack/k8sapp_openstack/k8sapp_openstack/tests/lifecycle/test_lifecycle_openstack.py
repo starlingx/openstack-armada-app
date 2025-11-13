@@ -970,10 +970,12 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
     @mock.patch('k8sapp_openstack.utils.create_clients_working_directory', return_value=True)
     @mock.patch('k8sapp_openstack.utils.get_clients_working_directory', return_value='/custom/path')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.lifecycle_utils.create_local_registry_secrets')
+    @mock.patch('k8sapp_openstack.utils.pre_apply_create_dex_resources_secret')
     @mock.patch('sysinv.common.kubernetes.KubeOperator')
     def test_create_app_specific_resources_pre_apply_success(
             self,
             mock_kube_operator,
+            mock_create_dex_credentials_secret,
             mock_create_local_registry_secrets,
             mock_get_working_dir,
             mock_create_dir,
@@ -990,6 +992,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         self.lifecycle._create_app_specific_resources_pre_apply(app_op, app, hook_info)
 
+        mock_create_dex_credentials_secret.assert_called_once()
         mock_create_local_registry_secrets.assert_called_once()
         mock_kube.kube_delete_config_map.assert_called_once()
         mock_check_group.assert_called_once()
@@ -1124,12 +1127,14 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         assert fake_configmap.metadata.name == self.lifecycle.APP_OPENSTACK_RESOURCE_CONFIG_MAP
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.lifecycle_utils')
+    @mock.patch('k8sapp_openstack.utils.delete_dex_secret')
     @mock.patch(
         'k8sapp_openstack.lifecycle.lifecycle_openstack.OpenstackAppLifecycleOperator._post_remove_ldap_actions'
     )
     def test_delete_app_specific_resources_post_remove(
             self,
             mock_post_remove_ldap_actions,
+            mock_delete_dex_secret,
             mock_lifecycle_utils):
         """ Test the post-remove actions for deleting app-specific resources. """
 
@@ -1142,6 +1147,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_lifecycle_utils.delete_local_registry_secrets.assert_called_once()
         mock_lifecycle_utils.delete_persistent_volume_claim.assert_called_once()
         mock_lifecycle_utils.delete_configmap.assert_called_once()
+        mock_delete_dex_secret.assert_called_once()
         mock_lifecycle_utils.delete_namespace.assert_called_once()
         mock_post_remove_ldap_actions.assert_called_once()
 

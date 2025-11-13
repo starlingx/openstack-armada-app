@@ -168,7 +168,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
         return overrides
 
     def _get_conf_keystone_overrides(self):
-        return {
+        overrides = {
             'DEFAULT': self._get_conf_keystone_default_overrides(),
             'database': self._get_conf_keystone_database_overrides(),
             'oslo_middleware': self._get_conf_keystone_oslo_middleware_overrides(),
@@ -177,6 +177,13 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             'assignment': self._get_conf_keystone_assignment_overrides(),
             'security_compliance': self._get_conf_keystone_security_compliance_overrides(),
         }
+
+        # Only include these sections if DEX integration is enabled
+        if is_dex_enabled():
+            overrides['auth'] = self._get_keystone_auth_methods()
+            overrides['federation'] = self._get_keystone_trusted_dashboard()
+
+        return overrides
 
     def _get_conf_policy_overrides(self):
         return {
@@ -352,6 +359,42 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
                 'provider_remote_id': get_dex_issuer_url(db, dex_enabled)
             }
         }
+
+    def _get_keystone_auth_methods(self):
+        """
+        Return Keystone authentication methods based on DEX configuration.
+
+        If DEX integration is enabled, include `mapped` and `openid` in the list
+        of supported authentication methods. Otherwise, return the standard
+        Keystone methods.
+
+        Returns:
+            dict: A dictionary containing a single key `'methods'`, whose value
+                is a comma-separated string of enabled authentication methods.
+                Example: `{'methods': 'external,password,token,mapped,openid'}`
+        """
+        methods = ['external', 'password', 'token', 'mapped', 'openid']
+
+        return {'methods': ','.join(methods)}
+
+    def _get_keystone_trusted_dashboard(self):
+        """
+        Generate the Keystone federation configuration section containing
+        the `trusted_dashboard` parameter.
+
+        This value points to the Horizon dashboard endpoint used for WebSSO
+        authentication when DEX integration is enabled.
+
+        Returns:
+            dict: A dictionary with the 'trusted_dashboard' key and its
+            corresponding Horizon WebSSO URL.
+        """
+        urls = self._get_external_federation_urls()
+        horizon_url = urls['external']['horizon']
+
+        trusted_dashboard_url = f"{horizon_url}/auth/websso"
+
+        return {"trusted_dashboard": trusted_dashboard_url}
 
     def _get_external_federation_urls(self):
         """

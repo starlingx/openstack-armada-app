@@ -28,6 +28,7 @@ class KeystoneGetOverrideTest(KeystoneHelmTestCase,
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_external_federation_urls', return_value={})
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
     def test_keystone_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_KEYSTONE,
@@ -50,6 +51,7 @@ class KeystoneGetOverrideTest(KeystoneHelmTestCase,
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_external_federation_urls', return_value={})
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
     @mock.patch(
         'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
         return_value='/etc/ssl/private/openstack/ca-cert.pem'
@@ -116,6 +118,7 @@ class KeystoneGetOverrideTest(KeystoneHelmTestCase,
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_external_federation_urls', return_value={})
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
     def test_keystone_overrides_invalid_namespace(self, *_):
         """
         Asserts that an exception is raised if an invalid namespace
@@ -129,6 +132,7 @@ class KeystoneGetOverrideTest(KeystoneHelmTestCase,
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_external_federation_urls', return_value={})
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
     def test_keystone_overrides_missing_namespace(self, *_):
         """
         Tests that the default Helm override parameters

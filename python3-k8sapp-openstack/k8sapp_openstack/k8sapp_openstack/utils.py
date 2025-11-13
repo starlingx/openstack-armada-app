@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from pwd import getpwnam
 import re
+import secrets
 import shutil
 from typing import Generator
 
@@ -1877,3 +1878,62 @@ def get_external_service_url(dbapi, service_name, https_ready):
         pass
 
     return ""
+
+
+def pre_apply_create_dex_resources_secret(kube):
+    """
+    Create the Kubernetes secret containing DEX credentials used for
+    DEX-Keystone integration. The secret is generated only if DEX is enabled
+    and does not already exist in the OpenStack namespace.
+
+    Args:
+        kube: Kubernetes operator instance used to interact
+            with the cluster and manage secrets.
+
+    Raises:
+        SysinvException: If an error occurs while attempting to create the
+                        DEX credentials secret.
+    """
+    secret_body = {
+        'apiVersion': kubernetes.CERT_MANAGER_VERSION,
+        'kind': 'Secret',
+        'metadata': {
+            'name': app_constants.DEX_SECRET_NAME,
+            'namespace': app_constants.HELM_NS_OPENSTACK
+        },
+        'type': constants.K8S_SECRET_TYPE_OPAQUE,
+        'data': {
+            'password': base64.encode_as_text(secrets.token_urlsafe(32).encode()),
+            'passphrase': base64.encode_as_text(secrets.token_urlsafe(64).encode()),
+        }
+    }
+    secret_exists = kube.kube_get_secret(app_constants.DEX_SECRET_NAME, app_constants.HELM_NS_OPENSTACK)
+    if not is_dex_enabled():
+        LOG.info("DEX integration is not enabled, skipping secret creation")
+    elif secret_exists:
+        LOG.info(
+            f"Secret {app_constants.DEX_SECRET_NAME} already exists \
+            in {app_constants.HELM_NS_OPENSTACK}, skipping creation")
+    else:
+        try:
+            kube.kube_create_secret(app_constants.HELM_NS_OPENSTACK, secret_body)
+        except Exception as e:
+            msg = "Failed to create DEX credentials secret: %s" % str(e)
+            LOG.error(msg)
+            raise exception.SysinvException(msg)
+
+
+def delete_dex_secret():
+    """
+    Delete the DEX Secret in the OpenStack namespace if it exists.
+    """
+
+    kube = kubernetes.KubeOperator()
+    dex_secret = kube.kube_get_secret(app_constants.DEX_SECRET_NAME, app_constants.HELM_NS_OPENSTACK)
+
+    if dex_secret:
+        kube.kube_delete_secret(app_constants.DEX_SECRET_NAME, app_constants.HELM_NS_OPENSTACK)
+    else:
+        LOG.info(
+            f"Secret {app_constants.DEX_SECRET_NAME} is not present \
+            in the {app_constants.HELM_NS_OPENSTACK}. Skipping deletion")

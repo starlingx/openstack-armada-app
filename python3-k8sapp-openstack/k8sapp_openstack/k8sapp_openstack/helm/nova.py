@@ -186,8 +186,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         return self._get_mount_uefi_overrides()
 
     def _get_compute_ironic_manifests(self):
-        ironic_operator = self._operator.chart_operators[
-            app_constants.HELM_CHART_IRONIC]
+        ironic_operator = self._get_chart_operator(app_constants.HELM_CHART_IRONIC)
         openstack_app = utils.find_openstack_app(self.dbapi)
         enabled = ironic_operator._is_enabled(
             openstack_app.name,

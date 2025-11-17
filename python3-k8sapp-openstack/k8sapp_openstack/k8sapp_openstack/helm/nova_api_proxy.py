@@ -71,8 +71,8 @@ class NovaApiProxyHelm(openstack.OpenstackBaseHelm):
             return overrides
 
     def _get_endpoints_overrides(self):
-        nova_service_name = self._operator.chart_operators[
-            app_constants.HELM_CHART_NOVA].SERVICE_NAME
+        nova_service_name = self._get_chart_operator(
+            app_constants.HELM_CHART_NOVA).SERVICE_NAME
 
         return {
             'identity': {

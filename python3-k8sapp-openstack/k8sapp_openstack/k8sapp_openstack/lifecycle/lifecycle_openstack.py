@@ -24,6 +24,7 @@ from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helpers import ldap
 from k8sapp_openstack.utils import check_dex_healthy
+from k8sapp_openstack.utils import get_endpoint_domain
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_dex_enabled
 from k8sapp_openstack.utils import oidc_parameters_exist
@@ -470,16 +471,24 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             raise exception.LifecycleSemanticCheckException(err_msg)
 
     def _semantic_check_oidc_config(self, dbapi):
-        """Validate Dex enablement, health and mandatory OIDC parameters.
+        """Validate Dex enablement, endpoint domain availability,
+        mandatory OIDC parameters and Dex health.
 
         Args:
             dbapi: Sysinv DB connection used to query service parameters.
 
         Raises:
+            LifecycleSemanticCheckException: Missing the endpoint_domain
+              configuration for OpenStack, mandatory for DEX integration.
             LifecycleSemanticCheckException: Missing OIDC parameters on subcloud.
             LifecycleSemanticCheckException: Dex health check failed.
         """
         if is_dex_enabled():
+            if not get_endpoint_domain(dbapi):
+                raise exception.LifecycleSemanticCheckException(
+                    "Missing the endpoint_domain configuration for OpenStack,"
+                    " mandatory for DEX integration.")
+
             if not oidc_parameters_exist(dbapi):
                 raise exception.LifecycleSemanticCheckException("Missing OIDC parameters.")
 

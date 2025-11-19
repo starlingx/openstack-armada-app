@@ -1439,13 +1439,13 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         )
 
     @mock.patch('k8sapp_openstack.utils.get_services_fqdn_pattern')
-    def test_get_external_service_url_keystone_https(self, mock_fqdn_pattern):
+    @mock.patch('k8sapp_openstack.utils.get_endpoint_domain')
+    def test_get_external_service_url_keystone_https(self, mock_get_endpoint_domain,
+                                                     mock_fqdn_pattern):
         """Test get_external_service_url with Keystone, FQDN configured and HTTPS"""
+        mock_get_endpoint_domain.return_value = "example.com"
         mock_fqdn_pattern.return_value = "{service_name}.{endpoint_domain}"
-        endpoint_param = mock.Mock()
-        endpoint_param.value = "example.com"
         db_mock = mock.Mock()
-        db_mock.service_parameter_get_one.return_value = endpoint_param
 
         result = app_utils.get_external_service_url(
             dbapi=db_mock,
@@ -1456,13 +1456,13 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         assert result == "https://keystone.example.com"
 
     @mock.patch('k8sapp_openstack.utils.get_services_fqdn_pattern')
-    def test_get_external_service_url_horizon_http(self, mock_fqdn_pattern):
+    @mock.patch('k8sapp_openstack.utils.get_endpoint_domain')
+    def test_get_external_service_url_horizon_http(self, mock_get_endpoint_domain,
+                                                   mock_fqdn_pattern):
         """Test get_external_service_url with Horizon, FQDN configured and HTTP"""
+        mock_get_endpoint_domain.return_value = "example.com"
         mock_fqdn_pattern.return_value = "{service_name}.{endpoint_domain}"
-        endpoint_param = mock.Mock()
-        endpoint_param.value = "example.com"
         db_mock = mock.Mock()
-        db_mock.service_parameter_get_one.return_value = endpoint_param
 
         result = app_utils.get_external_service_url(
             dbapi=db_mock,
@@ -1472,10 +1472,11 @@ class UtilsTest(dbbase.ControllerHostTestCase):
 
         assert result == "http://horizon.example.com"
 
-    def test_get_external_service_url_without_fqdn(self):
+    @mock.patch('k8sapp_openstack.utils.get_endpoint_domain')
+    def test_get_external_service_url_without_fqdn(self, mock_get_endpoint_domain):
         """Test get_external_service_url returns empty string when FQDN not configured"""
+        mock_get_endpoint_domain.return_value = ""
         db_mock = mock.Mock()
-        db_mock.service_parameter_get_one.side_effect = Exception("Not found")
 
         result = app_utils.get_external_service_url(
             dbapi=db_mock,
@@ -1687,3 +1688,27 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             check=True,
             shell=False
         )
+
+    def test_get_endpoint_domain_without_parameter(self):
+        """ Test whether get_endpoint_domain returns an empty value when
+            service_parameter_get_one returns a false value.
+        """
+        db_mock = mock.Mock()
+        db_mock.service_parameter_get_one.return_value = None
+
+        result = app_utils.get_endpoint_domain(dbapi=db_mock)
+
+        assert result == ""
+
+    def test_get_endpoint_domain_with_parameter(self):
+        """ Test whether get_endpoint_domain returns the expected value when
+            service_parameter_get_one returns a true value.
+        """
+        endpoint_param = mock.Mock()
+        endpoint_param.value = "example.com"
+        db_mock = mock.Mock()
+        db_mock.service_parameter_get_one.return_value = endpoint_param
+
+        result = app_utils.get_endpoint_domain(dbapi=db_mock)
+
+        assert result == "example.com"

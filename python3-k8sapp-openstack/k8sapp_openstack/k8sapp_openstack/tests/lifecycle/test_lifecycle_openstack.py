@@ -1519,12 +1519,40 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_app_utils.is_central_cloud.assert_called()
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_dex_enabled', return_value=True)
-    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_dex_healthy')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.get_endpoint_domain')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.oidc_parameters_exist')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_dex_healthy')
+    def test_semantic_check_oidc_config_get_endpoint_domain_fail(
+        self, mock_check_dex_healthy, mock_oidc_parameters_exist, mock_get_endpoint_domain,
+        mock_is_dex_enabled
+    ):
+        """Ensure OIDC check fails when Endpoint Domain, should not verify
+        parameters and Dex healthy"""
+        mock_get_endpoint_domain.return_value = False
+        fake_db = mock.MagicMock()
+
+        with self.assertRaisesRegex(
+            exception.LifecycleSemanticCheckException,
+            "Missing the endpoint_domain configuration for OpenStack,"
+            " mandatory for DEX integration."
+        ):
+            self.lifecycle._semantic_check_oidc_config(fake_db)
+
+        mock_is_dex_enabled.assert_called_once()
+        mock_get_endpoint_domain.assert_called_once_with(fake_db)
+        mock_oidc_parameters_exist.assert_not_called()
+        mock_check_dex_healthy.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_dex_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.get_endpoint_domain')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.oidc_parameters_exist')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_dex_healthy')
     def test_semantic_check_oidc_config_parameters_missing(
-        self, mock_oidc_parameters_exist, mock_check_dex_healthy, mock_is_dex_enabled
+        self, mock_check_dex_healthy, mock_oidc_parameters_exist, mock_get_endpoint_domain,
+        mock_is_dex_enabled
     ):
         """Ensure OIDC check fails when mandatory parameters are missing."""
+        mock_get_endpoint_domain.return_value = True
         mock_oidc_parameters_exist.return_value = False
 
         with self.assertRaisesRegex(
@@ -1533,16 +1561,20 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             self.lifecycle._semantic_check_oidc_config(mock.MagicMock())
 
         mock_is_dex_enabled.assert_called_once()
+        mock_get_endpoint_domain.assert_called_once()
         mock_oidc_parameters_exist.assert_called_once()
         mock_check_dex_healthy.assert_not_called()
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_dex_enabled', return_value=True)
-    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_dex_healthy')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.get_endpoint_domain')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.oidc_parameters_exist')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_dex_healthy')
     def test_semantic_check_oidc_config_dex_health_fail(
-        self, mock_oidc_parameters_exist, mock_check_dex_healthy, mock_is_dex_enabled
+        self, mock_check_dex_healthy, mock_oidc_parameters_exist, mock_get_endpoint_domain,
+        mock_is_dex_enabled
     ):
         """Ensure OIDC check fails when Dex health check reports unhealthy."""
+        mock_get_endpoint_domain.return_value = True
         mock_oidc_parameters_exist.return_value = True
         mock_check_dex_healthy.return_value = False
         fake_db = mock.MagicMock()
@@ -1553,16 +1585,20 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             self.lifecycle._semantic_check_oidc_config(fake_db)
 
         mock_is_dex_enabled.assert_called_once()
+        mock_get_endpoint_domain.assert_called_once()
         mock_oidc_parameters_exist.assert_called_once_with(fake_db)
         mock_check_dex_healthy.assert_called_once_with(fake_db, True)
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_dex_enabled', return_value=True)
-    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_dex_healthy')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.get_endpoint_domain')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.oidc_parameters_exist')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_dex_healthy')
     def test_semantic_check_oidc_config_success(
-        self, mock_oidc_parameters_exist, mock_check_dex_healthy, mock_is_dex_enabled
+        self, mock_check_dex_healthy, mock_oidc_parameters_exist, mock_get_endpoint_domain,
+        mock_is_dex_enabled
     ):
-        """Verify OIDC semantic check passes when parameters and Dex are OK."""
+        """Verify OIDC semantic check passes when parameters, Dex and Endpoint Domain are OK."""
+        mock_get_endpoint_domain.return_value = True
         mock_oidc_parameters_exist.return_value = True
         mock_check_dex_healthy.return_value = True
         fake_db = mock.MagicMock()
@@ -1570,5 +1606,6 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         self.lifecycle._semantic_check_oidc_config(fake_db)
 
         mock_is_dex_enabled.assert_called_once()
+        mock_get_endpoint_domain.assert_called_once_with(fake_db)
         mock_oidc_parameters_exist.assert_called_once_with(fake_db)
         mock_check_dex_healthy.assert_called_once_with(fake_db, True)

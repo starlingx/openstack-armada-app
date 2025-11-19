@@ -1939,16 +1939,12 @@ def get_external_service_url(dbapi, service_name, https_ready):
         'http://horizon.example.com'
     """
     try:
-        endpoint_domain = dbapi.service_parameter_get_one(
-            service=constants.SERVICE_TYPE_OPENSTACK,
-            section=constants.SERVICE_PARAM_SECTION_OPENSTACK_HELM,
-            name=constants.SERVICE_PARAM_NAME_ENDPOINT_DOMAIN)
-
+        endpoint_domain = get_endpoint_domain(dbapi)
         if endpoint_domain:
             fqdn_pattern = get_services_fqdn_pattern()
             location = fqdn_pattern.format(
                 service_name=service_name,
-                endpoint_domain=str(endpoint_domain.value)
+                endpoint_domain=endpoint_domain
             ).lower()
             protocol = 'https' if https_ready else 'http'
             return f"{protocol}://{location}"
@@ -2015,3 +2011,37 @@ def delete_dex_secret():
         LOG.info(
             f"Secret {app_constants.DEX_SECRET_NAME} is not present \
             in the {app_constants.HELM_NS_OPENSTACK}. Skipping deletion")
+
+
+def get_endpoint_domain(dbapi) -> str:
+    """
+    This function queries the StarlingX system database for the value
+    of the `endpoint_domain` parameter.
+
+    Args:
+        dbapi: Database API instance providing access to service
+          parameters.
+
+    Returns:
+        str: The configured endpoint domain (e.g., `"example.com"`).
+             Returns an empty string if the parameter is missing,
+             unset, or if an exception occurs during retrieval.
+
+    Examples:
+        >>> get_endpoint_domain(dbapi)
+        'example.com'
+        >>> get_endpoint_domain(dbapi)  # When parameter is missing
+        ''
+    """
+    try:
+        endpoint_domain = dbapi.service_parameter_get_one(
+            service=constants.SERVICE_TYPE_OPENSTACK,
+            section=constants.SERVICE_PARAM_SECTION_OPENSTACK_HELM,
+            name=constants.SERVICE_PARAM_NAME_ENDPOINT_DOMAIN,
+        )
+
+        return str(endpoint_domain.value) if endpoint_domain else ""
+
+    except Exception as e:
+        LOG.warning(f"Endpoint domain parameter is missing: ({e})")
+        return ""

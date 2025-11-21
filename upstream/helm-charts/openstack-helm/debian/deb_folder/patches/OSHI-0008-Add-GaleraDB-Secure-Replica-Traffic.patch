@@ -1,0 +1,94 @@
+From e363f54d69001789051d1564e9454ea74868b357 Mon Sep 17 00:00:00 2001
+From: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
+Date: Thu, 23 Dec 2021 10:15:07 -0300
+Subject: [PATCH] Add GaleraDB Secure Replica Traffic
+
+This sets `wsrep_provider_options` for GaleraDB when TLS is enabled
+
+NOTE: The recommended SST (state snapshot transfer) for mariadb>=10.2
+is `mariabackup`. mariabackup ONLY works connecting to localhost
+see: https://github.com/MariaDB/server/blob/fe7e44d8ad5d7fe9c91f476353a3e1749f18afc6/scripts/wsrep_sst_mariabackup.sh#L711
+Therefore, you MUST create a certificate with SAN `localhost` or cert
+verification will fail.
+
+Example provided at values_overrides/tls.yaml
+
+Change-Id: Ie9f81d5cfb7e0388f7c061e54342d052a0441647
+Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+---
+ mariadb/values.yaml               | 12 +++++++++---
+ values_overrides/mariadb/tls.yaml | 15 ++++++++++++++-
+ 2 files changed, 23 insertions(+), 4 deletions(-)
+
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index 405a1a6b4..72783bdc7 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -458,19 +458,25 @@ conf:
+       wsrep_cluster_name={{ tuple "oslo_db" "direct" . | include "helm-toolkit.endpoints.hostname_namespaced_endpoint_lookup" | replace "." "_" }}
+       wsrep_on=1
+       wsrep_provider=/usr/lib/galera/libgalera_smm.so
+-      wsrep_provider_options="evs.suspect_timeout=PT30S; gmcast.peer_timeout=PT15S; gmcast.listen_addr=tcp://0.0.0.0:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
+       wsrep_slave_threads=12
+       wsrep_sst_auth={{ .Values.endpoints.oslo_db.auth.sst.username }}:{{ .Values.endpoints.oslo_db.auth.sst.password }}
+       wsrep_sst_method=mariabackup
+-
+       {{ if .Values.manifests.certificates }}
++      wsrep_provider_options="socket.ssl_ca=/etc/mysql/certs/ca.crt; socket.ssl_cert=/etc/mysql/certs/tls.crt; socket.ssl_key=/etc/mysql/certs/tls.key; evs.suspect_timeout=PT30S; gmcast.peer_timeout=PT15S; gmcast.listen_addr=tcp://0.0.0.0:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
+       # TLS
+       ssl_ca=/etc/mysql/certs/ca.crt
+       ssl_key=/etc/mysql/certs/tls.key
+       ssl_cert=/etc/mysql/certs/tls.crt
+       # tls_version = TLSv1.2,TLSv1.3
+-      {{ end }}
+ 
++      [sst]
++      encrypt = 3
++      tca=/etc/mysql/certs/ca.crt
++      tkey=/etc/mysql/certs/tls.key
++      tcert=/etc/mysql/certs/tls.crt
++      {{ else }}
++      wsrep_provider_options="evs.suspect_timeout=PT30S; gmcast.peer_timeout=PT15S; gmcast.listen_addr=tcp://0.0.0.0:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
++      {{ end }}
+ 
+       [mysqldump]
+       max-allowed-packet=16M
+diff --git a/values_overrides/mariadb/tls.yaml b/values_overrides/mariadb/tls.yaml
+index b8da60f89..b09de17c7 100644
+--- a/values_overrides/mariadb/tls.yaml
++++ b/values_overrides/mariadb/tls.yaml
+@@ -9,6 +9,7 @@ pod:
+           runAsUser: 0
+           allowPrivilegeEscalation: true
+           readOnlyRootFilesystem: false
++
+ endpoints:
+   oslo_db:
+     host_fqdn_override:
+@@ -16,8 +17,20 @@ endpoints:
+         tls:
+           secretName: mariadb-tls-direct
+           issuerRef:
+-            name: ca-issuer
++            name: rootca-issuer
+             kind: ClusterIssuer
++          dnsNames:
++            # localhost is needed for mariabackup
++            - localhost
++            - mariadb
++            - mariadb.openstack
++            - mariadb.openstack.svc.cluster.local
++            - mariadb-discovery
++            - mariadb-discovery.openstack
++            - mariadb-server-1.mariadb-discovery.openstack.svc.cluster.local
++            - mariadb-server-0.mariadb-discovery.openstack.svc.cluster.local
++            - mariadb-discovery.openstack.svc.cluster.local
++
+ manifests:
+   certificates: true
+ ...
+-- 
+2.34.1
+

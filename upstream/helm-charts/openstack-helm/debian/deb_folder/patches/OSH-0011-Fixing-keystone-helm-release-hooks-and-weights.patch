@@ -1,0 +1,44 @@
+From 072b5e851e19543c6cb1b076109ce1774d73cf69 Mon Sep 17 00:00:00 2001
+From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
+Date: Tue, 20 Dec 2022 14:07:19 -0300
+Subject: [PATCH] Fixing keystone helm release hooks and weights
+
+Change-Id: I2131b82c2ffdaec9931b63c98422dbdceb615475
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+---
+ keystone/templates/secret-credential-keys.yaml | 3 ++-
+ keystone/templates/secret-fernet-keys.yaml     | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/keystone/templates/secret-credential-keys.yaml b/keystone/templates/secret-credential-keys.yaml
+index 8a2c5eb5b..307bb72bd 100644
+--- a/keystone/templates/secret-credential-keys.yaml
++++ b/keystone/templates/secret-credential-keys.yaml
+@@ -21,7 +21,8 @@ metadata:
+   name: keystone-credential-keys
+ {{- if .Values.helm3_hook }}
+   annotations:
+-    "helm.sh/hook": pre-install
++    "helm.sh/hook": pre-install,post-upgrade
++    "helm.sh/hook-weight": "-6"
+ {{- end }}
+ type: Opaque
+ data:
+diff --git a/keystone/templates/secret-fernet-keys.yaml b/keystone/templates/secret-fernet-keys.yaml
+index 8af097309..a7eddd14e 100644
+--- a/keystone/templates/secret-fernet-keys.yaml
++++ b/keystone/templates/secret-fernet-keys.yaml
+@@ -22,7 +22,8 @@ metadata:
+   name: keystone-fernet-keys
+ {{- if .Values.helm3_hook }}
+   annotations:
+-    "helm.sh/hook": pre-install
++    "helm.sh/hook": pre-install,post-upgrade
++    "helm.sh/hook-weight": "-6"
+ {{- end }}
+ type: Opaque
+ data:
+-- 
+2.43.0
+

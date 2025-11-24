@@ -597,7 +597,7 @@ conf:
           openstack role create member 2>/dev/null || true
           openstack group create {{ .Values.conf.federation.dex_idp.group_name }} 2>/dev/null || true
           openstack project create {{ .Values.conf.federation.dex_idp.project_name }} 2>/dev/null || true
-          openstack role add --group {{ .Values.conf.federation.dex_idp.group_name }} --project f{{ .Values.conf.federation.dex_idp.project_name }} member 2>/dev/null || true
+          openstack role add --group {{ .Values.conf.federation.dex_idp.group_name }} --project {{ .Values.conf.federation.dex_idp.project_name }} member 2>/dev/null || true
           openstack identity provider create {{ .Values.conf.federation.dex_idp.provider_name }} --remote-id {{ .Values.conf.federation.dex_idp.provider_remote_id }} 2>/dev/null || true
           openstack mapping create --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }} 2>/dev/null || \
           openstack mapping set --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }}
@@ -837,8 +837,8 @@ conf:
         {{- if not $dexSecret }}
         {{- fail "Secret 'openstack-dex-credentials' not found in namespace" -}}
         {{- end }}
-        {{- $dexPassword := index $dexSecret.data "password" -}}
-        {{- $dexPassphrase := index $dexSecret.data "passphrase" -}}
+        {{- $dexPassword := index $dexSecret.data "password" | b64dec -}}
+        {{- $dexPassphrase := index $dexSecret.data "passphrase" | b64dec -}}
 
         # OIDC Provider Configuration
         OIDCProviderMetadataURL {{ .Values.conf.federation.external.dex }}/.well-known/openid-configuration
@@ -873,6 +873,18 @@ conf:
         # OAuth2 token verification
         OIDCOAuthVerifyJwksUri {{ .Values.conf.federation.external.dex }}/keys
         OIDCOAuthSSLValidateServer {{ .Values.conf.federation.wsgi.OIDCOAuthSSLValidateServer }}
+
+        # Protect WebSSO endpoints with OIDC
+        <Location ~ "/v3/auth/OS-FEDERATION/.*websso">
+            AuthType openid-connect
+            Require valid-user
+        </Location>
+
+        # Using auth-openidc to support Bearer tokens
+        <Location ~ "/v3/OS-FEDERATION/identity_providers/.*/protocols/.*/auth">
+            AuthType auth-openidc
+            Require valid-user
+        </Location>
         {{- end }}
 
         WSGIDaemonProcess keystone-public processes=5 threads=1 user=keystone group=keystone display-name=%{GROUP} python-home=/var/lib/openstack socket-user=www-data

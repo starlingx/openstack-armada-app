@@ -119,7 +119,7 @@ index 7e262d5f9..d1a4bea83 100644
 +          openstack role create member 2>/dev/null || true
 +          openstack group create {{ .Values.conf.federation.dex_idp.group_name }} 2>/dev/null || true
 +          openstack project create {{ .Values.conf.federation.dex_idp.project_name }} 2>/dev/null || true
-+          openstack role add --group {{ .Values.conf.federation.dex_idp.group_name }} --project f{{ .Values.conf.federation.dex_idp.project_name }} member 2>/dev/null || true
++          openstack role add --group {{ .Values.conf.federation.dex_idp.group_name }} --project {{ .Values.conf.federation.dex_idp.project_name }} member 2>/dev/null || true
 +          openstack identity provider create {{ .Values.conf.federation.dex_idp.provider_name }} --remote-id {{ .Values.conf.federation.dex_idp.provider_remote_id }} 2>/dev/null || true
 +          openstack mapping create --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }} 2>/dev/null || \
 +          openstack mapping set --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }}

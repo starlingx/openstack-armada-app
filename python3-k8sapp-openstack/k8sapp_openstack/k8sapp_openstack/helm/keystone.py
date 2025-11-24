@@ -386,15 +386,27 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
         authentication when DEX integration is enabled.
 
         Returns:
-            dict: A dictionary with the 'trusted_dashboard' key and its
-            corresponding Horizon WebSSO URL.
+            dict: A multistring type formatted dictionary override containing
+            Horizon WebSSO URL.
         """
         urls = self._get_external_federation_urls()
         horizon_url = urls['external']['horizon']
 
-        trusted_dashboard_url = f"{horizon_url}/auth/websso"
+        # Extract the base URL without the protocol
+        if horizon_url.startswith('https://'):
+            base_url = horizon_url.replace('https://', '', 1)
+        elif horizon_url.startswith('http://'):
+            base_url = horizon_url.replace('http://', '', 1)
+        else:
+            base_url = horizon_url
 
-        return {"trusted_dashboard": trusted_dashboard_url}
+        http_url = f"http://{base_url}/auth/websso/"
+        https_url = f"https://{base_url}/auth/websso/"
+
+        return self._oslo_multistring_override(
+            name='trusted_dashboard',
+            values=[https_url, http_url]
+        )
 
     def _get_external_federation_urls(self):
         """

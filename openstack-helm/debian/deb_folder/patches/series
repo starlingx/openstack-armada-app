@@ -28,3 +28,4 @@
 0028-Allow-rook-ceph-auto-estimation.patch
 0029-Add-DEX-integration.patch
 0030-Add-Netapp-backend-support-to-Cinder.patch
+0031-Update-glance-store-config.patch

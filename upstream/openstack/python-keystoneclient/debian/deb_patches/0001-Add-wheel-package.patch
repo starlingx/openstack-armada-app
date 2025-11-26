@@ -1,4 +1,4 @@
-From 2a4ad53e0522f46b95437f61e0cae1dad86cc7a9 Mon Sep 17 00:00:00 2001
+From 619d56f90e7d2bad458a514a1a7e705fed9cfa60 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 13:06:23 +0000
 Subject: [PATCH] Add wheel package
@@ -6,16 +6,19 @@ Subject: [PATCH] Add wheel package
 Add python3-keystoneclient-wheel
 
 Signed-off-by: Charles Short <charles.short@windriver.com>
+
+[Ported to python-keystoneclient v5.6.0-2 @ Epoxy]
+Signed-off-by: jbarboza <joaopedro.barbozalioneza@windriver.com>
 ---
  debian/control | 23 +++++++++++++++++++++++
  debian/rules   |  2 +-
  2 files changed, 24 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index c156c38f..990d66fa 100644
+index 019ae059..a30dfe49 100644
 --- a/debian/control
 +++ b/debian/control
-@@ -109,3 +109,26 @@ Description: client library for the OpenStack Keystone API - Python 3.x
+@@ -108,3 +108,26 @@ Description: client library for the OpenStack Keystone API - Python 3.x
   the "python3-openstackclient" package.
   .
   This package contains the Python 3.x module.
@@ -43,18 +46,18 @@ index c156c38f..990d66fa 100644
 + .
 + This package contains the Python wheel.
 diff --git a/debian/rules b/debian/rules
-index 4d5526c8..5bef75e7 100755
+index 0616b0b3..64e94bac 100755
 --- a/debian/rules
 +++ b/debian/rules
 @@ -23,7 +23,7 @@ override_dh_auto_test:
  	echo "Do nothing..."
-
+ 
  override_dh_auto_install:
 -	pkgos-dh_auto_install --no-py2 --in-tmp
 +	pkgos-dh_auto_install --no-py2 --in-tmp --wheel
-
+ 
  ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
  	pkgos-dh_auto_test --no-py2
---
+-- 
 2.34.1
 

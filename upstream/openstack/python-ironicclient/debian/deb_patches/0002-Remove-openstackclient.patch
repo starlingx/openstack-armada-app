@@ -1,4 +1,4 @@
-From 94d44c1f2c4a80829507b24e9049e7f58d735053 Mon Sep 17 00:00:00 2001
+From fe9c6a17ced14bb338afff26276dea76c79ad851 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Mon, 29 Nov 2021 20:52:34 +0000
 Subject: [PATCH] Remove openstackclient
@@ -8,12 +8,15 @@ not being used and it is causing problems with the build-pkgs
 tool.
 
 Signed-off-by: Charles Short <charles.short@windriver.com>
+
+[Ported to python-ironicclient v5.10.0-4 @ Epoxy]
+Signed-off-by: jbarboza <joaopedro.barbozalioneza@windriver.com>
 ---
  debian/control | 1 -
  1 file changed, 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index ba96755..32ad4dc 100644
+index 3867c43..7320b67 100644
 --- a/debian/control
 +++ b/debian/control
 @@ -21,7 +21,6 @@ Build-Depends-Indep:
@@ -24,6 +27,6 @@ index ba96755..32ad4dc 100644
   python3-openstackdocstheme,
   python3-openstacksdk,
   python3-osc-lib,
---
+-- 
 2.34.1
 

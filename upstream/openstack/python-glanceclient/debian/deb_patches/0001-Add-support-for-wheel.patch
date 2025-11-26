@@ -1,4 +1,4 @@
-From b55b014910de14df34622785fb3a9e61a9881da8 Mon Sep 17 00:00:00 2001
+From 9c6f2c668a66134b7ffac68c68af4dfdf697599c Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Tue, 26 Oct 2021 23:35:45 +0000
 Subject: [PATCH] Add support for wheel
@@ -6,6 +6,9 @@ Subject: [PATCH] Add support for wheel
 Add support for python3 wheels.
 
 Signed-off-by: Charles Short <charles.short@windriver.com>
+
+[Ported to python-glanceclient v4.8.0-2 @ Epoxy]
+Signed-off-by: jbarboza <joaopedro.barbozalioneza@windriver.com>
 ---
  debian/control | 17 +++++++++++++++++
  debian/rules   |  2 +-
@@ -37,18 +40,18 @@ index d9921cf..acd2334 100644
 + .
 + This package contains the Python wheel.
 diff --git a/debian/rules b/debian/rules
-index e20c698..f15ab09 100755
+index 1476db2..08961ab 100755
 --- a/debian/rules
 +++ b/debian/rules
 @@ -14,7 +14,7 @@ override_dh_auto_build:
  	echo "Do nothing..."
-
+ 
  override_dh_auto_install:
 -	pkgos-dh_auto_install --no-py2
 +	pkgos-dh_auto_install --no-py2 --wheel
-
+ 
  override_dh_python3:
  	dh_python3 --shebang=/usr/bin/python3
---
+-- 
 2.34.1
 

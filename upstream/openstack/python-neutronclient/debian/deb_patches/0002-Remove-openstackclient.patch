@@ -1,4 +1,4 @@
-From 282799f32ead370f6e99a1b279d7e6d3dc9ce220 Mon Sep 17 00:00:00 2001
+From 0698471b944de5a41e09a68d476c9abed58a8bab Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Mon, 29 Nov 2021 20:54:00 +0000
 Subject: [PATCH] Remove openstackclient
@@ -8,12 +8,15 @@ not being used and it is causing problems with the build-pkgs
 tool.
 
 Signed-off-by: Charles Short <charles.short@windriver.com>
+
+[Ported to python-neutronclient v11.4.0-2 @ Epoxy]
+Signed-off-by: jbarboza <joaopedro.barbozalioneza@windriver.com>
 ---
  debian/control | 1 -
  1 file changed, 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index d283f5a..a948133 100644
+index 1f05efe..09b30e5 100644
 --- a/debian/control
 +++ b/debian/control
 @@ -22,7 +22,6 @@ Build-Depends-Indep:

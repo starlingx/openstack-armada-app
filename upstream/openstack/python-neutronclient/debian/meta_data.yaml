@@ -1,11 +1,11 @@
 ---
 debname: python-neutronclient
-debver: 11.2.0-3
+debver: 11.4.0-2
 dl_path:
-  name: python-neutronclient-debian-11.2.0-3.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-neutronclient/-/archive/debian/11.2.0-3/python-neutronclient-debian-11.2.0-3.tar.gz
-  md5sum: eb6eccd996bb122f8c779e9688a031af
-  sha256sum: ebc6a830a22d79422704807e9cefb141018f636e17689a024f8cb3bb037cc4b3
+  name: python-neutronclient-debian-11.4.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-neutronclient/-/archive/debian/11.4.0-2/python-neutronclient-debian-11.4.0-2.tar.gz
+  md5sum: 6ff090c71234936a3d5f45a9396cdc6c
+  sha256sum: e4c5638cd49c192133725632d39982be82b549d4881398893e175710d4c4ec6e
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

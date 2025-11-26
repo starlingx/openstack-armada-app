@@ -1,5 +1,3 @@
 0001-Add-plugin-entry-point-sorting-mechanism.patch
-0002-Add-location-parameter-for-volume-backup-creation.patch
-0003-Support-location-metadata-for-volume-backups.patch
-0004-Fix-Volume-backup-restore-output.patch
-0005-Volume-backup-support-with-Openstack-plugin.patch
+0002-Volume-backup-location-metadata-with-default-ceph-v3.patch
+

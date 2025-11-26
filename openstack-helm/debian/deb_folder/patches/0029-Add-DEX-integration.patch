@@ -21,8 +21,8 @@ Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
  keystone/templates/bin/_bootstrap.sh.tpl |  4 +++
  keystone/templates/configmap-bin.yaml    |  8 +++++
  keystone/templates/job-bootstrap.yaml    |  8 ++++-
- keystone/values.yaml                     | 43 ++++++++++++++++++++++++
- 4 files changed, 62 insertions(+), 1 deletion(-)
+ keystone/values.yaml                     | 46 ++++++++++++++++++++++++
+ 4 files changed, 65 insertions(+), 1 deletion(-)
 
 diff --git a/keystone/templates/bin/_bootstrap.sh.tpl b/keystone/templates/bin/_bootstrap.sh.tpl
 index c325824d8..7b268548c 100644
@@ -77,7 +77,7 @@ diff --git a/keystone/values.yaml b/keystone/values.yaml
 index 7e262d5f9..d1a4bea83 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
-@@ -565,6 +565,49 @@ conf:
+@@ -565,6 +565,52 @@ conf:
        # NOTE(vdrok): The following two options have effect only for SQL backend
        lockout_failure_attempts: 5
        lockout_duration: 1800
@@ -104,6 +104,9 @@ index 7e262d5f9..d1a4bea83 100644
 +      group_name: "federated_users"
 +      project_name: "federation"
 +      mapping_name: "dex_mapping"
++      # Horizon WebSSO configuration
++      websso_label: "Login with DEX SSO"
++      websso_initial_choice: "credentials"
 +      default_mapping: |
 +        [{
 +          "local": [{

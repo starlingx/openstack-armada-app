@@ -1,23 +1,27 @@
-From a7cd14f5e49ab1c5fdb2f26eebba7bd9b81eaf54 Mon Sep 17 00:00:00 2001
+From c8f244616fcf617e23db1eb51f14f48a58b5a290 Mon Sep 17 00:00:00 2001
 From: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 Date: Wed, 26 Nov 2025 11:36:33 -0300
-Subject: [PATCH] Add Netapp backend support check to Cinder storage-init
+Subject: [PATCH] Add Netapp backend support to Cinder
 
-This patch modifies Cinder's storage-init job and shell template
-to add initial support for NetApp backends. It also adds an
-additional layer that checks if a backend is enabled prior to
-creating specific resources in the templates, such as the ones
-exclusive to Ceph backends.
+This patch modifies Cinder's helm chart and shell templates
+to add support for NetApp backends. This includes:
+
+- Add logic to check if a given backend is enabled when
+creating it's specific resources and mounts
+- Add new utils templates to improve the templates readability
+and to help implementing the conditional rendering
 
 Change-Id: Id10aa9f85cabd622b62b1dc851fa50cb863987bd
 Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 ---
  cinder/templates/bin/_storage-init.sh.tpl     |  5 ++++
- cinder/templates/deployment-volume.yaml       |  2 ++
+ cinder/templates/deployment-volume.yaml       |  4 ++-
  cinder/templates/job-storage-init.yaml        | 18 +++++++----
  cinder/templates/utils/_has_ceph_backend.tpl  |  4 ++-
+ .../templates/utils/_has_netapp_backend.tpl   | 25 ++++++++++++++++
  .../templates/utils/_is_backend_enabled.tpl   | 30 +++++++++++++++++++
- 5 files changed, 52 insertions(+), 7 deletions(-)
+ 6 files changed, 78 insertions(+), 8 deletions(-)
+ create mode 100644 cinder/templates/utils/_has_netapp_backend.tpl
  create mode 100644 cinder/templates/utils/_is_backend_enabled.tpl
 
 diff --git a/cinder/templates/bin/_storage-init.sh.tpl b/cinder/templates/bin/_storage-init.sh.tpl
@@ -37,7 +41,7 @@ index 53b0b071c..a04cc0856 100644
  if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
    SECRET=$(mktemp --suffix .yaml)
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index 348aa66fb..193fd57c0 100644
+index e82128501..20803b5a6 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
 @@ -74,6 +74,7 @@ spec:
@@ -56,6 +60,15 @@ index 348aa66fb..193fd57c0 100644
          {{- end }}
          {{- if eq ( split "://" .Values.conf.cinder.coordination.backend_url )._0 "file" }}
          - name: ceph-coordination-volume-perms
+@@ -188,7 +190,7 @@ spec:
+               mountPath: /etc/cinder/conf/backends.conf
+               subPath: backends.conf
+               readOnly: true
+-            {{- if hasKey .Values.conf "nfs_shares" }}
++            {{- if and (eq "true" (include "cinder.utils.has_netapp_backend" $envAll)) (hasKey .Values.conf "nfs_shares") }}
+             - name: cinder-etc
+               mountPath: /etc/cinder/nfs.shares
+               subPath: nfs.shares
 diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
 index 6a63ce4a0..b1dca36bf 100755
 --- a/cinder/templates/job-storage-init.yaml
@@ -132,6 +145,37 @@ index bf975bb37..4e4f21e97 100644
      {{- end -}}
    {{- end -}}
    {{- $has_ceph -}}
+diff --git a/cinder/templates/utils/_has_netapp_backend.tpl b/cinder/templates/utils/_has_netapp_backend.tpl
+new file mode 100644
+index 000000000..f791b804c
+--- /dev/null
++++ b/cinder/templates/utils/_has_netapp_backend.tpl
+@@ -0,0 +1,25 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- define "cinder.utils.has_netapp_backend" -}}
++  {{- $has_netapp := false -}}
++  {{- range $_, $backend := .Values.conf.backends -}}
++    {{- if kindIs "map" $backend -}}
++      {{- if eq "true" (tuple $ $backend.volume_backend_name | include "cinder.utils.is_backend_enabled") -}}
++        {{- $has_netapp = or $has_netapp (eq $backend.volume_driver "cinder.volume.drivers.netapp.common.NetAppDriver") -}}
++      {{- end -}}
++    {{- end -}}
++  {{- end -}}
++  {{- $has_netapp -}}
++{{- end -}}
 diff --git a/cinder/templates/utils/_is_backend_enabled.tpl b/cinder/templates/utils/_is_backend_enabled.tpl
 new file mode 100644
 index 000000000..514187f6f

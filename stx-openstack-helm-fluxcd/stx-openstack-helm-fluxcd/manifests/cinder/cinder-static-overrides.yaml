@@ -775,9 +775,6 @@ conf:
 
         # initiator/connector.py:
         drv_cfg: CommandFilter, /opt/emc/scaleio/sdc/bin/drv_cfg, root, /opt/emc/scaleio/sdc/bin/drv_cfg, --query_guid
-  nfs_shares: |
-    # This file is used to host the NFS Shares for the NetApp volume backend
-    127.0.0.1:/nfs_volume
   ceph:
     override:
     append:
@@ -954,38 +951,6 @@ conf:
       image_volume_cache_enabled: true
       image_volume_cache_max_size_gb: 200
       image_volume_cache_max_count: 50
-    netapp-nfs:
-      volume_driver: cinder.volume.drivers.netapp.common.NetAppDriver
-      volume_backend_name: netapp-nfs
-      netapp_storage_protocol: nfs
-      netapp_server_hostname: 127.0.0.1
-      netapp_server_port: 80
-      netapp_login: netapp-login
-      netapp_password: netapp-password
-      netapp_vserver: netapp-vserver
-      netapp_storage_family: ontap_cluster
-      nfs_shares_config: /etc/cinder/nfs.shares
-      nfs_mount_options: nolock
-    netapp-iscsi:
-      volume_driver: cinder.volume.drivers.netapp.common.NetAppDriver
-      volume_backend_name: netapp-iscsi
-      netapp_storage_protocol: iscsi
-      netapp_server_hostname: 127.0.0.1
-      netapp_server_port: 80
-      netapp_login: netapp-login
-      netapp_password: netapp-password
-      netapp_vserver: netapp-vserver
-      netapp_storage_family: ontap_cluster
-    netapp-fc:
-      volume_driver: cinder.volume.drivers.netapp.common.NetAppDriver
-      volume_backend_name: netapp-fc
-      netapp_storage_protocol: fc
-      netapp_server_hostname: 127.0.0.1
-      netapp_server_port: 80
-      netapp_login: netapp-login
-      netapp_password: netapp-password
-      netapp_vserver: netapp-vserver
-      netapp_storage_family: ontap_cluster
   rally_tests:
     run_tempest: false
     clean_up: |

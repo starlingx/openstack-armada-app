@@ -155,6 +155,19 @@ NETAPP_NFS_BACKEND_NAME = 'netapp-nfs'
 NETAPP_ISCSI_BACKEND_NAME = 'netapp-iscsi'
 NETAPP_FC_BACKEND_NAME = 'netapp-fc'
 
+# NetApp Default and Placeholder Values
+NETAPP_CINDER_VOLUME_DRIVER = "cinder.volume.drivers.netapp.common.NetAppDriver"
+NETAPP_STORAGE_FAMILY = "ontap_cluster"
+NETAPP_DEFAULT_SERVER_HOSTNAME = "127.0.0.1"
+NETAPP_DEFAULT_SERVER_PORT = 80
+NETAPP_DEFAULT_LOGIN = "netapp-login"
+NETAPP_DEFAULT_PASSWORD = "netapp-password"
+NETAPP_DEFAULT_VSERVER = "netapp-vserver"
+NETAPP_DEFAULT_NFS_SHARES = """127.0.0.1:/nfs_volume\n"""
+NFS_SHARES_CONFIG = "/etc/cinder/nfs.shares"
+NFS_MOUNT_OPTIONS = "nolock"
+
+
 # Storage backends overrides
 OVERRIDE_STORAGE_BACKENDS = "storage_conf.storage_backends"
 

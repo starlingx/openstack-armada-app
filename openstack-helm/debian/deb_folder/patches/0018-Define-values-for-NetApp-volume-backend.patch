@@ -1,4 +1,4 @@
-From 7fc492bf45e30514f113e7b47938fc7c7259d066 Mon Sep 17 00:00:00 2001
+From 80a6f5b32298142d9f9dbd4cdbaed539f169492c Mon Sep 17 00:00:00 2001
 From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 Date: Tue, 12 Nov 2024 10:17:18 -0300
 Subject: [PATCH] Define values for NetApp volume backend
@@ -24,96 +24,55 @@ addition to NFS and iSCSI. Also, added a list that allows the
 user to manually select the default backend via overrides and
 to set the backends' priorities if there are multiple enabled.
 
+[Removed dummy values for NetApp backends]
+
+Removed the default values regarding the NetApp backends from
+values.yaml. They'll be defined dinamically via system overrides.
+
 Change-Id: I00919573fed352c2df568e59f8d8d940b05d9c73
 Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 ---
- cinder/templates/configmap-etc.yaml     |  1 +
- cinder/templates/deployment-volume.yaml |  4 ++
- cinder/values.yaml                      | 52 +++++++++++++++++++++++++
- 3 files changed, 57 insertions(+)
+ cinder/templates/configmap-etc.yaml     |  3 +++
+ cinder/templates/deployment-volume.yaml |  6 ++++++
+ cinder/values.yaml                      | 16 ++++++++++++++++
+ 3 files changed, 25 insertions(+)
 
 diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
-index 2e83f3740..685966fe1 100644
+index 2e83f3740..f7ba5dd96 100644
 --- a/cinder/templates/configmap-etc.yaml
 +++ b/cinder/templates/configmap-etc.yaml
-@@ -179,6 +179,7 @@ data:
+@@ -179,6 +179,9 @@ data:
    cinder_sudoers: {{ $envAll.Values.conf.cinder_sudoers | b64enc }}
    rootwrap.conf: {{ $envAll.Values.conf.rootwrap | b64enc }}
    resource_filters.json: {{ toJson .Values.conf.resource_filters | b64enc }}
++  {{- if hasKey .Values.conf "nfs_shares" }}
 +  nfs.shares: {{ $envAll.Values.conf.nfs_shares | b64enc }}
++  {{- end }}
  {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
  {{- $filePrefix := replace "_" "-"  $key }}
    {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index 3b1d14110..348aa66fb 100644
+index 3b1d14110..e82128501 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
-@@ -188,6 +188,10 @@ spec:
+@@ -188,6 +188,12 @@ spec:
                mountPath: /etc/cinder/conf/backends.conf
                subPath: backends.conf
                readOnly: true
++            {{- if hasKey .Values.conf "nfs_shares" }}
 +            - name: cinder-etc
 +              mountPath: /etc/cinder/nfs.shares
 +              subPath: nfs.shares
 +              readOnly: true
++            {{- end }}
              {{- if eq "true" (include "cinder.utils.has_ceph_backend" $envAll) }}
              - name: etcceph
                mountPath: /etc/ceph
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index ef0d9615e..b52b94dc7 100644
+index ef0d9615e..bbd417d10 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
-@@ -773,6 +773,10 @@ conf:
- 
-         # initiator/connector.py:
-         drv_cfg: CommandFilter, /opt/emc/scaleio/sdc/bin/drv_cfg, root, /opt/emc/scaleio/sdc/bin/drv_cfg, --query_guid
-+
-+  nfs_shares: |
-+    # This file is used to host the NFS Shares for the NetApp volume backend
-+    127.0.0.1:/nfs_volume
-   ceph:
-     override:
-     append:
-@@ -945,6 +949,38 @@ conf:
-       image_volume_cache_enabled: true
-       image_volume_cache_max_size_gb: 200
-       image_volume_cache_max_count: 50
-+    netapp-nfs:
-+      volume_driver: cinder.volume.drivers.netapp.common.NetAppDriver
-+      volume_backend_name: netapp-nfs
-+      netapp_storage_protocol: nfs
-+      netapp_server_hostname: 127.0.0.1
-+      netapp_server_port: 80
-+      netapp_login: netapp-login
-+      netapp_password: netapp-password
-+      netapp_vserver: netapp-vserver
-+      netapp_storage_family: ontap_cluster
-+      nfs_shares_config: /etc/cinder/nfs.shares
-+      nfs_mount_options: nolock
-+    netapp-iscsi:
-+      volume_driver: cinder.volume.drivers.netapp.common.NetAppDriver
-+      volume_backend_name: netapp-iscsi
-+      netapp_storage_protocol: iscsi
-+      netapp_server_hostname: 127.0.0.1
-+      netapp_server_port: 80
-+      netapp_login: netapp-login
-+      netapp_password: netapp-password
-+      netapp_vserver: netapp-vserver
-+      netapp_storage_family: ontap_cluster
-+    netapp-fc:
-+      volume_driver: cinder.volume.drivers.netapp.common.NetAppDriver
-+      volume_backend_name: netapp-fc
-+      netapp_storage_protocol: fc
-+      netapp_server_hostname: 127.0.0.1
-+      netapp_server_port: 80
-+      netapp_login: netapp-login
-+      netapp_password: netapp-password
-+      netapp_vserver: netapp-vserver
-+      netapp_storage_family: ontap_cluster
-   rally_tests:
-     run_tempest: false
-     clean_up: |
-@@ -1468,6 +1504,22 @@ tls:
+@@ -1468,6 +1468,22 @@ tls:
    oslo_messaging: false
    oslo_db: false
  

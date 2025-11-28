@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -554,6 +554,29 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
     def _get_service_default_dns_name(self, service):
         return "{}.{}.svc.{}".format(service, common.HELM_NS_OPENSTACK,
                                      constants.DEFAULT_DNS_SERVICE_DOMAIN)
+
+    def _get_service_public_endpoint(self, service, path=None):
+        """
+        Return the public endpoint URL for an OpenStack service.
+
+        Args:
+            service (str): Helm chart name of the service.
+            path (str, optional): Optional path to append to the endpoint.
+
+        Returns:
+            str: The service public endpoint URL.
+
+        Example:
+            _get_service_public_endpoint(
+                app_constants.HELM_CHART_KEYSTONE,
+                path="v3"
+            )
+            # http://keystone.openstack.svc.cluster.local/v3
+        """
+        protocol = self._get_public_protocol()
+        host = self._get_service_default_dns_name(service)
+        url = f"{protocol}://{host}"
+        return f"{url}/{path.lstrip('/')}" if path else url
 
     def _get_mount_uefi_overrides(self):
 

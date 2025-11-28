@@ -48,12 +48,8 @@ images:
     bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
-    image_repo_sync: null
-    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    dep_check: 'quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy'
     rabbit_init: docker.io/library/rabbitmq:3.9.29-management
-    0c266e7 (Merge OSH values into static-overrides)
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     nova_archive_deleted_rows: docker.io/starlingx/stx-nova:master-debian-stable-latest
@@ -346,19 +342,10 @@ dependencies:
         - endpoint: internal
           service: compute
       pod:
-      # https://bugs.launchpad.net/starlingx/+bug/1956229
-        runAsUser: 0
         - requireSameNode: false
           labels:
             application: nova
             component: compute
-    probes:
-      readiness:
-        nova_scheduler:
-          enabled: false
-      liveness:
-        nova_scheduler:
-          enabled: false
     service_cleaner:
       jobs:
         - nova-db-sync

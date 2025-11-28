@@ -7,7 +7,9 @@ DIST_REPOS="OS"
 UPDATE_SYSTEM_ACCOUNT="yes"
 NON_UNIQUE_SYSTEM_ACCOUNT="yes"
 PIP_PACKAGES="\
+  os-brick \
   pycryptodomex \
+  python-cinderclient \
   python-swiftclient \
   psutil
 "

@@ -66,8 +66,8 @@ class FmRestApiHelm(openstack.OpenstackBaseHelm):
             return overrides
 
     def _get_endpoints_overrides(self):
-        fm_service_name = self._operator.chart_operators[
-            app_constants.HELM_CHART_FM_REST_API].SERVICE_NAME
+        fm_service_name = self._get_chart_operator(
+            app_constants.HELM_CHART_FM_REST_API).SERVICE_NAME
 
         return {
             'identity': {

@@ -62,8 +62,8 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
             return overrides
 
     def _get_endpoints_overrides(self):
-        horizon_service_name = self._operator.chart_operators[
-            app_constants.HELM_CHART_HORIZON].SERVICE_NAME
+        horizon_service_name = self._get_chart_operator(
+            app_constants.HELM_CHART_HORIZON).SERVICE_NAME
         return {
             'dashboard': {
                 'host_fqdn_override':

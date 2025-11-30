@@ -74,6 +74,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         backend_overrides = self._get_common_backend_overrides()
         self._init_volume_priority_map()
         self._rook_ceph = False
+        ceph_overrides = dict()
+        ceph_client_overrides = dict()
 
         if is_user_overrides_available(self.CHART, app_constants.OVERRIDE_STORAGE_BACKENDS):
             enabled_backends_override = get_enabled_storage_backends_from_override()
@@ -100,9 +102,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 "ceph" in self.VOLUME_PRIORITY_LIST) else -1
             ceph_enabled = True
         else:
-            # This means ceph is disabled
-            ceph_overrides = dict()
-            ceph_client_overrides = dict()
             ceph_enabled = False
 
         # Add NetApp configuration
@@ -169,7 +168,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             }
         }
 
-        # Remove unused overrides
+        # Remove unused Ceph overrides
         if not ceph_enabled:
             overrides[common.HELM_NS_OPENSTACK]['conf'].pop('ceph', 0)
             overrides[common.HELM_NS_OPENSTACK].pop('ceph_client', 0)

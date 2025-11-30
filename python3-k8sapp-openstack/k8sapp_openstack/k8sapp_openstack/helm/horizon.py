@@ -1,16 +1,23 @@
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from oslo_log import log as logging
 from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.db import api as dbapi
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import _get_value_from_application
+from k8sapp_openstack.utils import get_external_service_url
 from k8sapp_openstack.utils import get_services_fqdn_pattern
+from k8sapp_openstack.utils import is_dex_enabled
+
+LOG = logging.getLogger(__name__)
 
 
 class HorizonHelm(openstack.OpenstackBaseHelm):
@@ -149,7 +156,96 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
                 'lockout_period_sec': str(lockout_seconds.value),
             })
 
+        # WebSSO configuration when DEX federation is enabled
+        if is_dex_enabled():
+            websso_config = self._get_websso_auth_config_overrides()
+            local_settings_config.update(websso_config)
+
         return local_settings_config
+
+    def _get_websso_auth_config_overrides(self) -> dict:
+        """
+        Generate WebSSO authentication configuration for Horizon.
+
+        When DEX federation is enabled in Keystone, this method generates
+        the auth.sso and auth.idp_mapping configuration required for
+        Horizon's local_settings.py to enable WebSSO functionality.
+
+        The configuration includes:
+        - auth.sso.enabled: True to enable WEBSSO_ENABLED
+        - auth.sso.initial_choice: Default login method (credentials)
+        - auth.idp_mapping: List of IdP configurations for WEBSSO_CHOICES
+          and WEBSSO_IDP_MAPPING
+        - openstack_keystone_url: External Keystone URL for federation
+
+        Returns:
+            dict: WebSSO configuration for Horizon local_settings with:
+                - 'auth': SSO and IdP mapping configuration
+                - 'openstack_keystone_url': External Keystone API URL
+        """
+        db = dbapi.get_instance()
+        if db is None:
+            LOG.warning("Database API instance not available for WebSSO configuration.")
+            return {}
+
+        # Get DEX IdP configuration from Keystone overrides
+        provider_name = _get_value_from_application(
+            default_value="dex",
+            chart_name=app_constants.HELM_CHART_KEYSTONE,
+            override_name="conf.federation.dex_idp.provider_name")
+
+        protocol_name = _get_value_from_application(
+            default_value="openid",
+            chart_name=app_constants.HELM_CHART_KEYSTONE,
+            override_name="conf.federation.dex_idp.protocol_name")
+
+        # Allow users to customize the WebSSO label shown in Horizon
+        websso_label = _get_value_from_application(
+            default_value="Login with DEX SSO",
+            chart_name=app_constants.HELM_CHART_KEYSTONE,
+            override_name="conf.federation.dex_idp.websso_label")
+
+        # Allow users to customize the initial choice (default: credentials)
+        websso_initial_choice = _get_value_from_application(
+            default_value="credentials",
+            chart_name=app_constants.HELM_CHART_KEYSTONE,
+            override_name="conf.federation.dex_idp.websso_initial_choice")
+
+        websso_config = {
+            'auth': {
+                'sso': {
+                    'enabled': True,
+                    'initial_choice': websso_initial_choice,
+                },
+                'idp_mapping': [
+                    {
+                        'name': 'dex_oidc',
+                        'label': websso_label,
+                        'idp': provider_name,
+                        'protocol': protocol_name,
+                    }
+                ]
+            }
+        }
+
+        # Get external Keystone URL for WebSSO redirect
+        # This is required because WebSSO authentication flow happens
+        # through the browser which needs to access Keystone externally
+        https_ready = self._is_openstack_https_ready()
+        external_keystone_url = get_external_service_url(db, 'keystone', https_ready)
+
+        if external_keystone_url:
+            # Use 'raw' config to set OPENSTACK_KEYSTONE_URL
+            keystone_url_with_version = f"{external_keystone_url}/v3"
+            websso_config['raw'] = {
+                'OPENSTACK_KEYSTONE_URL': keystone_url_with_version
+            }
+            LOG.info(f"Horizon WebSSO configured with external Keystone URL: "
+                     f"{keystone_url_with_version}")
+        else:
+            LOG.warning("External Keystone URL not available for Horizon WebSSO.")
+
+        return websso_config
 
     def _region_config(self):
         # A wrapper over the Base region_config check.

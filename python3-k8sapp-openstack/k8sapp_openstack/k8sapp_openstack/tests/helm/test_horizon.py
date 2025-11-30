@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,9 +23,54 @@ class HorizonHelmTestCase(test_plugins.K8SAppOpenstackAppMixin,
         self.app = dbutils.create_test_app(name=self.app_name)
 
 
+class HorizonWebSSOTestCase(HorizonHelmTestCase,
+                            dbbase.ControllerHostTestCase):
+    """Tests for Horizon WebSSO configuration with DEX integration."""
+
+    def _get_local_settings_config(self, overrides):
+        """Extract local_settings config from Horizon overrides."""
+        return overrides.get('conf', {}).get(
+            'horizon', {}).get('local_settings', {}).get('config', {})
+
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.horizon.is_dex_enabled', return_value=False)
+    def test_websso_disabled_when_dex_disabled(self, *_):
+        """Test WebSSO config is absent when DEX is disabled."""
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_HORIZON,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        config = self._get_local_settings_config(overrides)
+        self.assertNotIn('auth', config)
+
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.horizon.is_dex_enabled', return_value=True)
+    @mock.patch(
+        'k8sapp_openstack.helm.horizon.HorizonHelm._get_websso_auth_config_overrides',
+        return_value={
+            'auth': {
+                'sso': {'enabled': True, 'initial_choice': 'credentials'},
+                'idp_mapping': [{'name': 'dex_oidc', 'label': 'Login with DEX SSO',
+                                 'idp': 'dex', 'protocol': 'openid'}]
+            },
+            'raw': {'OPENSTACK_KEYSTONE_URL': 'http://keystone.example.com/v3'}
+        })
+    def test_websso_enabled_with_dex(self, *_):
+        """Test WebSSO config is present when DEX is enabled."""
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_HORIZON,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        config = self._get_local_settings_config(overrides)
+
+        self.assertTrue(config['auth']['sso']['enabled'])
+        self.assertEqual(config['auth']['idp_mapping'][0]['idp'], 'dex')
+        self.assertEqual(config['raw']['OPENSTACK_KEYSTONE_URL'],
+                         'http://keystone.example.com/v3')
+
+
 class HorizonGetOverrideTest(HorizonHelmTestCase,
                             dbbase.ControllerHostTestCase):
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
     def test_horizon_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_HORIZON,
@@ -45,6 +90,7 @@ class HorizonGetOverrideTest(HorizonHelmTestCase,
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
     @mock.patch(
         'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
         return_value='/etc/ssl/private/openstack/ca-cert.pem'
@@ -92,6 +138,7 @@ class HorizonGetOverrideTest(HorizonHelmTestCase,
         })
 
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
     def test_horizon_overrides_invalid_namespace(self, *_):
         """
         Asserts that an exception is raised if an invalid namespace
@@ -103,6 +150,7 @@ class HorizonGetOverrideTest(HorizonHelmTestCase,
                           cnamespace=common.HELM_NS_DEFAULT)
 
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
     def test_horizon_overrides_missing_namespace(self, *_):
         """
         Tests that the default Helm override parameters

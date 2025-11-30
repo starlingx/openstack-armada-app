@@ -582,6 +582,9 @@ conf:
       group_name: "federated_users"
       project_name: "federation"
       mapping_name: "dex_mapping"
+      # Horizon WebSSO configuration
+      websso_label: "Login with DEX SSO"
+      websso_initial_choice: "credentials"
       default_mapping: |
         [{
           "local": [{

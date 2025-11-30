@@ -76,6 +76,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         self._rook_ceph = False
         ceph_overrides = dict()
         ceph_client_overrides = dict()
+        nfs_enabled = False
 
         if is_user_overrides_available(self.CHART, app_constants.OVERRIDE_STORAGE_BACKENDS):
             enabled_backends_override = get_enabled_storage_backends_from_override()
@@ -111,6 +112,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             # as the NFS will be mounted into the pod during initialization
             netapp_backends = check_netapp_backends()
             cinder_volume_read_only_filesystem = not netapp_backends["nfs"]
+            nfs_enabled = netapp_backends["nfs"]
 
             cinder_overrides = self._get_conf_netapp_cinder_overrides(cinder_overrides)
             backend_overrides = self._get_conf_netapp_backends_overrides(backend_overrides)
@@ -172,6 +174,16 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         if not ceph_enabled:
             overrides[common.HELM_NS_OPENSTACK]['conf'].pop('ceph', 0)
             overrides[common.HELM_NS_OPENSTACK].pop('ceph_client', 0)
+
+        if nfs_enabled:
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {
+                    'conf': {
+                        'nfs_shares': app_constants.NETAPP_DEFAULT_NFS_SHARES,
+                    }
+                }
+            )
 
         if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = \
@@ -351,27 +363,54 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         return backend_overrides
 
     def _get_conf_netapp_backends_overrides(self, backend_overrides):
-        cinder_netapp_driver = 'cinder.volume.drivers.netapp.common.NetAppDriver'
 
-        backend_overrides[app_constants.NETAPP_NFS_BACKEND_NAME] = {
-            'volume_driver': cinder_netapp_driver,
-            'volume_backend_name': app_constants.NETAPP_NFS_BACKEND_NAME,
-            'netapp_storage_family': 'ontap_cluster',
-            'netapp_storage_protocol': 'nfs',
-            'nfs_shares_config': '/etc/cinder/nfs.shares'
+        # Get available NetApp backends
+        netapp_backends = check_netapp_backends()
+        netapp_array = [
+            app_constants.NETAPP_NFS_BACKEND_NAME if netapp_backends.get("nfs") else None,
+            app_constants.NETAPP_ISCSI_BACKEND_NAME if netapp_backends.get("iscsi") else None,
+            app_constants.NETAPP_FC_BACKEND_NAME if netapp_backends.get("fc") else None,
+        ]
+
+        # Remove None values
+        netapp_array = [item for item in netapp_array if item]
+
+        common_netapp_config = {
+            'volume_driver': app_constants.NETAPP_CINDER_VOLUME_DRIVER,
+            'netapp_storage_family': app_constants.NETAPP_STORAGE_FAMILY,
+            'netapp_server_hostname': app_constants.NETAPP_DEFAULT_SERVER_HOSTNAME,
+            'netapp_server_port': app_constants.NETAPP_DEFAULT_SERVER_PORT,
+            'netapp_login': app_constants.NETAPP_DEFAULT_LOGIN,
+            'netapp_password': app_constants.NETAPP_DEFAULT_PASSWORD,
+            'netapp_vserver': app_constants.NETAPP_DEFAULT_VSERVER,
         }
-        backend_overrides[app_constants.NETAPP_ISCSI_BACKEND_NAME] = {
-            'volume_driver': cinder_netapp_driver,
-            'volume_backend_name': app_constants.NETAPP_ISCSI_BACKEND_NAME,
-            'netapp_storage_family': 'ontap_cluster',
+
+        nfs_config = {
+            'netapp_storage_protocol': 'nfs',
+            'nfs_shares_config': app_constants.NFS_SHARES_CONFIG,
+            'nfs_mount_options': app_constants.NFS_MOUNT_OPTIONS,
+        }
+
+        iscsi_config = {
             'netapp_storage_protocol': 'iscsi',
         }
-        backend_overrides[app_constants.NETAPP_FC_BACKEND_NAME] = {
-            'volume_driver': cinder_netapp_driver,
-            'volume_backend_name': app_constants.NETAPP_FC_BACKEND_NAME,
-            'netapp_storage_family': 'ontap_cluster',
+
+        fc_config = {
             'netapp_storage_protocol': 'fc',
         }
+
+        for backend in netapp_array:
+            backend_overrides[backend] = {
+                'volume_backend_name': backend,
+            }
+            backend_overrides[backend] = backend_overrides[backend] | common_netapp_config
+            if backend == app_constants.NETAPP_NFS_BACKEND_NAME:
+                backend_overrides[backend] = backend_overrides[backend] | nfs_config
+            elif backend == app_constants.NETAPP_ISCSI_BACKEND_NAME:
+                backend_overrides[backend] = backend_overrides[backend] | iscsi_config
+            elif backend == app_constants.NETAPP_FC_BACKEND_NAME:
+                backend_overrides[backend] = backend_overrides[backend] | fc_config
+
         # TODO: For full FC support, we'll need to include Zoning config, as it's described
         # in the documentation
         # https://netapp-openstack-dev.github.io/openstack-docs/wallaby/cinder/configuration/cinder_config_files/unified_driver_ontap/section_cinder-conf-fcp.html

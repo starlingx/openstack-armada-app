@@ -1,0 +1,99 @@
+From 2dc3ce7aed026f93c6f058991bea8174e43efa37 Mon Sep 17 00:00:00 2001
+From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+Date: Tue, 12 Nov 2024 10:17:18 -0300
+Subject: [PATCH] Define values for NetApp volume backend
+
+This patch creates the required values, updates the configmap and the
+volume deployment to allow the usage of the NetApp as a volume backend
+using either NFS or iSCSI
+
+This patch defines some values by default, but it does not add the
+netapp backend to the conf.cinder.DEFAULT.enabled_backends, so, by
+default, it won't be used. If an user wants to enable it, he can set
+some overrides to the conf.cinder.backends.netapp-nfs and
+conf.nfs_shares or the conf.cinder.backends.netapp-iscsi values, and
+add the netapp drivers to the enabled_backends list.
+
+Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+---
+ cinder/templates/configmap-etc.yaml     |  1 +
+ cinder/templates/deployment-volume.yaml |  4 ++++
+ cinder/values.yaml                      | 26 +++++++++++++++++++++++++
+ 3 files changed, 31 insertions(+)
+
+diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
+index 2e83f3740..685966fe1 100644
+--- a/cinder/templates/configmap-etc.yaml
++++ b/cinder/templates/configmap-etc.yaml
+@@ -179,6 +179,7 @@ data:
+   cinder_sudoers: {{ $envAll.Values.conf.cinder_sudoers | b64enc }}
+   rootwrap.conf: {{ $envAll.Values.conf.rootwrap | b64enc }}
+   resource_filters.json: {{ toJson .Values.conf.resource_filters | b64enc }}
++  nfs.shares: {{ $envAll.Values.conf.nfs_shares | b64enc }}
+ {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
+ {{- $filePrefix := replace "_" "-"  $key }}
+   {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
+diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
+index 20dcb4f41..98d3121e1 100644
+--- a/cinder/templates/deployment-volume.yaml
++++ b/cinder/templates/deployment-volume.yaml
+@@ -188,6 +188,10 @@ spec:
+               mountPath: /etc/cinder/conf/backends.conf
+               subPath: backends.conf
+               readOnly: true
++            - name: cinder-etc
++              mountPath: /etc/cinder/nfs.shares
++              subPath: nfs.shares
++              readOnly: true
+             {{- if eq "true" (include "cinder.utils.has_ceph_backend" $envAll) }}
+             - name: etcceph
+               mountPath: /etc/ceph
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 8179fc8f6..166ea2713 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -773,6 +773,10 @@ conf:
+ 
+         # initiator/connector.py:
+         drv_cfg: CommandFilter, /opt/emc/scaleio/sdc/bin/drv_cfg, root, /opt/emc/scaleio/sdc/bin/drv_cfg, --query_guid
++
++  nfs_shares: |
++    # This file is used to host the NFS Shares for the NetApp volume backend
++    127.0.0.1:/nfs_volume
+   ceph:
+     override:
+     append:
+@@ -945,6 +949,28 @@ conf:
+       image_volume_cache_enabled: true
+       image_volume_cache_max_size_gb: 200
+       image_volume_cache_max_count: 50
++    netapp-nfs:
++      volume_driver: cinder.volume.drivers.netapp.common.NetAppDriver
++      volume_backend_name: netapp-nfs
++      netapp_storage_protocol: nfs
++      netapp_server_hostname: 127.0.0.1
++      netapp_server_port: 80
++      netapp_login: netapp-login
++      netapp_password: netapp-password
++      netapp_vserver: netapp-vserver
++      netapp_storage_family: ontap_cluster
++      nfs_shares_config: /etc/cinder/nfs.shares
++      nfs_mount_options: nolock
++    netapp-iscsi:
++      volume_driver: cinder.volume.drivers.netapp.common.NetAppDriver
++      volume_backend_name: netapp-iscsi
++      netapp_storage_protocol: iscsi
++      netapp_server_hostname: 127.0.0.1
++      netapp_server_port: 80
++      netapp_login: netapp-login
++      netapp_password: netapp-password
++      netapp_vserver: netapp-vserver
++      netapp_storage_family: ontap_cluster
+   rally_tests:
+     run_tempest: false
+     clean_up: |
+-- 
+2.43.0
+

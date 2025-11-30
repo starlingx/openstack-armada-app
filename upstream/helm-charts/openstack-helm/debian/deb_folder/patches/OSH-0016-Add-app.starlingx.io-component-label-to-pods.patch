@@ -1,0 +1,1650 @@
+From a2661450cece8f36916d9dae4a9585a38cc9158e Mon Sep 17 00:00:00 2001
+From: dbarbosa <david.barbosabastos@windriver.com>
+Date: Tue, 19 Dec 2023 10:01:29 -0300
+Subject: [PATCH] Add app.starlingx.io/component label to pods
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add the label app.starlingx.io/component to the pods and allow the
+value to be updated via "system helm-override-update". This change
+also ensures that when changing the label value and reapplying the
+app, the pod is restarted.
+
+The value of the label can only be “platform” or “application”, if
+the variable "label.isApplication" in the values.yaml file is
+different from true or false, the label will not change.
+
+By default, all pods start with the value platform.
+
+Signed-off-by: David Bastos <david.barbosabastos@windriver.com>
+[ Updated "isApplication" labels values to "true" ]
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+[ Add labels to helm charts and change isApplication to false ]
+Signed-off-by: Giulia Melao <giulia.depaulamelao@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+---
+ aodh/templates/cron-job-alarms-cleaner.yaml              | 3 +++
+ aodh/templates/deployment-api.yaml                       | 2 ++
+ aodh/templates/deployment-evaluator.yaml                 | 2 ++
+ aodh/templates/deployment-listener.yaml                  | 2 ++
+ aodh/templates/deployment-notifier.yaml                  | 2 ++
+ aodh/templates/pod-aodh-test.yaml                        | 2 ++
+ aodh/values.yaml                                         | 1 +
+ barbican/templates/deployment-api.yaml                   | 2 ++
+ barbican/templates/pod-test.yaml                         | 2 ++
+ barbican/values.yaml                                     | 1 +
+ ceilometer/templates/daemonset-compute.yaml              | 2 ++
+ ceilometer/templates/daemonset-ipmi.yaml                 | 2 ++
+ ceilometer/templates/deployment-api.yaml                 | 2 ++
+ ceilometer/templates/deployment-central.yaml             | 2 ++
+ ceilometer/templates/deployment-collector.yaml           | 2 ++
+ ceilometer/templates/deployment-notification.yaml        | 2 ++
+ ceilometer/templates/job-db-init-mongodb.yaml            | 5 +++++
+ ceilometer/templates/pod-rally-test.yaml                 | 3 +++
+ ceilometer/values.yaml                                   | 1 +
+ cinder/templates/cron-job-cinder-volume-usage-audit.yaml | 2 ++
+ cinder/templates/deployment-api.yaml                     | 2 ++
+ cinder/templates/deployment-backup.yaml                  | 2 ++
+ cinder/templates/deployment-scheduler.yaml               | 2 ++
+ cinder/templates/deployment-volume.yaml                  | 2 ++
+ cinder/templates/job-backup-storage-init.yaml            | 2 ++
+ cinder/templates/job-clean.yaml                          | 3 +++
+ cinder/templates/job-create-internal-tenant.yaml         | 2 ++
+ cinder/templates/job-storage-init.yaml                   | 3 +++
+ cinder/templates/pod-rally-test.yaml                     | 2 ++
+ cinder/values.yaml                                       | 1 +
+ glance/templates/deployment-api.yaml                     | 2 ++
+ glance/templates/job-clean.yaml                          | 3 +++
+ glance/templates/job-metadefs-load.yaml                  | 2 ++
+ glance/templates/job-storage-init.yaml                   | 2 ++
+ glance/templates/pod-rally-test.yaml                     | 2 ++
+ glance/values.yaml                                       | 1 +
+ heat/templates/cron-job-engine-cleaner.yaml              | 1 +
+ heat/templates/cron-job-purge-deleted.yaml               | 2 ++
+ heat/templates/deployment-api.yaml                       | 2 ++
+ heat/templates/deployment-cfn.yaml                       | 2 ++
+ heat/templates/deployment-cloudwatch.yaml                | 2 ++
+ heat/templates/deployment-engine.yaml                    | 2 ++
+ heat/templates/job-ks-user-domain.yaml                   | 2 ++
+ heat/templates/job-trusts.yaml                           | 2 ++
+ heat/templates/pod-rally-test.yaml                       | 2 ++
+ heat/values.yaml                                         | 1 +
+ horizon/templates/deployment.yaml                        | 2 ++
+ horizon/templates/job-db-sync.yaml                       | 2 ++
+ horizon/templates/pod-helm-tests.yaml                    | 2 ++
+ horizon/values.yaml                                      | 1 +
+ ironic/templates/deployment-api.yaml                     | 2 ++
+ ironic/templates/job-manage-cleaning-network.yaml        | 3 +++
+ ironic/templates/statefulset-conductor.yaml              | 2 ++
+ ironic/values.yaml                                       | 1 +
+ keystone/templates/cron-job-credential-rotate.yaml       | 3 +++
+ keystone/templates/cron-job-fernet-rotate.yaml           | 3 +++
+ keystone/templates/deployment-api.yaml                   | 2 ++
+ keystone/templates/job-credential-cleanup.yaml           | 2 ++
+ keystone/templates/job-credential-setup.yaml             | 2 ++
+ keystone/templates/job-domain-manage.yaml                | 2 ++
+ keystone/templates/job-fernet-setup.yaml                 | 2 ++
+ keystone/templates/pod-rally-test.yaml                   | 2 ++
+ keystone/values.yaml                                     | 1 +
+ neutron/templates/daemonset-bagpipe-bgp.yaml             | 2 ++
+ neutron/templates/daemonset-dhcp-agent.yaml              | 2 ++
+ neutron/templates/daemonset-l2gw-agent.yaml              | 2 ++
+ neutron/templates/daemonset-l3-agent.yaml                | 2 ++
+ neutron/templates/daemonset-lb-agent.yaml                | 2 ++
+ neutron/templates/daemonset-metadata-agent.yaml          | 2 ++
+ neutron/templates/daemonset-netns-cleanup-cron.yaml      | 2 ++
+ neutron/templates/daemonset-ovn-metadata-agent.yaml      | 2 ++
+ neutron/templates/daemonset-ovs-agent.yaml               | 2 ++
+ neutron/templates/daemonset-sriov-agent.yaml             | 2 ++
+ neutron/templates/deployment-ironic-agent.yaml           | 2 ++
+ neutron/templates/deployment-server.yaml                 | 2 ++
+ neutron/templates/pod-rally-test.yaml                    | 2 ++
+ neutron/values.yaml                                      | 1 +
+ nova/templates/cron-job-archive-deleted-rows.yaml        | 3 +++
+ nova/templates/cron-job-cell-setup.yaml                  | 3 +++
+ nova/templates/cron-job-service-cleaner.yaml             | 3 +++
+ nova/templates/daemonset-compute.yaml                    | 2 ++
+ nova/templates/deployment-api-metadata.yaml              | 2 ++
+ nova/templates/deployment-api-osapi.yaml                 | 2 ++
+ nova/templates/deployment-conductor.yaml                 | 2 ++
+ nova/templates/deployment-novncproxy.yaml                | 2 ++
+ nova/templates/deployment-scheduler.yaml                 | 2 ++
+ nova/templates/deployment-spiceproxy.yaml                | 2 ++
+ nova/templates/job-bootstrap.yaml                        | 2 ++
+ nova/templates/job-cell-setup.yaml                       | 2 ++
+ nova/templates/pod-rally-test.yaml                       | 2 ++
+ nova/templates/statefulset-compute-ironic.yaml           | 2 ++
+ nova/values.yaml                                         | 1 +
+ placement/templates/deployment.yaml                      | 2 ++
+ placement/values.yaml                                    | 1 +
+ 94 files changed, 189 insertions(+)
+
+diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
+index ec0b58f7a..6a9848403 100644
+--- a/aodh/templates/cron-job-alarms-cleaner.yaml
++++ b/aodh/templates/cron-job-alarms-cleaner.yaml
+@@ -42,7 +42,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "aodh" "alarms-cleaner" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++          annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+         spec:
+           serviceAccountName: {{ $serviceAccountName }}
+           restartPolicy: OnFailure
+diff --git a/aodh/templates/deployment-api.yaml b/aodh/templates/deployment-api.yaml
+index 769195515..d795f214d 100644
+--- a/aodh/templates/deployment-api.yaml
++++ b/aodh/templates/deployment-api.yaml
+@@ -40,11 +40,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "aodh" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "aodh_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/aodh/templates/deployment-evaluator.yaml b/aodh/templates/deployment-evaluator.yaml
+index 2f6b88614..83e9e26d8 100644
+--- a/aodh/templates/deployment-evaluator.yaml
++++ b/aodh/templates/deployment-evaluator.yaml
+@@ -40,11 +40,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "aodh" "evaluator" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "aodh_evaluator" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/aodh/templates/deployment-listener.yaml b/aodh/templates/deployment-listener.yaml
+index cca9fb166..e28641b7c 100644
+--- a/aodh/templates/deployment-listener.yaml
++++ b/aodh/templates/deployment-listener.yaml
+@@ -40,11 +40,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "aodh" "listener" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "aodh_listener" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/aodh/templates/deployment-notifier.yaml b/aodh/templates/deployment-notifier.yaml
+index eed5d80b0..0eb4a44d6 100644
+--- a/aodh/templates/deployment-notifier.yaml
++++ b/aodh/templates/deployment-notifier.yaml
+@@ -40,11 +40,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "aodh" "notifier" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "aodh_notifier" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/aodh/templates/pod-aodh-test.yaml b/aodh/templates/pod-aodh-test.yaml
+index dc4b816d0..2d26dc0af 100644
+--- a/aodh/templates/pod-aodh-test.yaml
++++ b/aodh/templates/pod-aodh-test.yaml
+@@ -28,8 +28,10 @@ kind: Pod
+ metadata:
+   name: {{ print $envAll.Release.Name "-test" }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "aodh" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ spec:
+diff --git a/aodh/values.yaml b/aodh/values.yaml
+index 5c79b9864..56882dcc9 100644
+--- a/aodh/values.yaml
++++ b/aodh/values.yaml
+@@ -21,6 +21,7 @@
+ release_group: null
+ 
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/barbican/templates/deployment-api.yaml b/barbican/templates/deployment-api.yaml
+index 53d77e285..6d7c4567e 100644
+--- a/barbican/templates/deployment-api.yaml
++++ b/barbican/templates/deployment-api.yaml
+@@ -46,11 +46,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "barbican" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "barbican_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "barbican-api" "containerNames" (list "init" "barbican-api") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/barbican/templates/pod-test.yaml b/barbican/templates/pod-test.yaml
+index f41435640..183f9766b 100644
+--- a/barbican/templates/pod-test.yaml
++++ b/barbican/templates/pod-test.yaml
+@@ -27,8 +27,10 @@ kind: Pod
+ metadata:
+   name: "{{.Release.Name}}-test"
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "barbican" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ {{ dict "envAll" $envAll "podName" "barbican-test" "containerNames" (list "init" "barbican-test") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+diff --git a/barbican/values.yaml b/barbican/values.yaml
+index 63ee8f3c2..4264341bb 100644
+--- a/barbican/values.yaml
++++ b/barbican/values.yaml
+@@ -17,6 +17,7 @@
+ 
+ ---
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/ceilometer/templates/daemonset-compute.yaml b/ceilometer/templates/daemonset-compute.yaml
+index 07536d443..a1323f668 100644
+--- a/ceilometer/templates/daemonset-compute.yaml
++++ b/ceilometer/templates/daemonset-compute.yaml
+@@ -37,11 +37,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceilometer" "compute" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "ceilometer_compute" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/ceilometer/templates/daemonset-ipmi.yaml b/ceilometer/templates/daemonset-ipmi.yaml
+index 619a2168f..7ec95e363 100644
+--- a/ceilometer/templates/daemonset-ipmi.yaml
++++ b/ceilometer/templates/daemonset-ipmi.yaml
+@@ -37,11 +37,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceilometer" "ipmi" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "ceilometer_ipmi" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/ceilometer/templates/deployment-api.yaml b/ceilometer/templates/deployment-api.yaml
+index d82478aba..2c9ef26a2 100644
+--- a/ceilometer/templates/deployment-api.yaml
++++ b/ceilometer/templates/deployment-api.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceilometer" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "ceilometer_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/ceilometer/templates/deployment-central.yaml b/ceilometer/templates/deployment-central.yaml
+index 15fae9591..607c9c981 100644
+--- a/ceilometer/templates/deployment-central.yaml
++++ b/ceilometer/templates/deployment-central.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceilometer" "central" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "ceilometer_central" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/ceilometer/templates/deployment-collector.yaml b/ceilometer/templates/deployment-collector.yaml
+index 5a10a0b01..5a1878327 100644
+--- a/ceilometer/templates/deployment-collector.yaml
++++ b/ceilometer/templates/deployment-collector.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceilometer" "collector" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "ceilometer_collector" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/ceilometer/templates/deployment-notification.yaml b/ceilometer/templates/deployment-notification.yaml
+index 33b2c382c..bdb3719f9 100644
+--- a/ceilometer/templates/deployment-notification.yaml
++++ b/ceilometer/templates/deployment-notification.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceilometer" "notification" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "ceilometer_notification" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/ceilometer/templates/job-db-init-mongodb.yaml b/ceilometer/templates/job-db-init-mongodb.yaml
+index c8fdda998..669bcba01 100644
+--- a/ceilometer/templates/job-db-init-mongodb.yaml
++++ b/ceilometer/templates/job-db-init-mongodb.yaml
+@@ -26,6 +26,11 @@ metadata:
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ spec:
+   template:
++    metadata:
++      labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       restartPolicy: OnFailure
+diff --git a/ceilometer/templates/pod-rally-test.yaml b/ceilometer/templates/pod-rally-test.yaml
+index 040836e5f..b3136dbbd 100644
+--- a/ceilometer/templates/pod-rally-test.yaml
++++ b/ceilometer/templates/pod-rally-test.yaml
+@@ -25,7 +25,10 @@ apiVersion: v1
+ kind: Pod
+ metadata:
+   name: {{ print $envAll.Release.Name "-test" }}
++  labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ spec:
+diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
+index d933b9d8e..54d449d93 100644
+--- a/ceilometer/values.yaml
++++ b/ceilometer/values.yaml
+@@ -19,6 +19,7 @@
+ release_group: null
+ 
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
+index e66286e44..d2b5db503 100644
+--- a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
++++ b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
+@@ -45,8 +45,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "cinder" "volume-usage-audit" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
+           annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" $serviceAccountName "containerNames" (list "cinder-volume-usage-audit" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 12 }}
+         spec:
+ {{ dict "envAll" $envAll "application" "volume_usage_audit" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+diff --git a/cinder/templates/deployment-api.yaml b/cinder/templates/deployment-api.yaml
+index 8d1a753d4..2fc6e7910 100644
+--- a/cinder/templates/deployment-api.yaml
++++ b/cinder/templates/deployment-api.yaml
+@@ -42,11 +42,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "cinder" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "cinder_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "cinder-api" "containerNames" (list "cinder-api" "ceph-coordination-volume-perms" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
+index e65da8daf..6de1ae0a8 100644
+--- a/cinder/templates/deployment-backup.yaml
++++ b/cinder/templates/deployment-backup.yaml
+@@ -40,11 +40,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "cinder" "backup" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "cinder_backup" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "cinder-backup" "containerNames" (list "cinder-backup" "ceph-coordination-volume-perms" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/cinder/templates/deployment-scheduler.yaml b/cinder/templates/deployment-scheduler.yaml
+index d01200962..7c5de9a77 100644
+--- a/cinder/templates/deployment-scheduler.yaml
++++ b/cinder/templates/deployment-scheduler.yaml
+@@ -42,11 +42,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "cinder" "scheduler" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "cinder_scheduler" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "cinder-scheduler" "containerNames" (list "cinder-scheduler" "ceph-coordination-volume-perms" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
+index eb9b17bfd..20dcb4f41 100644
+--- a/cinder/templates/deployment-volume.yaml
++++ b/cinder/templates/deployment-volume.yaml
+@@ -44,11 +44,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "cinder" "volume" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "cinder_volume" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "cinder-volume" "containerNames" (list "cinder-volume" "ceph-coordination-volume-perms" "init-cinder-conf" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/cinder/templates/job-backup-storage-init.yaml b/cinder/templates/job-backup-storage-init.yaml
+index 62db734bc..1f1fa3faf 100644
+--- a/cinder/templates/job-backup-storage-init.yaml
++++ b/cinder/templates/job-backup-storage-init.yaml
+@@ -62,8 +62,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "cinder" "storage-init" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "cinder-backup-storage-init" "containerNames" (list "cinder-backup-storage-init" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/cinder/templates/job-clean.yaml b/cinder/templates/job-clean.yaml
+index d4efac570..193afc487 100755
+--- a/cinder/templates/job-clean.yaml
++++ b/cinder/templates/job-clean.yaml
+@@ -59,7 +59,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "cinder" "clean" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+ {{ dict "envAll" $envAll "application" "clean" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/cinder/templates/job-create-internal-tenant.yaml b/cinder/templates/job-create-internal-tenant.yaml
+index 646468152..c5d22ce9b 100644
+--- a/cinder/templates/job-create-internal-tenant.yaml
++++ b/cinder/templates/job-create-internal-tenant.yaml
+@@ -39,8 +39,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll $serviceName "create-internal-tenant" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" $serviceAccountName "containerNames" (list "create-internal-tenant" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "create_internal_tenant" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
+index 350b013ac..6a63ce4a0 100755
+--- a/cinder/templates/job-storage-init.yaml
++++ b/cinder/templates/job-storage-init.yaml
+@@ -63,7 +63,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "cinder" "storage-init" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+ {{ dict "envAll" $envAll "application" "cinder" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/cinder/templates/pod-rally-test.yaml b/cinder/templates/pod-rally-test.yaml
+index 0452e3721..437d6fab7 100644
+--- a/cinder/templates/pod-rally-test.yaml
++++ b/cinder/templates/pod-rally-test.yaml
+@@ -26,8 +26,10 @@ kind: Pod
+ metadata:
+   name: {{ print $envAll.Release.Name "-test" }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "cinder" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ {{ dict "envAll" $envAll "podName" "cinder-test" "containerNames" (list "init" "cinder-test" "cinder-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index a30e61f7d..5246c20f8 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -19,6 +19,7 @@
+ storage: ceph
+ 
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/glance/templates/deployment-api.yaml b/glance/templates/deployment-api.yaml
+index 726ac5c99..651cdb749 100644
+--- a/glance/templates/deployment-api.yaml
++++ b/glance/templates/deployment-api.yaml
+@@ -47,11 +47,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "glance" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "glance_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "glance-api" "containerNames" ( list "glance-perms" "glance-api" "init" "nginx" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/glance/templates/job-clean.yaml b/glance/templates/job-clean.yaml
+index 26977c084..198a15579 100644
+--- a/glance/templates/job-clean.yaml
++++ b/glance/templates/job-clean.yaml
+@@ -59,7 +59,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "glance" "clean" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+ {{ dict "envAll" $envAll "application" "clean" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/glance/templates/job-metadefs-load.yaml b/glance/templates/job-metadefs-load.yaml
+index 0f2cff69b..cfcfd0ec6 100644
+--- a/glance/templates/job-metadefs-load.yaml
++++ b/glance/templates/job-metadefs-load.yaml
+@@ -33,8 +33,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "glance" "metadefs_load" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "glance-metadefs-load" "containerNames" (list "init" "glance-metadefs-load" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/glance/templates/job-storage-init.yaml b/glance/templates/job-storage-init.yaml
+index d43e0736c..6a2454eb6 100644
+--- a/glance/templates/job-storage-init.yaml
++++ b/glance/templates/job-storage-init.yaml
+@@ -61,8 +61,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "glance" "storage-init" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "glance-storage-init" "containerNames" (list "init" "glance-storage-init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/glance/templates/pod-rally-test.yaml b/glance/templates/pod-rally-test.yaml
+index 6732c2395..f2779caf6 100644
+--- a/glance/templates/pod-rally-test.yaml
++++ b/glance/templates/pod-rally-test.yaml
+@@ -32,8 +32,10 @@ kind: Pod
+ metadata:
+   name: {{ print $envAll.Chart.Name "-test" }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "glance" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+ {{ dict "envAll" $envAll "podName" "glance-test" "containerNames" (list "init" "glance-test" "glance-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+ spec:
+diff --git a/glance/values.yaml b/glance/values.yaml
+index 328abeaed..31a0cafe7 100644
+--- a/glance/values.yaml
++++ b/glance/values.yaml
+@@ -20,6 +20,7 @@
+ storage: swift
+ 
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/heat/templates/cron-job-engine-cleaner.yaml b/heat/templates/cron-job-engine-cleaner.yaml
+index 5e425167a..dff130288 100644
+--- a/heat/templates/cron-job-engine-cleaner.yaml
++++ b/heat/templates/cron-job-engine-cleaner.yaml
+@@ -45,6 +45,7 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "heat" "engine-cleaner" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
+           annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 12 }}
+diff --git a/heat/templates/cron-job-purge-deleted.yaml b/heat/templates/cron-job-purge-deleted.yaml
+index 9e3be164c..6ce7278af 100644
+--- a/heat/templates/cron-job-purge-deleted.yaml
++++ b/heat/templates/cron-job-purge-deleted.yaml
+@@ -42,8 +42,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "heat" "purge-deleted" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
+           annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 12 }}
+ {{ dict "envAll" $envAll "podName" "heat-purge-deleted" "containerNames" (list "init" "heat-purge-deleted" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 12 }}
+         spec:
+diff --git a/heat/templates/deployment-api.yaml b/heat/templates/deployment-api.yaml
+index e4c6b1ded..d2c14651f 100644
+--- a/heat/templates/deployment-api.yaml
++++ b/heat/templates/deployment-api.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "heat" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "heat_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "heat-api" "containerNames" (list "heat-api" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/heat/templates/deployment-cfn.yaml b/heat/templates/deployment-cfn.yaml
+index 00647372d..22f037eb4 100644
+--- a/heat/templates/deployment-cfn.yaml
++++ b/heat/templates/deployment-cfn.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "heat" "cfn" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "heat_cfn" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "heat-cfn" "containerNames" (list "heat-cfn" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/heat/templates/deployment-cloudwatch.yaml b/heat/templates/deployment-cloudwatch.yaml
+index f9cc24073..222bd8ca4 100644
+--- a/heat/templates/deployment-cloudwatch.yaml
++++ b/heat/templates/deployment-cloudwatch.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "heat" "cloudwatch" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "heat_cloudwatch" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/heat/templates/deployment-engine.yaml b/heat/templates/deployment-engine.yaml
+index cee5d4f79..39ec46785 100644
+--- a/heat/templates/deployment-engine.yaml
++++ b/heat/templates/deployment-engine.yaml
+@@ -44,12 +44,14 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "heat" "engine" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if .Values.manifests.deployment_engine }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "heat_engine" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "heat-engine" "containerNames" (list "heat-engine" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+ {{- end }}
+diff --git a/heat/templates/job-ks-user-domain.yaml b/heat/templates/job-ks-user-domain.yaml
+index 16ba3d3c6..410f8f7ee 100644
+--- a/heat/templates/job-ks-user-domain.yaml
++++ b/heat/templates/job-ks-user-domain.yaml
+@@ -34,11 +34,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "heat" "ks-user" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "heat-domain-ks-user" "containerNames" (list "heat-ks-domain-user" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/heat/templates/job-trusts.yaml b/heat/templates/job-trusts.yaml
+index cf6a8a1a9..b544bcac9 100644
+--- a/heat/templates/job-trusts.yaml
++++ b/heat/templates/job-trusts.yaml
+@@ -36,11 +36,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "heat" "trusts" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "heat-trusts" "containerNames" (list "heat-trusts" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/heat/templates/pod-rally-test.yaml b/heat/templates/pod-rally-test.yaml
+index 4dc8154b7..36714701f 100644
+--- a/heat/templates/pod-rally-test.yaml
++++ b/heat/templates/pod-rally-test.yaml
+@@ -32,8 +32,10 @@ kind: Pod
+ metadata:
+   name: {{ print $envAll.deployment_name "-test" }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "heat" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ spec:
+diff --git a/heat/values.yaml b/heat/values.yaml
+index 9d33c6476..814f62aa6 100644
+--- a/heat/values.yaml
++++ b/heat/values.yaml
+@@ -19,6 +19,7 @@
+ release_group: null
+ 
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/horizon/templates/deployment.yaml b/horizon/templates/deployment.yaml
+index bd6db03bb..76d64b388 100644
+--- a/horizon/templates/deployment.yaml
++++ b/horizon/templates/deployment.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "horizon" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "horizon" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{- if .Values.manifests.configmap_logo }}
+         configmap-logo-hash: {{ tuple "configmap-logo.yaml" . | include "helm-toolkit.utils.hash" }}
+diff --git a/horizon/templates/job-db-sync.yaml b/horizon/templates/job-db-sync.yaml
+index 6805bfa92..b14ecfe68 100644
+--- a/horizon/templates/job-db-sync.yaml
++++ b/horizon/templates/job-db-sync.yaml
+@@ -37,8 +37,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "horizon" "db-sync" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "horizon-db-sync" "containerNames" (list "horizon-db-sync" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/horizon/templates/pod-helm-tests.yaml b/horizon/templates/pod-helm-tests.yaml
+index 979402a70..868bac820 100644
+--- a/horizon/templates/pod-helm-tests.yaml
++++ b/horizon/templates/pod-helm-tests.yaml
+@@ -26,8 +26,10 @@ kind: Pod
+ metadata:
+   name: {{ print $envAll.Release.Name "-test" }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "horizon" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ {{ dict "envAll" $envAll "podName" "horizon-test" "containerNames" (list "init" "horizon-test") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+diff --git a/horizon/values.yaml b/horizon/values.yaml
+index 7cdbd18d5..1146acfac 100644
+--- a/horizon/values.yaml
++++ b/horizon/values.yaml
+@@ -38,6 +38,7 @@ selenium_v4: true
+ release_group: null
+ 
+ labels:
++  isApplication: false
+   dashboard:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/ironic/templates/deployment-api.yaml b/ironic/templates/deployment-api.yaml
+index 7d4b83874..cdc6629e7 100644
+--- a/ironic/templates/deployment-api.yaml
++++ b/ironic/templates/deployment-api.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ironic" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "ironic_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/ironic/templates/job-manage-cleaning-network.yaml b/ironic/templates/job-manage-cleaning-network.yaml
+index 48e8d729c..400bec5b9 100644
+--- a/ironic/templates/job-manage-cleaning-network.yaml
++++ b/ironic/templates/job-manage-cleaning-network.yaml
+@@ -33,7 +33,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ironic" "manage-cleaning-network" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       restartPolicy: OnFailure
+diff --git a/ironic/templates/statefulset-conductor.yaml b/ironic/templates/statefulset-conductor.yaml
+index f3e68167f..45b05a31a 100644
+--- a/ironic/templates/statefulset-conductor.yaml
++++ b/ironic/templates/statefulset-conductor.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ironic" "conductor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       affinity:
+diff --git a/ironic/values.yaml b/ironic/values.yaml
+index 6aece995f..fb3e01f39 100644
+--- a/ironic/values.yaml
++++ b/ironic/values.yaml
+@@ -21,6 +21,7 @@ release_group: null
+ helm3_hook: true
+ 
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/keystone/templates/cron-job-credential-rotate.yaml b/keystone/templates/cron-job-credential-rotate.yaml
+index 590607962..db662cea6 100644
+--- a/keystone/templates/cron-job-credential-rotate.yaml
++++ b/keystone/templates/cron-job-credential-rotate.yaml
+@@ -68,7 +68,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "keystone" "credential-rotate" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++          annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+         spec:
+           serviceAccountName: {{ $serviceAccountName }}
+           initContainers:
+diff --git a/keystone/templates/cron-job-fernet-rotate.yaml b/keystone/templates/cron-job-fernet-rotate.yaml
+index a059f929a..39c539722 100644
+--- a/keystone/templates/cron-job-fernet-rotate.yaml
++++ b/keystone/templates/cron-job-fernet-rotate.yaml
+@@ -69,7 +69,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "keystone" "fernet-rotate" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++          annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+         spec:
+           serviceAccountName: {{ $serviceAccountName }}
+ {{ dict "envAll" $envAll "application" "fernet_rotate" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+diff --git a/keystone/templates/deployment-api.yaml b/keystone/templates/deployment-api.yaml
+index 8f3794f8a..167616eda 100644
+--- a/keystone/templates/deployment-api.yaml
++++ b/keystone/templates/deployment-api.yaml
+@@ -45,11 +45,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "keystone" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "keystone_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "keystone-api" "containerNames" (list "keystone-api") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/keystone/templates/job-credential-cleanup.yaml b/keystone/templates/job-credential-cleanup.yaml
+index 37a161efd..b249476d8 100644
+--- a/keystone/templates/job-credential-cleanup.yaml
++++ b/keystone/templates/job-credential-cleanup.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll $serviceName "credential-cleanup" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "keystone-credential-cleanup" "containerNames" (list "keystone-credential-cleanup") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceName }}
+diff --git a/keystone/templates/job-credential-setup.yaml b/keystone/templates/job-credential-setup.yaml
+index 38ff3c8ba..a97fe27d6 100644
+--- a/keystone/templates/job-credential-setup.yaml
++++ b/keystone/templates/job-credential-setup.yaml
+@@ -67,11 +67,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "keystone" "credential-setup" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "keystone-credential-setup" "containerNames" (list "keystone-credential-setup") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/keystone/templates/job-domain-manage.yaml b/keystone/templates/job-domain-manage.yaml
+index 50e76b8d0..4282757f7 100644
+--- a/keystone/templates/job-domain-manage.yaml
++++ b/keystone/templates/job-domain-manage.yaml
+@@ -35,11 +35,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "keystone" "domain-manage" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "keystone-domain-manage" "containerNames" (list "keystone-domain-manage" "keystone-domain-manage-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/keystone/templates/job-fernet-setup.yaml b/keystone/templates/job-fernet-setup.yaml
+index d52aa6ce4..ee64d6a20 100644
+--- a/keystone/templates/job-fernet-setup.yaml
++++ b/keystone/templates/job-fernet-setup.yaml
+@@ -67,11 +67,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "keystone" "fernet-setup" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "keystone-fernet-setup" "containerNames" (list "keystone-fernet-setup") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/keystone/templates/pod-rally-test.yaml b/keystone/templates/pod-rally-test.yaml
+index 2d5e9528b..5e5517c0d 100644
+--- a/keystone/templates/pod-rally-test.yaml
++++ b/keystone/templates/pod-rally-test.yaml
+@@ -32,8 +32,10 @@ kind: Pod
+ metadata:
+   name: {{ print $envAll.deployment_name "-test" }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "keystone" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ {{ dict "envAll" $envAll "podName" "keystone-test" "containerNames" (list "init" "keystone-test" "keystone-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+diff --git a/keystone/values.yaml b/keystone/values.yaml
+index 7d17cc425..e642d1cb4 100644
+--- a/keystone/values.yaml
++++ b/keystone/values.yaml
+@@ -17,6 +17,7 @@
+ 
+ ---
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/neutron/templates/daemonset-bagpipe-bgp.yaml b/neutron/templates/daemonset-bagpipe-bgp.yaml
+index b6d2157ee..96fe11e47 100644
+--- a/neutron/templates/daemonset-bagpipe-bgp.yaml
++++ b/neutron/templates/daemonset-bagpipe-bgp.yaml
+@@ -49,11 +49,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "bagpipe-bgp" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_bagpipe_bgp" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "neutron_bagpipe_bgp" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/neutron/templates/daemonset-dhcp-agent.yaml b/neutron/templates/daemonset-dhcp-agent.yaml
+index 4a5866737..71b57e26c 100644
+--- a/neutron/templates/daemonset-dhcp-agent.yaml
++++ b/neutron/templates/daemonset-dhcp-agent.yaml
+@@ -70,11 +70,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "dhcp-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_dhcp_agent" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "neutron-dhcp-agent-default" "containerNames" (list "neutron-dhcp-agent" "neutron-dhcp-agent-init" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/neutron/templates/daemonset-l2gw-agent.yaml b/neutron/templates/daemonset-l2gw-agent.yaml
+index 954470747..01679ac8b 100644
+--- a/neutron/templates/daemonset-l2gw-agent.yaml
++++ b/neutron/templates/daemonset-l2gw-agent.yaml
+@@ -72,11 +72,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "l2gw-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_l2gw_agent" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "neutron_l2gw_agent" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/neutron/templates/daemonset-l3-agent.yaml b/neutron/templates/daemonset-l3-agent.yaml
+index 5bddd62b0..5f62f6cbf 100644
+--- a/neutron/templates/daemonset-l3-agent.yaml
++++ b/neutron/templates/daemonset-l3-agent.yaml
+@@ -71,11 +71,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "l3-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_l3_agent" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "neutron-l3-agent-default" "containerNames" (list "neutron-l3-agent" "init"  "neutron-l3-agent-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/neutron/templates/daemonset-lb-agent.yaml b/neutron/templates/daemonset-lb-agent.yaml
+index a7437b376..754e692ff 100644
+--- a/neutron/templates/daemonset-lb-agent.yaml
++++ b/neutron/templates/daemonset-lb-agent.yaml
+@@ -47,11 +47,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "neutron-lb-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_lb_agent" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "neutron_lb_agent" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/neutron/templates/daemonset-metadata-agent.yaml b/neutron/templates/daemonset-metadata-agent.yaml
+index 4319886c4..22b894027 100644
+--- a/neutron/templates/daemonset-metadata-agent.yaml
++++ b/neutron/templates/daemonset-metadata-agent.yaml
+@@ -67,11 +67,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "metadata-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_metadata_agent" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "neutron-metadata-agent-default" "containerNames" (list "neutron-metadata-agent" "neutron-metadata-agent-init" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/neutron/templates/daemonset-netns-cleanup-cron.yaml b/neutron/templates/daemonset-netns-cleanup-cron.yaml
+index d43c5950d..a91a1adea 100644
+--- a/neutron/templates/daemonset-netns-cleanup-cron.yaml
++++ b/neutron/templates/daemonset-netns-cleanup-cron.yaml
+@@ -39,11 +39,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "netns-cleanup-cron" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_netns_cleanup_cron" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "neutron-netns-cleanup-cron-default" "containerNames" (list "neutron-netns-cleanup-cron" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/neutron/templates/daemonset-ovn-metadata-agent.yaml b/neutron/templates/daemonset-ovn-metadata-agent.yaml
+index 47e12567b..4f2a44fed 100644
+--- a/neutron/templates/daemonset-ovn-metadata-agent.yaml
++++ b/neutron/templates/daemonset-ovn-metadata-agent.yaml
+@@ -67,11 +67,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "ovn-metadata-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_ovn_metadata_agent" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "neutron-ovn-metadata-agent-default" "containerNames" (list "neutron-ovn-metadata-agent" "neutron-ovn-metadata-agent-init" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/neutron/templates/daemonset-ovs-agent.yaml b/neutron/templates/daemonset-ovs-agent.yaml
+index a5ed53451..13841f803 100644
+--- a/neutron/templates/daemonset-ovs-agent.yaml
++++ b/neutron/templates/daemonset-ovs-agent.yaml
+@@ -50,11 +50,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "neutron-ovs-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_ovs_agent" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "$configMapName" "containerNames" (list "neutron-ovs-agent" "init" "neutron-openvswitch-agent-kernel-modules" "neutron-ovs-agent-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/neutron/templates/daemonset-sriov-agent.yaml b/neutron/templates/daemonset-sriov-agent.yaml
+index 07f5931cd..d8977e69d 100644
+--- a/neutron/templates/daemonset-sriov-agent.yaml
++++ b/neutron/templates/daemonset-sriov-agent.yaml
+@@ -53,11 +53,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "neutron-sriov-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_sriov_agent" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "neutron-sriov-agent-default" "containerNames" (list "neutron-sriov-agent-init" "init" "neutron-sriov-agent") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/neutron/templates/deployment-ironic-agent.yaml b/neutron/templates/deployment-ironic-agent.yaml
+index 90d95d199..8b9abf184 100644
+--- a/neutron/templates/deployment-ironic-agent.yaml
++++ b/neutron/templates/deployment-ironic-agent.yaml
+@@ -41,11 +41,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "ironic-agent" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_ironic_agent" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "neutron_ironic_agent" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/neutron/templates/deployment-server.yaml b/neutron/templates/deployment-server.yaml
+index f8a2492ba..b2fdd4521 100644
+--- a/neutron/templates/deployment-server.yaml
++++ b/neutron/templates/deployment-server.yaml
+@@ -54,11 +54,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "neutron_server" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "neutron-server" "containerNames" (list "neutron-server" "init" "nginx") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/neutron/templates/pod-rally-test.yaml b/neutron/templates/pod-rally-test.yaml
+index 8f289bf7d..300658e97 100644
+--- a/neutron/templates/pod-rally-test.yaml
++++ b/neutron/templates/pod-rally-test.yaml
+@@ -32,9 +32,11 @@ kind: Pod
+ metadata:
+   name: {{ print .deployment_name "-test" }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "neutron" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+ {{ dict "envAll" $envAll "podName" "neutron-test" "containerNames" (list "init" "neutron-test" "neutron-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+ spec:
+diff --git a/neutron/values.yaml b/neutron/values.yaml
+index 540c0d2fc..688613ce7 100644
+--- a/neutron/values.yaml
++++ b/neutron/values.yaml
+@@ -57,6 +57,7 @@ images:
+       - image_repo_sync
+ 
+ labels:
++  isApplication: false
+   agent:
+     dhcp:
+       node_selector_key: openstack-control-plane
+diff --git a/nova/templates/cron-job-archive-deleted-rows.yaml b/nova/templates/cron-job-archive-deleted-rows.yaml
+index 9e62bbdb6..bed0c7714 100644
+--- a/nova/templates/cron-job-archive-deleted-rows.yaml
++++ b/nova/templates/cron-job-archive-deleted-rows.yaml
+@@ -40,7 +40,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "archive-deleted-rows" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++          annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+         spec:
+           serviceAccountName: {{ $serviceAccountName }}
+ {{ dict "envAll" $envAll "application" "archive_deleted_rows" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+diff --git a/nova/templates/cron-job-cell-setup.yaml b/nova/templates/cron-job-cell-setup.yaml
+index cb4e58c28..2efa455f8 100644
+--- a/nova/templates/cron-job-cell-setup.yaml
++++ b/nova/templates/cron-job-cell-setup.yaml
+@@ -40,7 +40,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "cell-setup" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++          annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+         spec:
+           serviceAccountName: {{ $serviceAccountName }}
+ {{ dict "envAll" $envAll "application" "cell_setup" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+diff --git a/nova/templates/cron-job-service-cleaner.yaml b/nova/templates/cron-job-service-cleaner.yaml
+index 0da8c5e19..c5a9e55b1 100644
+--- a/nova/templates/cron-job-service-cleaner.yaml
++++ b/nova/templates/cron-job-service-cleaner.yaml
+@@ -40,7 +40,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "service-cleaner" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++          annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+         spec:
+           serviceAccountName: {{ $serviceAccountName }}
+ {{ dict "envAll" $envAll "application" "service_cleaner" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 43a1b75b5..0e73eed71 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -83,8 +83,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+ {{ tuple "nova_compute" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+diff --git a/nova/templates/deployment-api-metadata.yaml b/nova/templates/deployment-api-metadata.yaml
+index 066ef7ba1..691c18402 100644
+--- a/nova/templates/deployment-api-metadata.yaml
++++ b/nova/templates/deployment-api-metadata.yaml
+@@ -52,11 +52,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "metadata" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "nova_api_metadata" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "nova-api-metadata" "containerNames" (list "nova-api-metadata-init" "nova-api" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/nova/templates/deployment-api-osapi.yaml b/nova/templates/deployment-api-osapi.yaml
+index 7aceeca10..8e12ceaa7 100644
+--- a/nova/templates/deployment-api-osapi.yaml
++++ b/nova/templates/deployment-api-osapi.yaml
+@@ -52,11 +52,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "os-api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "nova_api_osapi" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "nova-api-osapi" "containerNames" (list "nova-osapi" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/nova/templates/deployment-conductor.yaml b/nova/templates/deployment-conductor.yaml
+index 7cffbcc21..b9943c04f 100644
+--- a/nova/templates/deployment-conductor.yaml
++++ b/nova/templates/deployment-conductor.yaml
+@@ -61,11 +61,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "conductor" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "nova_conductor" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "nova-conductor" "containerNames" (list "nova-conductor" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/nova/templates/deployment-novncproxy.yaml b/nova/templates/deployment-novncproxy.yaml
+index 1491bffe3..15a7ca470 100644
+--- a/nova/templates/deployment-novncproxy.yaml
++++ b/nova/templates/deployment-novncproxy.yaml
+@@ -50,11 +50,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "novnc-proxy" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "nova_novncproxy" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "nova-novncproxy" "containerNames" (list "nova-novncproxy" "nova-novncproxy-init-assets" "nova-novncproxy-init" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/nova/templates/deployment-scheduler.yaml b/nova/templates/deployment-scheduler.yaml
+index ebc627af2..c1ae4fb0d 100644
+--- a/nova/templates/deployment-scheduler.yaml
++++ b/nova/templates/deployment-scheduler.yaml
+@@ -61,11 +61,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "scheduler" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "nova_scheduler" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "nova-scheduler" "containerNames" (list "nova-scheduler" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/nova/templates/deployment-spiceproxy.yaml b/nova/templates/deployment-spiceproxy.yaml
+index a7b45ecab..8dd9bc521 100644
+--- a/nova/templates/deployment-spiceproxy.yaml
++++ b/nova/templates/deployment-spiceproxy.yaml
+@@ -48,11 +48,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "spice-proxy" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "nova_spiceproxy" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/nova/templates/job-bootstrap.yaml b/nova/templates/job-bootstrap.yaml
+index cddc74439..749eb29b8 100644
+--- a/nova/templates/job-bootstrap.yaml
++++ b/nova/templates/job-bootstrap.yaml
+@@ -40,8 +40,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "bootstrap" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "bootstrap" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/nova/templates/job-cell-setup.yaml b/nova/templates/job-cell-setup.yaml
+index 0fd99e023..5536531bd 100644
+--- a/nova/templates/job-cell-setup.yaml
++++ b/nova/templates/job-cell-setup.yaml
+@@ -35,8 +35,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "cell-setup" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "nova-cell-setup" "containerNames" (list "nova-cell-setup-init" "nova-cell-setup" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/nova/templates/pod-rally-test.yaml b/nova/templates/pod-rally-test.yaml
+index 9b66716b5..14dd0e51c 100644
+--- a/nova/templates/pod-rally-test.yaml
++++ b/nova/templates/pod-rally-test.yaml
+@@ -32,8 +32,10 @@ kind: Pod
+ metadata:
+   name: {{ print $envAll.deployment_name "-test" }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ {{ dict "envAll" $envAll "podName" "nova-test" "containerNames" (list "init" "nova-test" "nova-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+diff --git a/nova/templates/statefulset-compute-ironic.yaml b/nova/templates/statefulset-compute-ironic.yaml
+index e26afd3a3..52212ee80 100644
+--- a/nova/templates/statefulset-compute-ironic.yaml
++++ b/nova/templates/statefulset-compute-ironic.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "nova" "compute-ironic" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "nova-compute-default" "containerNames" (list "nova-compute") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index f330471d8..ba5f5bb74 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -19,6 +19,7 @@
+ release_group: null
+ 
+ labels:
++  isApplication: false
+   agent:
+     compute:
+       node_selector_key: openstack-compute-node
+diff --git a/placement/templates/deployment.yaml b/placement/templates/deployment.yaml
+index 77a4f7a1f..702ec0f51 100644
+--- a/placement/templates/deployment.yaml
++++ b/placement/templates/deployment.yaml
+@@ -40,11 +40,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "placement" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple "placement" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "placement-api" "containerNames" (list "placement-api" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/placement/values.yaml b/placement/values.yaml
+index 3541b95ed..66df39ed3 100644
+--- a/placement/values.yaml
++++ b/placement/values.yaml
+@@ -20,6 +20,7 @@
+ release_group: null
+ 
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+-- 
+2.43.0
+

@@ -1,0 +1,76 @@
+From a6e7cbf44130f2ae55b268b9a81bfac941786805 Mon Sep 17 00:00:00 2001
+From: jchialun <johnny.chialung@windriver.com>
+Date: Tue, 9 Sep 2025 16:50:37 -0500
+Subject: [PATCH 1/1] Update ipFamilyPolicy to support DualStack
+
+Dual stack deployments require the ipFamilyPolicy to be set to PreferDualStack.
+Additionally, added ip_family_policy to the values.yaml file to enable external
+applications to be able to update the value. This value is set
+to SingleStack because it is the default value if not configured.
+
+Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+---
+ mariadb/templates/service-discovery.yaml | 3 +++
+ mariadb/templates/service-master.yaml    | 2 ++
+ mariadb/templates/service.yaml           | 3 +++
+ mariadb/values.yaml                      | 1 +
+ 4 files changed, 9 insertions(+)
+
+diff --git a/mariadb/templates/service-discovery.yaml b/mariadb/templates/service-discovery.yaml
+index d5efd3131..f13fffcca 100644
+--- a/mariadb/templates/service-discovery.yaml
++++ b/mariadb/templates/service-discovery.yaml
+@@ -30,6 +30,9 @@ spec:
+     - name: sst
+       port: {{ tuple "oslo_db" "direct" "sst" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+   clusterIP: None
++  type: ClusterIP
++  ipFamilyPolicy: {{ .Values.network.ip_family_policy }}
++  ipFamilies: []
+   publishNotReadyAddresses: false
+   selector:
+ {{ tuple $envAll "mariadb" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+diff --git a/mariadb/templates/service-master.yaml b/mariadb/templates/service-master.yaml
+index e57824b18..2d99d5927 100644
+--- a/mariadb/templates/service-master.yaml
++++ b/mariadb/templates/service-master.yaml
+@@ -21,6 +21,8 @@ kind: Service
+ metadata:
+   name: {{ tuple "oslo_db" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
+ spec:
++  ipFamilyPolicy: {{ .Values.network.ip_family_policy }}
++  ipFamilies: [ ]
+   ports:
+     - name: mysql
+       port: {{ tuple "oslo_db" "direct" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+diff --git a/mariadb/templates/service.yaml b/mariadb/templates/service.yaml
+index e68cbc49d..00a32cde9 100644
+--- a/mariadb/templates/service.yaml
++++ b/mariadb/templates/service.yaml
+@@ -20,6 +20,9 @@ kind: Service
+ metadata:
+   name: {{ tuple "oslo_db" "direct" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
+ spec:
++  type: ClusterIP
++  ipFamilyPolicy: {{ .Values.network.ip_family_policy }}
++  ipFamilies: []
+   ports:
+     - name: mysql
+       port: {{ tuple "oslo_db" "direct" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index 581e358a3..40cb1ca20 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -687,6 +687,7 @@ network:
+   mariadb: {}
+   mariadb_discovery: {}
+   mariadb_master: {}
++  ip_family_policy: SingleStack
+ 
+ network_policy:
+   mariadb:
+-- 
+2.34.1
+

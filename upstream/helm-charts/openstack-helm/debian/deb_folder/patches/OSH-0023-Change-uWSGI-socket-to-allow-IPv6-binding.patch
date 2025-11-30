@@ -1,0 +1,127 @@
+From 3310ceaae3ae5b87bce79417fbe3f28d8c00a8c4 Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Fri, 11 Apr 2025 15:17:27 -0300
+Subject: [PATCH] Change uWSGI socket to allow IPv6 binding
+
+Some OSH services which uses uWSGI are currently not
+capable of deploying in an IPv6 system. The template
+for these Helm charts set an IPv4 default IP address
+which makes the service unable to bind with IPv6
+addresses.
+
+This patch changes the default value for the IP, from
+0.0.0.0 to [::], in the http-socket config for uWSGI.
+This change aims to allow binding not only with IPv4
+IPs but IPv6 IPs as well.
+
+Change-Id: I0e3bca24a121bb94149f2fc13320a0d16f06936b
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+---
+ barbican/templates/configmap-etc.yaml | 2 +-
+ cinder/templates/configmap-etc.yaml   | 2 +-
+ glance/templates/configmap-etc.yaml   | 2 +-
+ heat/templates/configmap-etc.yaml     | 4 ++--
+ neutron/templates/configmap-etc.yaml  | 2 +-
+ nova/templates/configmap-etc.yaml     | 4 ++--
+ 6 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/barbican/templates/configmap-etc.yaml b/barbican/templates/configmap-etc.yaml
+index 2b9762e82..a86a71b64 100644
+--- a/barbican/templates/configmap-etc.yaml
++++ b/barbican/templates/configmap-etc.yaml
+@@ -69,7 +69,7 @@ limitations under the License.
+ 
+ {{- if empty (index .Values.conf.barbican_api_uwsgi.uwsgi "http-socket") -}}
+ {{- $http_socket_port := tuple "key_manager" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
+-{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
++{{- $http_socket := printf "[::]:%s" $http_socket_port }}
+ {{- $_ := set .Values.conf.barbican_api_uwsgi.uwsgi "http-socket" $http_socket -}}
+ {{- end -}}
+ 
+diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
+index 685966fe1..b567f4b18 100644
+--- a/cinder/templates/configmap-etc.yaml
++++ b/cinder/templates/configmap-etc.yaml
+@@ -145,7 +145,7 @@ limitations under the License.
+ {{- end -}}
+ {{- if empty (index .Values.conf.cinder_api_uwsgi.uwsgi "http-socket") -}}
+ {{- $http_socket_port := tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
+-{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
++{{- $http_socket := printf "[::]:%s" $http_socket_port }}
+ {{- $_ := set .Values.conf.cinder_api_uwsgi.uwsgi "http-socket" $http_socket -}}
+ {{- end -}}
+ 
+diff --git a/glance/templates/configmap-etc.yaml b/glance/templates/configmap-etc.yaml
+index 8ce851563..70dfd0402 100644
+--- a/glance/templates/configmap-etc.yaml
++++ b/glance/templates/configmap-etc.yaml
+@@ -99,7 +99,7 @@ limitations under the License.
+ {{- end -}}
+ {{- if empty (index .Values.conf.glance_api_uwsgi.uwsgi "http-socket") -}}
+ {{- $http_socket_port := tuple "image" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
+-{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
++{{- $http_socket := printf "[::]:%s" $http_socket_port }}
+ {{- $_ := set .Values.conf.glance_api_uwsgi.uwsgi "http-socket" $http_socket -}}
+ {{- end -}}
+ 
+diff --git a/heat/templates/configmap-etc.yaml b/heat/templates/configmap-etc.yaml
+index b90bba6e5..e86bf60ee 100644
+--- a/heat/templates/configmap-etc.yaml
++++ b/heat/templates/configmap-etc.yaml
+@@ -124,7 +124,7 @@ limitations under the License.
+ {{- end -}}
+ {{- if empty (index .Values.conf.heat_api_uwsgi.uwsgi "http-socket") -}}
+ {{- $http_socket_port := tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
+-{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
++{{- $http_socket := printf "[::]:%s" $http_socket_port }}
+ {{- $_ := set .Values.conf.heat_api_uwsgi.uwsgi "http-socket" $http_socket -}}
+ {{- end -}}
+ 
+@@ -133,7 +133,7 @@ limitations under the License.
+ {{- end -}}
+ {{- if empty (index .Values.conf.heat_api_cfn_uwsgi.uwsgi "http-socket") -}}
+ {{- $http_socket_port := tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
+-{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
++{{- $http_socket := printf "[::]:%s" $http_socket_port }}
+ {{- $_ := set .Values.conf.heat_api_cfn_uwsgi.uwsgi "http-socket" $http_socket -}}
+ {{- end -}}
+ 
+diff --git a/neutron/templates/configmap-etc.yaml b/neutron/templates/configmap-etc.yaml
+index df1fe525d..7066405df 100644
+--- a/neutron/templates/configmap-etc.yaml
++++ b/neutron/templates/configmap-etc.yaml
+@@ -190,7 +190,7 @@ limitations under the License.
+ {{- end -}}
+ {{- if empty (index .Values.conf.neutron_api_uwsgi.uwsgi "http-socket") -}}
+ {{- $http_socket_port := tuple "network" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
+-{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
++{{- $http_socket := printf "[::]:%s" $http_socket_port }}
+ {{- $_ := set .Values.conf.neutron_api_uwsgi.uwsgi "http-socket" $http_socket -}}
+ {{- end -}}
+ 
+diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
+index 220db538a..6de893719 100644
+--- a/nova/templates/configmap-etc.yaml
++++ b/nova/templates/configmap-etc.yaml
+@@ -290,7 +290,7 @@ limitations under the License.
+ {{- end -}}
+ {{- if empty (index .Values.conf.nova_api_uwsgi.uwsgi "http-socket") -}}
+ {{- $http_socket_port := tuple "compute" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
+-{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
++{{- $http_socket := printf "[::]:%s" $http_socket_port }}
+ {{- $_ := set .Values.conf.nova_api_uwsgi.uwsgi "http-socket" $http_socket -}}
+ {{- end -}}
+ 
+@@ -299,7 +299,7 @@ limitations under the License.
+ {{- end -}}
+ {{- if empty (index .Values.conf.nova_metadata_uwsgi.uwsgi "http-socket") -}}
+ {{- $http_socket_port := .Values.network.metadata.port | toString }}
+-{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
++{{- $http_socket := printf "[::]:%s" $http_socket_port }}
+ {{- $_ := set .Values.conf.nova_metadata_uwsgi.uwsgi "http-socket" $http_socket -}}
+ {{- end -}}
+ 
+-- 
+2.43.0
+

@@ -1018,7 +1018,6 @@ conf:
       - name
       - volume_type
     volume_type: []
-  enable_iscsi: false
   cinder_api_uwsgi:
     uwsgi:
       add-header: "Connection: close"

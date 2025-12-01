@@ -1216,3 +1216,29 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         result = app_utils.get_server_list()
 
         assert result == ""
+
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_returns_true_when_enabled_true(self, mock_get_value):
+        mock_get_value.return_value = "true"
+
+        result = app_utils.is_dex_enabled()
+        self.assertTrue(result)
+        mock_get_value.assert_called_once_with(
+            default_value="false",
+            chart_name=app_constants.HELM_CHART_KEYSTONE,
+            override_name="conf.federation.dex_idp.enabled",
+        )
+
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_returns_false_when_enabled_false(self, mock_get_value):
+        mock_get_value.return_value = "false"
+
+        result = app_utils.is_dex_enabled()
+        self.assertFalse(result)
+
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_returns_false_when_enabled_other(self, mock_get_value):
+        mock_get_value.return_value = "anything_else"
+
+        result = app_utils.is_dex_enabled()
+        self.assertFalse(result)

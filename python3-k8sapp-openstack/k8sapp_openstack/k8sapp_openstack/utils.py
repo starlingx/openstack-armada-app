@@ -66,7 +66,20 @@ def _get_value_from_application(default_value, chart_name, override_name):
         user_overrides = yaml.load(
             override.user_overrides, Loader=yaml.FullLoader
         )
-        value = user_overrides.get(override_name, default_value)
+
+        # Deep lookup (supports nested keys)
+        keys = override_name.split(".")
+        current = user_overrides
+        for key in keys:
+            if isinstance(current, dict):
+                current = current.get(key)
+            else:
+                current = None
+                break
+
+        # If found, use it; otherwise, keep default
+        value = current if current is not None else default_value
+
     return value
 
 
@@ -1520,3 +1533,17 @@ def get_server_list() -> str:
         # it will fall in this exception. This will return an empty string
         # to ensure that the return is not None
         return ""
+
+
+def is_dex_enabled() -> bool:
+    """ Retrieves if DEX integration has been enabled by user
+
+    Returns:
+        bool: Whether user has enabled or not DEX integration.
+    """
+    enabled = _get_value_from_application(
+        default_value="false",
+        chart_name=app_constants.HELM_CHART_KEYSTONE,
+        override_name="conf.federation.dex_idp.enabled").lower()
+
+    return enabled == 'true'

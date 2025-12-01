@@ -1468,22 +1468,6 @@ tls:
   oslo_messaging: false
   oslo_db: false
 
-storage_conf:
-  storage_backends:
-    - name: ceph
-      enabled: true
-    - name: netapp-nfs
-      enabled: false
-    - name: netapp-iscsi
-      enabled: false
-    - name: netapp-fc
-      enabled: false
-  volume_storage_class_priority:
-    - ceph
-    - netapp-nfs
-    - netapp-iscsi
-    - netapp-fc
-
 manifests:
   certificates: false
   configmap_bin: true

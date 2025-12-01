@@ -11,6 +11,7 @@ disabled_charts:
 - gnocchi
 - ironic
 - keystone-api-proxy
+- prometheus-openstack-exporter
 
 upgrades:
   auto_update: true

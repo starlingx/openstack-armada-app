@@ -103,24 +103,26 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
                 return param['value']
         return default
 
+    def _get_chart_operator(self, chart_name):
+        try:
+            return self._operator.get_chart_operator(chart_name)
+        except AttributeError:
+            return self._operator.chart_operators[chart_name]
+
     def _get_admin_user_name(self):
-        keystone_operator = self._operator.chart_operators[
-            app_constants.HELM_CHART_KEYSTONE]
+        keystone_operator = self._get_chart_operator(app_constants.HELM_CHART_KEYSTONE)
         return keystone_operator.get_admin_user_name()
 
     def _get_admin_project_name(self):
-        keystone_operator = self._operator.chart_operators[
-            app_constants.HELM_CHART_KEYSTONE]
+        keystone_operator = self._get_chart_operator(app_constants.HELM_CHART_KEYSTONE)
         return keystone_operator.get_admin_project_name()
 
     def _get_admin_project_domain(self):
-        keystone_operator = self._operator.chart_operators[
-            app_constants.HELM_CHART_KEYSTONE]
+        keystone_operator = self._get_chart_operator(app_constants.HELM_CHART_KEYSTONE)
         return keystone_operator.get_admin_project_domain()
 
     def _get_admin_user_domain(self):
-        keystone_operator = self._operator.chart_operators[
-            app_constants.HELM_CHART_KEYSTONE]
+        keystone_operator = self._get_chart_operator(app_constants.HELM_CHART_KEYSTONE)
         return keystone_operator.get_admin_user_domain()
 
     def _get_identity_password(self, service, user):

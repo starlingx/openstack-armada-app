@@ -1,4 +1,4 @@
-From c8f244616fcf617e23db1eb51f14f48a58b5a290 Mon Sep 17 00:00:00 2001
+From 5262239db2544250ed14eca658ea6d53dd146d04 Mon Sep 17 00:00:00 2001
 From: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 Date: Wed, 26 Nov 2025 11:36:33 -0300
 Subject: [PATCH] Add Netapp backend support to Cinder
@@ -13,14 +13,34 @@ and to help implementing the conditional rendering
 
 Change-Id: Id10aa9f85cabd622b62b1dc851fa50cb863987bd
 Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
+
+[Mount cinder volumes to support NetApp iSCSI]
+This change updates the patch to remove the OSH "conf.enable_iscsi" flag
+and enable the iSCSI resources deployment whenever the "netapp-iscsi"
+backend is enabled. For this, it uses the utility helm function
+"cinder.utils.is_backend_enabled" introduced by [2].
+
+Furthermore, this change updates the patch by mounting a new volume
+required by cinder/ssh_utils.py to enable the creation and updating of
+the /var/lib/cinder/ssh_known_hosts file [3] during iSCSI session
+initializations.
+
+[1]https://review.opendev.org/c/openstack/openstack-helm/+/704429
+[2]https://review.opendev.org/c/starlingx/openstack-armada-app/+/968753
+[3]https://opendev.org/openstack/cinder/src/commit/b87d45b3c87ad836d94c7bcbde1dbaeff5f1caae/cinder/ssh_utils.py#L82
+
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 ---
  cinder/templates/bin/_storage-init.sh.tpl     |  5 ++++
- cinder/templates/deployment-volume.yaml       |  4 ++-
+ cinder/templates/configmap-bin.yaml           |  2 +-
+ cinder/templates/deployment-backup.yaml       | 10 +++++--
+ cinder/templates/deployment-volume.yaml       | 14 ++++++---
  cinder/templates/job-storage-init.yaml        | 18 +++++++----
  cinder/templates/utils/_has_ceph_backend.tpl  |  4 ++-
  .../templates/utils/_has_netapp_backend.tpl   | 25 ++++++++++++++++
  .../templates/utils/_is_backend_enabled.tpl   | 30 +++++++++++++++++++
- 6 files changed, 78 insertions(+), 8 deletions(-)
+ cinder/values.yaml                            |  1 -
+ 9 files changed, 93 insertions(+), 16 deletions(-)
  create mode 100644 cinder/templates/utils/_has_netapp_backend.tpl
  create mode 100644 cinder/templates/utils/_is_backend_enabled.tpl
 
@@ -40,11 +60,81 @@ index 53b0b071c..a04cc0856 100644
  set -x
  if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
    SECRET=$(mktemp --suffix .yaml)
+diff --git a/cinder/templates/configmap-bin.yaml b/cinder/templates/configmap-bin.yaml
+index 40700856b..7fb7bc618 100644
+--- a/cinder/templates/configmap-bin.yaml
++++ b/cinder/templates/configmap-bin.yaml
+@@ -21,7 +21,7 @@ kind: ConfigMap
+ metadata:
+   name: cinder-bin
+ data:
+-{{- if .Values.conf.enable_iscsi }}
++{{- if eq (include "cinder.utils.is_backend_enabled" (list . "netapp-iscsi")) "true" }}
+   iscsiadm: |
+ {{ tuple "bin/_iscsiadm.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   multipath: |
+diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
+index 4d94a2e18..cfee9fe0b 100644
+--- a/cinder/templates/deployment-backup.yaml
++++ b/cinder/templates/deployment-backup.yaml
+@@ -63,7 +63,7 @@ spec:
+       hostNetwork: true
+       dnsPolicy: ClusterFirstWithHostNet
+ {{- end }}
+-{{- if .Values.conf.enable_iscsi }}
++{{- if eq (include "cinder.utils.is_backend_enabled" (list . "netapp-iscsi")) "true" }}
+       hostIPC: true
+ {{- end }}
+       initContainers:
+@@ -261,7 +261,7 @@ spec:
+               mountPath: /etc/cinder/rootwrap.d/volume.filters
+               subPath: volume.filters
+               readOnly: true
+-            {{- if .Values.conf.enable_iscsi }}
++            {{- if eq (include "cinder.utils.is_backend_enabled" (list . "netapp-iscsi")) "true" }}
+             - name: host-rootfs
+               mountPath: /mnt/host-rootfs
+               {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+@@ -284,6 +284,8 @@ spec:
+             - name: cinder-bin
+               mountPath: /usr/local/sbin/iscsiadm
+               subPath: iscsiadm
++            - name: varlibcinder
++              mountPath: /var/lib/cinder
+             {{- end }}
+ {{ if $mounts_cinder_backup.volumeMounts }}{{ toYaml $mounts_cinder_backup.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+@@ -345,7 +347,7 @@ spec:
+         - name: cinder-coordination
+           emptyDir: {}
+         {{- end }}
+-        {{- if .Values.conf.enable_iscsi }}
++        {{- if eq (include "cinder.utils.is_backend_enabled" (list . "netapp-iscsi")) "true" }}
+         - name: host-rootfs
+           hostPath:
+             path: /
+@@ -360,6 +362,8 @@ spec:
+             path: /etc/iscsi
+         - name: usrlocalsbin
+           emptyDir: {}
++        - name: varlibcinder
++          emptyDir: {}
+         {{- end }}
+ {{ if $mounts_cinder_backup.volumes }}{{ toYaml $mounts_cinder_backup.volumes | indent 8 }}{{ end }}
+ {{- end }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index e82128501..20803b5a6 100644
+index e82128501..23eab7219 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
-@@ -74,6 +74,7 @@ spec:
+@@ -67,13 +67,14 @@ spec:
+       hostNetwork: true
+       dnsPolicy: ClusterFirstWithHostNet
+ {{- end }}
+-{{- if .Values.conf.enable_iscsi }}
++{{- if eq (include "cinder.utils.is_backend_enabled" (list . "netapp-iscsi")) "true" }}
+       hostIPC: true
+ {{- end }}
+       initContainers:
  {{ tuple $envAll "volume" $mounts_cinder_volume_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
          {{- range $name := rest (splitList "," (include "cinder.utils.ceph_backend_list" $envAll)) }}
            {{- $backend := index $envAll.Values.conf.backends $name }}
@@ -69,6 +159,42 @@ index e82128501..20803b5a6 100644
              - name: cinder-etc
                mountPath: /etc/cinder/nfs.shares
                subPath: nfs.shares
+@@ -254,7 +256,7 @@ spec:
+               readOnly: true
+             {{- end }}
+             {{- end }}
+-            {{- if .Values.conf.enable_iscsi }}
++            {{- if eq (include "cinder.utils.is_backend_enabled" (list . "netapp-iscsi")) "true" }}
+             - name: host-rootfs
+               mountPath: /mnt/host-rootfs
+               {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+@@ -293,6 +295,8 @@ spec:
+               {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+               mountPropagation: HostToContainer
+               {{- end }}
++            - name: varlibcinder
++              mountPath: /var/lib/cinder
+             {{- end }}
+ {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volume.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_cinder_volume.volumeMounts }}{{ toYaml $mounts_cinder_volume.volumeMounts | indent 12 }}{{ end }}
+@@ -339,7 +343,7 @@ spec:
+         - name: cinder-coordination
+           emptyDir: {}
+         {{- end }}
+-        {{- if .Values.conf.enable_iscsi }}
++        {{- if eq (include "cinder.utils.is_backend_enabled" (list . "netapp-iscsi")) "true" }}
+         - name: host-rootfs
+           hostPath:
+             path: /
+@@ -360,6 +364,8 @@ spec:
+         - name: sys
+           hostPath:
+             path: /sys
++        - name: varlibcinder
++          emptyDir: {}
+         {{- end }}
+ {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volume.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_cinder_volume.volumes }}{{ toYaml $mounts_cinder_volume.volumes | indent 8 }}{{ end }}
 diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
 index 6a63ce4a0..b1dca36bf 100755
 --- a/cinder/templates/job-storage-init.yaml
@@ -213,6 +339,18 @@ index 000000000..514187f6f
 +    {{- printf "%v" (has $backend $backend_list) -}}
 +{{- end -}}
 \ No newline at end of file
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index bbd417d10..46c5fce38 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -1012,7 +1012,6 @@ conf:
+       - name
+       - volume_type
+     volume_type: []
+-  enable_iscsi: false
+   cinder_api_uwsgi:
+     uwsgi:
+       add-header: "Connection: close"
 -- 
 2.34.1
 

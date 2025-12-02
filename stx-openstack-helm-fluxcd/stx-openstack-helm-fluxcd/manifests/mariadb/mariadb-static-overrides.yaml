@@ -533,6 +533,12 @@ monitoring:
     enabled: false
     mysqld_exporter:
       scrape: true
+storage_conf:
+  volume_storage_class_priority:
+    - "ceph"
+    - "netapp-nfs"
+    - "netapp-iscsi"
+    - "netapp-fc"
 secrets:
   identity:
     admin: keystone-admin-user

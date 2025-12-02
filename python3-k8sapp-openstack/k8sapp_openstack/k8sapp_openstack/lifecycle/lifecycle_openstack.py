@@ -435,8 +435,16 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         rook_ceph_available, _ = app_utils.is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
+        netapp_backends_available = app_utils.check_netapp_backends()
+        netapp_nfs_available = netapp_backends_available.get("nfs", False)
+        netapp_iscsi_available = netapp_backends_available.get("iscsi", False)
+        netapp_fc_available = netapp_backends_available.get("fc", False)
+
         status = f"ceph_available={ceph_available}, " \
-                 f"rook_ceph_available={rook_ceph_available}"
+                 f"rook_ceph_available={rook_ceph_available}, " \
+                 f"netapp_nfs_available={netapp_nfs_available}, " \
+                 f"netapp_iscsi_available={netapp_iscsi_available}, " \
+                 f"netapp_fc_available={netapp_fc_available}"
         if rook_ceph_available:
             rook_api_available = app_utils.is_rook_ceph_api_available()
             fsid_available = app_utils.get_ceph_fsid() is not None
@@ -447,6 +455,13 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             fsid_available = app_utils.get_ceph_fsid() is not None
             backend_available = fsid_available
             status += f", fsid_available={fsid_available}"
+
+        if netapp_nfs_available:
+            backend_available = True
+        elif netapp_iscsi_available:
+            backend_available = True
+        elif netapp_fc_available:
+            backend_available = True
 
         if not backend_available:
             err_msg = "No storage backends available and ready for openstack " \

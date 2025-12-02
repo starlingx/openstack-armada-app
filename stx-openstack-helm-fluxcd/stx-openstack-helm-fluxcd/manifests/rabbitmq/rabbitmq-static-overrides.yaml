@@ -425,6 +425,12 @@ helm3_hook: true
 io_thread_pool:
   enabled: false
   size: 64
+storage_conf:
+  volume_storage_class_priority:
+    - "ceph"
+    - "netapp-nfs"
+    - "netapp-iscsi"
+    - "netapp-fc"
 manifests:
   certificates: false
   configmap_bin: true

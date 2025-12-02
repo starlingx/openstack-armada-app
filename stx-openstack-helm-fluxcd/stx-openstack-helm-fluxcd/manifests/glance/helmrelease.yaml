@@ -16,7 +16,7 @@ spec:
   chart:
     spec:
       chart: glance
-      version: 0.4.23
+      version: 0.5.0
       sourceRef:
         kind: HelmRepository
         name: starlingx

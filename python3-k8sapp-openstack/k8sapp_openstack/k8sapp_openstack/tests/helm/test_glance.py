@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -73,8 +73,12 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
                     },
                     'glance_store': {
                         'https_ca_certificates_file': glance.GlanceHelm.get_ca_file(),
-                        'chunk_size': mock.ANY,
+                    },
+                    'file': {
                         'filesystem_store_datadir': mock.ANY,
+                    },
+                    'rbd': {
+                        'chunk_size': mock.ANY,
                         'rbd_store_pool': mock.ANY,
                         'rbd_store_user': mock.ANY,
                         'rbd_store_replication': mock.ANY,

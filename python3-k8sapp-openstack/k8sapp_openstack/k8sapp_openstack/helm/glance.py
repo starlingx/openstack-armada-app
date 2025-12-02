@@ -158,6 +158,14 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         else:
             chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
 
+        rbd_conf = {
+            'chunk_size': min(chunk_size, app_constants.CEPH_POOL_IMAGES_CHUNK_SIZE),
+            'rbd_store_pool': rbd_store_pool,
+            'rbd_store_user': rbd_store_user,
+            'rbd_store_replication': replication,
+            'rbd_store_crush_rule': rule_name,
+        }
+
         conf = {
             'glance': {
                 'DEFAULT': {
@@ -165,14 +173,10 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     'show_image_direct_url': False,
                     'show_multiple_locations': False,
                 },
-                'glance_store': {
-                    'chunk_size': min(chunk_size, app_constants.CEPH_POOL_IMAGES_CHUNK_SIZE),
+                'file': {
                     'filesystem_store_datadir': constants.GLANCE_IMAGE_PATH,
-                    'rbd_store_pool': rbd_store_pool,
-                    'rbd_store_user': rbd_store_user,
-                    'rbd_store_replication': replication,
-                    'rbd_store_crush_rule': rule_name,
-                }
+                },
+                'rbd': rbd_conf
             }
         }
 

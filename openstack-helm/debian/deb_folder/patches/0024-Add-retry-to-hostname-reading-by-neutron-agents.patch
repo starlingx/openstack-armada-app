@@ -1,4 +1,4 @@
-From eeafe30279bf1d73aa0a0928cbc3ddeae29be6b5 Mon Sep 17 00:00:00 2001
+From 5ca5df151adf38ec2cc429a26cac8d9b84b9f17a Mon Sep 17 00:00:00 2001
 From: Romulo Leite <romulo.leite@windriver.com>
 Date: Fri, 5 Sep 2025 16:33:56 -0300
 Subject: [PATCH] Add retry to hostname reading by neutron agents
@@ -9,6 +9,8 @@ on standard deployments with multiple hosts that a race
 condition causes neutron agents pods to fail to get the host name.
 
 Signed-off-by: Romulo Leite <romulo.leite@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  .../bin/_neutron-dhcp-agent-init.sh.tpl       | 23 ++++++++++++++++++-
  .../bin/_neutron-l3-agent-init.sh.tpl         | 23 ++++++++++++++++++-
@@ -164,7 +166,7 @@ index 1cb25e30e..9f21dfc29 100644
  EOF
  {{- end }}
 diff --git a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
-index 8e2c25e7c..c3a9ba7f0 100644
+index 8e2c25e7c..2329042a7 100644
 --- a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
 +++ b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
 @@ -567,9 +567,30 @@ EOF
@@ -273,5 +275,5 @@ index d98cfe8f2..0ea7f513d 100644
  {{- end }}
  
 -- 
-2.34.1
+2.43.0
 

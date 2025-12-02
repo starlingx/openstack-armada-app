@@ -1,4 +1,4 @@
-From f749443bfafc92ac52ac0fe7462699707e2f1e55 Mon Sep 17 00:00:00 2001
+From a3881b2e84539e009b4c19c33bce80eb23644325 Mon Sep 17 00:00:00 2001
 From: Rafael Falcao <rafael.vieirafalcao@windriver.com>
 Date: Tue, 18 Apr 2023 15:28:09 -0300
 Subject: [PATCH] Update user to execute commands in cinder related pods
@@ -13,12 +13,14 @@ to perform its operations.
 
 Signed-off-by: Rafael Falcao <rafael.vieirafalcao@windriver.com>
 Change-Id: I9bffd45208ab2992e380b2226c8e99639bc3f514
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  cinder/values.yaml | 16 ++++++++--------
  1 file changed, 8 insertions(+), 8 deletions(-)
 
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index 07adee1c..b95bd618 100644
+index 6b335be17..a30e61f7d 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
 @@ -79,14 +79,14 @@ pod:
@@ -92,5 +94,5 @@ index 07adee1c..b95bd618 100644
          create_internal_tenant:
            readOnlyRootFilesystem: true
 -- 
-2.25.1
+2.43.0
 

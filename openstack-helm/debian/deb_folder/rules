@@ -5,7 +5,7 @@ export ROOT = debian/tmp
 export APP_FOLDER = $(ROOT)/usr/lib/helm
 
 export HELM_FOLDER=/usr/lib/helm
-export TOOLKIT_VERSION = 0.2.69
+export TOOLKIT_VERSION = 2025.1.0
 
 %:
 	dh $@
@@ -19,18 +19,18 @@ override_dh_auto_build:
 	sleep 2
 	helm repo add local http://localhost:8879/charts
 	# Create the chart TGZ files.
-	make aodh
-	make barbican
-	make ceilometer
-	make cinder
-	make glance
-	make heat
-	make horizon
-	make ironic
-	make keystone
-	make neutron
-	make nova
-	make placement
+	make SKIP_CHANGELOG=1 aodh
+	make SKIP_CHANGELOG=1 barbican
+	make SKIP_CHANGELOG=1 ceilometer
+	make SKIP_CHANGELOG=1 cinder
+	make SKIP_CHANGELOG=1 glance
+	make SKIP_CHANGELOG=1 heat
+	make SKIP_CHANGELOG=1 horizon
+	make SKIP_CHANGELOG=1 ironic
+	make SKIP_CHANGELOG=1 keystone
+	make SKIP_CHANGELOG=1 neutron
+	make SKIP_CHANGELOG=1 nova
+	make SKIP_CHANGELOG=1 placement
 	# Terminate the helm chart server.
 	pkill chartmuseum
 	# Remove the helm-toolkit tarball

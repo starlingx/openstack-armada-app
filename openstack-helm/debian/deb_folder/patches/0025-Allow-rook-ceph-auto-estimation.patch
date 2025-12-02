@@ -1,4 +1,4 @@
-From 534797f4235187f5f3d0a4a558ba487379855464 Mon Sep 17 00:00:00 2001
+From 59bef355ecba0d1110e7f2b24ebd760c0ffee64f Mon Sep 17 00:00:00 2001
 From: kgoncalv <kayo.goncalvesdacosta@windriver.com>
 Date: Fri, 12 Sep 2025 11:12:11 -0300
 Subject: [PATCH] Allow rook ceph auto estimation
@@ -14,6 +14,8 @@ This patch also allows the retrocompatibility for ceph versions that
 do not support this auto estimation.
 
 Signed-off-by: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  cinder/templates/bin/_backup-storage-init.sh.tpl | 6 +++++-
  cinder/templates/bin/_storage-init.sh.tpl        | 6 +++++-
@@ -90,5 +92,5 @@ index 70c71a9f4..ed56e27b9 100644
          ceph osd pool application enable $1 $3
      fi
 -- 
-2.34.1
+2.43.0
 

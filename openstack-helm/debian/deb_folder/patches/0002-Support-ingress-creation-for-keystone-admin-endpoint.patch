@@ -1,4 +1,4 @@
-From db7a5422e48b963966c5e830d6f4391006a42578 Mon Sep 17 00:00:00 2001
+From cfbdacc308e0f1616bbb8c42541ae39ca5048f04 Mon Sep 17 00:00:00 2001
 From: Andy Ning <andy.ning@windriver.com>
 Date: Wed, 4 Dec 2019 13:35:44 -0500
 Subject: [PATCH] Support ingress creation for keystone admin endpoint
@@ -10,12 +10,14 @@ to outside of the cluster by ingress.
 Story: 2006588
 Task: 37747
 Signed-off-by: Andy Ning <andy.ning@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  keystone/templates/ingress-api.yaml | 8 ++++++++
  1 file changed, 8 insertions(+)
 
 diff --git a/keystone/templates/ingress-api.yaml b/keystone/templates/ingress-api.yaml
-index 7bdcee60..525c2121 100644
+index 7bdcee60c..525c21215 100644
 --- a/keystone/templates/ingress-api.yaml
 +++ b/keystone/templates/ingress-api.yaml
 @@ -21,3 +21,11 @@ limitations under the License.
@@ -31,5 +33,5 @@ index 7bdcee60..525c2121 100644
 +{{- end }}
 +{{- end }}
 -- 
-2.25.1
+2.43.0
 

@@ -1,4 +1,4 @@
-From b620ae1fa40aeadb4bbe2164fad7cb5c330acb78 Mon Sep 17 00:00:00 2001
+From 95bf3711a3f380a6b15916b348f9c2b8d670eac7 Mon Sep 17 00:00:00 2001
 From: Chris Friesen <chris.friesen@windriver.com>
 Date: Wed, 28 Nov 2018 01:33:39 -0500
 Subject: [PATCH] Remove stale Apache2 service pids when a POD starts.
@@ -14,13 +14,15 @@ This is loosely based off the in-review upstream commit at
 https://review.openstack.org/#/c/619747
 
 Signed-off-by: Robert Church <robert.church@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  ceilometer/templates/bin/_ceilometer-api.sh.tpl | 3 +++
  keystone/templates/bin/_keystone-api.sh.tpl     | 6 ++----
  2 files changed, 5 insertions(+), 4 deletions(-)
 
 diff --git a/ceilometer/templates/bin/_ceilometer-api.sh.tpl b/ceilometer/templates/bin/_ceilometer-api.sh.tpl
-index 3ba90d99..4b774529 100644
+index 3ba90d998..4b7745294 100644
 --- a/ceilometer/templates/bin/_ceilometer-api.sh.tpl
 +++ b/ceilometer/templates/bin/_ceilometer-api.sh.tpl
 @@ -40,6 +40,9 @@ function start () {
@@ -34,7 +36,7 @@ index 3ba90d99..4b774529 100644
    exec {{ .Values.conf.software.apache2.binary }} {{ .Values.conf.software.apache2.start_parameters }}
  }
 diff --git a/keystone/templates/bin/_keystone-api.sh.tpl b/keystone/templates/bin/_keystone-api.sh.tpl
-index d7350674..f6216df1 100644
+index d7350674e..f6216df17 100644
 --- a/keystone/templates/bin/_keystone-api.sh.tpl
 +++ b/keystone/templates/bin/_keystone-api.sh.tpl
 @@ -41,10 +41,8 @@ function start () {
@@ -51,5 +53,5 @@ index d7350674..f6216df1 100644
    # Start Apache2
    exec {{ .Values.conf.software.apache2.binary }} {{ .Values.conf.software.apache2.start_parameters }}
 -- 
-2.25.1
+2.43.0
 

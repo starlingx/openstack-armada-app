@@ -74,7 +74,7 @@ index 40700856b..7fb7bc618 100644
  {{ tuple "bin/_iscsiadm.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
    multipath: |
 diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
-index 4d94a2e18..cfee9fe0b 100644
+index 6de1ae0a8..fde9bb5e8 100644
 --- a/cinder/templates/deployment-backup.yaml
 +++ b/cinder/templates/deployment-backup.yaml
 @@ -63,7 +63,7 @@ spec:
@@ -95,7 +95,7 @@ index 4d94a2e18..cfee9fe0b 100644
              - name: host-rootfs
                mountPath: /mnt/host-rootfs
                {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
-@@ -284,6 +284,8 @@ spec:
+@@ -286,6 +286,8 @@ spec:
              - name: cinder-bin
                mountPath: /usr/local/sbin/iscsiadm
                subPath: iscsiadm
@@ -104,7 +104,7 @@ index 4d94a2e18..cfee9fe0b 100644
              {{- end }}
  {{ if $mounts_cinder_backup.volumeMounts }}{{ toYaml $mounts_cinder_backup.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -345,7 +347,7 @@ spec:
+@@ -347,7 +349,7 @@ spec:
          - name: cinder-coordination
            emptyDir: {}
          {{- end }}
@@ -113,7 +113,7 @@ index 4d94a2e18..cfee9fe0b 100644
          - name: host-rootfs
            hostPath:
              path: /
-@@ -360,6 +362,8 @@ spec:
+@@ -365,6 +367,8 @@ spec:
              path: /etc/iscsi
          - name: usrlocalsbin
            emptyDir: {}
@@ -123,7 +123,7 @@ index 4d94a2e18..cfee9fe0b 100644
  {{ if $mounts_cinder_backup.volumes }}{{ toYaml $mounts_cinder_backup.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index e82128501..23eab7219 100644
+index 9ecf7f122..23edeb74c 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
 @@ -67,13 +67,14 @@ spec:
@@ -168,16 +168,16 @@ index e82128501..23eab7219 100644
              - name: host-rootfs
                mountPath: /mnt/host-rootfs
                {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
-@@ -293,6 +295,8 @@ spec:
+@@ -295,6 +297,8 @@ spec:
                {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
                mountPropagation: HostToContainer
                {{- end }}
 +            - name: varlibcinder
 +              mountPath: /var/lib/cinder
              {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volume.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_cinder_volume.volumeMounts }}{{ toYaml $mounts_cinder_volume.volumeMounts | indent 12 }}{{ end }}
-@@ -339,7 +343,7 @@ spec:
+@@ -347,7 +351,7 @@ spec:
          - name: cinder-coordination
            emptyDir: {}
          {{- end }}
@@ -186,14 +186,14 @@ index e82128501..23eab7219 100644
          - name: host-rootfs
            hostPath:
              path: /
-@@ -360,6 +364,8 @@ spec:
+@@ -371,6 +375,8 @@ spec:
          - name: sys
            hostPath:
              path: /sys
 +        - name: varlibcinder
 +          emptyDir: {}
          {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volume.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_cinder_volume.volumes }}{{ toYaml $mounts_cinder_volume.volumes | indent 8 }}{{ end }}
 diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
 index 6a63ce4a0..b1dca36bf 100755
@@ -340,7 +340,7 @@ index 000000000..514187f6f
 +{{- end -}}
 \ No newline at end of file
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index bbd417d10..46c5fce38 100644
+index 14a24f879..4b6e294c0 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
 @@ -1012,7 +1012,6 @@ conf:
@@ -348,9 +348,9 @@ index bbd417d10..46c5fce38 100644
        - volume_type
      volume_type: []
 -  enable_iscsi: false
+   enable_conversion_tmpfs: false
+   conversion_tmpfs_size: "10Gi"
    cinder_api_uwsgi:
-     uwsgi:
-       add-header: "Connection: close"
 -- 
 2.34.1
 

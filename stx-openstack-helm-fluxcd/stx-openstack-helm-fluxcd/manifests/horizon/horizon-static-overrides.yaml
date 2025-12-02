@@ -22,6 +22,7 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
 # Use selenium v4 syntax
 selenium_v4: true
 labels:
@@ -35,6 +36,7 @@ labels:
   test:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+
 network:
   dashboard:
     ingress:
@@ -49,6 +51,7 @@ network:
   node_port:
     enabled: 'true'
     port: 31000
+
 conf:
   software:
     apache2:
@@ -64,6 +67,8 @@ conf:
         - status || sed -i 's/LoadModule status_module/#LoadModule status_module/' /etc/httpd/conf.modules.d/00-base.conf
   horizon:
     branding:
+      # favicon must be a base64 encoded .ico string
+      # logo and logo_splash must be base64 encoded .svg string
       logo:
       logo_splash:
       favicon:
@@ -173,20 +178,20 @@ conf:
       # Requires mod_headers to be enabled.
       #
     custom_panels: {}
-    ## For example, _5000_disable_project_vg_snapshots.py
-    # _5000_disable_project_vg_snapshots: |
-    #   PANEL = 'vg_snapshots'
-    #   PANEL_DASHBOARD = 'project'
-    #   PANEL_GROUP = 'volumes'
-    #   REMOVE_PANEL = True
-    ## https://docs.openstack.org/horizon/latest/configuration/pluggable_panels.html#id2
+      ## For example, _5000_disable_project_vg_snapshots.py
+      # _5000_disable_project_vg_snapshots: |
+      #   PANEL = 'vg_snapshots'
+      #   PANEL_DASHBOARD = 'project'
+      #   PANEL_GROUP = 'volumes'
+      #   REMOVE_PANEL = True
+      ## https://docs.openstack.org/horizon/latest/configuration/pluggable_panels.html#id2
     local_settings_d: {}
-    ## For example, _50_monasca_ui_settings.py
-    # _50_monasca_ui_settings: |
-    #   from django.conf import settings
-    #   # Grafana button titles/file names (global across all projects):
-    #   GRAFANA_LINKS = []
-    #   DASHBOARDS = getattr(settings, 'GRAFANA_LINKS', GRAFANA_LINKS)
+      ## For example, _50_monasca_ui_settings.py
+      # _50_monasca_ui_settings: |
+      #   from django.conf import settings
+      #   # Grafana button titles/file names (global across all projects):
+      #   GRAFANA_LINKS = []
+      #   DASHBOARDS = getattr(settings, 'GRAFANA_LINKS', GRAFANA_LINKS)
 
     local_settings:
       config:
@@ -201,7 +206,7 @@ conf:
         keystone_default_domain: Default
         disable_password_reveal: "True"
         show_openrc_file: "True"
-        csrf_cookie_secure: "False"
+        csrf_cookie_secure: "True"
         csrf_cookie_httponly: "False"
         # https://docs.djangoproject.com/en/dev/ref/settings/#csrf-trusted-origins
         csrf_trusted_origins: []
@@ -210,7 +215,7 @@ conf:
         enable_pwd_validator: false
         pwd_validator_regex: '(?=.*[a-zA-Z])(?=.*\d).{8,}|(?=.*\d)(?=.*\W).{8,}|(?=.*\W)(?=.*[a-zA-Z]).{8,}'
         pwd_validator_help_text: '_("Your password must be at least eight (8) characters in length and must include characters from at least two (2) of these groupings: alpha, numeric, and special characters.")'
-        session_cookie_secure: "False"
+        session_cookie_secure: "True"
         session_cookie_httponly: "False"
         secure_proxy_ssl_header: false
         password_autocomplete: "False"
@@ -344,7 +349,7 @@ conf:
                 'fade_duration': 1500,
                 'types': ['alert-success', 'alert-info']
             },
-            'help_url': '{{ .Values.conf.horizon.local_settings.config.help_url }}',
+            'help_url': "http://docs.openstack.org",
             'exceptions': {'recoverable': exceptions.RECOVERABLE,
                             'not_found': exceptions.NOT_FOUND,
                             'unauthorized': exceptions.UNAUTHORIZED},
@@ -432,6 +437,11 @@ conf:
         # Determines which authentication choice to show as default.
         WEBSSO_INITIAL_CHOICE = "{{ .Values.conf.horizon.local_settings.config.auth.sso.initial_choice }}"
 
+        {{- if .Values.conf.horizon.local_settings.config.auth.sso.websso_keystone_url }}
+        # The full auth URL for the Keystone endpoint used for web single-sign-on authentication.
+        WEBSSO_KEYSTONE_URL = "{{ .Values.conf.horizon.local_settings.config.auth.sso.websso_keystone_url }}"
+        {{- end }}
+
         # The list of authentication mechanisms
         # which include keystone federation protocols.
         # Current supported protocol IDs are 'saml2' and 'oidc'
@@ -485,7 +495,7 @@ conf:
         # in a future release, but is available as a temporary backup setting to ensure
         # compatibility with existing deployments. Further development will not be
         # done on the legacy experience. Please report any problems with the new
-        # experience via the Launchpad tracking system.
+        # experience via the StoryBoard tracking system.
         #
         # Toggle LAUNCH_INSTANCE_LEGACY_ENABLED and LAUNCH_INSTANCE_NG_ENABLED to
         # determine the experience to enable.  Set them both to true to enable
@@ -1104,6 +1114,7 @@ conf:
     extra_panels:
       - heat_dashboard
       - neutron_taas_dashboard
+
 dependencies:
   dynamic:
     common:
@@ -1146,6 +1157,7 @@ dependencies:
       services:
         - endpoint: internal
           service: dashboard
+
 pod:
   security_context:
     horizon:
@@ -1282,6 +1294,7 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
 # Names of secrets used by bootstrap and environmental checks
 secrets:
   identity:
@@ -1296,8 +1309,10 @@ secrets:
         internal: horizon-tls-web
   oci_image_registry:
     horizon: horizon-oci-image-registry
+
 tls:
   identity: false
+
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
@@ -1426,15 +1441,18 @@ endpoints:
     port:
       ingress:
         default: 80
+
 network_policy:
   horizon:
     ingress:
       - {}
     egress:
       - {}
+
 # NOTE(helm_hook): helm_hook might break for helm2 binary.
 # set helm3_hook: false when using the helm2 binary.
 helm3_hook: true
+
 manifests:
   certificates: false
   configmap_bin: true

@@ -16,7 +16,7 @@ spec:
   chart:
     spec:
       chart: aodh
-      version: 0.2.11
+      version: 2025.1.0
       sourceRef:
         kind: HelmRepository
         name: starlingx

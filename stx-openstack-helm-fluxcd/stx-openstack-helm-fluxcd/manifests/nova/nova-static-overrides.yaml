@@ -33,15 +33,16 @@ labels:
   scheduler:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+  serialproxy:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
   spiceproxy:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
   test:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
-  consoleauth:
-    node_selector_key: openstack-control-plane
-    node_selector_value: enabled
+
 images:
   pull_policy: IfNotPresent
   tags:
@@ -49,7 +50,7 @@ images:
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     dep_check: 'quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy'
-    rabbit_init: docker.io/library/rabbitmq:3.9.29-management
+    rabbit_init: docker.io/rabbitmq:3.13-management
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     nova_archive_deleted_rows: docker.io/starlingx/stx-nova:master-debian-stable-latest
@@ -65,10 +66,11 @@ images:
     nova_novncproxy: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_novncproxy_assets: 'docker.io/starlingx/stx-nova:master-debian-stable-latest'
     nova_scheduler: docker.io/starlingx/stx-nova:master-debian-stable-latest
-    nova_storage_init: 'docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223'
+    nova_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
     # NOTE(portdirect): we simply use the ceph config helper here,
     # as it has both oscli and jq.
-    nova_service_cleaner: 'docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223'
+    nova_service_cleaner: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
+    nova_serialproxy: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_spiceproxy: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_spiceproxy_assets: docker.io/starlingx/stx-nova:master-debian-stable-latest
     test: null
@@ -80,6 +82,7 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
 jobs:
   # NOTE(portdirect): When using cells new nodes will be added to the cell on the hour by default.
   # TODO(portdirect): Add a post-start action to nova compute pods that registers themselves.
@@ -108,6 +111,7 @@ jobs:
     history:
       success: 3
       failed: 1
+
 bootstrap:
   enabled: true
   ks_user: admin
@@ -193,6 +197,7 @@ bootstrap:
             sleep $SLEEP
           fi
         done
+
 network:
   # provide what type of network wiring will be used
   # possible options: openvswitch, linuxbridge, sriov
@@ -235,6 +240,17 @@ network:
     node_port:
       enabled: false
       port: 30680
+  serialproxy:
+    ingress:
+      public: true
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
+      annotations:
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    node_port:
+      enabled: false
+      port: 30683
   spiceproxy:
     ingress:
       public: true
@@ -257,6 +273,7 @@ network:
       - ed25519
     private_key: 'null'
     public_key: 'null'
+
 dependencies:
   dynamic:
     common:
@@ -449,6 +466,12 @@ dependencies:
       services:
         - endpoint: internal
           service: oslo_db
+    serialproxy:
+      jobs:
+        - nova-db-sync
+      services:
+        - endpoint: internal
+          service: oslo_db
     spiceproxy:
       jobs:
         - nova-db-sync
@@ -482,10 +505,21 @@ dependencies:
       services:
         - endpoint: internal
           service: local_image_registry
+
 console:
   # serial | spice | novnc | none
   console_kind: novnc
   serial:
+    compute:
+      # IF blank, search default routing interface
+      server_proxyclient_interface: null
+      # or set network cidr
+      server_proxyclient_network_cidr: 0/0
+    proxy:
+      # IF blank, search default routing interface
+      server_proxyclient_interface: null
+      # or set network cidr
+      server_proxyclient_network_cidr: 0/0
   spice:
     compute:
       # IF blank, search default routing interface
@@ -512,11 +546,13 @@ console:
 ceph_client:
   configmap: ceph-etc
   user_secret_name: pvc-ceph-client-key
+
 rbd_pool:
   app_name: nova-vms
   replication: 3
   crush_rule: replicated_rule
   chunk_size: 8
+
 conf:
   security: |
     #
@@ -1424,6 +1460,10 @@ conf:
       server_listen: "::"
       # This would be set by each compute nodes's ip
       # server_proxyclient_address: 127.0.0.1
+    serial_console:
+      serialproxy_host: "::"
+      # This would be set by each compute nodes's ip
+      # proxyclient_address: 127.0.0.1
     conductor:
       workers: 1
     oslo_policy:
@@ -1706,8 +1746,13 @@ secrets:
       spiceproxy:
         public: nova-spiceproxy-tls-public
         internal: nova-spiceproxy-tls-proxy
+    compute_serial_proxy:
+      serialproxy:
+        public: nova-serialproxy-tls-public
+        internal: nova-serialproxy-tls-proxy
   oci_image_registry:
     nova: nova-oci-image-registry
+
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
@@ -2001,6 +2046,21 @@ endpoints:
         commonName: nova-novncproxy
         usages:
           - client auth
+  compute_serial_proxy:
+    name: nova
+    hosts:
+      default: nova-serialproxy
+      public: serialproxy
+    host_fqdn_override:
+      default: null
+    scheme:
+      default: 'ws'
+    path:
+      default: /serial_auto.html
+    port:
+      serial_proxy:
+        default: 6083
+        public: 80
   compute_spice_proxy:
     name: nova
     hosts:
@@ -2102,6 +2162,7 @@ endpoints:
     port:
       ingress:
         default: 80
+
 pod:
   probes:
     rpc_timeout: 60
@@ -2197,6 +2258,20 @@ pod:
             initialDelaySeconds: 80
             periodSeconds: 90
             timeoutSeconds: 70
+    serialproxy:
+      default:
+        liveness:
+          enabled: True
+          params:
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 15
+        readiness:
+          enabled: True
+          params:
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 15
     compute-spice-proxy:
       default:
         liveness:
@@ -2227,6 +2302,9 @@ pod:
           readOnlyRootFilesystem: true
           runAsUser: 0
         nova_compute_vnc_init:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_compute_serial_init:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
         nova_compute_spice_init:
@@ -2262,6 +2340,12 @@ pod:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
         nova_scheduler:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_serialproxy_init:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        nova_serialproxy:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
         nova_spiceproxy_init:
@@ -2395,6 +2479,11 @@ pod:
       nova_novncproxy:
         volumeMounts:
         volumes:
+    nova_serialproxy:
+      init_serialproxy: null
+      nova_serialproxy:
+        volumeMounts:
+        volumes:
     nova_spiceproxy:
       init_spiceproxy: null
       nova_spiceproxy:
@@ -2413,8 +2502,8 @@ pod:
     conductor: 1
     scheduler: 1
     novncproxy: 1
+    serialproxy: 1
     spiceproxy: 1
-    consoleauth: 1
   lifecycle:
     upgrades:
       deployments:
@@ -2492,6 +2581,13 @@ pod:
         memory: "1024Mi"
         cpu: "2000m"
     novncproxy:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "1024Mi"
+        cpu: "2000m"
+    serialproxy:
       requests:
         memory: "128Mi"
         cpu: "100m"
@@ -2604,6 +2700,7 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
 network_policy:
   nova:
     # TODO(lamt): Need to tighten this ingress for security.
@@ -2611,16 +2708,20 @@ network_policy:
       - {}
     egress:
       - {}
+
 # NOTE(helm_hook): helm_hook might break for helm2 binary.
 # set helm3_hook: false when using the helm2 binary.
 helm3_hook: true
+
 health_probe:
   logging:
     level: ERROR
+
 tls:
   identity: false
   oslo_messaging: false
   oslo_db: false
+
 manifests:
   certificates: false
   compute_uuid_self_provisioning: false
@@ -2634,10 +2735,12 @@ manifests:
   deployment_api_osapi: true
   deployment_conductor: true
   deployment_novncproxy: true
+  deployment_serialproxy: true
   deployment_spiceproxy: true
   deployment_scheduler: true
   ingress_metadata: true
   ingress_novncproxy: true
+  ingress_serialproxy: true
   ingress_spiceproxy: true
   ingress_osapi: true
   job_pre_apply_cleanup: true
@@ -2665,10 +2768,12 @@ manifests:
   secret_registry: true
   service_ingress_metadata: true
   service_ingress_novncproxy: true
+  service_ingress_serialproxy: true
   service_ingress_spiceproxy: true
   service_ingress_osapi: true
   service_metadata: true
   service_novncproxy: true
+  service_serialproxy: true
   service_spiceproxy: true
   service_osapi: true
   statefulset_compute_ironic: false
@@ -2682,7 +2787,7 @@ manifests:
   secret_keystone_placement: false
   service_ingress_placement: false
   service_placement: false
-  deployment_consoleauth: false
+
 # List of hosts and uuids
 hosts_uuids: []
 annotations:

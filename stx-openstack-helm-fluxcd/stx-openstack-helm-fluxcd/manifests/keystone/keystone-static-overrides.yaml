@@ -20,6 +20,7 @@ labels:
 # NOTE(gagehugo): the pre-install hook breaks upgrade for helm2
 # Set to false to upgrade using helm2
 helm3_hook: true
+
 images:
   tags:
     bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
@@ -28,7 +29,7 @@ images:
     keystone_db_sync: docker.io/starlingx/stx-keystone:master-debian-stable-latest
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    rabbit_init: docker.io/library/rabbitmq:3.9.29-management
+    rabbit_init: docker.io/rabbitmq:3.13-management
     keystone_fernet_setup: docker.io/starlingx/stx-keystone:master-debian-stable-latest
     keystone_fernet_rotate: docker.io/starlingx/stx-keystone:master-debian-stable-latest
     keystone_credential_setup: docker.io/starlingx/stx-keystone:master-debian-stable-latest
@@ -45,6 +46,7 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
 bootstrap:
   enabled: true
   ks_user: admin
@@ -86,6 +88,7 @@ network:
     node_port:
       enabled: false
       port: 30357
+
 dependencies:
   dynamic:
     common:
@@ -160,6 +163,7 @@ dependencies:
       services:
         - endpoint: internal
           service: local_image_registry
+
 pod:
   security_context:
     keystone:
@@ -425,9 +429,10 @@ jobs:
     user: keystone
     group: keystone
   fernet_rotate:
-    # NOTE(rk760n): key rotation frequency, token expiration, active keys should statisfy the formula
-    # max_active_keys = (token_expiration / rotation_frequency) + 2
-    # as expiration is 12h, and max_active_keys set to 3 by default, rotation_frequency need to be adjusted
+    # NOTE(rk760n): key rotation frequency, token expiration, active keys, and allow_expired_window should statisfy the formula
+    # max_active_keys = ((token_expiration + allow_expired_window) / rotation_frequency) + 2
+    # As expiration is 12h, max_active_keys is 7 and allow_expired_window is 48h by default,
+    # rotation_frequency need to be adjusted
     # 12 hours
     cron: "0 */12 * * *"
     user: keystone
@@ -447,12 +452,14 @@ jobs:
     history:
       success: 3
       failed: 1
+
 network_policy:
   keystone:
     ingress:
       - {}
     egress:
       - {}
+
 conf:
   security: |
     #
@@ -544,6 +551,7 @@ conf:
       domain_config_dir: /etc/keystone/domains
     fernet_tokens:
       key_repository: /etc/keystone/fernet-keys/
+      max_active_keys: 7
     credential:
       key_repository: /etc/keystone/credential-keys/
     database:
@@ -574,6 +582,11 @@ conf:
       OIDCPassClaimsAs: "both"
       OIDCOAuthSSLValidateServer: "Off"
       OIDCEnableMemcached: true
+    dex_conf:
+      verify: False
+      retries: 1
+      timeout: 5
+      probe_endpoint: "/healthz"
     dex_idp:
       # Enable DEX integration
       enabled: false
@@ -994,6 +1007,7 @@ conf:
     formatter_default:
       format: "%(message)s"
       datefmt: "%Y-%m-%d %H:%M:%S"
+
 # Names of secrets used by bootstrap and environmental checks
 secrets:
   identity:
@@ -1015,6 +1029,7 @@ secrets:
         internal: keystone-tls-api
   oci_image_registry:
     keystone: keystone-oci-image-registry
+
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
@@ -1093,6 +1108,7 @@ endpoints:
       #     key: null
     path:
       default: /v3
+      healthcheck: /healthcheck
     scheme:
       default: http
       service: http
@@ -1212,10 +1228,12 @@ endpoints:
     port:
       ingress:
         default: 80
+
 tls:
   identity: false
   oslo_messaging: false
   oslo_db: false
+
 manifests:
   certificates: false
   configmap_bin: true

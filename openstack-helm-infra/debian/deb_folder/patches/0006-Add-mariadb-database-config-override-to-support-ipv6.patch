@@ -11,6 +11,8 @@ Signed-off-by: Chen, Haochuan Z <haochuan.z.chen@intel.com>
 [ Update "mariabackup" method to "rsync" .
 Taking the state snapshot between nodes was crashing the multinode deployments.]
 Signed-off-by: Johnny Chia <johnny.chialun@windriver.com>
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  mariadb/templates/configmap-etc.yaml |  5 +++++
  mariadb/templates/statefulset.yaml   |  6 ++++++
@@ -18,7 +20,7 @@ Signed-off-by: Johnny Chia <johnny.chialun@windriver.com>
  3 files changed, 21 insertions(+)
 
 diff --git a/mariadb/templates/configmap-etc.yaml b/mariadb/templates/configmap-etc.yaml
-index 5367f18d..e7bdba35 100644
+index 5367f18d9..e7bdba355 100644
 --- a/mariadb/templates/configmap-etc.yaml
 +++ b/mariadb/templates/configmap-etc.yaml
 @@ -25,5 +25,10 @@ data:
@@ -33,10 +35,10 @@ index 5367f18d..e7bdba35 100644
  {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "99_force" ) "key" "99-force.cnf" ) | indent 2 }}
  {{- end }}
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 350fe81c..5be9ab46 100644
+index 7a58b7165..316dc9539 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -273,6 +273,12 @@ spec:
+@@ -256,6 +256,12 @@ spec:
                subPath: 20-override.cnf
                readOnly: true
              {{- end }}
@@ -50,10 +52,10 @@ index 350fe81c..5be9ab46 100644
                mountPath: /etc/mysql/conf.d/99-force.cnf
                subPath: 99-force.cnf
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index a418d4dc..34eb665d 100644
+index 909afd8dc..405a1a6b4 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -507,6 +507,15 @@ conf:
+@@ -493,6 +493,15 @@ conf:
      # config_override: |-
      #   [mysqld]
      #   wsrep_slave_threads=1
@@ -69,12 +71,12 @@ index a418d4dc..34eb665d 100644
      99_force: |
        [mysqld]
        datadir=/var/lib/mysql
-@@ -729,4 +738,5 @@ manifests:
-   service_error: false
-   service: true
-   statefulset: true
+@@ -717,4 +726,5 @@ manifests:
+   deployment_controller: true
+   service_master: true
+   job_cluster_wait: false
 +  config_ipv6: false
  ...
---
-2.43.0
+-- 
+2.34.1
 

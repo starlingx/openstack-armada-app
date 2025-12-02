@@ -23,7 +23,8 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Signed-off-by: Giulia Melao <giulia.depaulamelao@windriver.com>
 [ Upversioned openstack-helm-infra base commit to Caracal ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
-
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  ceph-rgw/templates/deployment-rgw.yaml                     | 2 ++
  ceph-rgw/templates/job-bootstrap.yaml                      | 2 ++
@@ -57,12 +58,10 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  libvirt/templates/daemonset-libvirt.yaml                   | 2 ++
  libvirt/values.yaml                                        | 1 +
  mariadb/templates/cron-job-backup-mariadb.yaml             | 3 +++
- mariadb/templates/deployment-error.yaml                    | 2 ++
- mariadb/templates/deployment-ingress.yaml                  | 2 ++
  mariadb/templates/pod-test.yaml                            | 2 ++
  mariadb/templates/statefulset.yaml                         | 2 ++
  mariadb/values.yaml                                        | 1 +
- memcached/templates/deployment.yaml                        | 2 ++
+ memcached/templates/statefulset.yaml                       | 2 ++
  memcached/values.yaml                                      | 1 +
  mongodb/templates/statefulset.yaml                         | 2 ++
  mongodb/values.yaml                                        | 1 +
@@ -72,10 +71,10 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  rabbitmq/templates/pod-test.yaml                           | 2 ++
  rabbitmq/templates/statefulset.yaml                        | 2 ++
  rabbitmq/values.yaml                                       | 1 +
- 47 files changed, 118 insertions(+)
+ 45 files changed, 114 insertions(+)
 
 diff --git a/ceph-rgw/templates/deployment-rgw.yaml b/ceph-rgw/templates/deployment-rgw.yaml
-index 1fde8afe..a62f2757 100644
+index 1fde8afe5..a62f27574 100644
 --- a/ceph-rgw/templates/deployment-rgw.yaml
 +++ b/ceph-rgw/templates/deployment-rgw.yaml
 @@ -123,11 +123,13 @@ spec:
@@ -93,7 +92,7 @@ index 1fde8afe..a62f2757 100644
  {{ dict "envAll" $envAll "podName" "ceph-rgw" "containerNames" (list "init" "ceph-rgw" "ceph-init-dirs" "ceph-rgw-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/ceph-rgw/templates/job-bootstrap.yaml b/ceph-rgw/templates/job-bootstrap.yaml
-index 63689691..f75e5a43 100644
+index 636896913..f75e5a43f 100644
 --- a/ceph-rgw/templates/job-bootstrap.yaml
 +++ b/ceph-rgw/templates/job-bootstrap.yaml
 @@ -58,8 +58,10 @@ spec:
@@ -108,7 +107,7 @@ index 63689691..f75e5a43 100644
  {{ dict "envAll" $envAll "podName" "ceph-rgw-bootstrap" "containerNames" (list "ceph-keyring-placement" "init" "ceph-rgw-bootstrap") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/ceph-rgw/templates/job-rgw-placement-targets.yaml b/ceph-rgw/templates/job-rgw-placement-targets.yaml
-index 45b9486a..d092069b 100644
+index 45b9486ad..d092069b7 100644
 --- a/ceph-rgw/templates/job-rgw-placement-targets.yaml
 +++ b/ceph-rgw/templates/job-rgw-placement-targets.yaml
 @@ -59,8 +59,10 @@ spec:
@@ -123,7 +122,7 @@ index 45b9486a..d092069b 100644
  {{ dict "envAll" $envAll "podName" "ceph-rgw-placement-targets" "containerNames" (list "ceph-keyring-placement" "init" "create-rgw-placement-targets") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/ceph-rgw/templates/job-rgw-restart.yaml b/ceph-rgw/templates/job-rgw-restart.yaml
-index fdbec8f9..080b5df2 100644
+index fdbec8f9d..080b5df2d 100644
 --- a/ceph-rgw/templates/job-rgw-restart.yaml
 +++ b/ceph-rgw/templates/job-rgw-restart.yaml
 @@ -59,8 +59,10 @@ spec:
@@ -138,7 +137,7 @@ index fdbec8f9..080b5df2 100644
  {{ dict "envAll" $envAll "podName" "ceph-rgw-restart" "containerNames" (list "init" "ceph-rgw-restart") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/ceph-rgw/templates/job-rgw-storage-init.yaml b/ceph-rgw/templates/job-rgw-storage-init.yaml
-index 4c3a6ed3..a2c30130 100644
+index 4c3a6ed3e..a2c301305 100644
 --- a/ceph-rgw/templates/job-rgw-storage-init.yaml
 +++ b/ceph-rgw/templates/job-rgw-storage-init.yaml
 @@ -56,8 +56,10 @@ spec:
@@ -153,7 +152,7 @@ index 4c3a6ed3..a2c30130 100644
  {{ dict "envAll" $envAll "podName" "ceph-rgw-storage-init" "containerNames" (list "ceph-keyring-placement" "init" "ceph-rgw-storage-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/ceph-rgw/templates/job-s3-admin.yaml b/ceph-rgw/templates/job-s3-admin.yaml
-index d796395b..94a831a9 100644
+index d796395b7..94a831a9d 100644
 --- a/ceph-rgw/templates/job-s3-admin.yaml
 +++ b/ceph-rgw/templates/job-s3-admin.yaml
 @@ -60,8 +60,10 @@ spec:
@@ -168,7 +167,7 @@ index d796395b..94a831a9 100644
  {{ dict "envAll" $envAll "podName" "ceph-rgw-s3-admin" "containerNames" (list "ceph-keyring-placement" "init" "create-s3-admin") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/ceph-rgw/templates/pod-helm-tests.yaml b/ceph-rgw/templates/pod-helm-tests.yaml
-index 54a0f870..01c3325b 100644
+index 54a0f8706..01c3325bb 100644
 --- a/ceph-rgw/templates/pod-helm-tests.yaml
 +++ b/ceph-rgw/templates/pod-helm-tests.yaml
 @@ -22,8 +22,10 @@ kind: Pod
@@ -183,7 +182,7 @@ index 54a0f870..01c3325b 100644
  {{ dict "envAll" $envAll "podName" "ceph-rgw-test" "containerNames" (list "ceph-rgw-ks-validation" "ceph-rgw-s3-validation") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
  spec:
 diff --git a/ceph-rgw/values.yaml b/ceph-rgw/values.yaml
-index c8ee0a22..a0befdf0 100644
+index 3f3bbc6d0..abf9d618c 100644
 --- a/ceph-rgw/values.yaml
 +++ b/ceph-rgw/values.yaml
 @@ -42,6 +42,7 @@ images:
@@ -195,7 +194,7 @@ index c8ee0a22..a0befdf0 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/gnocchi/templates/cron-job-resources-cleaner.yaml b/gnocchi/templates/cron-job-resources-cleaner.yaml
-index 608bab5f..6de846f6 100644
+index 608bab5ff..6de846f61 100644
 --- a/gnocchi/templates/cron-job-resources-cleaner.yaml
 +++ b/gnocchi/templates/cron-job-resources-cleaner.yaml
 @@ -42,7 +42,10 @@ spec:
@@ -210,7 +209,7 @@ index 608bab5f..6de846f6 100644
            serviceAccountName: {{ $serviceAccountName }}
            restartPolicy: OnFailure
 diff --git a/gnocchi/templates/daemonset-metricd.yaml b/gnocchi/templates/daemonset-metricd.yaml
-index 6fe77593..5d94ce26 100644
+index 6fe775939..5d94ce260 100644
 --- a/gnocchi/templates/daemonset-metricd.yaml
 +++ b/gnocchi/templates/daemonset-metricd.yaml
 @@ -35,11 +35,13 @@ spec:
@@ -228,7 +227,7 @@ index 6fe77593..5d94ce26 100644
        serviceAccountName: {{ $serviceAccountName }}
        nodeSelector:
 diff --git a/gnocchi/templates/daemonset-statsd.yaml b/gnocchi/templates/daemonset-statsd.yaml
-index 316265bc..371448ee 100644
+index 316265bc8..371448eec 100644
 --- a/gnocchi/templates/daemonset-statsd.yaml
 +++ b/gnocchi/templates/daemonset-statsd.yaml
 @@ -34,11 +34,13 @@ spec:
@@ -246,7 +245,7 @@ index 316265bc..371448ee 100644
        serviceAccountName: {{ $serviceAccountName }}
        nodeSelector:
 diff --git a/gnocchi/templates/deployment-api.yaml b/gnocchi/templates/deployment-api.yaml
-index 68555b18..d34f7639 100644
+index 68555b184..d34f76394 100644
 --- a/gnocchi/templates/deployment-api.yaml
 +++ b/gnocchi/templates/deployment-api.yaml
 @@ -36,11 +36,13 @@ spec:
@@ -264,7 +263,7 @@ index 68555b18..d34f7639 100644
        serviceAccountName: {{ $serviceAccountName }}
        affinity:
 diff --git a/gnocchi/templates/job-clean.yaml b/gnocchi/templates/job-clean.yaml
-index e1023aa3..e2635fac 100644
+index e1023aa32..e2635facd 100644
 --- a/gnocchi/templates/job-clean.yaml
 +++ b/gnocchi/templates/job-clean.yaml
 @@ -57,6 +57,9 @@ spec:
@@ -278,7 +277,7 @@ index e1023aa3..e2635fac 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/gnocchi/templates/job-db-init-indexer.yaml b/gnocchi/templates/job-db-init-indexer.yaml
-index 397dbee2..d1c796ac 100644
+index 397dbee23..d1c796ac6 100644
 --- a/gnocchi/templates/job-db-init-indexer.yaml
 +++ b/gnocchi/templates/job-db-init-indexer.yaml
 @@ -28,6 +28,9 @@ spec:
@@ -292,7 +291,7 @@ index 397dbee2..d1c796ac 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/gnocchi/templates/job-db-sync.yaml b/gnocchi/templates/job-db-sync.yaml
-index 123a5e16..d4a33034 100644
+index 123a5e164..d4a33034e 100644
 --- a/gnocchi/templates/job-db-sync.yaml
 +++ b/gnocchi/templates/job-db-sync.yaml
 @@ -28,6 +28,9 @@ spec:
@@ -306,7 +305,7 @@ index 123a5e16..d4a33034 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/gnocchi/templates/job-storage-init.yaml b/gnocchi/templates/job-storage-init.yaml
-index 9aaae9a5..621008cd 100644
+index 9aaae9a5c..621008cd1 100644
 --- a/gnocchi/templates/job-storage-init.yaml
 +++ b/gnocchi/templates/job-storage-init.yaml
 @@ -56,6 +56,9 @@ spec:
@@ -320,7 +319,7 @@ index 9aaae9a5..621008cd 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/gnocchi/templates/pod-gnocchi-test.yaml b/gnocchi/templates/pod-gnocchi-test.yaml
-index c3cbe67b..961f8a2c 100644
+index c3cbe67bf..961f8a2c1 100644
 --- a/gnocchi/templates/pod-gnocchi-test.yaml
 +++ b/gnocchi/templates/pod-gnocchi-test.yaml
 @@ -26,8 +26,10 @@ kind: Pod
@@ -335,7 +334,7 @@ index c3cbe67b..961f8a2c 100644
  spec:
    nodeSelector:
 diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
-index 3cc684fc..bbfd4335 100644
+index f33e5de07..4454e7d8c 100644
 --- a/gnocchi/values.yaml
 +++ b/gnocchi/values.yaml
 @@ -16,6 +16,7 @@
@@ -347,10 +346,10 @@ index 3cc684fc..bbfd4335 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/helm-toolkit/templates/manifests/_job-bootstrap.tpl b/helm-toolkit/templates/manifests/_job-bootstrap.tpl
-index 6b77004f..d061fc75 100644
+index cefd4e859..58ead020c 100644
 --- a/helm-toolkit/templates/manifests/_job-bootstrap.tpl
 +++ b/helm-toolkit/templates/manifests/_job-bootstrap.tpl
-@@ -63,11 +63,15 @@ spec:
+@@ -64,11 +64,15 @@ spec:
    template:
      metadata:
        labels:
@@ -367,7 +366,7 @@ index 6b77004f..d061fc75 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
-index 5e31a04d..404c3d49 100644
+index 5e31a04db..404c3d495 100644
 --- a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
 @@ -65,10 +65,15 @@ spec:
@@ -387,7 +386,7 @@ index 5e31a04d..404c3d49 100644
        serviceAccountName: {{ $serviceAccountName }}
        restartPolicy: OnFailure
 diff --git a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-index ff5d54ba..84b8e1a9 100644
+index ff5d54bab..84b8e1a9e 100644
 --- a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
 @@ -63,11 +63,15 @@ spec:
@@ -407,10 +406,10 @@ index ff5d54ba..84b8e1a9 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-db-sync.tpl b/helm-toolkit/templates/manifests/_job-db-sync.tpl
-index 364a7fe8..c033cf39 100644
+index 0320cc60e..3a375466b 100644
 --- a/helm-toolkit/templates/manifests/_job-db-sync.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-sync.tpl
-@@ -60,11 +60,15 @@ spec:
+@@ -62,11 +62,15 @@ spec:
    template:
      metadata:
        labels:
@@ -427,7 +426,7 @@ index 364a7fe8..c033cf39 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl b/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
-index e4b0e45d..387716c4 100644
+index e4b0e45d3..387716c41 100644
 --- a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
 +++ b/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
 @@ -64,11 +64,15 @@ spec:
@@ -447,7 +446,7 @@ index e4b0e45d..387716c4 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-ks-service.tpl b/helm-toolkit/templates/manifests/_job-ks-service.tpl
-index 9604c637..8111d37b 100644
+index 9604c6372..8111d37be 100644
 --- a/helm-toolkit/templates/manifests/_job-ks-service.tpl
 +++ b/helm-toolkit/templates/manifests/_job-ks-service.tpl
 @@ -64,11 +64,15 @@ spec:
@@ -467,7 +466,7 @@ index 9604c637..8111d37b 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl b/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
-index 58dcdc5c..f768e68e 100644
+index 58dcdc5c6..f768e68ee 100644
 --- a/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
 @@ -86,11 +86,15 @@ spec:
@@ -487,7 +486,7 @@ index 58dcdc5c..f768e68e 100644
      spec:
        serviceAccountName: {{ $serviceAccountName | quote }}
 diff --git a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
-index f3ff145f..4fda90de 100644
+index f3ff145f5..4fda90deb 100644
 --- a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
 @@ -51,11 +51,15 @@ spec:
@@ -507,7 +506,7 @@ index f3ff145f..4fda90de 100644
      spec:
        serviceAccountName: {{ $serviceAccountName | quote }}
 diff --git a/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl b/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
-index b5fdc09c..7c4b605f 100644
+index b5fdc09c3..7c4b605fd 100644
 --- a/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
 @@ -61,10 +61,15 @@ spec:
@@ -527,7 +526,7 @@ index b5fdc09c..7c4b605f 100644
        serviceAccountName: {{ $serviceAccountName | quote }}
        restartPolicy: OnFailure
 diff --git a/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl b/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
-index 77d1a71e..e07549c6 100644
+index 77d1a71e9..e07549c66 100644
 --- a/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
 @@ -59,10 +59,15 @@ spec:
@@ -547,7 +546,7 @@ index 77d1a71e..e07549c6 100644
        serviceAccountName: {{ $serviceAccountName | quote }}
        restartPolicy: OnFailure
 diff --git a/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl b/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl
-index 0906df4c..bc135c64 100644
+index 0906df4c9..bc135c64d 100644
 --- a/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl
 +++ b/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl
 @@ -57,10 +57,15 @@ spec:
@@ -567,10 +566,10 @@ index 0906df4c..bc135c64 100644
        serviceAccountName: {{ $serviceAccountName }}
        restartPolicy: OnFailure
 diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
-index 4a0b128a..050aefc0 100644
+index 48c16b04c..6acbb2709 100644
 --- a/libvirt/templates/daemonset-libvirt.yaml
 +++ b/libvirt/templates/daemonset-libvirt.yaml
-@@ -58,12 +58,14 @@ spec:
+@@ -51,12 +51,14 @@ spec:
    template:
      metadata:
        labels:
@@ -586,7 +585,7 @@ index 4a0b128a..050aefc0 100644
  {{ dict "envAll" $envAll "application" "libvirt" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index ba35a3f5..22ff231c 100644
+index 4ce6f990f..6fa3619c2 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
 @@ -19,6 +19,7 @@
@@ -598,7 +597,7 @@ index ba35a3f5..22ff231c 100644
      libvirt:
        node_selector_key: openstack-compute-node
 diff --git a/mariadb/templates/cron-job-backup-mariadb.yaml b/mariadb/templates/cron-job-backup-mariadb.yaml
-index cb838125..9222a086 100644
+index cb8381254..9222a0862 100644
 --- a/mariadb/templates/cron-job-backup-mariadb.yaml
 +++ b/mariadb/templates/cron-job-backup-mariadb.yaml
 @@ -47,7 +47,10 @@ spec:
@@ -612,43 +611,8 @@ index cb838125..9222a086 100644
          spec:
  {{ dict "envAll" $envAll "application" "mariadb_backup" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
            serviceAccountName: {{ $serviceAccountName }}
-diff --git a/mariadb/templates/deployment-error.yaml b/mariadb/templates/deployment-error.yaml
-index 4f3b68bd..eaa228bc 100644
---- a/mariadb/templates/deployment-error.yaml
-+++ b/mariadb/templates/deployment-error.yaml
-@@ -35,8 +35,10 @@ spec:
-   template:
-     metadata:
-       labels:
-+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
- {{ tuple $envAll "mariadb" "ingress-error-pages" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
-       annotations:
-+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
- {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
-         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
-         configmap-etc-hash: {{ tuple "configmap-ingress-etc.yaml" . | include "helm-toolkit.utils.hash" }}
-diff --git a/mariadb/templates/deployment-ingress.yaml b/mariadb/templates/deployment-ingress.yaml
-index ba0d64c9..cf964061 100644
---- a/mariadb/templates/deployment-ingress.yaml
-+++ b/mariadb/templates/deployment-ingress.yaml
-@@ -238,6 +238,7 @@ spec:
-   template:
-     metadata:
-       labels:
-+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
- {{ tuple $envAll "mariadb" "ingress" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
-         app.kubernetes.io/instance: {{ $serviceAccountName }}
-         app.kubernetes.io/name: "mariadb"
-@@ -247,6 +248,7 @@ spec:
-         app.kubernetes.io/version: {{ $envAll.Chart.AppVersion | quote }}
- {{- end }}
-       annotations:
-+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
- {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
-         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
-         configmap-etc-hash: {{ tuple "configmap-ingress-etc.yaml" . | include "helm-toolkit.utils.hash" }}
 diff --git a/mariadb/templates/pod-test.yaml b/mariadb/templates/pod-test.yaml
-index c8b3c29c..2f4ef851 100644
+index c8b3c29c3..2f4ef8511 100644
 --- a/mariadb/templates/pod-test.yaml
 +++ b/mariadb/templates/pod-test.yaml
 @@ -30,8 +30,10 @@ kind: Pod
@@ -663,10 +627,10 @@ index c8b3c29c..2f4ef851 100644
      {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
  {{ dict "envAll" $envAll "podName" "mariadb-test" "containerNames" (list "init" "mariadb-test") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 5be9ab46..b8d3f193 100644
+index 316dc9539..dc1d3eb50 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -125,8 +125,10 @@ spec:
+@@ -114,8 +114,10 @@ spec:
    template:
      metadata:
        labels:
@@ -678,10 +642,10 @@ index 5be9ab46..b8d3f193 100644
          configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
          configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 53789ba1..61d2d3e7 100644
+index 72783bdc7..c0e30a040 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -39,6 +39,7 @@ images:
+@@ -38,6 +38,7 @@ images:
        - image_repo_sync
  
  labels:
@@ -689,11 +653,11 @@ index 53789ba1..61d2d3e7 100644
    server:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
-diff --git a/memcached/templates/deployment.yaml b/memcached/templates/deployment.yaml
-index b3d12eaf..a2f0d912 100644
---- a/memcached/templates/deployment.yaml
-+++ b/memcached/templates/deployment.yaml
-@@ -43,10 +43,12 @@ spec:
+diff --git a/memcached/templates/statefulset.yaml b/memcached/templates/statefulset.yaml
+index 77692d1bb..c416c5cea 100644
+--- a/memcached/templates/statefulset.yaml
++++ b/memcached/templates/statefulset.yaml
+@@ -55,10 +55,12 @@ spec:
    template:
      metadata:
        annotations:
@@ -707,10 +671,10 @@ index b3d12eaf..a2f0d912 100644
      spec:
  {{ dict "envAll" $envAll "application" "server" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/memcached/values.yaml b/memcached/values.yaml
-index c1a4cd0c..dd2bf3c6 100644
+index 41fcb5086..b56313100 100644
 --- a/memcached/values.yaml
 +++ b/memcached/values.yaml
-@@ -130,6 +130,7 @@ images:
+@@ -133,6 +133,7 @@ images:
        - image_repo_sync
  
  labels:
@@ -719,7 +683,7 @@ index c1a4cd0c..dd2bf3c6 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/mongodb/templates/statefulset.yaml b/mongodb/templates/statefulset.yaml
-index 7456a077..6c4c5148 100644
+index 7456a0778..6c4c5148a 100644
 --- a/mongodb/templates/statefulset.yaml
 +++ b/mongodb/templates/statefulset.yaml
 @@ -35,10 +35,12 @@ spec:
@@ -736,7 +700,7 @@ index 7456a077..6c4c5148 100644
        serviceAccountName: {{ $serviceAccountName }}
        affinity:
 diff --git a/mongodb/values.yaml b/mongodb/values.yaml
-index e0d353e5..00afdcfe 100644
+index e0d353e5a..00afdcfe3 100644
 --- a/mongodb/values.yaml
 +++ b/mongodb/values.yaml
 @@ -70,6 +70,7 @@ volume:
@@ -748,7 +712,7 @@ index e0d353e5..00afdcfe 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/openvswitch/templates/daemonset.yaml b/openvswitch/templates/daemonset.yaml
-index 3a66fa51..c7aa9a05 100644
+index a6c7527b5..1bd5ba85c 100644
 --- a/openvswitch/templates/daemonset.yaml
 +++ b/openvswitch/templates/daemonset.yaml
 @@ -76,9 +76,11 @@ spec:
@@ -764,7 +728,7 @@ index 3a66fa51..c7aa9a05 100644
  {{ dict "envAll" $envAll "podName" "openvswitch" "containerNames" (list "openvswitch-db" "openvswitch-db-perms" "openvswitch-vswitchd" "openvswitch-vswitchd-modules" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/openvswitch/values.yaml b/openvswitch/values.yaml
-index b350f03e..49006ea9 100644
+index 89aeb88f6..5f9ee7d57 100644
 --- a/openvswitch/values.yaml
 +++ b/openvswitch/values.yaml
 @@ -32,6 +32,7 @@ images:
@@ -776,7 +740,7 @@ index b350f03e..49006ea9 100644
      node_selector_key: openvswitch
      node_selector_value: enabled
 diff --git a/rabbitmq/templates/job-cluster-wait.yaml b/rabbitmq/templates/job-cluster-wait.yaml
-index 1c4378c7..223291e4 100644
+index 1c4378c70..223291e48 100644
 --- a/rabbitmq/templates/job-cluster-wait.yaml
 +++ b/rabbitmq/templates/job-cluster-wait.yaml
 @@ -46,11 +46,13 @@ spec:
@@ -794,7 +758,7 @@ index 1c4378c7..223291e4 100644
      spec:
  {{ dict "envAll" $envAll "application" "cluster_wait" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/rabbitmq/templates/pod-test.yaml b/rabbitmq/templates/pod-test.yaml
-index 37d8af36..2cdc047d 100644
+index 37d8af364..2cdc047d4 100644
 --- a/rabbitmq/templates/pod-test.yaml
 +++ b/rabbitmq/templates/pod-test.yaml
 @@ -40,10 +40,12 @@ kind: Pod
@@ -811,7 +775,7 @@ index 37d8af36..2cdc047d 100644
  spec:
  {{ dict "envAll" $envAll "application" "test" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 2 }}
 diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
-index 68fbac71..0bbe2a8c 100644
+index 827a83827..2f9f663dc 100644
 --- a/rabbitmq/templates/statefulset.yaml
 +++ b/rabbitmq/templates/statefulset.yaml
 @@ -107,6 +107,7 @@ spec:
@@ -831,7 +795,7 @@ index 68fbac71..0bbe2a8c 100644
      spec:
  {{ dict "envAll" $envAll "application" "server" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index ca1f2036..68a963a1 100644
+index 015d3d259..1f8f44174 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
 @@ -17,6 +17,7 @@

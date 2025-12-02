@@ -15,16 +15,18 @@ Example provided at values_overrides/tls.yaml
 
 Change-Id: Ie9f81d5cfb7e0388f7c061e54342d052a0441647
 Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  mariadb/values.yaml               | 12 +++++++++---
- mariadb/values_overrides/tls.yaml | 15 ++++++++++++++-
+ values_overrides/mariadb/tls.yaml | 15 ++++++++++++++-
  2 files changed, 23 insertions(+), 4 deletions(-)
 
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 6f325e9c..72f5df7c 100644
+index 405a1a6b4..72783bdc7 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -474,19 +474,25 @@ conf:
+@@ -458,19 +458,25 @@ conf:
        wsrep_cluster_name={{ tuple "oslo_db" "direct" . | include "helm-toolkit.endpoints.hostname_namespaced_endpoint_lookup" | replace "." "_" }}
        wsrep_on=1
        wsrep_provider=/usr/lib/galera/libgalera_smm.so
@@ -53,10 +55,10 @@ index 6f325e9c..72f5df7c 100644
  
        [mysqldump]
        max-allowed-packet=16M
-diff --git a/mariadb/values_overrides/tls.yaml b/mariadb/values_overrides/tls.yaml
-index b8da60f8..b09de17c 100644
---- a/mariadb/values_overrides/tls.yaml
-+++ b/mariadb/values_overrides/tls.yaml
+diff --git a/values_overrides/mariadb/tls.yaml b/values_overrides/mariadb/tls.yaml
+index b8da60f89..b09de17c7 100644
+--- a/values_overrides/mariadb/tls.yaml
++++ b/values_overrides/mariadb/tls.yaml
 @@ -9,6 +9,7 @@ pod:
            runAsUser: 0
            allowPrivilegeEscalation: true
@@ -88,5 +90,5 @@ index b8da60f8..b09de17c 100644
    certificates: true
  ...
 -- 
-2.25.1
+2.34.1
 

@@ -14,15 +14,17 @@ libvirt and qemu rely on Debian systemd [1] to manage the it.
 
 Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
 Change-Id: Ib2c3b0cbd0666ffd5dd310103c3f1a75b36c330c
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  libvirt/templates/bin/_libvirt.sh.tpl | 4 +++-
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
-index 357bfe36..d16cdca3 100644
+index 81813f4f5..af1b4f5e0 100644
 --- a/libvirt/templates/bin/_libvirt.sh.tpl
 +++ b/libvirt/templates/bin/_libvirt.sh.tpl
-@@ -48,9 +48,11 @@ fi
+@@ -41,9 +41,11 @@ fi
  
  rm -f /var/run/libvirtd.pid
  
@@ -34,6 +36,6 @@ index 357bfe36..d16cdca3 100644
 +  fi
  fi
  
- if [ $CGROUP_VERSION != "v2" ]; then
+ #Setup Cgroups to use when breaking out of Kubernetes defined groups
 -- 
 2.34.1

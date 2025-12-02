@@ -1,11 +1,11 @@
 ---
 debname: openstack-helm-infra
-debver: 1.1-0
+debver: 1.2-0
 dl_path:
-  name: openstack-helm-infra-05f2f45971abcf483189358d663e2b46c3fc2fe8.tar.gz
-  url: https://github.com/openstack/openstack-helm-infra/archive/05f2f45971abcf483189358d663e2b46c3fc2fe8.tar.gz
-  md5sum: 7750b4bcf5bf77ee3285cb3325a2844f
-  sha256sum: 27cc39582e2c78126ded05e5de43359012868be32d226cdf53b43ee2813f5d16
+  name: openstack-helm-49c117443391cec75e0bd52bb4a9d033325927ad.tar.gz
+  url: https://github.com/openstack/openstack-helm/archive/49c117443391cec75e0bd52bb4a9d033325927ad.tar.gz
+  md5sum: 1c8332b1ee178a8c96bc5cb13822088c
+  sha256sum: 7d241c2900287827f8fdbce75e4cf18392e24a9ca4fb2527a113d8ef16f56d13
 src_files:
   - files/repositories.yaml
 revision:

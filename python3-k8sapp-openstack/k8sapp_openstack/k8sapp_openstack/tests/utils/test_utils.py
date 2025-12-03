@@ -2088,3 +2088,88 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         )
         # Original remains unchanged
         self.assertEqual(original, original_snapshot)
+
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    @mock.patch('sysinv.helm.utils.decompress_helm_release_data')
+    def test_get_helm_release_values_success(self, mock_decompress, mock_kube_operator):
+        """Test _get_helm_release_values returns values from helm release secret."""
+        mock_secret_v1 = mock.MagicMock()
+        mock_secret_v1.metadata.name = "sh.helm.release.v1.oidc-dex.v1"
+        mock_secret_v1.data = {'release': 'encoded_data'}
+
+        mock_secret_v2 = mock.MagicMock()
+        mock_secret_v2.metadata.name = "sh.helm.release.v1.oidc-dex.v2"
+        mock_secret_v2.data = {'release': 'encoded_data_v2'}
+
+        kube_instance = mock_kube_operator.return_value
+        kube_instance.kube_list_secret.return_value = [mock_secret_v1, mock_secret_v2]
+
+        mock_decompress.return_value = '{"config": {"key": "value"}}'
+
+        result = app_utils._get_helm_release_values('oidc-dex', 'kube-system')
+
+        self.assertEqual(result, {'key': 'value'})
+        kube_instance.kube_list_secret.assert_called_once_with('kube-system')
+        mock_decompress.assert_called_once_with('encoded_data_v2')
+
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_get_helm_release_values_no_secrets(self, mock_kube_operator):
+        """Test _get_helm_release_values returns None when no secrets exist."""
+        kube_instance = mock_kube_operator.return_value
+        kube_instance.kube_list_secret.return_value = []
+
+        result = app_utils._get_helm_release_values('oidc-dex', 'kube-system')
+
+        self.assertIsNone(result)
+
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_get_helm_release_values_no_matching_release(self, mock_kube_operator):
+        """Test _get_helm_release_values returns None when no matching release."""
+        mock_secret = mock.MagicMock()
+        mock_secret.metadata.name = "other-secret"
+
+        kube_instance = mock_kube_operator.return_value
+        kube_instance.kube_list_secret.return_value = [mock_secret]
+
+        result = app_utils._get_helm_release_values('oidc-dex', 'kube-system')
+
+        self.assertIsNone(result)
+
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_get_helm_release_values_exception(self, mock_kube_operator):
+        """Test _get_helm_release_values returns None on exception."""
+        kube_instance = mock_kube_operator.return_value
+        kube_instance.kube_list_secret.side_effect = Exception("Kube error")
+
+        result = app_utils._get_helm_release_values('oidc-dex', 'kube-system')
+
+        self.assertIsNone(result)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_dex_client_secret_found(self, mock_get_value, mock_get_helm_values):
+        """Test get_dex_client_secret returns secret when found in helm release."""
+        mock_get_value.return_value = 'stx-oidc-client-app'
+        mock_get_helm_values.return_value = {
+            'config': {
+                'staticClients': [
+                    {'id': 'other-client', 'secret': 'other-secret'},
+                    {'id': 'stx-oidc-client-app', 'secret': 'my-secret-value'}
+                ]
+            }
+        }
+
+        result = app_utils.get_dex_client_secret()
+
+        self.assertEqual(result, 'my-secret-value')
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_dex_client_secret_not_found(self, mock_get_value, mock_get_helm_values):
+        """Test get_dex_client_secret returns default when not found."""
+        mock_get_value.return_value = 'stx-oidc-client-app'
+        mock_get_helm_values.return_value = None
+
+        result = app_utils.get_dex_client_secret()
+
+        self.assertEqual(result, app_constants.DEX_CLIENT_SECRET_DEFAULT)

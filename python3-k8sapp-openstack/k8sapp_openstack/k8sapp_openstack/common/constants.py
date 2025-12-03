@@ -251,3 +251,10 @@ DEX_HEALTH_CHECK_DEFAULT_ENDPOINT = "/healthz"
 
 # Dex credentials secret name
 DEX_SECRET_NAME = "openstack-dex-credentials"
+
+# Dex chart configuration for oidc-auth-apps
+DEX_HELM_RELEASE_NAME = "oidc-dex"
+DEX_CHART_NAMESPACE = "kube-system"
+DEX_CLIENT_ID_DEFAULT = "stx-oidc-client-app"
+# Dummy secret from https://docs.starlingx.io/r/stx.5.0/security/kubernetes/configure-oidc-auth-applications.html
+DEX_CLIENT_SECRET_DEFAULT = "St8rlingX"

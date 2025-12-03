@@ -85,6 +85,50 @@ def _get_value_from_application(default_value, chart_name, override_name):
     return value
 
 
+def _get_helm_release_values(release_name, namespace) -> dict:
+    """Get values from a deployed Helm release by reading the release secret.
+
+    :param release_name: The name of the helm release (e.g., 'oidc-dex')
+    :param namespace: The namespace where the release is deployed
+
+    :returns: dict -- Helm values, or None if not found
+    """
+    try:
+        kube = kubernetes.KubeOperator()
+        secrets = kube.kube_list_secret(namespace)
+        if not secrets:
+            return None
+
+        prefix = f"sh.helm.release.v1.{release_name}.v"
+        release_secrets = [
+            s for s in secrets
+            if s.metadata.name.startswith(prefix)
+        ]
+
+        if not release_secrets:
+            return None
+
+        latest_secret = max(
+            release_secrets,
+            key=lambda s: int(s.metadata.name.split('.v')[-1])
+        )
+
+        release_data = latest_secret.data.get('release')
+        if not release_data:
+            return None
+
+        decompressed = helm_utils.decompress_helm_release_data(release_data)
+        release_json = json.loads(decompressed)
+        return release_json.get('config', {})
+
+    except Exception as e:
+        LOG.warning(
+            f"Error getting helm release values for '{release_name}' "
+            f"in namespace '{namespace}': {e}"
+        )
+        return None
+
+
 def is_user_overrides_available(chart_name, override_name) -> bool:
     """
     Checks if a Helm Chart has user overrides defined
@@ -2143,6 +2187,42 @@ def is_dex_enabled() -> bool:
     return enabled
 
 
+def get_dex_client_secret() -> str:
+    """Get the DEX client secret from oidc-auth-apps dex helm release.
+
+    Finds the static client matching the OIDCClientID configured in keystone
+    and returns its secret. Returns the default value if not found.
+
+    :returns: str -- The DEX client secret
+    """
+    client_id = _get_value_from_application(
+        default_value=app_constants.DEX_CLIENT_ID_DEFAULT,
+        chart_name=app_constants.HELM_CHART_KEYSTONE,
+        override_name="conf.federation.wsgi.OIDCClientID"
+    )
+
+    helm_values = _get_helm_release_values(
+        release_name=app_constants.DEX_HELM_RELEASE_NAME,
+        namespace=app_constants.DEX_CHART_NAMESPACE
+    )
+
+    if helm_values:
+        static_clients = helm_values.get('config', {}).get('staticClients', [])
+        if isinstance(static_clients, list):
+            client = next(
+                (c for c in static_clients if c.get('id') == client_id),
+                None
+            )
+            if client and 'secret' in client:
+                return client['secret']
+
+    LOG.warning(
+        f"DEX static client with id '{client_id}' not found in oidc-auth-apps, "
+        f"using default secret"
+    )
+    return app_constants.DEX_CLIENT_SECRET_DEFAULT
+
+
 def get_dex_issuer_url(db, dex_enabled) -> str:
     """
     Retrieve the OIDC issuer URL from system parameters.
@@ -2335,8 +2415,12 @@ def get_external_service_url(dbapi, service_name, https_ready):
 def pre_apply_create_dex_resources_secret(kube):
     """
     Create the Kubernetes secret containing DEX credentials used for
-    DEX-Keystone integration. The secret is generated only if DEX is enabled
-    and does not already exist in the OpenStack namespace.
+    DEX-Keystone integration. The secret is created or updated when DEX
+    is enabled.
+
+    The secret contains:
+    - password: The OIDC client secret retrieved from the dex chart overrides
+    - passphrase: A randomly generated passphrase for OIDCCryptoPassphrase
 
     Args:
         kube: Kubernetes operator instance used to interact
@@ -2346,29 +2430,73 @@ def pre_apply_create_dex_resources_secret(kube):
         SysinvException: If an error occurs while attempting to create the
                         DEX credentials secret.
     """
-    secret_body = {
-        'apiVersion': kubernetes.CERT_MANAGER_VERSION,
-        'kind': 'Secret',
-        'metadata': {
-            'name': app_constants.DEX_SECRET_NAME,
-            'namespace': app_constants.HELM_NS_OPENSTACK
-        },
-        'type': constants.K8S_SECRET_TYPE_OPAQUE,
-        'data': {
-            'password': base64.encode_as_text(secrets.token_urlsafe(32).encode()),
-            'passphrase': base64.encode_as_text(secrets.token_urlsafe(64).encode()),
-        }
-    }
-    secret_exists = kube.kube_get_secret(app_constants.DEX_SECRET_NAME, app_constants.HELM_NS_OPENSTACK)
     if not is_dex_enabled():
         LOG.info("DEX integration is not enabled, skipping secret creation")
-    elif secret_exists:
-        LOG.info(
-            f"Secret {app_constants.DEX_SECRET_NAME} already exists \
-            in {app_constants.HELM_NS_OPENSTACK}, skipping creation")
+        return
+
+    # Get the client secret from oidc-auth-apps dex chart overrides
+    dex_client_secret = get_dex_client_secret()
+
+    secret_exists = kube.kube_get_secret(app_constants.DEX_SECRET_NAME, app_constants.HELM_NS_OPENSTACK)
+
+    if secret_exists:
+        # Update existing secret with the current dex client secret
+        # This ensures the secret stays in sync with oidc-auth-apps
+        try:
+            existing_passphrase = secret_exists.data.get('passphrase', '')
+            if existing_passphrase:
+                # Keep the existing passphrase to avoid breaking OIDCCryptoPassphrase
+                passphrase = existing_passphrase
+            else:
+                passphrase = base64.encode_as_text(secrets.token_urlsafe(64).encode())
+
+            secret_body = {
+                'apiVersion': kubernetes.CERT_MANAGER_VERSION,
+                'kind': 'Secret',
+                'metadata': {
+                    'name': app_constants.DEX_SECRET_NAME,
+                    'namespace': app_constants.HELM_NS_OPENSTACK
+                },
+                'type': constants.K8S_SECRET_TYPE_OPAQUE,
+                'data': {
+                    'password': base64.encode_as_text(dex_client_secret.encode()),
+                    'passphrase': passphrase,
+                }
+            }
+            kube.kube_patch_secret(
+                app_constants.DEX_SECRET_NAME,
+                app_constants.HELM_NS_OPENSTACK,
+                secret_body
+            )
+            LOG.info(
+                f"Secret {app_constants.DEX_SECRET_NAME} updated with "
+                f"dex client secret from oidc-auth-apps"
+            )
+        except Exception as e:
+            msg = "Failed to update DEX credentials secret: %s" % str(e)
+            LOG.error(msg)
+            raise exception.SysinvException(msg)
     else:
+        # Create new secret
+        secret_body = {
+            'apiVersion': kubernetes.CERT_MANAGER_VERSION,
+            'kind': 'Secret',
+            'metadata': {
+                'name': app_constants.DEX_SECRET_NAME,
+                'namespace': app_constants.HELM_NS_OPENSTACK
+            },
+            'type': constants.K8S_SECRET_TYPE_OPAQUE,
+            'data': {
+                'password': base64.encode_as_text(dex_client_secret.encode()),
+                'passphrase': base64.encode_as_text(secrets.token_urlsafe(64).encode()),
+            }
+        }
         try:
             kube.kube_create_secret(app_constants.HELM_NS_OPENSTACK, secret_body)
+            LOG.info(
+                f"Secret {app_constants.DEX_SECRET_NAME} created with "
+                f"dex client secret from oidc-auth-apps"
+            )
         except Exception as e:
             msg = "Failed to create DEX credentials secret: %s" % str(e)
             LOG.error(msg)

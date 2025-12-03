@@ -573,6 +573,7 @@ conf:
       OIDCSSLValidateServer: "Off"
       OIDCPassClaimsAs: "both"
       OIDCOAuthSSLValidateServer: "Off"
+      OIDCEnableMemcached: true
     dex_idp:
       # Enable DEX integration
       enabled: false
@@ -869,6 +870,12 @@ conf:
 
         # Cache directory
         OIDCCacheDir /var/cache/apache2/mod_auth_openidc
+
+        {{- if .Values.conf.federation.wsgi.OIDCEnableMemcached }}
+        # Shared session cache across replicas using memcached
+        OIDCCacheType memcache
+        OIDCMemCacheServers {{ tuple "oslo_cache" "internal" "memcache" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" }}
+        {{- end }}
 
         # JWK refresh
         OIDCJWKSRefreshInterval 300

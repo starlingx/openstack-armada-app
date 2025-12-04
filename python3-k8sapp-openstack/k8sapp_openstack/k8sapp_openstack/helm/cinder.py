@@ -76,7 +76,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         self._rook_ceph = False
         ceph_overrides = dict()
         ceph_client_overrides = dict()
-        nfs_enabled = False
+        self._netapp_nfs_enabled = False
+        self._netapp_iscsi_enabled = False
+        self._netapp_fc_enabled = False
 
         if is_user_overrides_available(self.CHART, app_constants.OVERRIDE_STORAGE_BACKENDS):
             enabled_backends_override = get_enabled_storage_backends_from_override()
@@ -107,12 +109,22 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
         # Add NetApp configuration
         cinder_volume_read_only_filesystem = True
+        cinder_backup_privileged = False
         if is_netapp_available():
+            netapp_backends = check_netapp_backends()
+            self._netapp_nfs_enabled = netapp_backends["nfs"]
+            self._netapp_iscsi_enabled = netapp_backends["iscsi"]
+            self._netapp_fc_enabled = netapp_backends["fc"]
+
             # If NetApp is using NFS, the cinder-volume pod cannot have a readOnly filesystem,
             # as the NFS will be mounted into the pod during initialization
-            netapp_backends = check_netapp_backends()
-            cinder_volume_read_only_filesystem = not netapp_backends["nfs"]
-            nfs_enabled = netapp_backends["nfs"]
+            cinder_volume_read_only_filesystem = self._netapp_nfs_enabled
+
+            # For NetApp iSCSI the backup container needs to run in privileged
+            # mode [1][2]
+            # [1] https://review.opendev.org/c/openstack/tripleo-heat-templates/+/538272
+            # [2] https://review.opendev.org/c/openstack/openstack-helm/+/770008
+            cinder_backup_privileged = self._netapp_iscsi_enabled
 
             cinder_overrides = self._get_conf_netapp_cinder_overrides(cinder_overrides)
             backend_overrides = self._get_conf_netapp_backends_overrides(backend_overrides)
@@ -139,6 +151,15 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'pod': {
+                    # Following the same approach as the OSH community did for
+                    # Pure Storage integration [1], we use host network for
+                    # to support Netapp iSCSI.
+                    # [1] https://review.opendev.org/c/openstack/openstack-helm/+/770008
+                    # [2] https://review.opendev.org/c/openstack/openstack-helm/+/709378
+                    'useHostNetwork': {
+                        'volume': self._netapp_iscsi_enabled,
+                        'backup': self._netapp_iscsi_enabled
+                    },
                     'mounts': {
                         'cinder_volume': {
                             'cinder_volume': self._get_mount_overrides()
@@ -155,6 +176,13 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                             'container': {
                                 'cinder_volume': {
                                     'readOnlyRootFilesystem': cinder_volume_read_only_filesystem
+                                }
+                            }
+                        },
+                        'cinder_backup': {
+                            'container': {
+                                'cinder_backup': {
+                                    'privileged': cinder_backup_privileged
                                 }
                             }
                         }
@@ -175,7 +203,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             overrides[common.HELM_NS_OPENSTACK]['conf'].pop('ceph', 0)
             overrides[common.HELM_NS_OPENSTACK].pop('ceph_client', 0)
 
-        if nfs_enabled:
+        if self._netapp_nfs_enabled:
             overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
                 overrides[common.HELM_NS_OPENSTACK],
                 {
@@ -502,14 +530,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         return cinder_overrides
 
     def _get_common_backend_overrides(self):
-        backend_overrides = {}
-
         # We don't use the chart's default backends.
-        backend_overrides['rbd1'] = {
-            'volume_driver': ''
-        }
-
-        return backend_overrides
+        return dict()
 
     def _get_conf_rook_ceph_cinder_overrides(self, cinder_overrides):
         # Ensure 'DEFAULT' key exists in cinder_overrides and update it
@@ -578,7 +600,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
         ceph_uuid = get_ceph_fsid()
         if ceph_uuid:
-            backend_overrides['rbd1']['rbd_secret_uuid'] = ceph_uuid
             backend_overrides[app_constants.CEPH_ROOK_BACKEND_NAME]['rbd_secret_uuid'] = ceph_uuid
 
         return backend_overrides

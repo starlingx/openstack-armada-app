@@ -61,7 +61,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         ]
 
         LOG.info(f"Glance available backends: {self._available_backends}")
-        LOG.info(f"Glance available NetApp backends: {self._available_backends}")
+        LOG.info(f"Glance available NetApp backends: {self._available_netapp_backends}")
         LOG.info(f"Glance priority list: {self._priority_list}")
         LOG.info(f"Glance Ceph enabled: {self._ceph_enabled}")
         LOG.info(f"Glance NetApp enabled: {self._netapp_enabled}")
@@ -77,6 +77,13 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                 'conf': self._get_conf_overrides(),
                 'bootstrap': self._get_bootstrap_overrides(),
                 'ceph_client': self._get_ceph_client_overrides(),
+                'volumes': {
+                    'class_name': (
+                        self._storage_class
+                        if self._storage_class
+                        else app_constants.BACKEND_DEFAULT_STORAGE_CLASS
+                    )
+                }
             }
         }
 
@@ -200,11 +207,15 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     'graceful_shutdown': True,
                     'show_image_direct_url': False,
                     'show_multiple_locations': False,
+                    'enabled_backends': f"{self._image_store}:{self._image_store}"
                 },
                 'file': {
                     'filesystem_store_datadir': constants.GLANCE_IMAGE_PATH,
                 },
-                'rbd': rbd_conf
+                'rbd': rbd_conf,
+                'glance_store': {
+                    'default_backend': self._image_store
+                }
             }
         }
 

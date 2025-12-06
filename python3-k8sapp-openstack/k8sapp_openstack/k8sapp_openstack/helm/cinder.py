@@ -112,9 +112,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         cinder_backup_privileged = False
         if is_netapp_available():
             netapp_backends = check_netapp_backends()
-            self._netapp_nfs_enabled = netapp_backends["nfs"]
-            self._netapp_iscsi_enabled = netapp_backends["iscsi"]
-            self._netapp_fc_enabled = netapp_backends["fc"]
+            self._netapp_nfs_enabled = netapp_backends[app_constants.NETAPP_NFS_BACKEND_NAME]
+            self._netapp_iscsi_enabled = netapp_backends[app_constants.NETAPP_ISCSI_BACKEND_NAME]
+            self._netapp_fc_enabled = netapp_backends[app_constants.NETAPP_FC_BACKEND_NAME]
 
             # If NetApp is using NFS, the cinder-volume pod cannot have a readOnly filesystem,
             # as the NFS will be mounted into the pod during initialization
@@ -132,7 +132,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             # Update priority map for netapp backend
             # First we select only the enabled netapp backends
             netapp_enabled_backends = [
-                f"netapp-{b}" for b in netapp_backends.keys() if netapp_backends[b]]
+                b for b in netapp_backends.keys() if netapp_backends[b]
+            ]
             # Then we set the value in map accordingly to the position in the priority list
             for backend in netapp_enabled_backends:
                 self.priority_map[backend] = self.VOLUME_PRIORITY_LIST.index(backend) if (
@@ -332,13 +333,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # Get available NetApp backends
         netapp_backends = check_netapp_backends()
         netapp_array = [
-            app_constants.NETAPP_NFS_BACKEND_NAME if netapp_backends.get("nfs") else None,
-            app_constants.NETAPP_ISCSI_BACKEND_NAME if netapp_backends.get("iscsi") else None,
-            app_constants.NETAPP_FC_BACKEND_NAME if netapp_backends.get("fc") else None,
+            b for b in netapp_backends.keys() if netapp_backends[b]
         ]
-
-        # Remove None values
-        netapp_array = [item for item in netapp_array if item]
 
         # Add NetApp backends to Cinder enabled_backends list, ensuring no duplicates
         existing_backends = cinder_overrides['DEFAULT'].get('enabled_backends', '').split(',')
@@ -395,13 +391,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # Get available NetApp backends
         netapp_backends = check_netapp_backends()
         netapp_array = [
-            app_constants.NETAPP_NFS_BACKEND_NAME if netapp_backends.get("nfs") else None,
-            app_constants.NETAPP_ISCSI_BACKEND_NAME if netapp_backends.get("iscsi") else None,
-            app_constants.NETAPP_FC_BACKEND_NAME if netapp_backends.get("fc") else None,
+            b for b in netapp_backends.keys() if netapp_backends[b]
         ]
-
-        # Remove None values
-        netapp_array = [item for item in netapp_array if item]
 
         common_netapp_config = {
             'volume_driver': app_constants.NETAPP_CINDER_VOLUME_DRIVER,
@@ -414,17 +405,17 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         }
 
         nfs_config = {
-            'netapp_storage_protocol': 'nfs',
+            'netapp_storage_protocol': app_constants.NETAPP_NFS_OPENSTACK_PROTOCOL,
             'nfs_shares_config': app_constants.NFS_SHARES_CONFIG,
             'nfs_mount_options': app_constants.NFS_MOUNT_OPTIONS,
         }
 
         iscsi_config = {
-            'netapp_storage_protocol': 'iscsi',
+            'netapp_storage_protocol': app_constants.NETAPP_ISCSI_OPENSTACK_PROTOCOL,
         }
 
         fc_config = {
-            'netapp_storage_protocol': 'fc',
+            'netapp_storage_protocol': app_constants.NETAPP_FC_OPENSTACK_PROTOCOL,
         }
 
         for backend in netapp_array:

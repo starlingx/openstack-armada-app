@@ -32,11 +32,15 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     )
     @mock.patch(
         'k8sapp_openstack.utils.check_netapp_backends',
-        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.check_netapp_backends',
-        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.is_user_overrides_available',
@@ -113,11 +117,15 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     )
     @mock.patch(
         'k8sapp_openstack.utils.check_netapp_backends',
-        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.check_netapp_backends',
-        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.is_user_overrides_available',
@@ -220,11 +228,15 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     )
     @mock.patch(
         'k8sapp_openstack.utils.check_netapp_backends',
-        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.check_netapp_backends',
-        return_value={'nfs': False, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.is_user_overrides_available',
@@ -281,11 +293,15 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     )
     @mock.patch(
         'k8sapp_openstack.utils.check_netapp_backends',
-        return_value={'nfs': True, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: True,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.check_netapp_backends',
-        return_value={'nfs': True, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: True,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.is_user_overrides_available',
@@ -350,11 +366,15 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     )
     @mock.patch(
         'k8sapp_openstack.utils.check_netapp_backends',
-        return_value={'nfs': True, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: True,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.check_netapp_backends',
-        return_value={'nfs': True, 'iscsi': False, 'fc': False}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: True,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                      app_constants.NETAPP_FC_BACKEND_NAME: False}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.is_user_overrides_available',
@@ -420,11 +440,15 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     )
     @mock.patch(
         'k8sapp_openstack.utils.check_netapp_backends',
-        return_value={'nfs': True, 'iscsi': True, 'fc': True}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: True,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: True,
+                      app_constants.NETAPP_FC_BACKEND_NAME: True}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.check_netapp_backends',
-        return_value={'nfs': True, 'iscsi': True, 'fc': True}
+        return_value={app_constants.NETAPP_NFS_BACKEND_NAME: True,
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: True,
+                      app_constants.NETAPP_FC_BACKEND_NAME: True}
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.is_user_overrides_available',

@@ -437,10 +437,18 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
         netapp_backends_available = app_utils.check_netapp_backends()
-        netapp_nfs_available = netapp_backends_available.get("nfs", False)
-        netapp_iscsi_available = netapp_backends_available.get("iscsi", False)
-        netapp_fc_available = netapp_backends_available.get("fc", False)
-
+        netapp_nfs_available = netapp_backends_available.get(
+            app_constants.NETAPP_NFS_BACKEND_NAME,
+            False
+        )
+        netapp_iscsi_available = netapp_backends_available.get(
+            app_constants.NETAPP_ISCSI_BACKEND_NAME,
+            False
+        )
+        netapp_fc_available = netapp_backends_available.get(
+            app_constants.NETAPP_FC_BACKEND_NAME,
+            False
+        )
         status = f"ceph_available={ceph_available}, " \
                  f"rook_ceph_available={rook_ceph_available}, " \
                  f"netapp_nfs_available={netapp_nfs_available}, " \

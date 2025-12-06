@@ -10,7 +10,6 @@ import subprocess
 import mock
 from sysinv.common import constants
 from sysinv.common import exception
-from sysinv.common import kubernetes
 from sysinv.tests.db import base as dbbase
 
 from k8sapp_openstack import utils as app_utils
@@ -1666,28 +1665,39 @@ class UtilsTest(dbbase.ControllerHostTestCase):
 
         assert backends_map["nfs"]
 
-    @mock.patch("k8sapp_openstack.utils.subprocess.run")
-    def test_get_netapp_storage_class_name(self, mock_run):
-        """ Tests if get_netapp_storage_class_name returns a valid
-            storage class name for netapp.
-         """
-        mock_process = mock.MagicMock()
-        mock_process.stdout = "netapp-nas-backend ontap-nas"
-        mock_process.stderr = ""
-        mock_process.check_returncode.return_value = None
-        mock_run.return_value = mock_process
-
-        result = app_utils.get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_NFS)
-
-        assert result == "netapp-nas-backend"
-        mock_run.assert_called_once_with(
-            args=["kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
-            "get", "sc", "-o", "custom-columns=NAME:.metadata.name,TYPE:.parameters.backendType"],
-            capture_output=True,
-            text=True,
-            check=True,
-            shell=False
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                return_value="netapp-nas-backend other-nas")
+    def test_get_netapp_storage_class_name_nfs(self, *_):
+        """Test NetApp NFS backend returns the first storageclass name."""
+        result = app_utils.get_netapp_storage_class_name(
+            app_constants.BACKEND_TYPE_NETAPP_NFS
         )
+        self.assertEqual(result, "netapp-nas-backend")
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                return_value="")
+    def test_get_netapp_storage_class_name_empty(self, *_):
+        """Test when no storageclass is found (empty output)."""
+        result = app_utils.get_netapp_storage_class_name(
+            app_constants.BACKEND_TYPE_NETAPP_FC
+        )
+        self.assertEqual(result, "")
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                side_effect=Exception("kubectl failed"))
+    def test_get_netapp_storage_class_name_cmd_exception(self, *_):
+        """Test when command execution raises an exception."""
+        result = app_utils.get_netapp_storage_class_name(
+            app_constants.BACKEND_TYPE_NETAPP_NFS
+        )
+        self.assertEqual(result, "")
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response")
+    def test_get_netapp_storage_class_name_invalid(self, mock_send, *_):
+        """Test invalid backend type returns empty string and no command call."""
+        result = app_utils.get_netapp_storage_class_name("invalid-backend")
+        self.assertEqual(result, "")
+        mock_send.assert_not_called()
 
     def test_get_endpoint_domain_without_parameter(self):
         """ Test whether get_endpoint_domain returns an empty value when
@@ -1712,3 +1722,217 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         result = app_utils.get_endpoint_domain(dbapi=db_mock)
 
         assert result == "example.com"
+
+    @mock.patch("k8sapp_openstack.utils.check_netapp_backends",
+                return_value={"nfs": True, "iscsi": True, "fc": False})
+    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+                return_value="rook-ceph-rbd")
+    @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name")
+    @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
+    def test_get_available_volume_backends_all(self,
+                                                     mock_is_ceph,
+                                                     mock_get_netapp_sc,
+                                                     *_):
+        """Test when Rook Ceph is available and all NetApp backends exist."""
+        ceph_avail_map = {
+            constants.SB_TYPE_CEPH_ROOK: (True, ""),
+            constants.SB_TYPE_CEPH: (False, ""),
+        }
+        netapp_sc_map = {
+            app_constants.BACKEND_TYPE_NETAPP_NFS: "netapp-nas-backend",
+            app_constants.BACKEND_TYPE_NETAPP_ISCSI: "netapp-iscsi-backend",
+            app_constants.BACKEND_TYPE_NETAPP_FC: "netapp-iscsi-backend",
+        }
+
+        def ceph_side_effect(*, ceph_type):
+            return ceph_avail_map.get(ceph_type, (False, ""))
+
+        def netapp_sc_side_effect(backend_type):
+            return netapp_sc_map.get(backend_type, "")
+
+        mock_is_ceph.side_effect = ceph_side_effect
+        mock_get_netapp_sc.side_effect = netapp_sc_side_effect
+
+        result = app_utils.get_available_volume_backends()
+
+        self.assertEqual(
+            result,
+            {
+                "ceph": "rook-ceph-rbd",
+                "netapp-nfs": "netapp-nas-backend",
+                "netapp-iscsi": "netapp-iscsi-backend",
+                "netapp-fc": "",
+            }
+        )
+
+    @mock.patch("k8sapp_openstack.utils.check_netapp_backends",
+                return_value={"nfs": True, "iscsi": False, "fc": True})
+    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+                return_value="ignored")
+    @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name")
+    @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
+    def test_get_available_volume_backends_no_ceph(self,
+                                                   mock_is_ceph,
+                                                   mock_get_netapp_sc,
+                                                   *_):
+        """Test when no Ceph is available and some NetApp backends exist."""
+        ceph_avail_map = {
+            constants.SB_TYPE_CEPH_ROOK: (False, ""),
+            constants.SB_TYPE_CEPH: (False, ""),
+        }
+        netapp_sc_map = {
+            app_constants.BACKEND_TYPE_NETAPP_NFS: "netapp-nas-backend",
+            app_constants.BACKEND_TYPE_NETAPP_ISCSI: "",
+            app_constants.BACKEND_TYPE_NETAPP_FC: "netapp-fc-backend",
+        }
+
+        def ceph_side_effect(*, ceph_type):
+            return ceph_avail_map.get(ceph_type, (False, ""))
+
+        def netapp_sc_side_effect(backend_type):
+            return netapp_sc_map.get(backend_type, "")
+
+        mock_is_ceph.side_effect = ceph_side_effect
+        mock_get_netapp_sc.side_effect = netapp_sc_side_effect
+
+        result = app_utils.get_available_volume_backends()
+
+        self.assertEqual(
+            result,
+            {
+                "ceph": "",
+                "netapp-nfs": "netapp-nas-backend",
+                "netapp-iscsi": "",
+                "netapp-fc": "netapp-fc-backend",
+            }
+        )
+
+    @mock.patch("k8sapp_openstack.utils.check_netapp_backends",
+                return_value={"nfs": False, "iscsi": False, "fc": False})
+    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+                return_value="ceph-rbd")
+    @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name")
+    @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
+    def test_get_available_volume_backends_only_ceph(self,
+                                                     mock_is_ceph,
+                                                     mock_get_netapp_sc,
+                                                     *_):
+        """Test when only Ceph is available and no NetApp backends exist."""
+        ceph_avail_map = {
+            constants.SB_TYPE_CEPH_ROOK: (True, ""),
+            constants.SB_TYPE_CEPH: (False, ""),
+        }
+        netapp_sc_map = {
+            app_constants.BACKEND_TYPE_NETAPP_NFS: "",
+            app_constants.BACKEND_TYPE_NETAPP_ISCSI: "",
+            app_constants.BACKEND_TYPE_NETAPP_FC: "",
+        }
+
+        def ceph_side_effect(*, ceph_type):
+            return ceph_avail_map.get(ceph_type, (False, ""))
+
+        def netapp_sc_side_effect(backend_type):
+            return netapp_sc_map.get(backend_type, "")
+
+        mock_is_ceph.side_effect = ceph_side_effect
+        mock_get_netapp_sc.side_effect = netapp_sc_side_effect
+
+        result = app_utils.get_available_volume_backends()
+        self.assertEqual(
+            result,
+            {
+                "ceph": "ceph-rbd",
+                "netapp-nfs": "",
+                "netapp-iscsi": "",
+                "netapp-fc": "",
+            }
+        )
+
+    @mock.patch("k8sapp_openstack.utils.get_storage_class_names",
+                return_value=['netapp-san-backend'])
+    def test_is_netapp_storageclass_available_true(self, *_):
+        """Test if is_netapp_storageclass_available returns True
+           when there is at least one NetApp storageclass available.
+        """
+        result = app_utils.is_netapp_storageclass_available()
+        self.assertTrue(result)
+
+    @mock.patch("k8sapp_openstack.utils.get_storage_class_names",
+                return_value=[])
+    def test_is_netapp_storageclass_available_false(self, *_):
+        """Test if is_netapp_storageclass_available returns False
+           when there is no NetApp storageclass available.
+        """
+        result = app_utils.is_netapp_storageclass_available()
+        self.assertFalse(result)
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                return_value="cephfs general netapp-nas-backend netapp-san")
+    def test_get_storage_class_names_all(self, *_):
+        """Test when there is no filtering by provisioner
+           (return all storageclasses).
+        """
+        result = app_utils.get_storage_class_names()
+        self.assertEqual(
+            result,
+            ['cephfs', 'general', 'netapp-nas-backend', 'netapp-san']
+        )
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                return_value="netapp-nas-backend netapp-san")
+    def test_get_storage_class_names_netapp(self, *_):
+        """Test filtering by NetApp provisioner.
+        """
+        result = app_utils.get_storage_class_names(
+            provisioner=app_constants.NETAPP_STORAGECLASS_PROVISIONER
+        )
+        self.assertEqual(
+            result,
+            ['netapp-nas-backend', 'netapp-san']
+        )
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                return_value="")
+    def test_get_storage_class_names_empty(self, *_):
+        """Test when there are no storageclasses available
+           (empty output must return an empty list).
+        """
+        result = app_utils.get_storage_class_names()
+        self.assertEqual(result, [])
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                side_effect=Exception("kubectl failed"))
+    def test_get_storage_class_names_cmd_exception(self, *_):
+        """Test when command execution raises an exception
+           (should return empty list).
+        """
+        result = app_utils.get_storage_class_names()
+        self.assertEqual(result, [])
+
+    @mock.patch("k8sapp_openstack.utils.get_storage_class_names",
+                return_value=['ceph-rbd', 'general'])
+    def test_get_ceph_rbd_storage_class_name_ceph(self, mock_get_sc, *_):
+        """Test host-based Ceph (constants.SB_TYPE_CEPH)."""
+        result = app_utils.get_ceph_rbd_storage_class_name(
+            ceph_type=constants.SB_TYPE_CEPH
+        )
+        self.assertEqual(result, 'ceph-rbd')
+        mock_get_sc.assert_called_once_with(app_constants.CEPH_RBD_DRIVER)
+
+    @mock.patch("k8sapp_openstack.utils.get_storage_class_names",
+                return_value=['rook-ceph-rbd', 'general'])
+    def test_get_ceph_rbd_storage_class_name_rook(self, mock_get_sc, *_):
+        """Test Rook-managed Ceph (constants.SB_TYPE_CEPH_ROOK)."""
+        result = app_utils.get_ceph_rbd_storage_class_name(
+            ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
+        self.assertEqual(result, 'rook-ceph-rbd')
+        mock_get_sc.assert_called_once_with(app_constants.CEPH_ROOK_RBD_DRIVER)
+
+    @mock.patch("k8sapp_openstack.utils.get_storage_class_names",
+                return_value=[])
+    def test_get_ceph_rbd_storage_class_name_empty(self, mock_get_sc, *_):
+        """Test default ceph_type when no RBD backends are available."""
+        result = app_utils.get_ceph_rbd_storage_class_name()
+        self.assertEqual(result, "")
+        mock_get_sc.assert_called_once_with(app_constants.CEPH_ROOK_RBD_DRIVER)

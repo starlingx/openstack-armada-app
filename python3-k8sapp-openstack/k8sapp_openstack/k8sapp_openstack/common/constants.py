@@ -150,13 +150,14 @@ CLIENTS_WORKING_DIR_USER = "sysadmin"
 # NetApp definitions
 NETAPP_CONTROLLER_LABEL = "controller.csi.trident.netapp.io"
 NETAPP_MAIN_CONTAINER_NAME = "trident-main"
-NETAPP_STORAGECLASS_NAME = "csi.trident.netapp.io"
+NETAPP_STORAGECLASS_PROVISIONER = "csi.trident.netapp.io"
 NETAPP_NFS_BACKEND_NAME = 'netapp-nfs'
 NETAPP_ISCSI_BACKEND_NAME = 'netapp-iscsi'
 NETAPP_FC_BACKEND_NAME = 'netapp-fc'
 BACKEND_DEFAULT_STORAGE_CLASS = "general"
 BACKEND_TYPE_NETAPP_NFS = "ontap-nas"
 BACKEND_TYPE_NETAPP_ISCSI = "ontap-san"
+BACKEND_TYPE_NETAPP_FC = "ontap-san"
 
 # NetApp Default and Placeholder Values
 NETAPP_CINDER_VOLUME_DRIVER = "cinder.volume.drivers.netapp.common.NetAppDriver"

@@ -511,6 +511,56 @@ def _get_file_content(filename):
         return f.read()
 
 
+def get_storage_class_names(provisioner: str = None,
+                            log: bool = False) -> list[str]:
+    """Return Kubernetes StorageClass names, optionally filtered by provisioner.
+
+    Args:
+        provisioner: The provisioner string to filter StorageClasses by
+            (e.g., ``"csi.trident.netapp.io"``). If ``None``, returns all
+            StorageClass names.
+        log: Whether to enable logging for the underlying command execution via
+            ``send_cmd_read_response``.
+
+    Returns:
+        A list of StorageClass names. Returns an empty list on error
+        or when no matching StorageClasses are found.
+
+    Raises:
+        This function does not raise exceptions. They are caught internally, logged,
+        and an empty list is returned.
+
+    Examples:
+        >>> get_storage_class_names()
+        ['cephfs', 'general', 'netapp-nas-backend', 'netapp-san']
+
+        >>> get_storage_class_names('csi.trident.netapp.io')
+        ['netapp-nas-backend', 'netapp-san']
+    """
+    provisioner_str = provisioner if provisioner else "any"
+    jsonpath = (
+        f"{{range .items[?(@.provisioner==\"{provisioner}\")]}}"
+        r"{.metadata.name}"
+        "{\"\\n\"}"
+        r"{end}"
+    ) if provisioner else "{.items[*].metadata.name}"
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "get", "storageclass",
+        "-o", f"jsonpath={jsonpath}"
+    ]
+    try:
+        output = send_cmd_read_response(cmd, log=log)
+        if not output:
+            LOG.warning(f"Unable to find storageclasses for '{provisioner_str}'"
+                        " provisioner")
+        return output.split()
+    except Exception as e:
+        LOG.error("Unexpected error while fetching storageclasses for"
+                  f" '{provisioner_str}' provisioner: {e}")
+        return list()
+
+
 def is_netapp_storageclass_available() -> bool:
     """
     Check if there are any NetApp storageclasses defined in the system
@@ -519,28 +569,13 @@ def is_netapp_storageclass_available() -> bool:
         bool: True if at least one NetApp storageclass was found; false
         otherwise
     """
-    try:
-        # Formatting output to get storageclasses names with the trident provisioner only
-        jsonpath = (
-            f"{{range .items[?(@.provisioner==\"{app_constants.NETAPP_STORAGECLASS_NAME}\")]}}"
-            r"{.metadata.name}"
-            "{\"\\n\"}"
-            r"{end}'"
-        )
-        cmd = [
-            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
-            "get", "storageclass",
-            "-o", f"jsonpath={jsonpath}"
-        ]
-        storageclass_info = send_cmd_read_response(cmd, log=False)
-
-        if not storageclass_info:
-            LOG.warning(f"Unable to find storageclass '{app_constants.NETAPP_STORAGECLASS_NAME}'")
-            return False
-        return True
-    except Exception as e:
-        LOG.error(f"Unexpected error while fetching NetApp storageclasses: {e}")
-        return False
+    netapp_storageclasses = get_storage_class_names(
+        provisioner=app_constants.NETAPP_STORAGECLASS_PROVISIONER,
+        log=False
+    )
+    if not netapp_storageclasses:
+        LOG.warning("Unable to find NetApp storageclasses")
+    return bool(netapp_storageclasses)
 
 
 def check_netapp_backends() -> dict:
@@ -666,7 +701,7 @@ def is_netapp_available() -> bool:
 
 
 def is_ceph_backend_available(ceph_type: str =
-                              constants.SB_TYPE_CEPH) -> bool:
+                              constants.SB_TYPE_CEPH) -> tuple[bool, str]:
     """Checks if the given Ceph storage backend type is available
 
     Args:
@@ -1679,75 +1714,132 @@ def get_available_volume_backends() -> dict:
     Returns:
         dict[string, string]: A dictionary containing the backend volumes with corresponding
         storage class name.
-    """
-    rook_ceph = is_ceph_backend_available(
-        ceph_type=constants.SB_TYPE_CEPH_ROOK
-    )
-    netapp_backend = check_netapp_backends()
 
+    Example:
+        >>> get_available_volume_backends()
+        {
+            "ceph": "ceph-rbd",
+            "netapp-nfs": "netapp-nas-backend",
+            "netapp-iscsi": "",  # NetApp iscsi backend not available
+            "netapp-fc": "netapp-fc-backend"
+        }
+    """
+    ceph_storage_class = ""
+    if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)[0]:
+        LOG.info("Rook Ceph backend is available.")
+        ceph_storage_class = get_ceph_rbd_storage_class_name(
+            constants.SB_TYPE_CEPH_ROOK
+        )
+    elif is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH)[0]:
+        LOG.info("Host-based Ceph backend is available.")
+        ceph_storage_class = get_ceph_rbd_storage_class_name(
+            constants.SB_TYPE_CEPH
+        )
+    else:
+        LOG.warning("No Ceph backend is available.")
+    netapp_backend = check_netapp_backends()
     available_volume_backends = {
-        "ceph": app_constants.BACKEND_DEFAULT_STORAGE_CLASS if rook_ceph else "",
-        "netapp-nfs":
-            get_netapp_storage_class_name(
-                app_constants.BACKEND_TYPE_NETAPP_NFS
-            ) if netapp_backend.get("nfs", False) else "",
-        "netapp-iscsi":
-            get_netapp_storage_class_name(
-                app_constants.BACKEND_TYPE_NETAPP_ISCSI
-            ) if netapp_backend.get("iscsi", False) else "",
-        "netapp-fc": "",
+        "ceph": ceph_storage_class,
+        "netapp-nfs": (
+            get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_NFS)
+            if netapp_backend.get("nfs", False)
+            else ""
+        ),
+        "netapp-iscsi": (
+            get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_ISCSI)
+            if netapp_backend.get("iscsi", False)
+            else ""
+        ),
+        "netapp-fc": (
+            get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_FC)
+            if netapp_backend.get("fc", False)
+            else ""
+        ),
     }
     return available_volume_backends
 
 
-def get_netapp_storage_class_name(backend_type) -> str:
-    """
-    Check for the storage class name for NetApp backends based on a backend-type.
+def get_ceph_rbd_storage_class_name(ceph_type: str =
+                                    constants.SB_TYPE_CEPH_ROOK) -> str:
+
+    """Return the name of the first Ceph RBD StorageClass for the given Ceph type.
+
+    Args:
+        ceph_type: The Ceph deployment type selector. It must be one of:
+            - ``constants.SB_TYPE_CEPH_ROOK`` - Rook-managed Ceph
+            - ``constants.SB_TYPE_CEPH`` - Host-based Ceph
 
     Returns:
-        str: A string indicating the backends class_name
-              Example: "netapp-nas-backend"
+        The name of the first matching Ceph RBD StorageClass as a string, or
+        an empty string if none are found.
+
+    Examples:
+        >>> get_ceph_rbd_storage_class_name()
+        'ceph-rbd' or 'general'
+
+        >>> get_ceph_rbd_storage_class_name(constants.SB_TYPE_CEPH_ROOK)
+        'rook-ceph-rbd' or 'general'
     """
-    class_name = ""
+    if ceph_type == constants.SB_TYPE_CEPH_ROOK:
+        provisioner = app_constants.CEPH_ROOK_RBD_DRIVER
+    else:
+        provisioner = app_constants.CEPH_RBD_DRIVER
+    ceph_rbd_sc_names = get_storage_class_names(provisioner)
+    # Returns the first storage class found for the given Ceph RBD provisioner
+    return ceph_rbd_sc_names[0] if ceph_rbd_sc_names else ""
 
+
+def get_netapp_storage_class_name(backend_type) -> str:
+    """
+    Check the storage class name for the given NetApp backend type.
+
+    Args:
+        backend_type (str): The NetApp backend type selector. It must be one of:
+            - "netapp-nas" - NetApp NFS backend
+            - "netapp-san" - NetApp iSCSI or FC backend
+
+    Returns:
+        str: The name of the first matching NetApp StorageClass as a string, or
+             an empty string if none are found.
+
+    Examples:
+        >>> get_netapp_storage_class_name("netapp-nas")
+        'netapp-nas-backend'
+        >>> get_netapp_storage_class_name("netapp-san")
+        'netapp-san-backend'
+        >>> get_netapp_storage_class_name("invalid-backend")
+        ''
+    """
+    if backend_type not in [
+        app_constants.BACKEND_TYPE_NETAPP_NFS,
+        app_constants.BACKEND_TYPE_NETAPP_ISCSI,
+        app_constants.BACKEND_TYPE_NETAPP_FC
+    ]:
+        LOG.error(f"Invalid backend_type '{backend_type}' provided for"
+                  " NetApp storage class retrieval.")
+        return ""
+    jsonpath = (
+        f"{{range .items[?(@.parameters.backendType==\"{backend_type}\")]}}"
+        r"{.metadata.name}"
+        "{\"\\n\"}"
+        r"{end}"
+    )
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "get", "storageclass",
+        "-o", f"jsonpath={jsonpath}"
+    ]
     try:
-        cmd = [
-            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
-            "get", "sc", "-o", "custom-columns=NAME:.metadata.name,TYPE:.parameters.backendType"
-        ]
-
-        storage_classes_info = subprocess.run(
-            args=cmd,
-            capture_output=True,
-            text=True,
-            check=True,
-            shell=False)
-
-        if not storage_classes_info.stdout:
-            return class_name
-
-        # Need to manually search for the backend type and parse the string
-        lines = storage_classes_info.stdout.splitlines()
-        for line in lines:
-            if backend_type in line:
-                class_name = line.split(" ")[0]
-        return class_name
-
-    except KubeApiException as e:
-        LOG.error(f"Failed to get kubectl sc: {e}")
-        return class_name
-    except subprocess.CalledProcessError as e:
-        LOG.error(
-            "kubectl command did not return successful return code: "
-            f"{e.returncode}. Error message was: {e.output}"
-        )
-        return class_name
-    except subprocess.TimeoutExpired as e:
-        LOG.error(f"kubectl command timed out: {e}")
-        return class_name
+        output = send_cmd_read_response(cmd, log=False)
+        if not output:
+            LOG.warning(f"Unable to find storageclass for NetApp backend type"
+                        f" '{backend_type}'.")
+            return ""
+        return output.split()[0]
     except Exception as e:
-        LOG.error(f"Unexpected error while fetching NetApp backends: {e}")
-        return class_name
+        LOG.error("Unexpected error while fetching storageclasses for"
+                  f" NetApp backend type '{backend_type}': {e}")
+        return ""
 
 
 def is_dex_enabled() -> bool:

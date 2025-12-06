@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
+from copy import deepcopy
 from grp import getgrnam
 import json
 import os
@@ -99,6 +100,68 @@ def is_user_overrides_available(chart_name, override_name) -> bool:
         override_name=override_name
     )
     return override is not None
+
+
+def override_configs(config: dict, overrides: dict) -> dict:
+    """ Override configuration dictionary with another one.
+
+    Args:
+        config (dict): The original configuration dictionary.
+        overrides (dict): The dictionary with overriding values.
+
+    Returns:
+        dict: The resulting configuration dictionary after applying overrides.
+
+    Note:
+        - This function performs a deep copy of the original configuration to avoid
+          modifying it in place.
+        - If both the original and overriding values for a key are dictionaries,
+          the function merges them recursively.
+        - For lists and other non-dictionary types, the overriding value completely
+          replaces the original value.
+
+    Example:
+        original_config = {
+            'database': {
+                'host': 'localhost',
+                'port': 3306,
+                'credentials': {
+                    'username': 'admin',
+                    'password': 'admin123'
+                }
+            },
+            'features': ['feature1', 'feature2']
+        }
+        overrides = {
+            'database': {
+                'port': 5432,
+                'credentials': {
+                    'password': 'newpassword'
+                }
+            },
+            'features': ['feature3']
+        }
+        result = override_configs(original_config, overrides)
+        # result will be:
+        {
+            'database': {
+                'host': 'localhost',
+                'port': 5432,
+                'credentials': {
+                    'username': 'admin',
+                    'password': 'newpassword'
+                }
+            },
+            'features': ['feature3']
+        }
+    """
+    result = deepcopy(config)
+    for k, val in overrides.items():
+        if k in result and isinstance(result[k], dict) and isinstance(val, dict):
+            result[k] = override_configs(result[k], val)
+        else:
+            result[k] = deepcopy(val)
+    return result
 
 
 def get_services_fqdn_pattern() -> str:
@@ -578,25 +641,228 @@ def is_netapp_storageclass_available() -> bool:
     return bool(netapp_storageclasses)
 
 
-def check_netapp_backends() -> dict:
+def check_netapp_backends(chart_name: str = app_constants.HELM_CHART_CINDER,
+                          override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS) -> dict:
     """
-    Check for the presence of NetApp backends (NFS, iSCSI and SCSi via FC) using
-    either the user overrides or the auto-discovery feature
+    Check the availability of NetApp backends, considering user overrides.
+
+    To be considered a available backend, two conditions must be met:
+    1. The backend must be discovered automatically via `netapp_backends_auto_discovery()`.
+    2. If user overrides are defined for storage backends, the backend must be
+       explicitly enabled in those overrides.
+
+    Args:
+        chart_name (str): The Helm chart name to check for user overrides.
+                     Defaults to `app_constants.HELM_CHART_CINDER`.
+        override_name (str): The name of the override field in values.yaml.
 
     Returns:
-        dict: A dictionary indicating the availability of 'nfs', 'iscsi' or 'fc' backends.
-              Example: {"nfs": True, "iscsi": False, "fc": False}
+        dict: A dictionary indicating the availability of each NetApp backend:
+        ```
+        {
+          "netapp-nfs": True/False,
+          "netapp-iscsi": True/False,
+          "netapp-fc": True/False
+        }
+        ```
     """
-    if is_user_overrides_available(app_constants.HELM_CHART_CINDER,
-                                   app_constants.OVERRIDE_STORAGE_BACKENDS):
-        enabled_backends = get_enabled_storage_backends_from_override()
-        backends_map = {"nfs": False, "iscsi": False, "fc": False}
-        backends_map["nfs"] = app_constants.NETAPP_NFS_BACKEND_NAME in enabled_backends
-        backends_map["iscsi"] = app_constants.NETAPP_ISCSI_BACKEND_NAME in enabled_backends
-        backends_map["fc"] = app_constants.NETAPP_FC_BACKEND_NAME in enabled_backends
-        return backends_map
+    netapp_backends_available = netapp_backends_auto_discovery()
+    if is_user_overrides_available(chart_name=chart_name,
+                                   override_name=override_name):
+        enabled_backends = get_enabled_storage_backends_from_override(
+            chart_name=chart_name,
+            override_name=override_name
+        )
+        netapp_backends_available[app_constants.NETAPP_NFS_BACKEND_NAME] &= (
+            app_constants.NETAPP_NFS_BACKEND_NAME in enabled_backends
+        )
+        netapp_backends_available[app_constants.NETAPP_ISCSI_BACKEND_NAME] &= (
+            app_constants.NETAPP_ISCSI_BACKEND_NAME in enabled_backends
+        )
+        netapp_backends_available[app_constants.NETAPP_FC_BACKEND_NAME] &= (
+            app_constants.NETAPP_FC_BACKEND_NAME in enabled_backends
+        )
+    return netapp_backends_available
 
-    return netapp_backends_auto_discovery()
+
+def discover_netapp_credentials(backend_type: str) -> dict:
+    """
+    Discover NetApp backend credentials (username and password) from Kubernetes Secrets
+    referenced by TridentBackendConfig (TBC).
+
+    This function assumes that only one protocol is deployed for the requested
+    storage driver at a time. For example, `netapp-iscsi` and `netapp-fc` both use
+    ``storageDriverName: ontap-san``, but you do **not** run iSCSI and FC simultaneously.
+    Likewise, `netapp-nfs` uses ``storageDriverName: ontap-nas``.
+
+    Args:
+        backend_type (str):
+            Logical backend type to query. Supported values:
+            - `"netapp-nfs"`: filters TBCs with ``storageDriverName == "ontap-nas"``.
+            - `"netapp-iscsi"`: filters TBCs with ``storageDriverName == "ontap-san"``.
+            - `"netapp-fc"`: filters TBCs with ``storageDriverName == "ontap-san"``.
+            Only **one** of the SAN protocols (iSCSI or FC) should be present at a time.
+            If multiple TBCs match, the **first** match is used.
+
+    Returns:
+        dict:
+            A dictionary with the decoded credentials:
+            ```
+            {
+              "netapp_login": "<username>",
+              "netapp_password": "<password>"
+            }
+            ```
+            If the Secret or fields cannot be found/decoded, an empty dict
+            will be returned
+
+    Example:
+        >>> discover_netapp_credentials("netapp-iscsi")
+        {"netapp_login": "<username>", "netapp_password": <password>"}
+
+        >>> discover_netapp_credentials("invalid-backend")
+        {}
+    """
+    credentials = dict()
+    bt = backend_type.strip().lower()
+    if bt not in app_constants.NETAPP_SUPPORTED_BACKENDS:
+        LOG.error(
+            f"Unsupported backend '{bt}'. "
+            f"Supported backends: {app_constants.NETAPP_SUPPORTED_BACKENDS}"
+        )
+        return credentials
+    driver = app_constants.NETAPP_BACKEND_TO_TYPE[bt]
+    jsonpath = f"{{.items[?(@.spec.storageDriverName==\"{driver}\")].spec.credentials.name}}"
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "get", "tridentbackendconfigs",
+        "-n", app_constants.OPENSTACK_NETAPP_NAMESPACE,
+        "-o", f"jsonpath={jsonpath}"
+    ]
+    try:
+        # Discover credentials secret name via tridentbackendconfigs filtered by
+        # storageDriverName
+        secret_name = send_cmd_read_response(cmd, log=False)
+        if not secret_name:
+            LOG.error(f"No tridentbackendconfigs with storageDriverName='{driver}'"
+                      "found or missing '.spec.credentials.name' definition.")
+            return credentials
+        secret_name = secret_name.splitlines()[0].split()[0]  # First match
+        # Read base64(username::password) from the Secret via jsonpath
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "get", "secret", secret_name,
+            "-n", app_constants.OPENSTACK_NETAPP_NAMESPACE,
+            "-o", "jsonpath={.data.username}{\"::\"}{.data.password}"
+        ]
+        b64_creds = send_cmd_read_response(cmd, log=False)
+        if not b64_creds or "::" not in b64_creds:
+            LOG.error(f"Secret '{secret_name}' missing credentials")
+            return credentials
+        b64_user, b64_pass = b64_creds.split("::", 1)
+        # Decode base64 credentials
+        username = base64.decode_as_text(b64_user)
+        password = base64.decode_as_text(b64_pass)
+        credentials['netapp_login'] = username
+        credentials['netapp_password'] = password
+    except Exception as e:
+        LOG.error("Error recovering credentials for '{backend_type}' backend: "
+                  f"{e}")
+    return credentials
+
+
+def discover_netapp_configs(backend_type: str) -> dict:
+    """
+    Discover OpenStack-compatible NetApp backend configuration from
+    TridentBackendConfig (TBC) objects in the designated namespace.
+
+    This function follows the same style and assumptions as
+    ``discover_netapp_credentials``:
+      - Filters TBCs **only** by ``.spec.storageDriverName``.
+      - Assumes that for SAN drivers (``ontap-san``), only **one** protocol
+        is deployed at a time (either iSCSI or FC). Because of this, the
+        **first** matching TBC is considered authoritative.
+      - Uses a single `kubectl` jsonpath call that concatenates both
+        ``managementLIF`` and ``svm`` with a sentinel delimiter, then splits
+        locally in Python.
+
+    Args:
+        backend_type (str):
+            Logical backend type to query. Supported values:
+            - `"netapp-nfs"`: filters TBCs with ``storageDriverName == "ontap-nas"``.
+            - `"netapp-iscsi"`: filters TBCs with ``storageDriverName == "ontap-san"``.
+            - `"netapp-fc"`: filters TBCs with ``storageDriverName == "ontap-san"``.
+            Only **one** of the SAN protocols (iSCSI or FC) should be present at a time.
+            If multiple TBCs match, the **first** match is used.
+
+    Returns:
+        dict:
+            An OpenStack-compatible configuration dict. If discovery fails (e.g.,
+            TBC fields missing), an **empty dict** is returned and an error is logged.
+            Returned object (OpenStack Cinder NetApp unified driver compatible):
+                {
+                    "netapp_storage_protocol": "nfs" | "iscsi" | "fc",
+                    "netapp_server_hostname": "<managementLIF>",
+                    "netapp_server_port": <int>,
+                    "netapp_transport_type": "http" | "https",
+                    "netapp_vserver": "<svm>"
+                }
+
+    Example:
+        >>> discover_netapp_configs("netapp-iscsi")
+        {
+            "volume_driver": "cinder.volume.drivers.netapp.common.NetAppDriver",
+            "netapp_storage_family": "ontap_cluster",
+            "netapp_storage_protocol": "iscsi",
+            "netapp_vserver": "svm_iscsi",
+            "netapp_server_hostname": "10.0.0.10",
+            "netapp_server_port": 443,
+            "netapp_transport_type": "https",
+        }
+    """
+    openstack_config = dict()
+    bt = backend_type.strip().lower()
+    if bt not in app_constants.NETAPP_SUPPORTED_BACKENDS:
+        LOG.error(
+            f"Unsupported backend '{bt}'. "
+            f"Supported backends: {app_constants.NETAPP_SUPPORTED_BACKENDS}"
+        )
+        return openstack_config
+    driver = app_constants.NETAPP_BACKEND_TO_TYPE[bt]
+    netapp_protocol = app_constants.NETAPP_BACKEND_TO_OPENSTACK_PROTOCOL[bt]
+    # Read managementLIF:::svm from tridentbackendconfigs via jsonpath
+    jsonpath = (
+        f"{{.items[?(@.spec.storageDriverName==\"{driver}\")].spec.managementLIF}}"
+        f"{{\":::\"}}"
+        f"{{.items[?(@.spec.storageDriverName==\"{driver}\")].spec.svm}}"
+    )
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "get", "tridentbackendconfigs",
+        "-n", app_constants.OPENSTACK_NETAPP_NAMESPACE,
+        "-o", f"jsonpath={jsonpath}"
+    ]
+    try:
+        mgmt_lif_svm = send_cmd_read_response(cmd, log=False).strip()
+        if not mgmt_lif_svm or ":::" not in mgmt_lif_svm:
+            LOG.error("Could not retrieve managementLIF and svm for "
+                      f"driver='{driver}'.")
+            return openstack_config
+        mgmt_lif_svm = mgmt_lif_svm.splitlines()[0].split()[0]  # First match
+        mgmt_lif, svm = mgmt_lif_svm.split(":::", 1)
+        if not mgmt_lif or not svm:
+            LOG.error(f"Missing managementLIF or svm for driver='{driver}'.")
+            return openstack_config
+        openstack_config["volume_driver"] = app_constants.NETAPP_CINDER_VOLUME_DRIVER
+        openstack_config["netapp_storage_family"] = app_constants.NETAPP_STORAGE_FAMILY
+        openstack_config["netapp_storage_protocol"] = netapp_protocol
+        openstack_config["netapp_vserver"] = svm
+        openstack_config["netapp_server_hostname"] = mgmt_lif
+        openstack_config["netapp_server_port"] = app_constants.NETAPP_DEFAULT_SERVER_PORT
+        openstack_config["netapp_transport_type"] = app_constants.NETAPP_DEFAULT_SERVER_TRANSPORT_TYPE
+    except Exception as e:
+        LOG.error(f"Error recovering configs for '{backend_type}' backend: {e}")
+    return openstack_config
 
 
 def netapp_backends_auto_discovery() -> dict:
@@ -609,14 +875,18 @@ def netapp_backends_auto_discovery() -> dict:
 
     Returns:
         dict: A dictionary indicating the availability of 'nfs', 'iscsi' or 'fc' backends.
-              Example: {"nfs": True, "iscsi": False, "fc": False}
+              Example: {"netapp-nfs": True, "netapp-iscsi": False, "netapp-fc": False}
     """
     namespace = _get_value_from_application(
         default_value=app_constants.OPENSTACK_NETAPP_NAMESPACE,
         chart_name=app_constants.HELM_CHART_CLIENTS,
         override_name="netAppNamespace")
 
-    backends_map = {"nfs": False, "iscsi": False, "fc": False}
+    backends_map = {
+        app_constants.NETAPP_NFS_BACKEND_NAME: False,
+        app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+        app_constants.NETAPP_FC_BACKEND_NAME: False
+    }
 
     try:
         kube = kubernetes.KubeOperator()
@@ -627,10 +897,6 @@ def netapp_backends_auto_discovery() -> dict:
         if not pods:
             LOG.error(f"No pods were found in '{namespace}' namespace"
                       f" with 'app={app_constants.NETAPP_CONTROLLER_LABEL}' label")
-            return backends_map
-
-        # Checking if we have NetApp storageclasses
-        if not is_netapp_storageclass_available():
             return backends_map
 
         # Searching for available NetApp backend protocols
@@ -662,8 +928,21 @@ def netapp_backends_auto_discovery() -> dict:
         protocols_found = []
         for info in protocol_info.split("\n"):
             if "ontap-nas" in info:
-                protocols_found.append(info.split(":")[1])
+                nas_type = info.split(":")[1].strip()
+                if nas_type == app_constants.NETAPP_NFS_NAS_TYPE:
+                    protocols_found.append(app_constants.NETAPP_NFS_BACKEND_NAME)
+                else:
+                    LOG.warning(f"Unknown NAS type '{nas_type}' found in "
+                                "trident backends")
             elif "ontap-san" in info:
+                san_type = info.split(":")[2].strip()
+                if san_type == app_constants.NETAPP_FC_SAN_TYPE:
+                    protocols_found.append(app_constants.NETAPP_FC_BACKEND_NAME)
+                elif san_type == app_constants.NETAPP_ISCSI_SAN_TYPE:
+                    protocols_found.append(app_constants.NETAPP_ISCSI_BACKEND_NAME)
+                else:
+                    LOG.warning(f"Unknown SAN type '{san_type}' found in "
+                                "trident backends")
                 protocols_found.append(info.split(":")[2])
 
         # Updating backends_map
@@ -1023,10 +1302,17 @@ def get_vswitch_label_from_override_file() -> set:
     return set(labels)
 
 
-def get_enabled_storage_backends_from_override() -> list:
+def get_enabled_storage_backends_from_override(
+    chart_name: str = app_constants.HELM_CHART_CINDER,
+    override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS
+) -> list:
     """
     Retrieves the available storage backends from Cinder's
     override file
+
+    Args:
+        chart_name (str): The Helm Chart name
+        override_name (str): The name of the override field in values.yaml.
 
     Returns:
         list: a list of enabled backends names (for instance,
@@ -1035,8 +1321,8 @@ def get_enabled_storage_backends_from_override() -> list:
 
     storage_backends = _get_value_from_application(
         default_value=app_constants.DEFAULT_STORAGE_BACKEND_SELECT,
-        chart_name=app_constants.HELM_CHART_CINDER,
-        override_name=app_constants.OVERRIDE_STORAGE_BACKENDS
+        chart_name=chart_name,
+        override_name=override_name
     )
 
     if storage_backends:
@@ -1740,19 +2026,19 @@ def get_available_volume_backends() -> dict:
     netapp_backend = check_netapp_backends()
     available_volume_backends = {
         "ceph": ceph_storage_class,
-        "netapp-nfs": (
+        app_constants.NETAPP_NFS_BACKEND_NAME: (
             get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_NFS)
-            if netapp_backend.get("nfs", False)
+            if netapp_backend.get(app_constants.NETAPP_NFS_BACKEND_NAME, False)
             else ""
         ),
-        "netapp-iscsi": (
+        app_constants.NETAPP_ISCSI_BACKEND_NAME: (
             get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_ISCSI)
-            if netapp_backend.get("iscsi", False)
+            if netapp_backend.get(app_constants.NETAPP_ISCSI_BACKEND_NAME, False)
             else ""
         ),
-        "netapp-fc": (
+        app_constants.NETAPP_FC_BACKEND_NAME: (
             get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_FC)
-            if netapp_backend.get("fc", False)
+            if netapp_backend.get(app_constants.NETAPP_FC_BACKEND_NAME, False)
             else ""
         ),
     }

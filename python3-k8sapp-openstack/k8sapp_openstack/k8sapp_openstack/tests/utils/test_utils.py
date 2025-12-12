@@ -2173,3 +2173,51 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         result = app_utils.get_dex_client_secret()
 
         self.assertEqual(result, app_constants.DEX_CLIENT_SECRET_DEFAULT)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    def test_update_dex_redirect_uri_preserves_user_overrides(self, _, mock_get_helm_values):
+        """Test update_dex_redirect_uri preserves existing user_overrides and adds new URI."""
+        mock_get_helm_values.return_value = {
+            'config': {
+                'staticClients': [{
+                    'id': 'stx-oidc-client-app',
+                    'secret': 'existing-secret',
+                    'redirectURIs': ['https://existing.com/callback']
+                }]
+            }
+        }
+
+        db_mock = mock.Mock()
+        db_mock.kube_app_get.return_value.id = 1
+        # Existing user_overrides with connectors config
+        db_mock.helm_override_get.return_value.user_overrides = \
+            "config:\n  connectors:\n    - id: ldap-1\nvolumeMounts:\n  - name: certdir"
+
+        result = app_utils.update_dex_redirect_uri(db_mock, "https://new.com/redirect")
+
+        self.assertTrue(result)
+        update_call = db_mock.helm_override_update.call_args
+        updated_yaml = update_call[1]['values']['user_overrides']
+
+        # Verify existing config preserved and new URI added
+        self.assertIn('connectors', updated_yaml)
+        self.assertIn('ldap-1', updated_yaml)
+        self.assertIn('volumeMounts', updated_yaml)
+        self.assertIn('https://new.com/redirect', updated_yaml)
+
+    @mock.patch('k8sapp_openstack.utils.trigger_oidc_auth_apps_reapply', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.update_dex_redirect_uri', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.get_keystone_websso_redirect_uri',
+                return_value="https://keystone.example.com/redirect")
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.get_endpoint_domain', return_value="example.com")
+    @mock.patch('k8sapp_openstack.utils.is_dex_enabled', return_value=True)
+    def test_post_apply_update_dex_redirect_uri(self, *_):
+        """Test post_apply_update_dex_redirect_uri orchestrates the full flow."""
+        conductor_obj = mock.Mock()
+        conductor_obj.dbapi.kube_app_get.return_value.status = constants.APP_APPLY_SUCCESS
+
+        result = app_utils.post_apply_update_dex_redirect_uri(mock.Mock(), conductor_obj)
+        self.assertTrue(result)

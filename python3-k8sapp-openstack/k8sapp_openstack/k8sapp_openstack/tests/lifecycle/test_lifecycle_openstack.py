@@ -205,8 +205,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         )
         mock_force_app_reconciliation.assert_called_once()
 
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.post_apply_update_dex_redirect_uri')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
-    def test__post_apply(self, mock_app_utils, *_):
+    def test__post_apply(self, mock_app_utils, mock_post_apply_dex, *_):
         context = mock.Mock()
         conductor_obj = mock.Mock()
         hook_info = {
@@ -232,8 +233,34 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         conductor_obj._update_config_for_stx_openstack.assert_called_once_with(context)
         conductor_obj._update_radosgw_config.assert_called_once_with(context)
+        mock_post_apply_dex.assert_called_once_with(
+            context, conductor_obj
+        )
 
         mock_app_utils.delete_snapshot.assert_has_calls(calls)
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.post_apply_update_dex_redirect_uri')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
+    def test__post_apply_dex_redirect_failure_does_not_fail_apply(
+            self, mock_app_utils, mock_post_apply_dex, *_):
+        """Test that post_apply continues even if DEX redirect URI update fails."""
+        context = mock.Mock()
+        conductor_obj = mock.Mock()
+        hook_info = {
+            LifecycleConstants.EXTRA: {
+                LifecycleConstants.APP_APPLIED: True,
+                self.lifecycle.WAS_APPLIED: False,
+            }
+        }
+
+        mock_app_utils.get_number_of_controllers.return_value = 1
+        mock_post_apply_dex.side_effect = Exception("DEX error")
+
+        # Should not raise exception
+        self.lifecycle.post_apply(context, conductor_obj, None, hook_info)
+
+        conductor_obj._update_config_for_stx_openstack.assert_called_once_with(context)
+        conductor_obj._update_radosgw_config.assert_called_once_with(context)
 
     @mock.patch('k8sapp_openstack.utils.get_app_version_list',
                 return_value=['25.03-0', '25.09-0'])

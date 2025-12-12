@@ -28,6 +28,7 @@ from k8sapp_openstack.utils import get_endpoint_domain
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_dex_enabled
 from k8sapp_openstack.utils import oidc_parameters_exist
+from k8sapp_openstack.utils import post_apply_update_dex_redirect_uri
 
 LOG = logging.getLogger(__name__)
 
@@ -156,6 +157,14 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             snapshot_name = f"snapshot-of-{pvc_name}"
             LOG.info(f"Trying to delete snapshot '{snapshot_name}'")
             app_utils.delete_snapshot(snapshot_name)
+
+        # Update DEX redirect URI for Keystone WebSSO integration
+        if hook_info[LifecycleConstants.EXTRA][LifecycleConstants.APP_APPLIED]:
+            try:
+                post_apply_update_dex_redirect_uri(context, conductor_obj)
+            except Exception as e:
+                # Log error but don't fail the openstack apply
+                LOG.error(f"Failed to update DEX redirect URI: {e}")
 
     def pre_remove(self, context, conductor_obj, hook_info):
         """Pre remove actions

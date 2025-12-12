@@ -256,7 +256,14 @@ DEX_SECRET_NAME = "openstack-dex-credentials"
 
 # Dex chart configuration for oidc-auth-apps
 DEX_HELM_RELEASE_NAME = "oidc-dex"
+DEX_HELM_CHART_NAME = "dex"
 DEX_CHART_NAMESPACE = "kube-system"
 DEX_CLIENT_ID_DEFAULT = "stx-oidc-client-app"
 # Dummy secret from https://docs.starlingx.io/r/stx.5.0/security/kubernetes/configure-oidc-auth-applications.html
 DEX_CLIENT_SECRET_DEFAULT = "St8rlingX"
+
+# Keystone WebSSO redirect URI path for DEX federation
+KEYSTONE_WEBSSO_REDIRECT_PATH = "/v3/auth/OS-FEDERATION/identity_providers/dex/protocols/openid/websso/redirect"
+
+# Keystone federation OIDC client ID override
+KEYSTONE_OIDC_CLIENT_ID_OVERRIDE = "conf.federation.wsgi.OIDCClientID"

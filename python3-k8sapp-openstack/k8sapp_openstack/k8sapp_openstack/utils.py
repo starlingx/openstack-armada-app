@@ -2198,7 +2198,7 @@ def get_dex_client_secret() -> str:
     client_id = _get_value_from_application(
         default_value=app_constants.DEX_CLIENT_ID_DEFAULT,
         chart_name=app_constants.HELM_CHART_KEYSTONE,
-        override_name="conf.federation.wsgi.OIDCClientID"
+        override_name=app_constants.KEYSTONE_OIDC_CLIENT_ID_OVERRIDE
     )
 
     helm_values = _get_helm_release_values(
@@ -2551,3 +2551,245 @@ def get_endpoint_domain(dbapi) -> str:
     except Exception as e:
         LOG.warning(f"Endpoint domain parameter is missing: ({e})")
         return ""
+
+
+def get_keystone_websso_redirect_uri(dbapi, https_ready) -> str:
+    """
+    Build the Keystone WebSSO redirect URI for DEX federation.
+
+    This function constructs the full redirect URI that DEX needs to redirect
+    users back to Keystone after successful OIDC authentication. The URI is
+    built from the external Keystone service URL and the WebSSO redirect path.
+
+    Args:
+        dbapi: Database API instance
+        https_ready (bool): True if HTTPS/TLS is configured for OpenStack
+
+    Returns:
+        str: Full redirect URI (e.g.,
+             "https://keystone.example.com/v3/auth/OS-FEDERATION/identity_providers/dex/protocols/openid/websso/redirect")
+             Returns empty string if endpoint_domain is not configured.
+    """
+    external_keystone_url = get_external_service_url(dbapi, 'keystone', https_ready)
+    if not external_keystone_url:
+        LOG.debug("External Keystone URL not available, cannot build redirect URI")
+        return ""
+
+    redirect_uri = f"{external_keystone_url.rstrip('/')}{app_constants.KEYSTONE_WEBSSO_REDIRECT_PATH}"
+    LOG.debug(f"Built Keystone WebSSO redirect URI: {redirect_uri}")
+    return redirect_uri
+
+
+def update_dex_redirect_uri(dbapi, new_redirect_uri) -> bool:
+    """
+    Add a redirect URI to DEX staticClients configuration in oidc-auth-apps.
+
+    This function updates the helm overrides for the oidc-dex chart in
+    oidc-auth-apps to include the specified redirect URI. It preserves
+    any existing user configuration and only modifies the staticClients entry.
+
+    Args:
+        dbapi: Database API instance
+        new_redirect_uri (str): The redirect URI to add to the static client
+
+    Returns:
+        bool: True if the override was updated successfully, False otherwise
+    """
+    if not new_redirect_uri:
+        LOG.warning("Empty redirect URI provided, skipping DEX override update")
+        return False
+
+    # Get the client ID configured in keystone
+    client_id = _get_value_from_application(
+        default_value=app_constants.DEX_CLIENT_ID_DEFAULT,
+        chart_name=app_constants.HELM_CHART_KEYSTONE,
+        override_name=app_constants.KEYSTONE_OIDC_CLIENT_ID_OVERRIDE
+    )
+
+    # Get oidc-auth-apps application
+    try:
+        app = dbapi.kube_app_get(constants.HELM_APP_OIDC_AUTH)
+    except Exception as e:
+        LOG.warning(f"oidc-auth-apps not found, skipping redirect URI update: {e}")
+        return False
+
+    # Get combined helm values
+    helm_values = _get_helm_release_values(
+        release_name=app_constants.DEX_HELM_RELEASE_NAME,
+        namespace=app_constants.DEX_CHART_NAMESPACE
+    )
+
+    # Find the target client in deployed values
+    target_client = None
+    if helm_values:
+        deployed_clients = helm_values.get('config', {}).get('staticClients', [])
+        for client in deployed_clients:
+            if client.get('id') == client_id:
+                target_client = client.copy()
+                break
+
+    # Check if URI already exists
+    if target_client:
+        existing_uris = set(target_client.get('redirectURIs', []))
+        if new_redirect_uri in existing_uris:
+            LOG.info(f"Redirect URI already exists for client '{client_id}': {new_redirect_uri}")
+            return True
+        # Add new URI to existing client configuration
+        existing_uris.add(new_redirect_uri)
+        target_client['redirectURIs'] = list(existing_uris)
+    else:
+        # Client doesn't exist, create new one with secret
+        target_client = {
+            'id': client_id,
+            'secret': get_dex_client_secret(),
+            'redirectURIs': [new_redirect_uri]
+        }
+
+    # Save to database
+    try:
+        # Get existing user_overrides to preserve other configurations
+        existing_user_overrides = {}
+        try:
+            override = dbapi.helm_override_get(
+                app_id=app.id,
+                name=app_constants.DEX_HELM_CHART_NAME,
+                namespace=app_constants.DEX_CHART_NAMESPACE
+            )
+            if override.user_overrides:
+                existing_user_overrides = yaml.safe_load(override.user_overrides) or {}
+        except Exception:
+            # Override doesn't exist, create it
+            dbapi.helm_override_create({
+                'name': app_constants.DEX_HELM_CHART_NAME,
+                'namespace': app_constants.DEX_CHART_NAMESPACE,
+                'app_id': app.id
+            })
+
+        # Merge staticClients into existing user_overrides
+        if 'config' not in existing_user_overrides:
+            existing_user_overrides['config'] = {}
+
+        # Update only the staticClients for the target client_id
+        existing_static_clients = existing_user_overrides['config'].get('staticClients', [])
+
+        # Find and update or append the target client
+        client_updated = False
+        for i, client in enumerate(existing_static_clients):
+            if client.get('id') == client_id:
+                existing_static_clients[i] = target_client
+                client_updated = True
+                break
+
+        if not client_updated:
+            existing_static_clients.append(target_client)
+
+        existing_user_overrides['config']['staticClients'] = existing_static_clients
+
+        dbapi.helm_override_update(
+            app_id=app.id,
+            name=app_constants.DEX_HELM_CHART_NAME,
+            namespace=app_constants.DEX_CHART_NAMESPACE,
+            values={'user_overrides': yaml.dump(existing_user_overrides)}
+        )
+        LOG.info(f"Updated DEX redirect URIs for client '{client_id}' with: {new_redirect_uri}")
+        return True
+    except Exception as e:
+        LOG.error(f"Failed to update DEX redirect URI in helm overrides: {e}")
+        return False
+
+
+def trigger_oidc_auth_apps_reapply(context, conductor_obj) -> bool:
+    """
+    Trigger evaluation and re-apply of oidc-auth-apps to apply updated helm overrides.
+
+    This function uses the conductor's evaluate_app_reapply mechanism to trigger
+    the application framework's standard re-apply workflow. The framework will:
+    1. Regenerate helm overrides (picking up user_override changes)
+    2. Set the reapply flag if changes are detected
+    3. Apply the app during the next audit cycle when system is ready
+
+    Args:
+        context: Request context
+        conductor_obj: Conductor manager instance (provides evaluate_app_reapply)
+
+    Returns:
+        bool: True if the evaluation was triggered successfully, False otherwise
+    """
+    try:
+        conductor_obj.evaluate_app_reapply(
+            context,
+            constants.HELM_APP_OIDC_AUTH
+        )
+        LOG.info("Triggered oidc-auth-apps reapply evaluation to update DEX configuration")
+        return True
+    except Exception as e:
+        LOG.error(f"Failed to trigger oidc-auth-apps reapply evaluation: {e}")
+        return False
+
+
+def post_apply_update_dex_redirect_uri(context, conductor_obj) -> bool:
+    """
+    Main entry point for updating DEX redirect URI in post-apply lifecycle.
+
+    This function orchestrates the process of adding the Keystone WebSSO
+    redirect URI to the DEX staticClients configuration in oidc-auth-apps.
+
+    The function performs the following steps:
+    1. Check if DEX integration is enabled
+    2. Check if endpoint_domain is configured
+    3. Check if oidc-auth-apps is installed and applied
+    4. Build the Keystone WebSSO redirect URI
+    5. Update DEX helm overrides with the new redirect URI
+    6. Apply oidc-auth-apps to activate the changes
+
+    Args:
+        context: Request context
+        conductor_obj: Conductor manager instance
+
+    Returns:
+        bool: True if the update and apply were successful or skipped due to
+              pre-conditions not being met. False if an error occurred.
+    """
+    dbapi = conductor_obj.dbapi
+
+    # Check if DEX integration is enabled
+    if not is_dex_enabled():
+        LOG.debug("DEX integration not enabled, skipping redirect URI update")
+        return True
+
+    # Check if endpoint_domain is configured
+    endpoint_domain = get_endpoint_domain(dbapi)
+    if not endpoint_domain:
+        LOG.debug("endpoint_domain not configured, skipping redirect URI update")
+        return True
+
+    # Check if oidc-auth-apps is installed and applied
+    try:
+        app = dbapi.kube_app_get(constants.HELM_APP_OIDC_AUTH)
+        if app.status != constants.APP_APPLY_SUCCESS:
+            LOG.info(f"oidc-auth-apps status is '{app.status}', skipping redirect URI update")
+            return True
+    except Exception:
+        LOG.info("oidc-auth-apps not installed, skipping redirect URI update")
+        return True
+
+    # Determine HTTPS readiness
+    https_ready = is_openstack_https_ready()
+
+    # Build the redirect URI
+    redirect_uri = get_keystone_websso_redirect_uri(dbapi, https_ready)
+    if not redirect_uri:
+        LOG.warning("Could not build Keystone WebSSO redirect URI")
+        return False
+
+    # Update DEX helm overrides
+    if not update_dex_redirect_uri(dbapi, redirect_uri):
+        LOG.error("Failed to update DEX redirect URI in helm overrides")
+        return False
+
+    # Trigger oidc-auth-apps reapply to activate changes
+    if not trigger_oidc_auth_apps_reapply(context, conductor_obj):
+        LOG.error("Failed to trigger oidc-auth-apps reapply after updating redirect URI")
+        return False
+
+    return True

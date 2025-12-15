@@ -1394,6 +1394,25 @@ def get_storage_backends_priority_list(chart) -> list:
     )
 
 
+def get_storage_backup_priority_list(chart: str = app_constants.HELM_CHART_CINDER) -> list:
+    """
+    Retrieves the list of backup storage backends' priority from
+    the given override file.
+
+        Args:
+        chart: Helm Chart name (optional)
+
+    Returns:
+        list: a list with the backup's storage backends ordered by
+        priority
+    """
+    return _get_value_from_application(
+        default_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST,
+        chart_name=chart,
+        override_name=app_constants.OVERRIDE_BACKUP_PRIORITY
+    )
+
+
 def is_vswitch_combination_enabled(vswitch_combination, label_combinations=None) -> bool:
     """
     Check if the given vswitch label combination is enabled.

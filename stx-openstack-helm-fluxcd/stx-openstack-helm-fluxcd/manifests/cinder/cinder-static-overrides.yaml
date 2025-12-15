@@ -1466,6 +1466,11 @@ storage_conf:
     - netapp-nfs
     - netapp-iscsi
     - netapp-fc
+  backup_storage_class_priority:
+    - ceph
+    - netapp-nfs
+    - netapp-iscsi
+    - netapp-fc
 
 manifests:
   certificates: false

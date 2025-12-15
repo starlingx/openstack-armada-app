@@ -194,6 +194,11 @@ NETAPP_DEFAULT_NFS_SHARES = """127.0.0.1:/nfs_volume\n"""
 NFS_SHARES_CONFIG = "/etc/cinder/nfs.shares"
 NFS_MOUNT_OPTIONS = "nolock"
 
+# Backup drivers
+CEPH_BACKUP_DRIVER = "cinder.backup.drivers.ceph.CephBackupDriver"
+NETAPP_NFS_BACKUP_DRIVER = "cinder.backup.drivers.nfs.NFSBackupDriver"
+NETAPP_ISCSI_BACKUP_DRIVER = "cinder.backup.drivers.posix.PosixBackupDriver"
+NETAPP_FC_BACKUP_DRIVER = "cinder.backup.drivers.posix.PosixBackupDriver"
 
 # Storage backends overrides
 OVERRIDE_STORAGE_BACKENDS = "storage_conf.storage_backends"
@@ -206,6 +211,24 @@ DEFAULT_VOLUME_PRIORITY_LIST = [
     NETAPP_ISCSI_BACKEND_NAME,
     NETAPP_FC_BACKEND_NAME
 ]
+
+# Backup priority
+OVERRIDE_BACKUP_PRIORITY = "storage_conf.backup_storage_class_priority"
+DEFAULT_BACKUP_PRIORITY_LIST = [
+    CEPH_BACKEND_NAME,
+    NETAPP_NFS_BACKEND_NAME,
+    NETAPP_ISCSI_BACKEND_NAME,
+    NETAPP_FC_BACKEND_NAME
+]
+
+# Map backend -> driver
+BACKUP_DEFAULT_DRIVER = CEPH_BACKUP_DRIVER
+BACKUP_BACKEND_DRIVER_MAP = {
+    CEPH_BACKEND_NAME: CEPH_BACKUP_DRIVER,
+    NETAPP_NFS_BACKEND_NAME: NETAPP_NFS_BACKUP_DRIVER,
+    NETAPP_ISCSI_BACKEND_NAME: NETAPP_ISCSI_BACKUP_DRIVER,
+    NETAPP_FC_BACKEND_NAME: NETAPP_FC_BACKUP_DRIVER
+}
 
 # Storage backends default option
 DEFAULT_STORAGE_BACKEND_SELECT = [{"name": BACKEND_DEFAULT_BACKEND_NAME,

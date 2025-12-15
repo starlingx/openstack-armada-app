@@ -36,6 +36,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=["ceph"]
     )
     @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST
+    )
+    @mock.patch(
         'k8sapp_openstack.helm.cinder.get_available_volume_backends',
         return_value={"ceph": "general",
                       app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
@@ -102,6 +106,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
         return_value=["ceph"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_available_volume_backends',
@@ -198,6 +206,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=["ceph", "netapp-nfs", "netapp-iscsi", "netapp-fc"]
     )
     @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST
+    )
+    @mock.patch(
         'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
         return_value=(False, "")
     )
@@ -278,6 +290,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=["ceph", "netapp-nfs", "netapp-iscsi", "netapp-fc"]
     )
     @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST
+    )
+    @mock.patch(
         'k8sapp_openstack.helm.cinder.discover_netapp_credentials',
         return_value={"netapp_login": "user", "netapp_password": "pwd"}
     )
@@ -349,6 +365,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
         return_value=["netapp-nfs", "ceph", "netapp-iscsi", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_available_volume_backends',
@@ -430,6 +450,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
         return_value=["netapp-iscsi", "ceph", "netapp-nfs", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.discover_netapp_credentials',
@@ -524,3 +548,288 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                             ('netapp-fc' not in backend_overrides))
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
+
+    @mock.patch(
+        'k8sapp_openstack.utils.is_openstack_https_ready',
+        return_value=False
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["netapp-iscsi", "ceph", "netapp-nfs", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_credentials',
+        return_value={"netapp_login": "user", "netapp_password": "pwd"}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_configs',
+        return_value={
+            "volume_driver": app_constants.NETAPP_CINDER_VOLUME_DRIVER,
+            "netapp_storage_family": app_constants.NETAPP_STORAGE_FAMILY,
+            "netapp_storage_protocol": app_constants.NETAPP_BACKEND_TO_OPENSTACK_PROTOCOL[
+                app_constants.NETAPP_NFS_BACKEND_NAME
+            ],
+            "netapp_vserver": "svm_nfs",
+            "netapp_server_hostname": "10.0.0.20",
+            "netapp_server_port": app_constants.NETAPP_DEFAULT_SERVER_PORT,
+            "netapp_transport_type": (
+                app_constants.NETAPP_DEFAULT_SERVER_TRANSPORT_TYPE
+            ),
+        }
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_available_volume_backends',
+        return_value={"ceph": "general",
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: "netapp-san-backend",
+                      app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+                      app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
+        return_value=(False, "")
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        return_value={
+            'monitors': [],
+            'admin_keyring': 'AQCr/DJpZLb4MxAAPXEg+LMODSJ+AB0mb/D+Rg==',
+            'pools': {
+                'backup': {
+                    'app_name': 'cinder-backup',
+                    'chunk_size': 0,
+                    'crush_rule': 'kube-rbd',
+                    'replication': 1
+                },
+                'cinder-volumes': {
+                    'app_name': 'cinder-volumes',
+                    'chunk_size': 0,
+                    'crush_rule': 'kube-rbd',
+                    'replication': 1
+                }
+            }
+        }
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value={
+            'ceph': {
+                'image_volume_cache_enabled': 'True',
+                'volume_backend_name': 'ceph',
+                'volume_driver': 'cinder.volume.drivers.rbd.RBDDriver',
+                'rbd_pool': constants.CEPH_POOL_VOLUMES_NAME,
+                'rbd_user': app_constants.CEPH_RBD_POOL_USER_CINDER,
+                'rbd_ceph_conf': (constants.CEPH_CONF_PATH +
+                                  constants.SB_TYPE_CEPH_CONF_FILENAME),
+            }
+        }
+    )
+    def test_set_default_storage_backup_ceph(self, *_):
+        """
+        Test if when ceph is the default backup driver and when it's
+        backend is enabled we get it as the backup_driver field in the overrides
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CINDER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        default_backup_driver = overrides['conf']['cinder']['DEFAULT']['backup_driver']
+
+        assert default_backup_driver == app_constants.CEPH_BACKUP_DRIVER
+
+    @mock.patch(
+        'k8sapp_openstack.utils.is_openstack_https_ready',
+        return_value=False
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["netapp-iscsi", "ceph", "netapp-nfs", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=["netapp-nfs"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_credentials',
+        return_value={"netapp_login": "user", "netapp_password": "pwd"}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_configs',
+        return_value={
+            "volume_driver": app_constants.NETAPP_CINDER_VOLUME_DRIVER,
+            "netapp_storage_family": app_constants.NETAPP_STORAGE_FAMILY,
+            "netapp_storage_protocol": app_constants.NETAPP_BACKEND_TO_OPENSTACK_PROTOCOL[
+                app_constants.NETAPP_NFS_BACKEND_NAME
+            ],
+            "netapp_vserver": "svm_nfs",
+            "netapp_server_hostname": "10.0.0.20",
+            "netapp_server_port": app_constants.NETAPP_DEFAULT_SERVER_PORT,
+            "netapp_transport_type": (
+                app_constants.NETAPP_DEFAULT_SERVER_TRANSPORT_TYPE
+            ),
+        }
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_available_volume_backends',
+        return_value={"ceph": "general",
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: "netapp-san-backend",
+                      app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+                      app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
+        return_value=(False, "")
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        return_value={
+            'monitors': [],
+            'admin_keyring': 'AQCr/DJpZLb4MxAAPXEg+LMODSJ+AB0mb/D+Rg==',
+            'pools': {
+                'backup': {
+                    'app_name': 'cinder-backup',
+                    'chunk_size': 0,
+                    'crush_rule': 'kube-rbd',
+                    'replication': 1
+                },
+                'cinder-volumes': {
+                    'app_name': 'cinder-volumes',
+                    'chunk_size': 0,
+                    'crush_rule': 'kube-rbd',
+                    'replication': 1
+                }
+            }
+        }
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value={
+            'ceph': {
+                'image_volume_cache_enabled': 'True',
+                'volume_backend_name': 'ceph',
+                'volume_driver': 'cinder.volume.drivers.rbd.RBDDriver',
+                'rbd_pool': constants.CEPH_POOL_VOLUMES_NAME,
+                'rbd_user': app_constants.CEPH_RBD_POOL_USER_CINDER,
+                'rbd_ceph_conf': (constants.CEPH_CONF_PATH +
+                                  constants.SB_TYPE_CEPH_CONF_FILENAME),
+            }
+        }
+    )
+    def test_set_default_storage_backup_netapp_nfs(self, *_):
+        """
+        Test if when netapp-nfs is the default backup driver and when it's
+        backend is enabled we get it as the backup_driver field in the overrides
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CINDER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        default_backup_driver = overrides['conf']['cinder']['DEFAULT']['backup_driver']
+
+        assert default_backup_driver == app_constants.NETAPP_NFS_BACKUP_DRIVER
+
+    @mock.patch(
+        'k8sapp_openstack.utils.is_openstack_https_ready',
+        return_value=False
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["netapp-iscsi", "ceph", "netapp-fc"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=["netapp-nfs", "netapp-iscsi"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_credentials',
+        return_value={"netapp_login": "user", "netapp_password": "pwd"}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_configs',
+        return_value={
+            "volume_driver": app_constants.NETAPP_CINDER_VOLUME_DRIVER,
+            "netapp_storage_family": app_constants.NETAPP_STORAGE_FAMILY,
+            "netapp_storage_protocol": app_constants.NETAPP_BACKEND_TO_OPENSTACK_PROTOCOL[
+                app_constants.NETAPP_NFS_BACKEND_NAME
+            ],
+            "netapp_vserver": "svm_nfs",
+            "netapp_server_hostname": "10.0.0.20",
+            "netapp_server_port": app_constants.NETAPP_DEFAULT_SERVER_PORT,
+            "netapp_transport_type": (
+                app_constants.NETAPP_DEFAULT_SERVER_TRANSPORT_TYPE
+            ),
+        }
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_available_volume_backends',
+        return_value={"ceph": "general",
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: "netapp-san-backend",
+                      app_constants.NETAPP_NFS_BACKEND_NAME: "",
+                      app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
+        return_value=(False, "")
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        return_value={
+            'monitors': [],
+            'admin_keyring': 'AQCr/DJpZLb4MxAAPXEg+LMODSJ+AB0mb/D+Rg==',
+            'pools': {
+                'backup': {
+                    'app_name': 'cinder-backup',
+                    'chunk_size': 0,
+                    'crush_rule': 'kube-rbd',
+                    'replication': 1
+                },
+                'cinder-volumes': {
+                    'app_name': 'cinder-volumes',
+                    'chunk_size': 0,
+                    'crush_rule': 'kube-rbd',
+                    'replication': 1
+                }
+            }
+        }
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        return_value={
+            'ceph': {
+                'image_volume_cache_enabled': 'True',
+                'volume_backend_name': 'ceph',
+                'volume_driver': 'cinder.volume.drivers.rbd.RBDDriver',
+                'rbd_pool': constants.CEPH_POOL_VOLUMES_NAME,
+                'rbd_user': app_constants.CEPH_RBD_POOL_USER_CINDER,
+                'rbd_ceph_conf': (constants.CEPH_CONF_PATH +
+                                  constants.SB_TYPE_CEPH_CONF_FILENAME),
+            }
+        }
+    )
+    def test_set_default_storage_backup_multiple_drivers(self, *_):
+        """
+        Test if when the higest priority backup_driver is disabled, we get the second highest
+        priority backup driver
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CINDER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        default_backup_driver = overrides['conf']['cinder']['DEFAULT']['backup_driver']
+
+        assert default_backup_driver == app_constants.NETAPP_ISCSI_BACKUP_DRIVER

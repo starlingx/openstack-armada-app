@@ -1,7 +1,6 @@
-openstack-helm
-openstack-helm-infra
 python3-k8sapp-openstack
 stx-openstack-helm-fluxcd
+upstream/helm-charts/openstack-helm
 upstream/helm-charts/ingress-nginx-helm
 upstream/openstack/openstack-pkg-tools
 upstream/openstack/python-cinderclient

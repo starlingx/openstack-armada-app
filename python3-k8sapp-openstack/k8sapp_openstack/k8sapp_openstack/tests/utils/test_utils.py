@@ -2221,3 +2221,15 @@ class UtilsTest(dbbase.ControllerHostTestCase):
 
         result = app_utils.post_apply_update_dex_redirect_uri(mock.Mock(), conductor_obj)
         self.assertTrue(result)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_storage_backup_priority_list(self, mock_get_values):
+        """ Test if get_storage_backup_priority_list works properly
+        """
+        chart = app_constants.HELM_CHART_CINDER
+        mock_get_values.return_value = [
+            "netapp-nfs", "ceph", "netapp-iscsi", "netapp-fc"
+        ]
+
+        priority_list = app_utils.get_storage_backup_priority_list(chart)
+        assert priority_list == ["netapp-nfs", "ceph", "netapp-iscsi", "netapp-fc"]

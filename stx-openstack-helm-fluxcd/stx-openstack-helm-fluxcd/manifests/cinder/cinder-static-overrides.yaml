@@ -8,22 +8,6 @@
 release_group: osh-openstack-cinder
 storage: rbd
 
-storage_conf:
-  storage_backends:
-    - name: ceph
-      enabled: true
-    - name: netapp-nfs
-      enabled: false
-    - name: netapp-iscsi
-      enabled: false
-    - name: netapp-fc
-      enabled: false
-  volume_storage_class_priority:
-    - ceph
-    - netapp-nfs
-    - netapp-iscsi
-    - netapp-fc
-
 labels:
   isApplication: false
   api:
@@ -1482,6 +1466,27 @@ tls:
   identity: false
   oslo_messaging: false
   oslo_db: false
+
+storage_conf:
+  storage_backends:
+    - name: ceph
+      enabled: true
+    - name: netapp-nfs
+      enabled: false
+    - name: netapp-iscsi
+      enabled: false
+    - name: netapp-fc
+      enabled: false
+  volume_storage_class_priority:
+    - ceph
+    - netapp-nfs
+    - netapp-iscsi
+    - netapp-fc
+  backup_storage_class_priority:
+    - ceph
+    - netapp-nfs
+    - netapp-iscsi
+    - netapp-fc
 
 manifests:
   certificates: false

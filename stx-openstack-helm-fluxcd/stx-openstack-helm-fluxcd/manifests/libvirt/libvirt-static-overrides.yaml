@@ -12,11 +12,12 @@ labels:
     libvirt:
       node_selector_key: openstack-compute-node
       node_selector_value: enabled
+
 images:
   tags:
     libvirt: docker.io/starlingx/stx-libvirt:master-debian-stable-latest
     libvirt_exporter: null
-    ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_jammy_19.2.2-1-20250414
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     kubectl: null
@@ -27,11 +28,13 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
 network:
   # provide what type of network wiring will be used
   # possible options: openvswitch, linuxbridge, sriov
   backend:
     - openvswitch
+
 endpoints:
   cluster_domain_suffix: cluster.local
   local_image_registry:
@@ -65,12 +68,14 @@ endpoints:
     port:
       metrics:
         default: 9474
+
 network_policy:
   libvirt:
     ingress:
       - {}
     egress:
       - {}
+
 ceph_client:
   configmap: ceph-etc
   user_secret_name: cinder-volume-rbd-keyring
@@ -96,9 +101,37 @@ conf:
     cert_file: "/etc/pki/libvirt/servercert.pem"
     key_file: "/etc/pki/libvirt/private/serverkey.pem"
     auth_unix_rw: "none"
-    listen_addr: 127.0.0.1
+    listen_addr: "${LISTEN_IP_ADDRESS}"
     log_level: "3"
     log_outputs: "1:file:/var/log/libvirt/libvirtd.log"
+  # Modifies the config in which value is specified as the name of a variable
+  # that is computed in the script.
+  dynamic_options:
+    libvirt:
+      listen_interface: null
+      listen_address: 127.0.0.1
+    script: |
+      #!/bin/bash
+      set -ex
+
+      LIBVIRT_CONF_PATH=/tmp/pod-shared/libvirtd.conf
+
+      {{- if .Values.conf.dynamic_options.libvirt.listen_interface }}
+
+      LISTEN_INTERFACE="{{ .Values.conf.dynamic_options.libvirt.listen_interface }}"
+      LISTEN_IP_ADDRESS=$(ip address show $LISTEN_INTERFACE | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}')
+      {{- else if .Values.conf.dynamic_options.libvirt.listen_address }}
+      LISTEN_IP_ADDRESS={{ .Values.conf.dynamic_options.libvirt.listen_address }}
+      {{- end }}
+
+      if [[ -z $LISTEN_IP_ADDRESS ]]; then
+          echo "LISTEN_IP_ADDRESS is not set."
+          exit 1
+      fi
+
+      tee > ${LIBVIRT_CONF_PATH} << EOF
+      {{ include "libvirt.utils.to_libvirt_conf" .Values.conf.libvirt }}
+      EOF
   qemu:
     vnc_tls: "0"
     vnc_tls_x509_verify: "0"
@@ -121,6 +154,34 @@ conf:
       - rdma
       - misc
       - pids
+  init_modules:
+    enabled: false
+    script: |
+      #!/bin/bash
+
+      set -ex
+      export HOME=/tmp
+      KVM_QEMU_CONF_HOST="/etc/modprobe.d_host/qemu-system-x86.conf"
+
+      if [[ ! -f "${KVM_QEMU_CONF_HOST}" ]]; then
+        if grep vmx /proc/cpuinfo; then
+          cat << EOF > ${KVM_QEMU_CONF_HOST}
+      options kvm_intel nested=1
+      options kvm_intel enable_apicv=1
+      options kvm_intel ept=1
+      EOF
+          modprobe -r kvm_intel || true
+          modprobe kvm_intel nested=1
+        elif grep svm /proc/cpuinfo; then
+          cat << EOF > ${KVM_QEMU_CONF_HOST}
+      options kvm_amd nested=1
+      EOF
+          modprobe -r kvm_amd || true
+          modprobe kvm_amd nested=1
+        else
+          echo "Nested virtualization is not supported"
+        fi
+      fi
   vencrypt:
     # Issuer to use for the vencrypt certs.
     issuer:
@@ -204,8 +265,23 @@ pod:
           readOnlyRootFilesystem: false
         libvirt_exporter:
           privileged: true
+        libvirt_init_modules:
+          readOnlyRootFilesystem: true
+          privileged: true
+          capabilities:
+            drop:
+              - ALL
+        init_dynamic_options:
+          runAsUser: 65534
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
   sidecars:
     libvirt_exporter: false
+
   affinity:
     anti:
       type:
@@ -264,6 +340,7 @@ pod:
       limits:
         memory: "256Mi"
         cpu: "500m"
+
 dependencies:
   dynamic:
     common:
@@ -309,6 +386,7 @@ dependencies:
       services:
         - endpoint: internal
           service: local_image_registry
+
 manifests:
   configmap_bin: true
   configmap_etc: true
@@ -318,6 +396,7 @@ manifests:
   network_policy: false
   role_cert_manager: false
   secret_registry: true
+
 secrets:
   oci_image_registry:
     libvirt: libvirt-oci-image-registry-key

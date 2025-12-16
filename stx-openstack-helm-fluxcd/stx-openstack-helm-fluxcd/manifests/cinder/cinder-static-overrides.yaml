@@ -50,7 +50,8 @@ images:
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     cinder_db_sync: docker.io/starlingx/stx-cinder:master-debian-stable-latest
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    rabbit_init: docker.io/library/rabbitmq:3.9.29-management
+    rabbit_init: docker.io/rabbitmq:3.13-management
+
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
@@ -59,9 +60,9 @@ images:
     cinder_scheduler: docker.io/starlingx/stx-cinder:master-debian-stable-latest
     cinder_volume: docker.io/starlingx/stx-cinder:master-debian-stable-latest
     cinder_volume_usage_audit: docker.io/starlingx/stx-cinder:master-debian-stable-latest
-    cinder_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    cinder_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
     cinder_backup: docker.io/starlingx/stx-cinder:master-debian-stable-latest
-    cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
@@ -71,6 +72,7 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
 jobs:
   volume_usage_audit:
     cron: "5 * * * *"
@@ -78,6 +80,7 @@ jobs:
     history:
       success: 3
       failed: 1
+
 pod:
   security_context:
     volume_usage_audit:
@@ -372,6 +375,7 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
 bootstrap:
   enabled: true
   ks_user: admin
@@ -405,6 +409,7 @@ bootstrap:
   #     associates:
   #       - volume_type_1
   #       - volume_type_2
+
 network:
   api:
     ingress:
@@ -418,6 +423,7 @@ network:
     node_port:
       enabled: false
       port: 30877
+
 ceph_client:
   # enable this when there is a need to create second ceph backed pointing
   # to external ceph cluster
@@ -934,6 +940,7 @@ conf:
         priority: 0
         apply-to: all
         pattern: '^(?!(amq\.|reply_)).*'
+
   backends:
     # Those options will be written to backends.conf as-is.
     rbd1:
@@ -1018,6 +1025,8 @@ conf:
       - name
       - volume_type
     volume_type: []
+  enable_conversion_tmpfs: false
+  conversion_tmpfs_size: "10Gi"
   cinder_api_uwsgi:
     uwsgi:
       add-header: "Connection: close"
@@ -1034,6 +1043,7 @@ conf:
       thunder-lock: true
       worker-reload-mercy: 80
       wsgi-file: /var/lib/openstack/bin/cinder-wsgi
+
 backup:
   external_ceph_rbd:
     enabled: false
@@ -1046,6 +1056,7 @@ backup:
     volume:
       class_name: general
       size: 10Gi
+
 dependencies:
   dynamic:
     common:
@@ -1180,6 +1191,7 @@ dependencies:
       services:
         - endpoint: internal
           service: identity
+
 # Names of secrets used by bootstrap and environmental checks
 secrets:
   identity:
@@ -1197,12 +1209,13 @@ secrets:
     admin: cinder-rabbitmq-admin
     cinder: cinder-rabbitmq-user
   tls:
-    volume:
+    volumev3:
       api:
         public: cinder-tls-public
         internal: cinder-tls-api
   oci_image_registry:
     cinder: cinder-oci-image-registry
+
 # We use a different layout of the endpoints here to account for versioning
 # this swaps the service name and type, and should be rolled out to other
 # services.
@@ -1453,15 +1466,18 @@ endpoints:
     port:
       ingress:
         default: 80
+
 network_policy:
   cinder:
     ingress:
       - {}
     egress:
       - {}
+
 # NOTE(helm_hook): helm_hook might break for helm2 binary.
 # set helm3_hook: false when using the helm2 binary.
 helm3_hook: true
+
 tls:
   identity: false
   oslo_messaging: false

@@ -8,9 +8,7 @@
 release_group: osh-openstack-mariadb
 images:
   tags:
-    mariadb: docker.io/openstackhelm/mariadb:ubuntu_focal-20250809
-    ingress: null
-    error_pages: null
+    mariadb: docker.io/openstackhelm/mariadb:latest-ubuntu_jammy
     prometheus_create_mysql_user: null
     prometheus_mysql_exporter: null
     prometheus_mysql_exporter_helm_tests: null
@@ -20,25 +18,20 @@ images:
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     scripted_test: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
-    mariadb_controller: docker.io/openstackhelm/mariadb:ubuntu_focal-20250809
+    mariadb_controller: docker.io/openstackhelm/mariadb:latest-ubuntu_jammy
   pull_policy: "IfNotPresent"
   local_registry:
     active: false
     exclude:
       - dep_check
       - image_repo_sync
+
 labels:
   isApplication: false
   server:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
-  ingress:
-    node_selector_key: openstack-control-plane
-    node_selector_value: enabled
   prometheus_mysql_exporter:
-    node_selector_key: openstack-control-plane
-    node_selector_value: enabled
-  error_server:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
   job:
@@ -50,6 +43,7 @@ labels:
   controller:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+
 pod:
   env:
     mariadb_controller:
@@ -61,6 +55,7 @@ pod:
       mariadb:
         readiness:
           enabled: true
+          disk_usage_percent: 99
           params:
             initialDelaySeconds: 30
             periodSeconds: 30
@@ -79,6 +74,19 @@ pod:
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 10
+      mariadb_exporter:
+        readiness:
+          enabled: true
+          params:
+            initialDelaySeconds: 5
+            periodSeconds: 60
+            timeoutSeconds: 10
+        liveness:
+          enabled: true
+          params:
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            timeoutSeconds: 10
   security_context:
     server:
       pod:
@@ -89,20 +97,6 @@ pod:
           readOnlyRootFilesystem: true
         mariadb:
           runAsUser: 999
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-    ingress:
-      pod:
-        runAsUser: 65534
-      container:
-        server:
-          runAsUser: 0
-          readOnlyRootFilesystem: false
-    error_pages:
-      pod:
-        runAsUser: 65534
-      container:
-        server:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
     prometheus_mysql_exporter:
@@ -148,6 +142,16 @@ pod:
         controller:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
+    cluster_wait:
+      pod:
+        runAsUser: 65534
+        runAsNonRoot: true
+      container:
+        mariadb_cluster_wait:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
   affinity:
     anti:
       type:
@@ -171,9 +175,6 @@ pod:
           effect: NoSchedule
   replicas:
     server: 3
-    ingress: 2
-    error_page: 1
-    prometheus_mysql_exporter: 1
     controller: 1
   lifecycle:
     upgrades:
@@ -184,34 +185,17 @@ pod:
           max_unavailable: 1
           max_surge: 3
     termination_grace_period:
-      prometheus_mysql_exporter:
-        timeout: 30
-      error_pages:
-        timeout: 10
+      server:
+        timeout: 600
     disruption_budget:
       mariadb:
         min_available: 0
   resources:
-    enabled: true
-    prometheus_mysql_exporter:
-      limits:
-        memory: "1024Mi"
-        cpu: "2000m"
-      requests:
-        memory: "128Mi"
-        cpu: "500m"
+    enabled: false
     server:
       requests:
         memory: "128Mi"
         cpu: "100m"
-      limits:
-        memory: "1024Mi"
-        cpu: "2000m"
-    ingress:
-      requests:
-        memory: "128Mi"
-        cpu: "100m"
-        ephemeral-storage: "500Ki"
       limits:
         memory: "1024Mi"
         cpu: "2000m"
@@ -251,6 +235,7 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
 dependencies:
   dynamic:
     common:
@@ -261,13 +246,6 @@ dependencies:
           - endpoint: node
             service: local_image_registry
   static:
-    error_pages:
-      jobs: null
-    ingress:
-      jobs: null
-      services:
-        - endpoint: error_pages
-          service: oslo_db
     mariadb_backup:
       jobs:
         - mariadb-ks-user
@@ -278,18 +256,6 @@ dependencies:
       services:
         - endpoint: internal
           service: oslo_db
-    prometheus_mysql_exporter:
-      jobs:
-        - exporter-create-sql-user
-      services:
-        - endpoint: internal
-          service: oslo_db
-    prometheus_mysql_exporter_tests:
-      services:
-        - endpoint: internal
-          service: prometheus_mysql_exporter
-        - endpoint: internal
-          service: monitoring
     image_repo_sync:
       services:
         - endpoint: internal
@@ -300,6 +266,10 @@ dependencies:
           service: oslo_db
     controller:
       services: null
+    cluster_wait:
+      services:
+        - endpoint: internal
+          service: oslo_db
 volume:
   # this value is used for single pod deployments of mariadb to prevent losing all data
   # if the pod is restarted
@@ -314,7 +284,13 @@ volume:
     enabled: true
     class_name: general
     size: 5Gi
+
 jobs:
+  cluster_wait:
+    clusterCheckWait: 30
+    clusterCheckRetries: 30
+    clusterStabilityCount: 30
+    clusterStabilityWait: 4
   exporter_create_sql_user:
     backoffLimit: 87600
     activeDeadlineSeconds: 3600
@@ -330,10 +306,10 @@ jobs:
     # activeDeadlineSeconds == 0 means no deadline
     activeDeadlineSeconds: 0
     backoffLimit: 6
+
 conf:
   tests:
     # This may either be:
-    # * internal: which will hit the endpoint exposed by the ingress controller
     # * direct: which will hit the backends directly via a k8s service ip
     # Note, deadlocks and failure are to be expected with concurrency if
     # hitting the `direct` endpoint.
@@ -345,10 +321,6 @@ conf:
       - --number-of-queries=1000
       - --number-char-cols=1
       - --number-int-cols=1
-  ingress: null
-  ingress_conf:
-    worker-processes: "4"
-    log-format-stream: "\"$remote_addr [$time_local] $protocol $status $bytes_received $bytes_sent $upstream_addr $upstream_connect_time $upstream_first_byte_time $upstream_session_time $session_time\""
   mariadb_server:
     setup_wait:
       iteration: 30
@@ -524,10 +496,16 @@ conf:
       wsrep_provider_options="gmcast.listen_addr=tcp://[::]:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
       bind_address=::
       wsrep_sst_method=rsync
+      {{ if .Values.manifests.certificates }}
+      wsrep_provider_options="socket.ssl_ca=/etc/mysql/certs/ca.crt; socket.ssl_cert=/etc/mysql/certs/tls.crt; socket.ssl_key=/etc/mysql/certs/tls.key; gmcast.listen_addr=tcp://[::]:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
+      {{ else }}
+      wsrep_provider_options="evs.suspect_timeout=PT30S; gmcast.peer_timeout=PT15S; gmcast.listen_addr=tcp://[::]:{{ tuple "oslo_db" "direct" "wsrep" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}"
+      {{ end }}
     99_force: |
       [mysqld]
       datadir=/var/lib/mysql
       tmpdir=/tmp
+
 monitoring:
   prometheus:
     enabled: false
@@ -552,6 +530,7 @@ secrets:
       server:
         public: mariadb-tls-server
         internal: mariadb-tls-direct
+
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
@@ -632,7 +611,6 @@ endpoints:
       default: mariadb
       direct: mariadb-server
       discovery: mariadb-discovery
-      error_pages: mariadb-ingress-error-pages
     host_fqdn_override:
       default: null
     path: null
@@ -700,11 +678,10 @@ endpoints:
       api:
         default: 80
         internal: 5000
+
 network:
   mariadb: {}
   mariadb_discovery: {}
-  mariadb_ingress: {}
-  mariadb_ingress_error_pages: {}
   mariadb_master: {}
   ip_family_policy: PreferDualStack
 network_policy:
@@ -718,18 +695,16 @@ network_policy:
       - {}
     egress:
       - {}
+
 # Helm hook breaks for helm2.
 # Set helm3_hook: false in case helm2 is used.
 helm3_hook: true
+
 manifests:
   certificates: false
   configmap_bin: true
   configmap_etc: true
-  configmap_ingress_conf: false
-  configmap_ingress_etc: false
   configmap_services_tcp: true
-  deployment_error: false
-  deployment_ingress: false
   job_pre_apply_cleanup: true
   job_image_repo_sync: true
   cron_job_mariadb_backup: false
@@ -738,11 +713,8 @@ manifests:
   monitoring:
     prometheus:
       configmap_bin: true
-      deployment_exporter: true
       job_user_create: true
       secret_etc: true
-      service_exporter: true
-      network_policy_exporter: false
   pdb_server: true
   network_policy: false
   pod_test: false
@@ -753,11 +725,11 @@ manifests:
   secret_etc: true
   secret_registry: true
   service_discovery: true
-  service_ingress: false
   service_error: false
   service: true
   statefulset: true
-  config_ipv6: false
   deployment_controller: true
   service_master: true
+  job_cluster_wait: false
+  config_ipv6: false
 ...

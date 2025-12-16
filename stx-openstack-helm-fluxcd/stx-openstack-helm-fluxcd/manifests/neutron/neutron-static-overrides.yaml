@@ -14,7 +14,7 @@ images:
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     neutron_db_sync: docker.io/starlingx/stx-neutron:master-debian-stable-latest
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    rabbit_init: docker.io/library/rabbitmq:3.9.29-management
+    rabbit_init: docker.io/rabbitmq:3.13-management
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
@@ -44,6 +44,7 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
 labels:
   isApplication: false
   agent:
@@ -96,6 +97,7 @@ labels:
   test:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+
 network:
   # provide what type of network wiring will be used
   backend:
@@ -136,11 +138,13 @@ network:
     node_port:
       enabled: false
       port: 30096
+
 bootstrap:
   enabled: false
   ks_user: neutron
   script: |
     openstack token issue
+
 dependencies:
   dynamic:
     common:
@@ -365,6 +369,7 @@ dependencies:
       services:
         - endpoint: internal
           service: local_image_registry
+
 pod:
   use_fqdn:
     neutron_agent: true
@@ -1015,6 +1020,7 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
 conf:
   rally_tests:
     force_project_purge: false
@@ -1417,13 +1423,6 @@ conf:
     # INFO means log all usage
     # ERROR means only log unsuccessful attempts
     syslog_log_level=ERROR
-
-    [xenapi]
-    # XenAPI configuration is only required by the L2 agent if it is to
-    # target a XenServer/XCP compute host's dom0.
-    xenapi_connection_url=<None>
-    xenapi_connection_username=root
-    xenapi_connection_password=<None>
   rootwrap_filters:
     debug:
       pods:
@@ -1987,6 +1986,8 @@ conf:
       endpoint_type: internal
       allow_reverse_dns_lookup: true
     ironic:
+      auth_type: password
+      auth_version: v3
       endpoint_type: internal
     keystone_authtoken:
       service_token_roles: service
@@ -2141,21 +2142,22 @@ conf:
       enable_metadata_network: false
       resync_interval: 30
   dnsmasq: |
-    #no-hosts
-    #port=5353
-    #cache-size=500
-    #no-negcache
-    #dns-forward-max=100
-    #resolve-file=
-    #strict-order
-    #bind-interface
-    #bind-dynamic
-    #domain=
-    #dhcp-range=10.10.10.10,10.10.10.100,24h
-    #dhcp-lease-max=150
-    #dhcp-host=11:22:33:44:55:66,ignore
-    #dhcp-option=3,10.10.10.1
-    #dhcp-option-force=26,1450
+      #no-hosts
+      #port=5353
+      #cache-size=500
+      #no-negcache
+      #dns-forward-max=100
+      #resolve-file=
+      #strict-order
+      #bind-interface
+      #bind-dynamic
+      #domain=
+      #dhcp-range=10.10.10.10,10.10.10.100,24h
+      #dhcp-lease-max=150
+      #dhcp-host=11:22:33:44:55:66,ignore
+      #dhcp-option=3,10.10.10.1
+      #dhcp-option-force=26,1450
+
   neutron_vpnaas: null
   ovn_vpn_agent:
     DEFAULT:
@@ -2174,6 +2176,7 @@ conf:
   metering_agent: null
   metadata_agent:
     DEFAULT:
+      log_config_append: /etc/neutron/logging.conf
       # we cannot change the proxy socket path as it is declared
       # as a hostPath volume from agent daemonsets
       metadata_proxy_socket: /var/lib/neutron/openstack-helm/metadata_proxy
@@ -2195,6 +2198,7 @@ conf:
     ovs:
       ovsdb_connection: unix:/run/openvswitch/db.sock
   bgp_dragent: {}
+
   rabbitmq:
     # NOTE(rk760n): adding rmq policy to mirror messages from notification queues and set expiration time for the ones
     policies:
@@ -2228,12 +2232,14 @@ conf:
   # br-ex will be added by default
   auto_bridge_add:
     br-ex: null
+
   # Network off-loading configuration
   netoffload:
     enabled: false
     asap2:
-    # - dev: enp97s0f0
-    #   vfs: 16
+      # - dev: enp97s0f0
+      #   vfs: 16
+
   # configuration of OVS DPDK bridges and NICs
   # this is a separate section and not part of the auto_bridge_add section
   # because additional parameters are needed
@@ -2268,8 +2274,8 @@ conf:
         # vhost-iommu-support: true
     bridges:
       - name: br-phy
-        # optional parameter, in case tunnel traffic needs to be transported over a vlan underlay
-        # - tunnel_underlay_vlan: 45
+      # optional parameter, in case tunnel traffic needs to be transported over a vlan underlay
+      # - tunnel_underlay_vlan: 45
     # Optional parameter for configuring bonding in OVS-DPDK
     #   - name: br-phy-bond0
     # bonds:
@@ -2343,6 +2349,7 @@ secrets:
         internal: neutron-tls-server
   oci_image_registry:
     neutron: neutron-oci-image-registry
+
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
@@ -2649,6 +2656,7 @@ endpoints:
     port:
       ingress:
         default: 80
+
 network_policy:
   neutron:
     # TODO(lamt): Need to tighten this ingress for security.
@@ -2656,14 +2664,18 @@ network_policy:
       - {}
     egress:
       - {}
+
 helm3_hook: true
+
 health_probe:
   logging:
     level: ERROR
+
 tls:
   identity: false
   oslo_messaging: false
   oslo_db: false
+
 manifests:
   certificates: false
   configmap_bin: true
@@ -2678,6 +2690,8 @@ manifests:
   daemonset_bagpipe_bgp: false
   daemonset_bgp_dragent: false
   daemonset_netns_cleanup_cron: true
+  daemonset_ovn_metadata_agent: false
+  daemonset_ovn_vpn_agent: false
   deployment_ironic_agent: false
   deployment_server: true
   deployment_rpc_server: true

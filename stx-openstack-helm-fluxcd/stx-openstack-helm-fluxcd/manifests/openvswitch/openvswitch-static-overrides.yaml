@@ -19,11 +19,13 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
 labels:
   isApplication: false
   ovs:
     node_selector_key: openvswitch
     node_selector_value: enabled
+
 pod:
   tini:
     enabled: true
@@ -134,9 +136,11 @@ pod:
   user:
     nova:
       uid: 42424
+
 secrets:
   oci_image_registry:
     openvswitch: openvswitch-oci-image-registry-key
+
 endpoints:
   cluster_domain_suffix: cluster.local
   local_image_registry:
@@ -166,12 +170,14 @@ endpoints:
     port:
       registry:
         default: null
+
 network_policy:
   openvswitch:
     ingress:
       - {}
     egress:
       - {}
+
 dependencies:
   dynamic:
     common:
@@ -187,6 +193,7 @@ dependencies:
       services:
         - endpoint: internal
           service: local_image_registry
+
 manifests:
   configmap_bin: true
   daemonset: true
@@ -195,6 +202,7 @@ manifests:
   job_image_repo_sync: true
   network_policy: false
   secret_registry: true
+
 conf:
   poststart:
     timeout: 5
@@ -227,4 +235,10 @@ conf:
     #     vHost IOMMU feature restricts the vhost memory that a virtio device
     #     access, available with DPDK v17.11
     # vhost_iommu_support: true
+  ## OVS supports run in non-root for both OVS and OVS DPDK mode, the user
+  # for OVS need to be added to container image with user id 42424.
+  # useradd -u 42424 openvswitch; groupmod -g 42424 openvswitch
+  #
+  # Leave empty to run as user that invokes the command (default: root)
+  ovs_user_name: "openvswitch:openvswitch"
 ...

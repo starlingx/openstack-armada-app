@@ -7,6 +7,7 @@
 ---
 release_group: osh-openstack-glance
 storage: swift
+
 labels:
   isApplication: false
   api:
@@ -24,7 +25,7 @@ labels:
 images:
   tags:
     test: null
-    glance_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    glance_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
     glance_metadefs_load: docker.io/starlingx/stx-glance:master-debian-stable-latest
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     glance_db_sync: docker.io/starlingx/stx-glance:master-debian-stable-latest
@@ -32,7 +33,7 @@ images:
     ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    rabbit_init: docker.io/library/rabbitmq:3.9.29-management
+    rabbit_init: docker.io/rabbitmq:3.13-management
     glance_api: docker.io/starlingx/stx-glance:master-debian-stable-latest
     # Bootstrap image requires curl
     bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
@@ -45,6 +46,7 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
 bootstrap:
   enabled: true
   ks_user: admin
@@ -65,15 +67,18 @@ bootstrap:
           # uncomment this and write specific hypervisor type.
           # hypervisor_type: "qemu"
           os_distro: "cirros"
+
 ceph_client:
   configmap: ceph-etc
   user_secret_name: pvc-ceph-client-key
+
 network_policy:
   glance:
     ingress:
       - {}
     egress:
       - {}
+
 conf:
   software:
     rbd:
@@ -165,8 +170,8 @@ conf:
       paste.filter_factory: glance.api.middleware.gzip:GzipMiddleware.factory
     filter:osprofiler:
       paste.filter_factory: osprofiler.web:WsgiMiddleware.factory
-      hmac_keys: SECRET_KEY # DEPRECATED
-      enabled: yes # DEPRECATED
+      hmac_keys: SECRET_KEY  # DEPRECATED
+      enabled: yes  # DEPRECATED
     filter:cors:
       paste.filter_factory: oslo_middleware.cors:filter_factory
       oslo_config_project: glance
@@ -271,6 +276,10 @@ conf:
       auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     glance_store:
+      # Since 2024.1 this section must contain the only key 'default_backend'.
+      # Other keys should be defined in the corresponding per-backend sections.
+      # This is for backward compatibility.
+      filesystem_store_datadir: /var/lib/glance/images
       cinder_catalog_info: volumev3::internalURL
       chunk_size: 8
       rbd_store_replication: 3
@@ -278,7 +287,28 @@ conf:
       rbd_store_pool: glance.images
       rbd_store_user: glance
       rbd_store_ceph_conf: /etc/ceph/ceph.conf
+      default_swift_reference: ref1
+      swift_store_container: glance
+      swift_store_create_container_on_put: true
+      swift_store_config_file: /etc/glance/swift-store.conf
+      swift_store_endpoint_type: internalURL
+    file:
       filesystem_store_datadir: /var/lib/glance/images
+    # These two sections os_glance_tasks_store and os_glance_staging_store
+    # are mandatory. Glance will be unable to delete images from if these
+    # two are not properly configured.
+    os_glance_tasks_store:
+      filesystem_store_datadir: /var/lib/glance/tmp/os_glance_tasks_store
+    os_glance_staging_store:
+      filesystem_store_datadir: /var/lib/glance/tmp/os_glance_staging_store
+    rbd:
+      rbd_store_chunk_size: 8
+      rbd_store_replication: 3
+      rbd_store_crush_rule: replicated_rule
+      rbd_store_pool: glance.images
+      rbd_store_user: glance
+      rbd_store_ceph_conf: /etc/ceph/ceph.conf
+    swift:
       default_swift_reference: ref1
       swift_store_container: glance
       swift_store_create_container_on_put: true
@@ -434,9 +464,13 @@ network:
     node_port:
       enabled: false
       port: 30092
+
 volume:
   class_name: general
   size: 2Gi
+  accessModes:
+    - ReadWriteOnce
+
 dependencies:
   dynamic:
     common:
@@ -522,6 +556,7 @@ dependencies:
       services:
         - endpoint: internal
           service: local_image_registry
+
 # Names of secrets used by bootstrap and environmental checks
 secrets:
   identity:
@@ -542,6 +577,7 @@ secrets:
         internal: glance-tls-api
   oci_image_registry:
     glance: glance-oci-image-registry
+
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
@@ -630,6 +666,7 @@ endpoints:
       #     key: null
     path:
       default: null
+      healthcheck: /healthcheck
     scheme:
       default: http
       service: http
@@ -799,6 +836,7 @@ endpoints:
     port:
       ingress:
         default: 80
+
 pod:
   security_context:
     glance:
@@ -1015,13 +1053,16 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
 # NOTE(helm_hook): helm_hook might break for helm2 binary.
 # set helm3_hook: false when using the helm2 binary.
 helm3_hook: true
+
 tls:
   identity: false
   oslo_messaging: false
   oslo_db: false
+
 manifests:
   certificates: false
   configmap_bin: true
@@ -1052,6 +1093,7 @@ manifests:
   secret_registry: true
   service_ingress_api: true
   service_api: true
+
 # NOTE: This is for enable helm resource-policy to keep glance-images PVC.
 # set keep_pvc: true when allow helm resource-policy to keep for PVC.
 # This will requires mannual delete for PVC.

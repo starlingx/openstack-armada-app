@@ -1,4 +1,4 @@
-From 50e5e101857767fa5b20a3f548e3f28ffb8664ed Mon Sep 17 00:00:00 2001
+From 5bb4b3a5834b5111e4e93a1850aad97a46375f4b Mon Sep 17 00:00:00 2001
 From: Shuicheng Lin <shuicheng.lin@intel.com>
 Date: Wed, 28 Oct 2020 15:17:34 +0800
 Subject: [PATCH] Add stx_admin account for host to communicate with openstack
@@ -11,6 +11,8 @@ Signed-off-by: Shuicheng Lin <shuicheng.lin@intel.com>
 Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Signed-off-by: Rafael Falcao <rafael.vieirafalcao@windriver.com>
 Change-Id: Iedcd131578f4e33efd3c3d7c47cbef83331b143a
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  keystone/templates/job-ks-user.yaml     | 29 +++++++++++++++++++++++++
  keystone/templates/secret-keystone.yaml |  2 +-
@@ -20,7 +22,7 @@ Change-Id: Iedcd131578f4e33efd3c3d7c47cbef83331b143a
 
 diff --git a/keystone/templates/job-ks-user.yaml b/keystone/templates/job-ks-user.yaml
 new file mode 100644
-index 00000000..71b9b3de
+index 000000000..71b9b3de5
 --- /dev/null
 +++ b/keystone/templates/job-ks-user.yaml
 @@ -0,0 +1,29 @@
@@ -54,7 +56,7 @@ index 00000000..71b9b3de
 +{{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
 +{{- end }}
 diff --git a/keystone/templates/secret-keystone.yaml b/keystone/templates/secret-keystone.yaml
-index 5aa87ab5..0e471f13 100644
+index 093a4b058..32e186fa1 100644
 --- a/keystone/templates/secret-keystone.yaml
 +++ b/keystone/templates/secret-keystone.yaml
 @@ -14,7 +14,7 @@ limitations under the License.
@@ -67,7 +69,7 @@ index 5aa87ab5..0e471f13 100644
  ---
  apiVersion: v1
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index 2b5caaf7..ace7e976 100644
+index b7937a7ab..7d17cc425 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
 @@ -140,6 +140,10 @@ dependencies:
@@ -81,7 +83,7 @@ index 2b5caaf7..ace7e976 100644
      domain_manage:
        services:
          - endpoint: internal
-@@ -890,6 +894,7 @@ secrets:
+@@ -892,6 +896,7 @@ secrets:
    identity:
      admin: keystone-keystone-admin
      test: keystone-keystone-test
@@ -89,7 +91,7 @@ index 2b5caaf7..ace7e976 100644
    oslo_db:
      admin: keystone-db-admin
      keystone: keystone-db-user
-@@ -950,6 +955,17 @@ endpoints:
+@@ -952,6 +957,17 @@ endpoints:
          user_domain_name: default
          project_domain_name: default
          default_domain_id: default
@@ -107,7 +109,7 @@ index 2b5caaf7..ace7e976 100644
        test:
          role: admin
          region_name: RegionOne
-@@ -1114,6 +1130,7 @@ manifests:
+@@ -1117,6 +1133,7 @@ manifests:
    job_domain_manage: true
    job_fernet_setup: true
    job_image_repo_sync: true
@@ -116,5 +118,5 @@ index 2b5caaf7..ace7e976 100644
    pdb_api: true
    pod_rally_test: true
 -- 
-2.25.1
+2.43.0
 

@@ -1,4 +1,4 @@
-From 80a6f5b32298142d9f9dbd4cdbaed539f169492c Mon Sep 17 00:00:00 2001
+From b49423694a25abfea683162bef337c2423b3b4c4 Mon Sep 17 00:00:00 2001
 From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 Date: Tue, 12 Nov 2024 10:17:18 -0300
 Subject: [PATCH] Define values for NetApp volume backend
@@ -31,6 +31,8 @@ values.yaml. They'll be defined dinamically via system overrides.
 
 Change-Id: I00919573fed352c2df568e59f8d8d940b05d9c73
 Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  cinder/templates/configmap-etc.yaml     |  3 +++
  cinder/templates/deployment-volume.yaml |  6 ++++++
@@ -52,7 +54,7 @@ index 2e83f3740..f7ba5dd96 100644
  {{- $filePrefix := replace "_" "-"  $key }}
    {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index 3b1d14110..e82128501 100644
+index 20dcb4f41..9ecf7f122 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
 @@ -188,6 +188,12 @@ spec:
@@ -69,10 +71,10 @@ index 3b1d14110..e82128501 100644
              - name: etcceph
                mountPath: /etc/ceph
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index ef0d9615e..bbd417d10 100644
+index 8179fc8f6..14a24f879 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
-@@ -1468,6 +1468,22 @@ tls:
+@@ -1470,6 +1470,22 @@ tls:
    oslo_messaging: false
    oslo_db: false
  
@@ -96,5 +98,5 @@ index ef0d9615e..bbd417d10 100644
    certificates: false
    configmap_bin: true
 -- 
-2.34.1
+2.43.0
 

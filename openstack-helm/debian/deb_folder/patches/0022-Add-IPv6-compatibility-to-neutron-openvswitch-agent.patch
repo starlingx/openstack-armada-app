@@ -1,4 +1,4 @@
-From 52230199164bc260ac07dd5260aee95789e19f9f Mon Sep 17 00:00:00 2001
+From 47d7c6a9de2e82a2bb00cf67d3a94870a9c441b9 Mon Sep 17 00:00:00 2001
 From: Ingo Almendros Girao <ingo.almendrosgirao@windriver.com>
 Date: Thu, 24 Jul 2025 23:08:32 -0300
 Subject: [PATCH] Add IPv6 compatibility to neutron openvswitch agent
@@ -28,18 +28,20 @@ This fix removes IPv4 interfaces check (ip -4 addr show) from the IPv6 detection
 procedure, keeping it based only on IPv6 interface check (ip -6 addr show ).
 
 Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  .../_neutron-openvswitch-agent-init.sh.tpl    | 60 ++++++++++++++++++-
  1 file changed, 57 insertions(+), 3 deletions(-)
 
 diff --git a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
-index bd0a64ac8..b9caf8916 100644
+index bd0a64ac8..8e2c25e7c 100644
 --- a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
 +++ b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
 @@ -24,6 +24,49 @@ OVS_PID=$(cat /run/openvswitch/ovs-vswitchd.pid)
  OVS_CTL=/run/openvswitch/ovs-vswitchd.${OVS_PID}.ctl
  chown neutron: ${OVS_CTL}
-
+ 
 +# IPv6/IPv4 compatibility functions
 +function detect_ip_version {
 +  local cidr="$1"
@@ -99,9 +101,9 @@ index bd0a64ac8..b9caf8916 100644
 +        fi
      fi
  fi
-
+ 
 @@ -466,7 +512,15 @@ fi
-
+ 
  # determine local-ip dynamically based on interface provided but only if tunnel_types is not null
  if [[ -n "${tunnel_types}" ]] ; then
 -  LOCAL_IP=$(get_ip_address_from_interface ${tunnel_interface})
@@ -117,7 +119,6 @@ index bd0a64ac8..b9caf8916 100644
    if [ -z "${LOCAL_IP}" ] ; then
      echo "Var LOCAL_IP is empty"
      exit 1
---
-2.34.1
-
+-- 
+2.43.0
 

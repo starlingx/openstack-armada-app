@@ -1,0 +1,32 @@
+From 29770a771986e178069ba1ec809220584e96f25c Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Wed, 26 Nov 2025 13:49:50 -0300
+Subject: [PATCH] Update makefile to build env
+
+The current makefile in the OSH repo, runs git commands
+inside the chart_version.sh file. Because the build env
+does not create a git repository when building the Helm charts
+it was necessary to remove the call to this script when building
+the Helm chart package.
+
+Change-Id: I73244001de9d50ce83de3653bef3ec297fe9c81f
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 5823ba349..7c5cbfec4 100644
+--- a/Makefile
++++ b/Makefile
+@@ -76,7 +76,7 @@ lint-%: init-%
+ 
+ build-%: lint-% $(if $(filter-out 1,$(SKIP_CHANGELOG)),%/CHANGELOG.md)
+ 	if [ -d $* ]; then \
+-		$(HELM) package $* --version $$(tools/chart_version.sh $* $(BASE_VERSION)) $(PKG_ARGS); \
++		$(HELM) package $* --version $(BASE_VERSION) $(PKG_ARGS); \
+ 	fi
+ 
+ # This is used exclusively with helm3 building in the gate to publish
+-- 
+2.34.1
+

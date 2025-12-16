@@ -1,4 +1,4 @@
-From 938040b2114ab83848bd7cdd3615b70f2c7e1580 Mon Sep 17 00:00:00 2001
+From 3310ceaae3ae5b87bce79417fbe3f28d8c00a8c4 Mon Sep 17 00:00:00 2001
 From: Daniel Caires <DanielMarques.Caires@windriver.com>
 Date: Fri, 11 Apr 2025 15:17:27 -0300
 Subject: [PATCH] Change uWSGI socket to allow IPv6 binding
@@ -15,6 +15,8 @@ This change aims to allow binding not only with IPv4
 IPs but IPv6 IPs as well.
 
 Change-Id: I0e3bca24a121bb94149f2fc13320a0d16f06936b
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  barbican/templates/configmap-etc.yaml | 2 +-
  cinder/templates/configmap-etc.yaml   | 2 +-
@@ -25,7 +27,7 @@ Change-Id: I0e3bca24a121bb94149f2fc13320a0d16f06936b
  6 files changed, 8 insertions(+), 8 deletions(-)
 
 diff --git a/barbican/templates/configmap-etc.yaml b/barbican/templates/configmap-etc.yaml
-index d2bff2c01..d2c57d1d3 100644
+index 2b9762e82..a86a71b64 100644
 --- a/barbican/templates/configmap-etc.yaml
 +++ b/barbican/templates/configmap-etc.yaml
 @@ -69,7 +69,7 @@ limitations under the License.
@@ -51,10 +53,10 @@ index 685966fe1..b567f4b18 100644
  {{- end -}}
  
 diff --git a/glance/templates/configmap-etc.yaml b/glance/templates/configmap-etc.yaml
-index 63c530c7f..210560b0b 100644
+index 8ce851563..70dfd0402 100644
 --- a/glance/templates/configmap-etc.yaml
 +++ b/glance/templates/configmap-etc.yaml
-@@ -101,7 +101,7 @@ limitations under the License.
+@@ -99,7 +99,7 @@ limitations under the License.
  {{- end -}}
  {{- if empty (index .Values.conf.glance_api_uwsgi.uwsgi "http-socket") -}}
  {{- $http_socket_port := tuple "image" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
@@ -86,7 +88,7 @@ index b90bba6e5..e86bf60ee 100644
  {{- end -}}
  
 diff --git a/neutron/templates/configmap-etc.yaml b/neutron/templates/configmap-etc.yaml
-index cdd97729a..fc6a7c6fb 100644
+index df1fe525d..7066405df 100644
 --- a/neutron/templates/configmap-etc.yaml
 +++ b/neutron/templates/configmap-etc.yaml
 @@ -190,7 +190,7 @@ limitations under the License.
@@ -99,10 +101,10 @@ index cdd97729a..fc6a7c6fb 100644
  {{- end -}}
  
 diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
-index f1bba9c3a..c11748016 100644
+index 220db538a..6de893719 100644
 --- a/nova/templates/configmap-etc.yaml
 +++ b/nova/templates/configmap-etc.yaml
-@@ -278,7 +278,7 @@ limitations under the License.
+@@ -290,7 +290,7 @@ limitations under the License.
  {{- end -}}
  {{- if empty (index .Values.conf.nova_api_uwsgi.uwsgi "http-socket") -}}
  {{- $http_socket_port := tuple "compute" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
@@ -111,7 +113,7 @@ index f1bba9c3a..c11748016 100644
  {{- $_ := set .Values.conf.nova_api_uwsgi.uwsgi "http-socket" $http_socket -}}
  {{- end -}}
  
-@@ -287,7 +287,7 @@ limitations under the License.
+@@ -299,7 +299,7 @@ limitations under the License.
  {{- end -}}
  {{- if empty (index .Values.conf.nova_metadata_uwsgi.uwsgi "http-socket") -}}
  {{- $http_socket_port := .Values.network.metadata.port | toString }}
@@ -121,4 +123,5 @@ index f1bba9c3a..c11748016 100644
  {{- end -}}
  
 -- 
-2.34.1
+2.43.0
+

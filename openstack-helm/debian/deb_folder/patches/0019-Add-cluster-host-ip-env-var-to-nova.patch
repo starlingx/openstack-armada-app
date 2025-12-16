@@ -1,4 +1,4 @@
-From 9dbf2a0cc29a051471b7bdf8f4f762259722d5a9 Mon Sep 17 00:00:00 2001
+From b2f6c53c2d6378be816a6d966faca9f054cd3e98 Mon Sep 17 00:00:00 2001
 From: marantes <murillo.arantes@windriver.com>
 Date: Fri, 3 Jan 2025 16:04:17 -0300
 Subject: [PATCH] Add cluster host ip env var to nova
@@ -21,19 +21,21 @@ already followed by other Nova configuration files using this path
 (nova-console.conf, nova-hypervisor.conf and nova-libvirt.conf).
 
 Signed-off-by: Murillo Arantes <murillo.arantes@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  nova/templates/bin/_nova-compute.sh.tpl | 51 ++++++++++++++++++++++++-
  nova/templates/daemonset-compute.yaml   |  8 +++-
  2 files changed, 56 insertions(+), 3 deletions(-)
 
 diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
-index 702e3b92..116f41a6 100644
+index 702e3b921..116f41a61 100644
 --- a/nova/templates/bin/_nova-compute.sh.tpl
 +++ b/nova/templates/bin/_nova-compute.sh.tpl
 @@ -16,8 +16,57 @@ limitations under the License.
-
+ 
  set -ex
-
+ 
 +# Check if environment variable exists
 +if [ -z "$CLUSTER_HOST_IP" ]; then
 +    echo "Error: CLUSTER_HOST_IP environment variable is not set."
@@ -90,7 +92,7 @@ index 702e3b92..116f41a6 100644
        --config-file /tmp/pod-shared/nova-console.conf \
  {{- end }}
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 1a117456..794674f3 100644
+index 0e73eed71..9daf936c8 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
 @@ -18,7 +18,7 @@ exec:
@@ -111,7 +113,7 @@ index 1a117456..794674f3 100644
      - --service-queue-name
      - compute
      {{- if .Values.pod.use_fqdn.compute }}
-@@ -278,6 +278,10 @@ spec:
+@@ -313,6 +313,10 @@ spec:
                value: "{{ .Values.pod.probes.rpc_timeout }}"
              - name: RPC_PROBE_RETRIES
                value: "{{ .Values.pod.probes.rpc_retries }}"
@@ -123,5 +125,5 @@ index 1a117456..794674f3 100644
              - name: REQUESTS_CA_BUNDLE
                value: "/etc/ssl/certs/openstack-helm.crt"
 -- 
-2.34.1
+2.43.0
 

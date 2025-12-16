@@ -1,6 +1,6 @@
-From ddf75bde7116bed571b33a41888e2ef98a3fb783 Mon Sep 17 00:00:00 2001
+From 58b9db2ebc81c2a8e2d4dd212e44f7f246255705 Mon Sep 17 00:00:00 2001
 From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
-Date: Fri, 24 Feb 2023 08:47:48 -0300
+Date: Fri, 21 Nov 2025 17:21:13 -0300
 Subject: [PATCH] Add plugin entry point sorting mechanism
 
 On CentOS, with `python-openstackclient` on version 4.0.0
@@ -45,13 +45,15 @@ default in the list.
 Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 [ Ported this patch to python-openstackclient v6.6.0-5 @ Caracal ]
 Signed-off-by: Jose Claudio <joseclaudio.paespires@windriver.com>
+[ Ported this patch to python-openstackclient v7.4.0-3 @ Epoxy ]
+Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
 ---
- openstackclient/common/clientmanager.py | 172 +++++++++++++++++++++++-
+ openstackclient/common/clientmanager.py | 175 +++++++++++++++++++++++-
  openstackclient/shell.py                |  32 ++++-
- 2 files changed, 201 insertions(+), 3 deletions(-)
+ 2 files changed, 202 insertions(+), 5 deletions(-)
 
 diff --git a/openstackclient/common/clientmanager.py b/openstackclient/common/clientmanager.py
-index 35c79247..bf193dbc 100644
+index 42e2b24f..133dd49f 100644
 --- a/openstackclient/common/clientmanager.py
 +++ b/openstackclient/common/clientmanager.py
 @@ -19,14 +19,17 @@ import importlib
@@ -72,9 +74,17 @@ index 35c79247..bf193dbc 100644
  
  USER_AGENT = 'python-openstackclient'
  
-@@ -147,12 +150,177 @@ class ClientManager(clientmanager.ClientManager):
+@@ -143,7 +146,6 @@ class ClientManager(clientmanager.ClientManager):
  
  # Plugin Support
+ 
+-
+ def _on_load_failure_callback(
+     manager: stevedore.ExtensionManager,
+     ep: importlib.metadata.EntryPoint,
+@@ -153,14 +155,179 @@ def _on_load_failure_callback(
+         f"WARNING: Failed to import plugin {ep.group}:{ep.name}: {err}.\n"
+     )
  
 +def _get_config_file_sections(config):
 +    """Get sections from a configuration file.
@@ -215,9 +225,14 @@ index 35c79247..bf193dbc 100644
 +    before_entry_points = []
 +    after_entry_points = []
 +    entry_points = []
-+
-+    mgr = stevedore.ExtensionManager(group)
-+    for ep in mgr:
+ 
+-def get_plugin_modules(group):
+-    """Find plugin entry points"""
+-    mod_list = []
+     mgr = stevedore.ExtensionManager(
+         group, on_load_failure_callback=_on_load_failure_callback
+     )
+     for ep in mgr:
 +        # Different versions of stevedore use different
 +        # implementations of EntryPoint from other libraries, which
 +        # are not API-compatible.
@@ -241,19 +256,17 @@ index 35c79247..bf193dbc 100644
 +
 +    return before_entry_points + entry_points + after_entry_points
 +
- 
- def get_plugin_modules(group):
-     """Find plugin entry points"""
-     mod_list = []
--    mgr = stevedore.ExtensionManager(group)
--    for ep in mgr:
++
++def get_plugin_modules(group):
++    """Find plugin entry points"""
++    mod_list = []
 +
 +    for ep in sort_plugin_entry_points(group):
          LOG.debug('Found plugin %s', ep.name)
  
          # Different versions of stevedore use different
 diff --git a/openstackclient/shell.py b/openstackclient/shell.py
-index 68ebf8a4..13626a2e 100644
+index df60d3c0..8bb056b4 100644
 --- a/openstackclient/shell.py
 +++ b/openstackclient/shell.py
 @@ -21,7 +21,9 @@ import warnings
@@ -285,7 +298,7 @@ index 68ebf8a4..13626a2e 100644
 +
  class OpenStackShell(shell.OpenStackShell):
      def __init__(self):
-         super(OpenStackShell, self).__init__(
+         super().__init__(
              description=__doc__.strip(),
              version=openstackclient.__version__,
 -            command_manager=commandmanager.CommandManager('openstack.cli'),
@@ -293,8 +306,8 @@ index 68ebf8a4..13626a2e 100644
              deferred_help=True,
          )
  
-@@ -54,6 +69,18 @@ class OpenStackShell(shell.OpenStackShell):
-         )
+@@ -52,6 +67,18 @@ class OpenStackShell(shell.OpenStackShell):
+         parser = super().build_option_parser(description, version)
          parser = clientmanager.build_plugin_option_parser(parser)
          parser = auth.build_auth_plugins_option_parser(parser)
 +
@@ -312,7 +325,7 @@ index 68ebf8a4..13626a2e 100644
          return parser
  
      def _final_defaults(self):
-@@ -66,6 +93,9 @@ class OpenStackShell(shell.OpenStackShell):
+@@ -64,6 +91,9 @@ class OpenStackShell(shell.OpenStackShell):
          else:
              self._auth_type = 'password'
  

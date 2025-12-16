@@ -10,7 +10,7 @@ Change-Id: I04c4c25c72b10b87e71c2f286e21526e5e062b67
  2 files changed, 30 deletions(-)
 
 diff --git a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
-index 69820642..1501563e 100644
+index 2cfadafe3..f3ff145f5 100644
 --- a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
 @@ -25,9 +25,6 @@ limitations under the License.
@@ -23,7 +23,7 @@ index 69820642..1501563e 100644
  
  {{- $serviceAccountName := printf "%s-%s" $serviceUserPretty "rabbit-init" }}
  {{ tuple $envAll "rabbit_init" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
-@@ -86,9 +83,6 @@ spec:
+@@ -87,9 +84,6 @@ spec:
                mountPath: /tmp/rabbit-init.sh
                subPath: rabbit-init.sh
                readOnly: true
@@ -33,7 +33,7 @@ index 69820642..1501563e 100644
            env:
            - name: RABBITMQ_ADMIN_CONNECTION
              valueFrom:
-@@ -103,12 +97,6 @@ spec:
+@@ -104,12 +98,6 @@ spec:
  {{- if $envAll.Values.conf.rabbitmq }}
            - name: RABBITMQ_AUXILIARY_CONFIGURATION
              value: {{ toJson $envAll.Values.conf.rabbitmq | quote }}
@@ -46,7 +46,7 @@ index 69820642..1501563e 100644
  {{- end }}
        volumes:
          - name: pod-tmp
-@@ -123,7 +111,4 @@ spec:
+@@ -124,7 +112,4 @@ spec:
              name: {{ $configMapBin | quote }}
              defaultMode: 0555
  {{- end }}
@@ -55,10 +55,10 @@ index 69820642..1501563e 100644
 -{{- end }}
  {{- end -}}
 diff --git a/helm-toolkit/templates/scripts/_rabbit-init.sh.tpl b/helm-toolkit/templates/scripts/_rabbit-init.sh.tpl
-index 3739f955..75be73fe 100644
+index e6e9c6e8e..37f372750 100644
 --- a/helm-toolkit/templates/scripts/_rabbit-init.sh.tpl
 +++ b/helm-toolkit/templates/scripts/_rabbit-init.sh.tpl
-@@ -47,27 +47,12 @@ RABBITMQ_VHOST=$(echo "${RABBITMQ_USER_CONNECTION}" | \
+@@ -51,27 +51,12 @@ RABBITMQ_VHOST=$(echo "${RABBITMQ_USER_CONNECTION}" | \
  RABBITMQ_VHOST="${RABBITMQ_VHOST:-/}"
  
  function rabbitmqadmin_cli () {
@@ -87,5 +87,5 @@ index 3739f955..75be73fe 100644
  
  echo "Managing: User: ${RABBITMQ_USERNAME}"
 -- 
-2.25.1
+2.34.1
 

@@ -18,6 +18,8 @@ Signed-off-by: Hu, Yong <yong.hu@intel.com>
 Co-Authored-By: Zhipeng, Liu <zhipengs.liu@intel.com>
 [ upversioned openstack-helm-infra base commit ]
 Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Change-Id: Idffb247ea722e53976238cfeacde4f70b9171393
 ---
  mariadb/templates/statefulset.yaml |  1 +
@@ -25,22 +27,22 @@ Change-Id: Idffb247ea722e53976238cfeacde4f70b9171393
  2 files changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 42521f19..350fe81c 100644
+index 889ff71e3..7a58b7165 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -234,6 +234,7 @@ spec:
-                 command:
-                   - /tmp/stop.sh
- {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+@@ -221,6 +221,7 @@ spec:
+           command:
+             - /tmp/start.py
+ {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
 +{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "startup" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
- {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "liveness" "probeTemplate" (include "mariadbLivenessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+ {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "liveness" "probeTemplate" (include "mariadbLivenessProbe" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
            volumeMounts:
              - name: pod-tmp
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 5a6733f7..a418d4dc 100644
+index 4fa5fb50d..909afd8dc 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -68,12 +68,20 @@ pod:
+@@ -70,12 +70,20 @@ pod:
              initialDelaySeconds: 30
              periodSeconds: 30
              timeoutSeconds: 15
@@ -59,8 +61,9 @@ index 5a6733f7..a418d4dc 100644
 +            initialDelaySeconds: 60
 +            periodSeconds: 60
 +            failureThreshold: 10
-   security_context:
-     server:
-       pod:
+       mariadb_exporter:
+         readiness:
+           enabled: true
 -- 
 2.34.1
+

@@ -9,17 +9,17 @@ applications to be able to update the value. This value is set
 to SingleStack because it is the default value if not configured.
 
 Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  mariadb/templates/service-discovery.yaml | 3 +++
- mariadb/templates/service-error.yaml     | 3 +++
- mariadb/templates/service-ingress.yaml   | 3 +++
  mariadb/templates/service-master.yaml    | 2 ++
  mariadb/templates/service.yaml           | 3 +++
  mariadb/values.yaml                      | 1 +
- 6 files changed, 15 insertions(+)
+ 4 files changed, 9 insertions(+)
 
 diff --git a/mariadb/templates/service-discovery.yaml b/mariadb/templates/service-discovery.yaml
-index 378878c0..cea79fdc 100644
+index d5efd3131..f13fffcca 100644
 --- a/mariadb/templates/service-discovery.yaml
 +++ b/mariadb/templates/service-discovery.yaml
 @@ -30,6 +30,9 @@ spec:
@@ -29,42 +29,14 @@ index 378878c0..cea79fdc 100644
 +  type: ClusterIP
 +  ipFamilyPolicy: {{ .Values.network.ip_family_policy }}
 +  ipFamilies: []
-   publishNotReadyAddresses: true
+   publishNotReadyAddresses: false
    selector:
  {{ tuple $envAll "mariadb" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
-diff --git a/mariadb/templates/service-error.yaml b/mariadb/templates/service-error.yaml
-index 04975cc3..042df5bd 100644
---- a/mariadb/templates/service-error.yaml
-+++ b/mariadb/templates/service-error.yaml
-@@ -23,6 +23,9 @@ metadata:
-   name: {{ tuple "oslo_db" "error_pages" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
- spec:
-   clusterIP: None
-+  type: ClusterIP
-+  ipFamilyPolicy: {{ .Values.network.ip_family_policy }}
-+  ipFamilies: []
-   ports:
-     - port: 80
-       protocol: TCP
-diff --git a/mariadb/templates/service-ingress.yaml b/mariadb/templates/service-ingress.yaml
-index 9dc23475..bc5a7c02 100644
---- a/mariadb/templates/service-ingress.yaml
-+++ b/mariadb/templates/service-ingress.yaml
-@@ -22,6 +22,9 @@ metadata:
- {{ tuple $envAll "mariadb" "ingress" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
-   name: {{ tuple "oslo_db" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
- spec:
-+  type: ClusterIP
-+  ipFamilyPolicy: {{ .Values.network.ip_family_policy }}
-+  ipFamilies: []
-   ports:
-     - name: mysql
-       port: {{ tuple "oslo_db" "internal" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 diff --git a/mariadb/templates/service-master.yaml b/mariadb/templates/service-master.yaml
-index 1472e6a3..883111d0 100644
+index e57824b18..2d99d5927 100644
 --- a/mariadb/templates/service-master.yaml
 +++ b/mariadb/templates/service-master.yaml
-@@ -24,6 +24,8 @@ kind: Service
+@@ -21,6 +21,8 @@ kind: Service
  metadata:
    name: {{ tuple "oslo_db" "internal" . | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
  spec:
@@ -74,7 +46,7 @@ index 1472e6a3..883111d0 100644
      - name: mysql
        port: {{ tuple "oslo_db" "direct" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 diff --git a/mariadb/templates/service.yaml b/mariadb/templates/service.yaml
-index e68cbc49..00a32cde 100644
+index e68cbc49d..00a32cde9 100644
 --- a/mariadb/templates/service.yaml
 +++ b/mariadb/templates/service.yaml
 @@ -20,6 +20,9 @@ kind: Service
@@ -88,17 +60,17 @@ index e68cbc49..00a32cde 100644
      - name: mysql
        port: {{ tuple "oslo_db" "direct" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 02a03253..9eb81231 100644
+index 581e358a3..40cb1ca20 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -722,6 +722,7 @@ network:
-   mariadb_ingress: {}
-   mariadb_ingress_error_pages: {}
+@@ -687,6 +687,7 @@ network:
+   mariadb: {}
+   mariadb_discovery: {}
    mariadb_master: {}
 +  ip_family_policy: SingleStack
  
  network_policy:
    mariadb:
 -- 
-2.43.0
+2.34.1
 

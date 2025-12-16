@@ -19,7 +19,8 @@ its status as completed.
 
 [ Upversioned openstack-helm-infra base commit to Caracal ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
-
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  ceph-rgw/templates/job-pre-apply-cleanup.yaml | 18 ++++
  ceph-rgw/values.yaml                          |  2 +
@@ -48,7 +49,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 
 diff --git a/ceph-rgw/templates/job-pre-apply-cleanup.yaml b/ceph-rgw/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
-index 00000000..2a1d6d91
+index 000000000..2a1d6d91e
 --- /dev/null
 +++ b/ceph-rgw/templates/job-pre-apply-cleanup.yaml
 @@ -0,0 +1,18 @@
@@ -72,7 +73,7 @@ index 00000000..2a1d6d91
 +{{- end }}
 \ No newline at end of file
 diff --git a/ceph-rgw/values.yaml b/ceph-rgw/values.yaml
-index a0befdf0..d8e52d28 100644
+index abf9d618c..02f69e092 100644
 --- a/ceph-rgw/values.yaml
 +++ b/ceph-rgw/values.yaml
 @@ -35,6 +35,7 @@ images:
@@ -93,7 +94,7 @@ index a0befdf0..d8e52d28 100644
    job_ceph_rgw_storage_init: true
 diff --git a/gnocchi/templates/job-pre-apply-cleanup.yaml b/gnocchi/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
-index 00000000..0e4424da
+index 000000000..0e4424dae
 --- /dev/null
 +++ b/gnocchi/templates/job-pre-apply-cleanup.yaml
 @@ -0,0 +1,18 @@
@@ -117,7 +118,7 @@ index 00000000..0e4424da
 +{{- end }}
 \ No newline at end of file
 diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
-index bbfd4335..dfab7413 100644
+index 4454e7d8c..7fd8ce5e3 100644
 --- a/gnocchi/values.yaml
 +++ b/gnocchi/values.yaml
 @@ -52,6 +52,7 @@ images:
@@ -138,7 +139,7 @@ index bbfd4335..dfab7413 100644
    job_db_drop: false
 diff --git a/helm-toolkit/templates/manifests/_job-pre-apply-cleanup.tpl b/helm-toolkit/templates/manifests/_job-pre-apply-cleanup.tpl
 new file mode 100644
-index 00000000..84f88bfc
+index 000000000..84f88bfca
 --- /dev/null
 +++ b/helm-toolkit/templates/manifests/_job-pre-apply-cleanup.tpl
 @@ -0,0 +1,93 @@
@@ -238,7 +239,7 @@ index 00000000..84f88bfc
 \ No newline at end of file
 diff --git a/libvirt/templates/job-pre-apply-cleanup.yaml b/libvirt/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
-index 00000000..7c44fd2b
+index 000000000..7c44fd2b2
 --- /dev/null
 +++ b/libvirt/templates/job-pre-apply-cleanup.yaml
 @@ -0,0 +1,18 @@
@@ -262,7 +263,7 @@ index 00000000..7c44fd2b
 +{{- end }}
 \ No newline at end of file
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index 22ff231c..b3a4373b 100644
+index 6fa3619c2..47511663a 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
 @@ -33,6 +33,7 @@ images:
@@ -273,7 +274,7 @@ index 22ff231c..b3a4373b 100644
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -317,6 +318,7 @@ manifests:
+@@ -400,6 +401,7 @@ manifests:
    configmap_bin: true
    configmap_etc: true
    daemonset_libvirt: true
@@ -283,7 +284,7 @@ index 22ff231c..b3a4373b 100644
    role_cert_manager: false
 diff --git a/mariadb/templates/job-pre-apply-cleanup.yaml b/mariadb/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
-index 00000000..4c2cef3b
+index 000000000..4c2cef3bb
 --- /dev/null
 +++ b/mariadb/templates/job-pre-apply-cleanup.yaml
 @@ -0,0 +1,18 @@
@@ -307,28 +308,28 @@ index 00000000..4c2cef3b
 +{{- end }}
 \ No newline at end of file
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 61d2d3e7..d348f587 100644
+index c0e30a040..581e358a3 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -31,6 +31,7 @@ images:
-     mariadb_backup: quay.io/airshipit/porthole-mysqlclient-utility:latest-ubuntu_focal
+@@ -30,6 +30,7 @@ images:
      ks_user: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
      scripted_test: docker.io/openstackhelm/mariadb:ubuntu_focal-20210415
+     mariadb_controller: docker.io/openstackhelm/mariadb:latest-ubuntu_jammy
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -710,6 +711,7 @@ manifests:
+@@ -708,6 +709,7 @@ manifests:
+   configmap_bin: true
+   configmap_etc: true
    configmap_services_tcp: true
-   deployment_error: false
-   deployment_ingress: false
 +  job_pre_apply_cleanup: true
    job_image_repo_sync: true
    cron_job_mariadb_backup: false
    job_ks_user: false
 diff --git a/memcached/templates/job-pre-apply-cleanup.yaml b/memcached/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
-index 00000000..f2d12578
+index 000000000..f2d125787
 --- /dev/null
 +++ b/memcached/templates/job-pre-apply-cleanup.yaml
 @@ -0,0 +1,18 @@
@@ -352,10 +353,10 @@ index 00000000..f2d12578
 +{{- end }}
 \ No newline at end of file
 diff --git a/memcached/values.yaml b/memcached/values.yaml
-index dd2bf3c6..26875d38 100644
+index b56313100..38cba6d14 100644
 --- a/memcached/values.yaml
 +++ b/memcached/values.yaml
-@@ -123,6 +123,7 @@ images:
+@@ -126,6 +126,7 @@ images:
      memcached: 'docker.io/library/memcached:1.5.5'
      prometheus_memcached_exporter: docker.io/prom/memcached-exporter:v0.4.1
      image_repo_sync: docker.io/library/docker:17.07.0
@@ -363,17 +364,17 @@ index dd2bf3c6..26875d38 100644
    local_registry:
      active: false
      exclude:
-@@ -138,6 +139,7 @@ labels:
+@@ -141,6 +142,7 @@ labels:
  manifests:
    configmap_bin: true
-   deployment: true
+   statefulset: true
 +  job_pre_apply_cleanup: true
    job_image_repo_sync: true
    network_policy: false
    service: true
 diff --git a/openvswitch/templates/job-pre-apply-cleanup.yaml b/openvswitch/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
-index 00000000..3a29b239
+index 000000000..3a29b2391
 --- /dev/null
 +++ b/openvswitch/templates/job-pre-apply-cleanup.yaml
 @@ -0,0 +1,18 @@
@@ -397,7 +398,7 @@ index 00000000..3a29b239
 +{{- end }}
 \ No newline at end of file
 diff --git a/openvswitch/values.yaml b/openvswitch/values.yaml
-index 49006ea9..0e5a2f75 100644
+index 5f9ee7d57..351b351af 100644
 --- a/openvswitch/values.yaml
 +++ b/openvswitch/values.yaml
 @@ -24,6 +24,7 @@ images:
@@ -418,7 +419,7 @@ index 49006ea9..0e5a2f75 100644
    secret_registry: true
 diff --git a/rabbitmq/templates/job-pre-apply-cleanup.yaml b/rabbitmq/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
-index 00000000..428d7c01
+index 000000000..428d7c01e
 --- /dev/null
 +++ b/rabbitmq/templates/job-pre-apply-cleanup.yaml
 @@ -0,0 +1,18 @@
@@ -442,7 +443,7 @@ index 00000000..428d7c01
 +{{- end }}
 \ No newline at end of file
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index 68a963a1..fbb98414 100644
+index 1f8f44174..bfd996325 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
 @@ -40,6 +40,7 @@ images:
@@ -453,7 +454,7 @@ index 68a963a1..fbb98414 100644
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -446,6 +447,7 @@ manifests:
+@@ -480,6 +481,7 @@ manifests:
    configmap_etc: true
    config_ipv6: false
    ingress_management: true

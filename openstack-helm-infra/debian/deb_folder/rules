@@ -9,15 +9,15 @@ export HELM_FOLDER = $(ROOT)/usr/lib/helm
 
 override_dh_auto_build:
 	# Create the chart TGZ files.
-	make helm-toolkit
-	make gnocchi
-	make libvirt
-	make mariadb
-	make memcached
-	make openvswitch
-	make rabbitmq
-	make ceph-rgw
-	make prometheus-openstack-exporter
+	make SKIP_CHANGELOG=1 helm-toolkit
+	make SKIP_CHANGELOG=1 gnocchi
+	make SKIP_CHANGELOG=1 libvirt
+	make SKIP_CHANGELOG=1 mariadb
+	make SKIP_CHANGELOG=1 memcached
+	make SKIP_CHANGELOG=1 openvswitch
+	make SKIP_CHANGELOG=1 rabbitmq
+	make SKIP_CHANGELOG=1 ceph-rgw
+	make SKIP_CHANGELOG=1 prometheus-openstack-exporter
 
 override_dh_auto_install:
 	# Install the chart tar files.

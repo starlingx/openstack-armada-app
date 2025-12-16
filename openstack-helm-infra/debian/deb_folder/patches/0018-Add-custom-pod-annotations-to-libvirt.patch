@@ -12,10 +12,10 @@ commits of other OpenStack Helm pods.
  1 file changed, 1 insertion(+)
 
 diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
-index 050aefc0..94d2ff05 100644
+index 6acbb2709..b82c930d0 100644
 --- a/libvirt/templates/daemonset-libvirt.yaml
 +++ b/libvirt/templates/daemonset-libvirt.yaml
-@@ -65,6 +65,7 @@ spec:
+@@ -58,6 +58,7 @@ spec:
  {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
          configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
          configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}

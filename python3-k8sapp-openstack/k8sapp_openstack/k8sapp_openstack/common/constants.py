@@ -155,6 +155,7 @@ NETAPP_NFS_BACKEND_NAME = 'netapp-nfs'
 NETAPP_ISCSI_BACKEND_NAME = 'netapp-iscsi'
 NETAPP_FC_BACKEND_NAME = 'netapp-fc'
 BACKEND_DEFAULT_STORAGE_CLASS = "general"
+BACKEND_DEFAULT_BACKEND_NAME = "ceph"
 BACKEND_TYPE_NETAPP_NFS = "ontap-nas"
 BACKEND_TYPE_NETAPP_ISCSI = "ontap-san"
 BACKEND_TYPE_NETAPP_FC = "ontap-san"
@@ -207,7 +208,8 @@ DEFAULT_VOLUME_PRIORITY_LIST = [
 ]
 
 # Storage backends default option
-DEFAULT_STORAGE_BACKEND_SELECT = [{"name": "ceph", "enabled": True}]
+DEFAULT_STORAGE_BACKEND_SELECT = [{"name": BACKEND_DEFAULT_BACKEND_NAME,
+                                   "enabled": True}]
 
 # STX-Openstack configuration values
 OPENSTACK_CERT = "openstack-cert"

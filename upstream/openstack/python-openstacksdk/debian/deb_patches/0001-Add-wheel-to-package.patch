@@ -1,4 +1,4 @@
-From e66876942dfa5fc6cc2eba9e66bf7aa35f00284e Mon Sep 17 00:00:00 2001
+From 49799e462175ea2a7221c94c9d10adfefc074d26 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Thu, 28 Oct 2021 12:40:43 +0000
 Subject: [PATCH] Add wheel to package
@@ -6,16 +6,19 @@ Subject: [PATCH] Add wheel to package
 Add python-openstacksdk-wheel package.
 
 Signed-off-by: Charles Short <charles.short@windriver.com>
+
+[Ported to python-openstacksdk v4.4.0-5 @ Epoxy]
+Signed-off-by: jbarboza <joaopedro.barbozalioneza@windriver.com>
 ---
  debian/control | 18 ++++++++++++++++++
  debian/rules   |  2 +-
  2 files changed, 19 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index 0241343f6..3547ba684 100644
+index 2f9ec7794..10b8229dd 100644
 --- a/debian/control
 +++ b/debian/control
-@@ -102,3 +102,21 @@ Description: SDK for building applications to work with OpenStack - Python 3.x
+@@ -104,3 +104,21 @@ Description: SDK for building applications to work with OpenStack - Python 3.x
   those provided in future release.
   .
   This package contains the Python 3.x module.
@@ -38,18 +41,18 @@ index 0241343f6..3547ba684 100644
 + .
 + This package contains the Python wheel.
 diff --git a/debian/rules b/debian/rules
-index 09b184846..df0f6ee49 100755
+index e23ac48d3..3d5379511 100755
 --- a/debian/rules
 +++ b/debian/rules
 @@ -14,7 +14,7 @@ override_dh_auto_build:
  	echo "Do nothing..."
-
+ 
  override_dh_auto_install:
 -	pkgos-dh_auto_install --no-py2 --in-tmp
 +	pkgos-dh_auto_install --no-py2 --in-tmp --wheel
  ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
- 	OS_LOG_CAPTURE=true pkgos-dh_auto_test --no-py2 'openstack\.tests\.unit\.(?!(.*baremetal\.v1\.test_proxy\.TestWaitForNodesProvisionState\.test_timeout_and_failures_not_fail.*|.*config\.test_loader\.TestLoader\.test__load_yaml_json_file_without_perm.*|.*cloud.test_security_groups\.TestSecurityGroups\.test_update_security_group_bad_kwarg.*|.*cloud\.test_port\.TestPort\.test_create_port_parameters.*|.*test_stats\.TestStats\.test_servers_error.*))'
- endif
---
+ 	# Non-deterministic. See https://bugs.debian.org/1084147
+ 	# openstack.tests.unit.identity.v3.test_proxy.TestIdentityProxyRegion.test_region_update
+-- 
 2.34.1
 

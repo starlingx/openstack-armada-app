@@ -1,4 +1,4 @@
-From 32ac68fc29decc13b2d7397909464cccc06f627d Mon Sep 17 00:00:00 2001
+From 681e561bcc05665fd183885ee2f67a31499f8b61 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Mon, 29 Nov 2021 20:51:40 +0000
 Subject: [PATCH] Remove openstackclient
@@ -8,6 +8,9 @@ not being used and it is causing problems with the build-pkgs
 tool.
 
 Signed-off-by: Charles Short <charles.short@windriver.com>
+
+[Ported to python-heatclient v4.1.0-3 @ Epoxy]
+Signed-off-by: jbarboza <joaopedro.barbozalioneza@windriver.com>
 ---
  debian/control | 1 -
  1 file changed, 1 deletion(-)
@@ -24,6 +27,6 @@ index afa5715..93c1142 100644
   python3-openstackdocstheme,
   python3-osc-lib,
   python3-oslo.i18n,
---
+-- 
 2.34.1
 

@@ -288,13 +288,6 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         result = self.helm._get_ceph_client_overrides()
         self.assertIn("user_secret_name", result)
 
-    @mock.patch("k8sapp_openstack.helm.openstack.app_utils.is_ceph_backend_available", return_value=(False, ""))
-    @mock.patch("sysinv.common.storage_backend_conf.K8RbdProvisioner.get_user_secret_name", return_value="secret")
-    def test_get_ceph_client_overrides_rbd(self, *_):
-        """Matches the stored backend user secret name."""
-        result = self.helm._get_ceph_client_overrides()
-        self.assertEqual(result["user_secret_name"], "secret")
-
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.interface_network_get_all',
                 return_value=[mock.Mock(interface_id=1), mock.Mock(interface_id=2)])
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())

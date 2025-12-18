@@ -24,7 +24,6 @@ from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import kubernetes
 from sysinv.common import utils
-from sysinv.common.storage_backend_conf import K8RbdProvisioner
 from sysinv.helm import base
 from sysinv.helm import common
 
@@ -591,19 +590,8 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         return uefi_config
 
     def _get_ceph_client_overrides(self):
-        self._rook_ceph, _ = app_utils.is_ceph_backend_available(
-                ceph_type=constants.SB_TYPE_CEPH_ROOK)
-
-        if self._rook_ceph:
-            return {
-                'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
-            }
-        # A secret is required by the chart for ceph client access. Use the
-        # secret for the kube-rbd pool associated with the primary ceph tier
         return {
-            'user_secret_name':
-            K8RbdProvisioner.get_user_secret_name({
-                'name': constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH]})
+            'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME
         }
 
     def _get_interface_datanets(self):

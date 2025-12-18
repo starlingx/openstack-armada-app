@@ -84,7 +84,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.rbd_config = {}
 
     def get_overrides(self, namespace=None):
-        self._rook_ceph = is_ceph_backend_available(
+        self._rook_ceph, _ = is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
 

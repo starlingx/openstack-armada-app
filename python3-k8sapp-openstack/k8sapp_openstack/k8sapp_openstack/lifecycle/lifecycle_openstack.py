@@ -74,15 +74,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             elif hook_info.operation == constants.APP_RECOVER_OP:
                 return self._recover_actions(app_op, app)
 
-        # Rbd
-        elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_RBD:
-            if hook_info.operation == constants.APP_APPLY_OP and \
-                    hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
-                return lifecycle_utils.create_rbd_provisioner_secrets(app_op, app, hook_info)
-            elif hook_info.operation == constants.APP_REMOVE_OP and \
-                    hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
-                return lifecycle_utils.delete_rbd_provisioner_secrets(app_op, app, hook_info)
-
         # Semantic checks
         elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK:
             if hook_info.mode == LifecycleConstants.APP_LIFECYCLE_MODE_AUTO:

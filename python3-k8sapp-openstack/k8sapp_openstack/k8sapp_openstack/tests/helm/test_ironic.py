@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Wind River Systems, Inc.
+# Copyright (c) 2020-2025 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -40,6 +40,17 @@ class IronicGetOverrideTest(IronicHelmTestCase,
             },
         })
 
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=["ceph"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.glance.get_available_volume_backends',
+        return_value={"ceph": "general",
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
+                      app_constants.NETAPP_NFS_BACKEND_NAME: "",
+                      app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_ironic_reuses_glance_user(self, *_):
         overrides_glance = self.operator.get_helm_chart_overrides(

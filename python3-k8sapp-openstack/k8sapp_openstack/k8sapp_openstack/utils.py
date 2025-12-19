@@ -2056,13 +2056,19 @@ def get_server_list() -> str:
         return ""
 
 
-def get_available_volume_backends() -> dict:
+def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CINDER,
+                                  override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS) -> dict:
     """
     Searches for all available backends volume available.
 
     Returns:
         dict[string, string]: A dictionary containing the backend volumes with corresponding
         storage class name.
+
+    Args:
+        chart_name (str): The Helm chart name to check for user overrides.
+                     Defaults to `app_constants.HELM_CHART_CINDER`.
+        override_name (str): The name of the override field in values.yaml.
 
     Example:
         >>> get_available_volume_backends()
@@ -2086,7 +2092,7 @@ def get_available_volume_backends() -> dict:
         )
     else:
         LOG.warning("No Ceph backend is available.")
-    netapp_backend = check_netapp_backends()
+    netapp_backend = check_netapp_backends(chart_name, override_name)
     available_volume_backends = {
         "ceph": ceph_storage_class,
         app_constants.NETAPP_NFS_BACKEND_NAME: (

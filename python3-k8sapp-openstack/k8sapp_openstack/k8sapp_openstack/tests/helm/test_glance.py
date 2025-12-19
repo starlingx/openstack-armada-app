@@ -25,6 +25,17 @@ class GlanceHelmTestCase(test_plugins.K8SAppOpenstackAppMixin,
 
 class GlanceGetOverrideTest(GlanceHelmTestCase,
                                dbbase.ControllerHostTestCase):
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=["ceph"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.glance.get_available_volume_backends',
+        return_value={"ceph": "general",
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
+                      app_constants.NETAPP_NFS_BACKEND_NAME: "",
+                      app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_glance_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
@@ -45,6 +56,17 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
             'ceph_client': {},
         })
 
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=["ceph"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.glance.get_available_volume_backends',
+        return_value={"ceph": "general",
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
+                      app_constants.NETAPP_NFS_BACKEND_NAME: "",
+                      app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
@@ -130,6 +152,17 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
             },
         })
 
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=["ceph"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.glance.get_available_volume_backends',
+        return_value={"ceph": "general",
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
+                      app_constants.NETAPP_NFS_BACKEND_NAME: "",
+                      app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_glance_overrides_invalid_namespace(self, *_):
         """
@@ -141,6 +174,17 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
                           app_constants.HELM_CHART_GLANCE,
                           cnamespace=common.HELM_NS_DEFAULT)
 
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=["ceph"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.glance.get_available_volume_backends',
+        return_value={"ceph": "general",
+                      app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
+                      app_constants.NETAPP_NFS_BACKEND_NAME: "",
+                      app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_glance_overrides_missing_namespace(self, *_):
         """

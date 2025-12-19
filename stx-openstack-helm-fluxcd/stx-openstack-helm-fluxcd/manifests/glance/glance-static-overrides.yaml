@@ -1063,6 +1063,14 @@ tls:
   oslo_messaging: false
   oslo_db: false
 
+storage_conf:
+  volume_storage_class_priority:
+    - ceph
+    - netapp-nfs
+    - netapp-iscsi
+    - netapp-fc
+    - cinder
+
 manifests:
   certificates: false
   configmap_bin: true

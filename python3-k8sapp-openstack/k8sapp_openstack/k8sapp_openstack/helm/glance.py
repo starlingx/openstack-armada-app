@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-
+from oslo_log import log as logging
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common.storage_backend_conf import StorageBackendConfig
@@ -12,8 +12,12 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import _get_value_from_application
+from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import is_ceph_backend_available
+
+LOG = logging.getLogger(__name__)
 
 
 class GlanceHelm(openstack.OpenstackBaseHelm):
@@ -30,12 +34,46 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         self._rook_ceph, _ = is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
+        self._priority_list = _get_value_from_application(
+            chart_name=self.CHART,
+            override_name=app_constants.OVERRIDE_STORAGE_PRIORITY,
+            default_value=app_constants.DEFAULT_IMAGE_PRIORITY_LIST
+        )
+        self._available_backends = get_available_volume_backends(
+            chart_name=app_constants.HELM_CHART_GLANCE,
+            override_name=app_constants.OVERRIDE_STORAGE_BACKENDS
+        )
+        # Adding Cinder as it's always available in any openstack deployment and
+        # can be used as Glance backend
+        self._available_backends[app_constants.GLANCE_BACKEND_CINDER] = \
+            app_constants.GLANCE_BACKEND_CINDER
+        self._available_netapp_backends = [
+            be for be in self._available_backends
+            if be.startswith('netapp') and self._available_backends[be]
+        ]
+        self._ceph_enabled = bool(
+            self._available_backends.get(app_constants.CEPH_BACKEND_NAME, False)
+        )
+        self._netapp_enabled = any(self._available_netapp_backends)
+        self._backend, self._storage_class = self._get_storage()
+        self._image_store = app_constants.GLANCE_BACKEND_TO_IMAGE_STORE[
+            self._backend
+        ]
+
+        LOG.info(f"Glance available backends: {self._available_backends}")
+        LOG.info(f"Glance available NetApp backends: {self._available_backends}")
+        LOG.info(f"Glance priority list: {self._priority_list}")
+        LOG.info(f"Glance Ceph enabled: {self._ceph_enabled}")
+        LOG.info(f"Glance NetApp enabled: {self._netapp_enabled}")
+        LOG.info(f"Glance backend: {self._backend}")
+        if self._backend == app_constants.GLANCE_BACKEND_PVC:
+            LOG.info(f"Glance storage class: {self._storage_class}")
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'pod': self._get_pod_overrides(),
                 'endpoints': self._get_endpoints_overrides(),
-                'storage': self._get_storage_overrides(),
+                'storage': self._backend,
                 'conf': self._get_conf_overrides(),
                 'bootstrap': self._get_bootstrap_overrides(),
                 'ceph_client': self._get_ceph_client_overrides(),
@@ -105,16 +143,6 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             },
 
         }
-
-    def _get_storage_overrides(self):
-        if self._rook_ceph:
-            return "rbd"
-
-        ceph_backend = self._get_primary_ceph_backend()
-        if not ceph_backend:
-            return 'pvc'
-
-        return constants.GLANCE_BACKEND_RBD  # radosgw| rbd | swift | pvc
 
     def _get_ceph_overrides(self):
         conf_ceph = {
@@ -224,6 +252,39 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             pass
 
         return backend
+
+    def _get_storage(self) -> tuple[str, str]:
+        """
+        Get the glance backend and storage class based on available backends and
+        their priorities.
+
+        Returns:
+            tuple[str, str]: A tuple containing the glance backend name and
+            corresponding storage class name for `GLANCE_BACKEND_PVC`. For other
+            backends, the storage class name will be an empty string.
+
+        Example:
+            >>> backend, storage_class = self._get_storage()
+            >>> print(backend, storage_class)
+            pvc general
+            >>> backend, storage_class = self._get_storage()
+            >>> print(backend, storage_class)
+            rbd ""
+            >>> backend, storage_class = self._get_storage()
+            >>> print(backend, storage_class)
+            cinder ""
+        """
+        backend = app_constants.GLANCE_DEFAULT_BACKEND
+        storage_class = ""
+        for priority in self._priority_list:
+            if self._available_backends.get(priority, ""):
+                backend = app_constants.VOLUME_BACKEND_TO_GLANCE_BACKEND[
+                    priority
+                ]
+                if backend == app_constants.GLANCE_BACKEND_PVC:
+                    storage_class = self._available_backends.get(priority, "")
+                break
+        return backend, storage_class
 
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)

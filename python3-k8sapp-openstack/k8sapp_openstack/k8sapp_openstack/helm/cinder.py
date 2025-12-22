@@ -19,6 +19,7 @@ from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_storage_backends_priority_list
+from k8sapp_openstack.utils import get_storage_backup_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
 
 LOG = logging.getLogger(__name__)
@@ -33,6 +34,11 @@ class CinderHelm(openstack.OpenstackBaseHelm):
     SERVICE_NAME = app_constants.HELM_CHART_CINDER
     SERVICE_TYPE = 'volume'
     AUTH_USERS = ['cinder']
+
+    def _get_backup_driver_name(self, backend_name=app_constants.BACKEND_DEFAULT_BACKEND_NAME):
+        return app_constants.BACKUP_BACKEND_DRIVER_MAP.get(
+            backend_name, app_constants.BACKUP_DEFAULT_DRIVER
+        )
 
     def _get_mount_overrides(self):
         overrides = {
@@ -55,6 +61,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         cinder_overrides = self._get_common_cinder_overrides()
         backend_overrides = self._get_common_backend_overrides()
         self.VOLUME_PRIORITY_LIST = get_storage_backends_priority_list(self.CHART)
+        self.BACKUP_PRIORITY_LIST = get_storage_backup_priority_list(self.CHART)
+        self.default_volume_type = app_constants.BACKEND_DEFAULT_BACKEND_NAME
+        self.default_backup_driver = self._get_backup_driver_name()
+        self.default_backup_type = app_constants.BACKEND_DEFAULT_BACKEND_NAME
         self._rook_ceph = False
         ceph_overrides = dict()
         ceph_client_overrides = dict()
@@ -78,6 +88,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         LOG.info(f"Cinder available backends: {self.available_backends}")
         LOG.info(f"Cinder available NetApp backends: {self.available_backends}")
         LOG.info(f"Cinder volume priority list: {self.VOLUME_PRIORITY_LIST}")
+        LOG.info(f"Cinder backup priority list: {self.BACKUP_PRIORITY_LIST}")
         LOG.info(f"Cinder Ceph enabled: {self._ceph_enabled}")
         LOG.info(f"Cinder NetApp NFS enabled: {self._netapp_nfs_enabled}")
         LOG.info(f"Cinder NetApp iSCSI enabled: {self._netapp_iscsi_enabled}")
@@ -117,15 +128,23 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
         # Setting default volume type based on the priority list.
         # It will be the first available backend following the priority order.
-        default_volume_type = app_constants.BACKEND_DEFAULT_BACKEND_NAME
         for priority in self.VOLUME_PRIORITY_LIST:
             if self.available_backends.get(priority, ""):
-                default_volume_type = priority
+                self.default_volume_type = priority
                 break
-        if default_volume_type != "ceph":   # Only set if not ceph, as ceph is handled
+        if self.default_volume_type != "ceph":   # Only set if not ceph, as ceph is handled
                                             # separately by _get_conf_ceph_cinder_overrides
                                             # and _get_conf_rook_ceph_cinder_overrides
-            cinder_overrides['DEFAULT']['default_volume_type'] = default_volume_type
+            cinder_overrides['DEFAULT']['default_volume_type'] = self.default_volume_type
+
+        # Setting default backup driver based on priority list.
+        # It will match the first available backend following the backup priority order.
+        for priority in self.BACKUP_PRIORITY_LIST:
+            if self.available_backends.get(priority, ""):
+                self.default_backup_driver = self._get_backup_driver_name(priority)
+                self.default_backup_type = priority
+                break
+        cinder_overrides['DEFAULT']['backup_driver'] = self.default_backup_driver
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -173,14 +192,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                     'backends': backend_overrides,
                 },
                 'endpoints': self._get_endpoints_overrides(),
-                'ceph_client': ceph_client_overrides
+                'ceph_client': ceph_client_overrides,
+                'backup': self._get_backup_overrides()
             }
         }
-
-        # Remove unused Ceph overrides
-        if not self._ceph_enabled:
-            overrides[common.HELM_NS_OPENSTACK]['conf'].pop('ceph', 0)
-            overrides[common.HELM_NS_OPENSTACK].pop('ceph_client', 0)
 
         if self._netapp_nfs_enabled:
             overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
@@ -188,6 +203,11 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 {
                     'conf': {
                         'nfs_shares': app_constants.NETAPP_DEFAULT_NFS_SHARES,
+                        'cinder': {
+                            'DEFAULT': {
+                                'backup_share': app_constants.NETAPP_DEFAULT_NFS_SHARES
+                            }
+                        }
                     }
                 }
             )
@@ -384,6 +404,23 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # https://netapp-openstack-dev.github.io/openstack-docs/wallaby/cinder/configuration/cinder_config_files/section_fibre-channel.html
 
         return backend_overrides
+
+    def _get_backup_overrides(self):
+        backup_overrides = dict()
+        class_name = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
+        if "PosixBackupDriver" in self.default_backup_driver:
+            class_name = self.available_backends.get(
+                self.default_backup_type,
+                app_constants.BACKEND_DEFAULT_STORAGE_CLASS
+            )
+            backup_overrides = {
+                'posix': {
+                    'volume': {
+                        'class_name': class_name
+                    }
+                }
+            }
+        return backup_overrides
 
     def _get_endpoints_overrides(self):
         return {

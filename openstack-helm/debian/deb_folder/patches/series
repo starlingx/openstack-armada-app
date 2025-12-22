@@ -29,4 +29,3 @@
 0029-Add-DEX-integration.patch
 0030-Add-Netapp-backend-support-to-Cinder.patch
 0031-Update-glance-store-config.patch
-0032-Add-backend-checks-to-skip-Ceph-init-for-NetApp-stor.patch

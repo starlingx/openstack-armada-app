@@ -24,6 +24,7 @@ from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helpers import ldap
 from k8sapp_openstack.utils import check_dex_healthy
+from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_endpoint_domain
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_dex_enabled
@@ -259,18 +260,23 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         Raises:
             LifecycleMissingInfo: Reports an issue when reading the source config map.
         """
-        available, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
+        available_backends = get_available_volume_backends()
+        if not bool(available_backends.get(app_constants.CEPH_BACKEND_NAME,
+                                           False)):
+            LOG.warning("Ceph is not available, skipping Ceph ConfigMap copy")
+            return
 
+        available, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
         if available:
-            LOG.info("Read ceph-etc config map from rook-ceph namespace")
+            LOG.info(f"Read {self.APP_OPENSTACK_RESOURCE_CONFIG_MAP} config map"
+                     "from rook-ceph namespace "
+                     f"({app_constants.HELM_NS_ROOK_CEPH})")
             src_config_map_name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
             src_config_map_ns = app_constants.HELM_NS_ROOK_CEPH
-        elif not available and message == app_constants.CEPH_BACKEND_NOT_CONFIGURED:
-            raise exception.InvalidStorageBackend(backend=constants.SB_TYPE_CEPH_ROOK)
-        elif not available and message == app_constants.DB_API_NOT_AVAILABLE:
-            raise ConnectionError("Database API is not available")
         else:
-            LOG.info("Read rbd-storage-init config map from kube-system namespace")
+            LOG.info(f"Read {self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP} config map"
+                     "from host-ceph namespace "
+                     f"({common.HELM_NS_RBD_PROVISIONER})")
             src_config_map_name = self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP
             src_config_map_ns = common.HELM_NS_RBD_PROVISIONER
 

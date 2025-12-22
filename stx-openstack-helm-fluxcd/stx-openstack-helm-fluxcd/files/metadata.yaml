@@ -1,6 +1,7 @@
 app_name: app-openstack
-app_version: 1.0-1
+app_version: 1.0-2
 maintain_user_overrides: true
+class: optional
 
 disabled_charts:
 - aodh
@@ -18,14 +19,6 @@ upgrades:
 
 supported_k8s_version:
   minimum: 1.24.4
-
-dependent_apps:
-  - - name: rook-ceph
-      version: (2[5-7]\.\d+|[1-12]\d+\.\d+)-\d+
-      action: apply
-    - name: platform-integ-apps
-      version: (2[5-7]\.\d+|[1-12]\d+\.\d+)-\d+
-      action: apply
 
 behavior:
   platform_managed_app: yes

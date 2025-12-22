@@ -1,5 +1,5 @@
 upstream/openstack/openstack-aodh
-upstream/openstack/openstack-ironic
+#upstream/openstack/openstack-ironic
 upstream/openstack/python-barbican
 upstream/openstack/python-ceilometer
 upstream/openstack/python-cinder

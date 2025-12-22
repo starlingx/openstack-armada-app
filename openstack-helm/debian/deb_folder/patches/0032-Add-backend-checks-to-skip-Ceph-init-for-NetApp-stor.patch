@@ -1,6 +1,6 @@
-From 5d77d05f29b7589c801c8980aa438854dbb3b7ec Mon Sep 17 00:00:00 2001
+From 714138e7e95a5a6c5845d62a0c86c53edf259ad5 Mon Sep 17 00:00:00 2001
 From: Thiago Miranda <tmarques@windriver.com>
-Date: Mon, 24 Nov 2025 09:45:21 -0300
+Date: Mon, 22 Dec 2025 11:57:55 -0300
 Subject: [PATCH] Add backend checks to skip Ceph init for NetApp storage
 
 Introduce conditional logic to skip Ceph initialization when using
@@ -43,7 +43,7 @@ index f780ff9e8..0df7cee8d 100644
    function ensure_pool () {
      if [ "$2" -eq 0 ]; then
 diff --git a/glance/templates/job-storage-init.yaml b/glance/templates/job-storage-init.yaml
-index 22cd41098..8e35ace31 100644
+index 5e6a210ab..db3aabdd0 100644
 --- a/glance/templates/job-storage-init.yaml
 +++ b/glance/templates/job-storage-init.yaml
 @@ -112,6 +112,10 @@ spec:
@@ -56,7 +56,7 @@ index 22cd41098..8e35ace31 100644
 +            {{- end }}
              {{- if eq .Values.storage "rbd" }}
              - name: RBD_POOL_NAME
-               value: {{ .Values.conf.glance.glance_store.rbd_store_pool | quote }}
+               value: {{ .Values.conf.glance.rbd.rbd_store_pool | quote }}
 -- 
 2.34.1
 

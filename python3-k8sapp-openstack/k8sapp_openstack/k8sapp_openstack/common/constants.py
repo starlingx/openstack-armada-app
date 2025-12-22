@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -180,6 +180,10 @@ NETAPP_BACKEND_TO_TYPE = {
     NETAPP_ISCSI_BACKEND_NAME: BACKEND_TYPE_NETAPP_ISCSI,
     NETAPP_FC_BACKEND_NAME: BACKEND_TYPE_NETAPP_FC,
 }
+
+# PVC Names for StorageClass validation
+MARIADB_PVC_NAME = "mysql-data-mariadb-server-0"
+RABBITMQ_PVC_NAME = "rabbitmq-data-osh-openstack-rabbitmq-rabbitmq-0"
 
 # NetApp Default and Placeholder Values
 NETAPP_CINDER_VOLUME_DRIVER = "cinder.volume.drivers.netapp.common.NetAppDriver"

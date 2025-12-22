@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -24,8 +24,13 @@ from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helpers import ldap
 from k8sapp_openstack.utils import check_dex_healthy
+from k8sapp_openstack.utils import check_if_namespace_exists
+from k8sapp_openstack.utils import check_if_pvc_exists_in_a_namespace
+from k8sapp_openstack.utils import check_storageclass_change
 from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_endpoint_domain
+from k8sapp_openstack.utils import get_pvc_storageclass
+from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_dex_enabled
 from k8sapp_openstack.utils import oidc_parameters_exist
@@ -373,6 +378,8 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                         "Unable to reset clients' working directory "
                         f"`{str(working_directory)}` permissions."
                     )
+        # Check if StorageClass match with the backend priority list
+        self._semantic_check_backend_storageclass()
 
     def _pre_apply_check(self, conductor_obj, app, hook_info):
         """Semantic check for evaluating app manual apply
@@ -409,6 +416,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         # Check OIDC configuration when the feature is enabled
         self._semantic_check_oidc_config(conductor_obj.dbapi)
+
+        # Check if StorageClass match with the backend priority list
+        self._semantic_check_backend_storageclass()
 
     def _pre_remove_check(self, conductor_obj, app, hook_info):
         """Semantic check for evaluating app manual remove
@@ -831,4 +841,71 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                      "Central Controller." % app.name)
             raise exception.LifecycleSemanticCheckException(
                 "Application cannot be applied on Central Controller."
+            )
+
+    def _semantic_check_backend_storageclass(self):
+        """Enforce StorageClass immutability for application PVCs.
+
+        This semantic check ensures that app PVC's remain bound to the StorageClass
+        they were originally deployed with. Migration between different StorageClass
+        is not supported.
+
+        The check validates that the StorageClass currently used by the MariaDB and
+        RabbitMQ PVCs didn't had changes.
+
+        If a different StorageClass is detected, the check fails intentionally,
+        instructing the user to perform a backup and redeploy instead of attempting
+        an in-place StorageClass migration.
+
+        The check is skipped if the OpenStack namespace or required PVCs do not exist.
+
+        Raises: LifecycleSemanticCheckException:
+            - If there was a change in the StorageClass
+        """
+        mariadb_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_MARIADB)
+        mariadb_current_storageclass = get_pvc_storageclass(app_constants.MARIADB_PVC_NAME)
+        rabbitmq_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_RABBITMQ)
+        rabbitmq_current_storageclass = get_pvc_storageclass(app_constants.RABBITMQ_PVC_NAME)
+        available_backends = get_available_volume_backends()
+
+        LOG.info(mariadb_current_storageclass, rabbitmq_current_storageclass)
+        if not check_if_namespace_exists(app_constants.HELM_NS_OPENSTACK):
+            LOG.info(f"{app_constants.HELM_NS_OPENSTACK} namespace doesn't exist, "
+                        "skipping StorageClasses semantic check")
+            return
+
+        if not check_if_pvc_exists_in_a_namespace(app_constants.HELM_NS_OPENSTACK):
+            LOG.info(f"There is no PVCs in the {app_constants.HELM_NS_OPENSTACK} namespace, "
+                        "skipping StorageClasses semantic check")
+            return
+
+        mariadb_storageclass_change_validation, mariadb_new_storageclass = check_storageclass_change(
+            mariadb_priority_list,
+            available_backends,
+            mariadb_current_storageclass
+             )
+        rabbitmq_storageclass_change_validation, rabbitmq_new_storageclass = check_storageclass_change(
+            rabbitmq_priority_list,
+            available_backends,
+            rabbitmq_current_storageclass
+             )
+
+        if (not mariadb_storageclass_change_validation
+              and not rabbitmq_storageclass_change_validation):
+            return
+
+        if mariadb_storageclass_change_validation:
+            raise exception.LifecycleSemanticCheckException(
+                f"{app_constants.HELM_CHART_MARIADB} is currently running using "
+                f"StorageClass:\"{mariadb_current_storageclass}\" while is trying to reapply "
+                f"with StorageClass:\"{mariadb_new_storageclass}\" and migration is not supported. "
+                "Please backup your data and remove/apply the application to modify the current StorageClass."
+            )
+
+        if rabbitmq_storageclass_change_validation:
+            raise exception.LifecycleSemanticCheckException(
+                f"{app_constants.HELM_CHART_RABBITMQ} is currently running using "
+                f"StorageClass:\"{rabbitmq_current_storageclass}\ while is trying to reapply "
+                f"with StorageClass:\"{rabbitmq_new_storageclass}\" and migration is not supported. "
+                "Please backup your data and remove/apply the application to modify the current StorageClass."
             )

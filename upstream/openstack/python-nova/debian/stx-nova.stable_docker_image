@@ -18,6 +18,7 @@ DIST_PACKAGES="\
   libvirt-daemon-driver-qemu \
   libvirt-daemon-driver-storage-gluster \
   libvirt-login-shell \
+  nfs-common \
   openssh-client \
   openssh-server
 "

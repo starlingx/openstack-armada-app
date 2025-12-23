@@ -1,13 +1,7 @@
 From 29770a771986e178069ba1ec809220584e96f25c Mon Sep 17 00:00:00 2001
 From: Daniel Caires <DanielMarques.Caires@windriver.com>
 Date: Wed, 26 Nov 2025 13:49:50 -0300
-Subject: [PATCH] Update makefile to build env
-
-The current makefile in the OSH repo, runs git commands
-inside the chart_version.sh file. Because the build env
-does not create a git repository when building the Helm charts
-it was necessary to remove the call to this script when building
-the Helm chart package.
+Subject: [PATCH] change makefile
 
 Change-Id: I73244001de9d50ce83de3653bef3ec297fe9c81f
 ---

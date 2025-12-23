@@ -77,7 +77,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                 'conf': self._get_conf_overrides(),
                 'bootstrap': self._get_bootstrap_overrides(),
                 'ceph_client': self._get_ceph_client_overrides(),
-                'volumes': {
+                'volume': {
                     'class_name': (
                         self._storage_class
                         if self._storage_class

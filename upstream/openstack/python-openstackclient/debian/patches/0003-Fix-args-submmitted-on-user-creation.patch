@@ -1,0 +1,387 @@
+From 231a9b9533c386e08f4cf9d0f9892cca13400d8c Mon Sep 17 00:00:00 2001
+From: Doug Goldstein <cardoe@cardoe.com>
+Date: Mon, 15 Dec 2025 10:14:41 -0600
+Subject: [PATCH] Fix args submmitted on user creation
+
+When a user is created without a password then no parameter called
+'password' should be submitted to the keystone API. This removes the
+incorrect 'password' with null being supplied.
+
+Note: This backport may no longer be necessary in future upgrades,
+as the fix is already present starting from
+python-openstackclient 8.2.0-49.
+
+Change-Id: If1c2eb5db360764a5f7660ce4e5353da85b6d3da
+
+[Backport fix to avoid sending null password on user creation]
+Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+---
+ openstackclient/identity/v3/user.py           |  6 ++-
+ .../tests/unit/identity/v3/test_user.py       | 41 -------------------
+ 2 files changed, 4 insertions(+), 43 deletions(-)
+
+diff --git a/openstackclient/identity/v3/user.py b/openstackclient/identity/v3/user.py
+index 545b1cda..715bc797 100644
+--- a/openstackclient/identity/v3/user.py
++++ b/openstackclient/identity/v3/user.py
+@@ -288,13 +288,16 @@ class CreateUser(command.ShowOne):
+         elif parsed_args.password_prompt:
+             password = utils.get_password(self.app.stdin)
+ 
+-        if not parsed_args.password:
++        if not password:
+             LOG.warning(
+                 _(
+                     "No password was supplied, authentication will fail "
+                     "when a user does not have a password."
+                 )
+             )
++        else:
++            kwargs['password'] = password
++
+         options = _get_options_for_user(identity_client, parsed_args)
+         if options:
+             kwargs['options'] = options
+@@ -303,7 +306,6 @@ class CreateUser(command.ShowOne):
+             user = identity_client.create_user(
+                 is_enabled=is_enabled,
+                 name=parsed_args.name,
+-                password=password,
+                 **kwargs,
+             )
+         except sdk_exc.ConflictException:
+diff --git a/openstackclient/tests/unit/identity/v3/test_user.py b/openstackclient/tests/unit/identity/v3/test_user.py
+index 7f4c2497..36fae7d9 100644
+--- a/openstackclient/tests/unit/identity/v3/test_user.py
++++ b/openstackclient/tests/unit/identity/v3/test_user.py
+@@ -92,7 +92,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+         kwargs = {
+             'name': self.user.name,
+             'is_enabled': True,
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -136,7 +135,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             self.user.name,
+         ]
+         verifylist = [
+-            ('password', None),
+             ('password_prompt', True),
+             ('enable', False),
+             ('disable', False),
+@@ -187,7 +185,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'email': 'barney@example.com',
+             'is_enabled': True,
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -218,7 +215,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'default_project_id': self.project.id,
+             'is_enabled': True,
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -262,7 +258,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'default_project_id': self.project.id,
+             'is_enabled': True,
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_once_with(**kwargs)
+         self.identity_sdk_client.find_domain.assert_called_once_with(
+@@ -306,7 +301,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'domain_id': self.domain.id,
+             'is_enabled': True,
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -334,7 +328,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+         kwargs = {
+             'name': self.user.name,
+             'is_enabled': True,
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -362,7 +355,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+         kwargs = {
+             'name': self.user.name,
+             'is_enabled': False,
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -392,7 +384,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'ignore_lockout_failure_attempts': True},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -422,7 +413,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'ignore_lockout_failure_attempts': False},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -452,7 +442,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'ignore_password_expiry': True},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -482,7 +471,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'ignore_password_expiry': False},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -512,7 +500,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'ignore_change_password_upon_first_use': True},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -542,7 +529,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'ignore_change_password_upon_first_use': False},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -572,7 +558,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'lock_password': True},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -602,7 +587,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'lock_password': False},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -632,7 +616,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'multi_factor_auth_enabled': True},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -662,7 +645,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'name': self.user.name,
+             'is_enabled': True,
+             'options': {'multi_factor_auth_enabled': False},
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -700,7 +682,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+             'options': {
+                 'multi_factor_auth_rules': [["password", "totp"], ["password"]]
+             },
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -739,7 +720,6 @@ class TestUserCreate(identity_fakes.TestIdentityv3):
+                 'multi_factor_auth_enabled': False,
+                 'multi_factor_auth_rules': [["password", "totp"]],
+             },
+-            'password': None,
+         }
+         self.identity_sdk_client.create_user.assert_called_with(**kwargs)
+ 
+@@ -1017,7 +997,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('project', None),
+             ('enable', False),
+@@ -1038,7 +1017,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', 'qwerty'),
+-            ('password', None),
+             ('email', None),
+             ('project', None),
+             ('enable', False),
+@@ -1069,7 +1047,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', 'qwerty'),
+-            ('password', None),
+             ('domain', self.domain.id),
+             ('email', None),
+             ('project', None),
+@@ -1125,7 +1102,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('password_prompt', True),
+             ('email', None),
+             ('project', None),
+@@ -1158,7 +1134,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', 'barney@example.com'),
+             ('project', None),
+             ('enable', False),
+@@ -1187,7 +1162,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('project', self.project.id),
+             ('enable', False),
+@@ -1218,7 +1192,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('project', self.project.id),
+             ('project_domain', self.project.domain_id),
+@@ -1247,7 +1220,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('project', None),
+             ('enable', True),
+@@ -1274,7 +1246,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('project', None),
+             ('enable', False),
+@@ -1301,7 +1272,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('ignore_lockout_failure_attempts', True),
+             ('project', None),
+@@ -1329,7 +1299,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('no_ignore_lockout_failure_attempts', True),
+             ('project', None),
+@@ -1357,7 +1326,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('ignore_password_expiry', True),
+             ('project', None),
+@@ -1385,7 +1353,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('no_ignore_password_expiry', True),
+             ('project', None),
+@@ -1413,7 +1380,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('ignore_change_password_upon_first_use', True),
+             ('project', None),
+@@ -1441,7 +1407,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('no_ignore_change_password_upon_first_use', True),
+             ('project', None),
+@@ -1469,7 +1434,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('enable_lock_password', True),
+             ('project', None),
+@@ -1497,7 +1461,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('disable_lock_password', True),
+             ('project', None),
+@@ -1525,7 +1488,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('enable_multi_factor_auth', True),
+             ('project', None),
+@@ -1553,7 +1515,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('disable_multi_factor_auth', True),
+             ('project', None),
+@@ -1582,7 +1543,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('multi_factor_auth_rule', [identity_fakes.mfa_opt1]),
+             ('project', None),
+@@ -1614,7 +1574,6 @@ class TestUserSet(identity_fakes.TestIdentityv3):
+         ]
+         verifylist = [
+             ('name', None),
+-            ('password', None),
+             ('email', None),
+             ('ignore_password_expiry', True),
+             ('enable_multi_factor_auth', True),
+-- 
+2.34.1
+

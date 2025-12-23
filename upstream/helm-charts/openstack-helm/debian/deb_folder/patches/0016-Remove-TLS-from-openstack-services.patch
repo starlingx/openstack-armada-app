@@ -1,13 +1,17 @@
 From ce9fb17d56cef7761cca339d7b45ed43b42119a6 Mon Sep 17 00:00:00 2001
 From: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Date: Thu, 10 Feb 2022 16:23:26 -0300
-Subject: [PATCH] Remove TLS from openstack services at backend
+Subject: [PATCH] Remove TLS from openstack services
 
 Openstack-helm provides the option to terminate TLS at the services.
 However, at Starlingx TLS termination is done at the reverse
 proxy (ingress) and therefore is unecessary for the OpenStack to be
 HTTPS. Removing this option creates a cumbersome override file, so
-to diminish this overrides this patches disables https at the backend
+to diminish this overrides this patches disables https at the backend.
+
+Additionally, Cinder, Glance and other services stopped communicating
+properly after the rebase brought tls to mariadb and rabbit, this patch
+also removes such connections,
 
 Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 [ upversioned openstack-helm base commit ]
@@ -22,96 +26,172 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Merged similar patches under new OSH package]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
- cinder/templates/bin/_cinder-api.sh.tpl       | 40 -----------
+ cinder/templates/bin/_cinder-api.sh.tpl       | 40 ----------
  cinder/templates/certificates.yaml            | 17 -----
- cinder/templates/configmap-etc.yaml           |  4 --
- .../cron-job-cinder-volume-usage-audit.yaml   |  4 +-
- cinder/templates/deployment-api.yaml          | 28 ++------
- cinder/templates/deployment-scheduler.yaml    |  4 +-
- cinder/templates/deployment-volume.yaml       |  6 +-
+ cinder/templates/configmap-etc.yaml           |  8 --
+ .../cron-job-cinder-volume-usage-audit.yaml   |  8 +-
+ cinder/templates/deployment-api.yaml          | 32 ++------
+ cinder/templates/deployment-backup.yaml       |  4 -
+ cinder/templates/deployment-scheduler.yaml    |  8 +-
+ cinder/templates/deployment-volume.yaml       | 10 +--
  cinder/templates/ingress-api.yaml             |  7 +-
  cinder/templates/job-bootstrap.yaml           |  2 +-
  .../templates/job-create-internal-tenant.yaml |  4 +-
+ cinder/templates/job-db-drop.yaml             |  3 -
+ cinder/templates/job-db-init.yaml             |  3 -
+ cinder/templates/job-db-sync.yaml             |  3 -
  cinder/templates/job-ks-endpoints.yaml        |  2 +-
  cinder/templates/job-ks-service.yaml          |  2 +-
  cinder/templates/job-ks-user.yaml             |  2 +-
+ cinder/templates/job-rabbit-init.yaml         |  3 -
  cinder/templates/pod-rally-test.yaml          |  6 +-
+ cinder/templates/secret-db.yaml               |  4 -
+ cinder/templates/secret-rabbitmq.yaml         |  3 -
  glance/templates/certificates.yaml            | 17 -----
- glance/templates/deployment-api.yaml          | 53 +-------------
+ glance/templates/configmap-etc.yaml           |  4 -
+ glance/templates/deployment-api.yaml          | 57 +-------------
  glance/templates/ingress-api.yaml             |  7 +-
  glance/templates/job-bootstrap.yaml           |  2 +-
+ glance/templates/job-db-drop.yaml             |  3 -
+ glance/templates/job-db-init.yaml             |  3 -
+ glance/templates/job-db-sync.yaml             |  3 -
  glance/templates/job-ks-endpoints.yaml        |  2 +-
  glance/templates/job-ks-service.yaml          |  2 +-
  glance/templates/job-ks-user.yaml             |  2 +-
+ glance/templates/job-metadefs-load.yaml       |  2 -
+ glance/templates/job-rabbit-init.yaml         |  3 -
  glance/templates/job-storage-init.yaml        |  4 +-
  glance/templates/pod-rally-test.yaml          |  6 +-
- heat/templates/bin/_heat-api.sh.tpl           | 36 ----------
+ glance/templates/secret-db.yaml               |  4 -
+ glance/templates/secret-rabbitmq.yaml         |  3 -
+ heat/templates/bin/_heat-api.sh.tpl           | 36 ---------
  heat/templates/bin/_heat-cfn.sh.tpl           | 37 ----------
  heat/templates/certificates.yaml              | 18 -----
- heat/templates/deployment-api.yaml            | 14 +---
+ heat/templates/configmap-etc.yaml             |  4 -
+ heat/templates/cron-job-engine-cleaner.yaml   |  2 -
+ heat/templates/cron-job-purge-deleted.yaml    |  2 -
+ heat/templates/deployment-api.yaml            | 15 +---
  heat/templates/deployment-cfn.yaml            | 14 +---
- heat/templates/deployment-engine.yaml         |  4 +-
- heat/templates/ingress-api.yaml               |  4 --
- heat/templates/ingress-cfn.yaml               |  4 --
+ heat/templates/deployment-engine.yaml         |  8 +-
+ heat/templates/ingress-api.yaml               |  4 -
+ heat/templates/ingress-cfn.yaml               |  4 -
  heat/templates/job-bootstrap.yaml             |  2 +-
+ heat/templates/job-db-drop.yaml               |  3 -
+ heat/templates/job-db-init.yaml               |  3 -
+ heat/templates/job-db-sync.yaml               |  3 -
  heat/templates/job-ks-endpoints.yaml          |  2 +-
  heat/templates/job-ks-service.yaml            |  2 +-
  heat/templates/job-ks-user-domain.yaml        |  4 +-
  heat/templates/job-ks-user-trustee.yaml       |  2 +-
  heat/templates/job-ks-user.yaml               |  2 +-
+ heat/templates/job-rabbit-init.yaml           |  3 -
  heat/templates/job-trusts.yaml                |  4 +-
  heat/templates/pod-rally-test.yaml            |  6 +-
+ heat/templates/secret-db.yaml                 |  4 -
+ heat/templates/secret-rabbitmq.yaml           |  3 -
+ .../manifests/_job-db-drop-mysql.tpl          |  7 --
+ .../manifests/_job-db-init-mysql.tpl          |  7 --
+ .../templates/manifests/_job-db-sync.tpl      |  3 -
+ .../manifests/_job-rabbit-init.yaml.tpl       | 15 ----
+ .../templates/scripts/_db-drop.py.tpl         | 11 +--
+ .../templates/scripts/_db-init.py.tpl         | 14 +---
+ .../templates/scripts/_rabbit-init.sh.tpl     | 15 ----
  horizon/templates/certificates.yaml           | 17 -----
- horizon/templates/deployment.yaml             |  6 +-
- horizon/templates/ingress-api.yaml            |  4 --
+ horizon/templates/deployment.yaml             |  8 +-
+ horizon/templates/ingress-api.yaml            |  4 -
+ horizon/templates/job-db-drop.yaml            |  3 -
+ horizon/templates/job-db-init.yaml            |  3 -
+ horizon/templates/job-db-sync.yaml            |  2 -
  horizon/templates/pod-helm-tests.yaml         |  4 +-
- horizon/values.yaml                           |  2 +-
- keystone/templates/bin/_keystone-api.sh.tpl   |  4 --
+ horizon/templates/secret-db.yaml              |  4 -
+ horizon/values.yaml                           | 11 +--
+ keystone/templates/bin/_cred-clean.py.tpl     | 11 +--
+ keystone/templates/bin/_keystone-api.sh.tpl   |  4 -
  keystone/templates/certificates.yaml          | 17 -----
- keystone/templates/deployment-api.yaml        |  8 ++-
+ keystone/templates/configmap-etc.yaml         |  4 -
+ keystone/templates/deployment-api.yaml        | 12 +--
  keystone/templates/ingress-api.yaml           |  7 +-
  keystone/templates/job-bootstrap.yaml         |  4 +-
+ .../templates/job-credential-cleanup.yaml     | 10 ---
+ keystone/templates/job-db-drop.yaml           |  3 -
+ keystone/templates/job-db-init.yaml           |  3 -
+ keystone/templates/job-db-sync.yaml           | 12 ---
  keystone/templates/job-domain-manage.yaml     | 14 +---
- keystone/templates/pod-rally-test.yaml        | 16 ++---
+ keystone/templates/job-rabbit-init.yaml       |  3 -
+ keystone/templates/pod-rally-test.yaml        | 16 ++--
+ keystone/templates/secret-db.yaml             |  4 -
+ keystone/templates/secret-rabbitmq.yaml       |  3 -
  neutron/templates/certificates.yaml           | 17 -----
- .../templates/daemonset-metadata-agent.yaml   |  4 +-
- neutron/templates/deployment-rpc_server.yaml  |  4 +-
- neutron/templates/deployment-server.yaml      | 70 +------------------
- neutron/templates/ingress-server.yaml         |  4 --
+ neutron/templates/configmap-etc.yaml          |  4 -
+ neutron/templates/daemonset-dhcp-agent.yaml   |  2 -
+ neutron/templates/daemonset-l2gw-agent.yaml   |  2 -
+ neutron/templates/daemonset-l3-agent.yaml     |  2 -
+ neutron/templates/daemonset-lb-agent.yaml     |  2 -
+ .../templates/daemonset-metadata-agent.yaml   |  6 +-
+ neutron/templates/daemonset-ovs-agent.yaml    |  2 -
+ neutron/templates/daemonset-sriov-agent.yaml  |  2 -
+ .../templates/deployment-ironic-agent.yaml    |  2 -
+ neutron/templates/deployment-rpc_server.yaml  |  8 +-
+ neutron/templates/deployment-server.yaml      | 74 +------------------
+ neutron/templates/ingress-server.yaml         |  4 -
  neutron/templates/job-bootstrap.yaml          |  2 +-
+ neutron/templates/job-db-drop.yaml            |  3 -
+ neutron/templates/job-db-init.yaml            |  3 -
+ neutron/templates/job-db-sync.yaml            |  3 -
  neutron/templates/job-ks-endpoints.yaml       |  2 +-
  neutron/templates/job-ks-service.yaml         |  2 +-
  neutron/templates/job-ks-user.yaml            |  2 +-
- neutron/templates/pod-rally-test.yaml         |  8 +--
+ neutron/templates/job-rabbit-init.yaml        |  3 -
+ neutron/templates/pod-rally-test.yaml         |  8 +-
+ neutron/templates/secret-db.yaml              |  4 -
+ neutron/templates/secret-rabbitmq.yaml        |  3 -
  neutron/values.yaml                           |  1 +
  nova/templates/bin/_nova-api-metadata.sh.tpl  | 38 ----------
- nova/templates/bin/_nova-api.sh.tpl           | 39 -----------
+ nova/templates/bin/_nova-api.sh.tpl           | 39 ----------
  nova/templates/certificates.yaml              | 33 ---------
+ nova/templates/configmap-etc.yaml             | 17 -----
+ .../cron-job-archive-deleted-rows.yaml        |  2 -
+ nova/templates/cron-job-cell-setup.yaml       |  2 -
  nova/templates/cron-job-service-cleaner.yaml  |  4 +-
- nova/templates/daemonset-compute.yaml         | 10 +--
- nova/templates/deployment-api-metadata.yaml   | 16 +----
- nova/templates/deployment-api-osapi.yaml      | 16 +----
- nova/templates/deployment-conductor.yaml      |  6 +-
- nova/templates/deployment-novncproxy.yaml     |  4 +-
- nova/templates/deployment-scheduler.yaml      |  6 +-
+ nova/templates/daemonset-compute.yaml         | 12 ++-
+ nova/templates/deployment-api-metadata.yaml   | 18 +----
+ nova/templates/deployment-api-osapi.yaml      | 20 +----
+ nova/templates/deployment-conductor.yaml      | 10 +--
+ nova/templates/deployment-novncproxy.yaml     |  8 +-
+ nova/templates/deployment-scheduler.yaml      | 10 +--
  nova/templates/deployment-spiceproxy.yaml     |  4 +-
- nova/templates/ingress-metadata.yaml          |  4 --
- nova/templates/ingress-novncproxy.yaml        |  4 --
- nova/templates/ingress-osapi.yaml             |  4 --
+ nova/templates/ingress-metadata.yaml          |  4 -
+ nova/templates/ingress-novncproxy.yaml        |  4 -
+ nova/templates/ingress-osapi.yaml             |  4 -
  nova/templates/job-bootstrap.yaml             |  4 +-
- nova/templates/job-cell-setup.yaml            |  6 +-
+ nova/templates/job-cell-setup.yaml            |  8 +-
+ nova/templates/job-db-drop.yaml               |  3 -
+ nova/templates/job-db-init.yaml               |  3 -
+ nova/templates/job-db-sync.yaml               |  3 -
  nova/templates/job-ks-endpoints.yaml          |  2 +-
  nova/templates/job-ks-service.yaml            |  2 +-
  nova/templates/job-ks-user.yaml               |  2 +-
+ nova/templates/job-rabbit-init.yaml           |  3 -
  nova/templates/pod-rally-test.yaml            |  6 +-
+ nova/templates/secret-db-api.yaml             |  4 -
+ nova/templates/secret-db-cell0.yaml           |  4 -
+ nova/templates/secret-db.yaml                 |  4 -
+ nova/templates/secret-rabbitmq.yaml           |  3 -
  placement/templates/certificates.yaml         | 17 -----
- placement/templates/deployment.yaml           |  4 +-
- placement/templates/ingress.yaml              |  4 --
+ placement/templates/configmap-etc.yaml        |  4 -
+ placement/templates/deployment.yaml           |  6 +-
+ placement/templates/ingress.yaml              |  4 -
+ placement/templates/job-db-drop.yaml          |  3 -
+ placement/templates/job-db-init.yaml          |  3 -
+ placement/templates/job-db-sync.yaml          |  5 +-
  placement/templates/job-ks-endpoints.yaml     |  2 +-
  placement/templates/job-ks-service.yaml       |  2 +-
  placement/templates/job-ks-user.yaml          |  2 +-
- 88 files changed, 129 insertions(+), 709 deletions(-)
+ placement/templates/secret-db.yaml            |  4 -
+ 162 files changed, 138 insertions(+), 1094 deletions(-)
  delete mode 100644 cinder/templates/certificates.yaml
  delete mode 100644 glance/templates/certificates.yaml
  delete mode 100644 heat/templates/certificates.yaml
@@ -201,10 +281,23 @@ index 7ccf6ca14..000000000
 -{{  dict "envAll" . "service" "volumev3" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{- end -}}
 diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
-index 1a20ea841..1a26cc4f5 100644
+index 1a20ea841..2e83f3740 100644
 --- a/cinder/templates/configmap-etc.yaml
 +++ b/cinder/templates/configmap-etc.yaml
-@@ -179,10 +179,6 @@ data:
+@@ -74,12 +74,8 @@ limitations under the License.
+ 
+ {{- if empty .Values.conf.cinder.database.connection -}}
+ {{- $connection := tuple "oslo_db" "internal" "cinder" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | set .Values.conf.cinder.database "connection" -}}
+-{{- else -}}
+ {{- $_ := set .Values.conf.cinder.database "connection" $connection -}}
+ {{- end -}}
+-{{- end -}}
+ 
+ {{- if empty .Values.conf.cinder.DEFAULT.transport_url -}}
+ {{- $_ := tuple "oslo_messaging" "internal" "cinder" "amqp" . | include "helm-toolkit.endpoints.authenticated_transport_endpoint_uri_lookup" | set .Values.conf.cinder.DEFAULT "transport_url" -}}
+@@ -179,10 +175,6 @@ data:
    api-paste.ini: {{ include "helm-toolkit.utils.to_ini" .Values.conf.paste | b64enc }}
    cinder-api-uwsgi.ini: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.cinder_api_uwsgi | b64enc }}
    policy.yaml: {{ toYaml .Values.conf.policy | b64enc }}
@@ -216,29 +309,32 @@ index 1a20ea841..1a26cc4f5 100644
    cinder_sudoers: {{ $envAll.Values.conf.cinder_sudoers | b64enc }}
    rootwrap.conf: {{ $envAll.Values.conf.rootwrap | b64enc }}
 diff --git a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
-index 1d935f125..53f7b299d 100644
+index 1d935f125..e66286e44 100644
 --- a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
 +++ b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
-@@ -90,7 +90,7 @@ spec:
+@@ -90,9 +90,7 @@ spec:
                    mountPath: /tmp/volume-usage-audit.sh
                    subPath: volume-usage-audit.sh
                    readOnly: true
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.internal "path" "/etc/cinder/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.public "path" "/etc/cinder/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
  {{ if $mounts_cinder_volume_usage_audit.volumeMounts }}{{ toYaml $mounts_cinder_volume_usage_audit.volumeMounts | indent 16 }}{{ end }}
-@@ -107,7 +107,7 @@ spec:
+           volumes:
+             - name: pod-tmp
+@@ -107,8 +105,6 @@ spec:
                configMap:
                  name: cinder-bin
                  defaultMode: 0555
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
  {{ if $mounts_cinder_volume_usage_audit.volumes }}{{ toYaml $mounts_cinder_volume_usage_audit.volumes | indent 12 }}{{ end }}
+ {{- end }}
 diff --git a/cinder/templates/deployment-api.yaml b/cinder/templates/deployment-api.yaml
-index f29d103f6..a9b61bfe7 100644
+index f29d103f6..571d71029 100644
 --- a/cinder/templates/deployment-api.yaml
 +++ b/cinder/templates/deployment-api.yaml
 @@ -78,6 +78,10 @@ spec:
@@ -261,7 +357,7 @@ index f29d103f6..a9b61bfe7 100644
              - name: cinder-bin
                mountPath: /tmp/cinder-api.sh
                subPath: cinder-api.sh
-@@ -150,35 +152,17 @@ spec:
+@@ -150,35 +152,15 @@ spec:
                mountPath: {{ .Values.conf.cinder.DEFAULT.resource_query_filters_file }}
                subPath: resource_filters.json
                readOnly: true
@@ -285,10 +381,10 @@ index f29d103f6..a9b61bfe7 100644
 -              subPath: mpm_event.conf
 -              readOnly: true
 -            {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.internal "path" "/etc/cinder/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_cinder_api.volumeMounts }}{{ toYaml $mounts_cinder_api.volumeMounts | indent 12 }}{{ end }}
        volumes:
          - name: pod-tmp
@@ -298,39 +394,64 @@ index f29d103f6..a9b61bfe7 100644
          - name: cinder-bin
            configMap:
              name: cinder-bin
-@@ -194,7 +178,7 @@ spec:
+@@ -193,8 +175,6 @@ spec:
+         - name: cinder-coordination
            emptyDir: {}
          {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_cinder_api.volumes }}{{ toYaml $mounts_cinder_api.volumes | indent 8 }}{{ end }}
  {{- end }}
+diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
+index ccd84fc0f..e65da8daf 100644
+--- a/cinder/templates/deployment-backup.yaml
++++ b/cinder/templates/deployment-backup.yaml
+@@ -285,8 +285,6 @@ spec:
+               mountPath: /usr/local/sbin/iscsiadm
+               subPath: iscsiadm
+             {{- end }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_cinder_backup.volumeMounts }}{{ toYaml $mounts_cinder_backup.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+         - name: pod-tmp
+@@ -366,7 +364,5 @@ spec:
+         - name: usrlocalsbin
+           emptyDir: {}
+         {{- end }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_cinder_backup.volumes }}{{ toYaml $mounts_cinder_backup.volumes | indent 8 }}{{ end }}
+ {{- end }}
 diff --git a/cinder/templates/deployment-scheduler.yaml b/cinder/templates/deployment-scheduler.yaml
-index 73e14e558..e4d5581f3 100644
+index 73e14e558..f43a68c23 100644
 --- a/cinder/templates/deployment-scheduler.yaml
 +++ b/cinder/templates/deployment-scheduler.yaml
-@@ -108,7 +108,7 @@ spec:
+@@ -108,9 +108,7 @@ spec:
              - name: cinder-coordination
                mountPath: {{ ( split "://" .Values.conf.cinder.coordination.backend_url )._1 }}
              {{- end }}
 -{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.internal "path" "/etc/cinder/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_cinder_scheduler.volumeMounts }}{{ toYaml $mounts_cinder_scheduler.volumeMounts | indent 12 }}{{ end }}
-@@ -129,7 +129,7 @@ spec:
+       volumes:
+         - name: pod-tmp
+@@ -129,8 +127,6 @@ spec:
          - name: cinder-coordination
            emptyDir: {}
          {{- end }}
 - {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_cinder_scheduler.volumes }}{{ toYaml $mounts_cinder_scheduler.volumes | indent 8 }}{{ end }}
+ {{- end }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index c28518da0..a56e8ec1e 100644
+index c28518da0..240204256 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
 @@ -132,7 +132,7 @@ spec:
@@ -342,22 +463,25 @@ index c28518da0..a56e8ec1e 100644
            env:
  {{- with $env := dict "ksUserSecret" .Values.secrets.identity.admin "useCA" (or .Values.manifests.certificates .Values.tls.identity) }}
  {{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 12 }}
-@@ -284,7 +284,7 @@ spec:
+@@ -284,9 +284,7 @@ spec:
                mountPropagation: HostToContainer
                {{- end }}
              {{- end }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.internal "path" "/etc/cinder/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_cinder_volume.volumeMounts }}{{ toYaml $mounts_cinder_volume.volumeMounts | indent 12 }}{{ end }}
-@@ -363,7 +363,7 @@ spec:
+       volumes:
+         - name: pod-tmp
+@@ -362,8 +360,6 @@ spec:
+           hostPath:
              path: /sys
          {{- end }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_cinder_volume.volumes }}{{ toYaml $mounts_cinder_volume.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/cinder/templates/ingress-api.yaml b/cinder/templates/ingress-api.yaml
@@ -410,6 +534,48 @@ index 78de21889..646468152 100644
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{- end -}}
+diff --git a/cinder/templates/job-db-drop.yaml b/cinder/templates/job-db-drop.yaml
+index 1115af50c..86c7e7100 100644
+--- a/cinder/templates/job-db-drop.yaml
++++ b/cinder/templates/job-db-drop.yaml
+@@ -14,9 +14,6 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "cinder" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbDropJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.cinder.enabled -}}
+ {{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
+ {{- end -}}
+diff --git a/cinder/templates/job-db-init.yaml b/cinder/templates/job-db-init.yaml
+index c7e450ad2..46071c9be 100644
+--- a/cinder/templates/job-db-init.yaml
++++ b/cinder/templates/job-db-init.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-5"
+ 
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "cinder" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbInitJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbInitJob "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml) }}
+ {{- end }}
+diff --git a/cinder/templates/job-db-sync.yaml b/cinder/templates/job-db-sync.yaml
+index 1bab87b0e..69ee540df 100644
+--- a/cinder/templates/job-db-sync.yaml
++++ b/cinder/templates/job-db-sync.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-4"
+ 
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "cinder" "podVolMounts" .Values.pod.mounts.cinder_db_sync.cinder_db_sync.volumeMounts "podVols" .Values.pod.mounts.cinder_db_sync.cinder_db_sync.volumes -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbSyncJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbSyncJob "jobAnnotations" (include "metadata.annotations.job.db_sync" . | fromYaml) }}
+ {{- end }}
 diff --git a/cinder/templates/job-ks-endpoints.yaml b/cinder/templates/job-ks-endpoints.yaml
 index 24fdc38d5..482c692f6 100644
 --- a/cinder/templates/job-ks-endpoints.yaml
@@ -449,6 +615,20 @@ index 78f48cfc8..5b3d1ceeb 100644
  {{- end -}}
  {{- if .Values.helm3_hook }}
  {{- $_ := set $ksUserJob "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) }}
+diff --git a/cinder/templates/job-rabbit-init.yaml b/cinder/templates/job-rabbit-init.yaml
+index 43d23922a..85b49514b 100644
+--- a/cinder/templates/job-rabbit-init.yaml
++++ b/cinder/templates/job-rabbit-init.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-4"
+ 
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "cinder" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $rmqUserJob "tlsSecret" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $rmqUserJob "jobAnnotations" (include "metadata.annotations.job.rabbit_init" . | fromYaml) }}
+ {{- end }}
 diff --git a/cinder/templates/pod-rally-test.yaml b/cinder/templates/pod-rally-test.yaml
 index 34316c658..0452e3721 100644
 --- a/cinder/templates/pod-rally-test.yaml
@@ -479,6 +659,35 @@ index 34316c658..0452e3721 100644
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume" | indent 4 }}
  {{ if $mounts_tests.volumes }}{{ toYaml $mounts_tests.volumes | indent 4 }}{{ end }}
  {{- end }}
+diff --git a/cinder/templates/secret-db.yaml b/cinder/templates/secret-db.yaml
+index ce8cfbc87..1291f34a5 100644
+--- a/cinder/templates/secret-db.yaml
++++ b/cinder/templates/secret-db.yaml
+@@ -26,10 +26,6 @@ metadata:
+ {{ tuple "oslo_db" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{  $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
+diff --git a/cinder/templates/secret-rabbitmq.yaml b/cinder/templates/secret-rabbitmq.yaml
+index 776e01935..730634938 100644
+--- a/cinder/templates/secret-rabbitmq.yaml
++++ b/cinder/templates/secret-rabbitmq.yaml
+@@ -15,9 +15,6 @@ limitations under the License.
+ {{- if .Values.manifests.secret_rabbitmq }}
+ {{- $envAll := . }}
+ {{- $rabbitmqProtocol := "http" }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- $rabbitmqProtocol = "https" }}
+-{{- end }}
+ {{- range $key1, $userClass := tuple "admin" "cinder" }}
+ {{- $secretName := index $envAll.Values.secrets.oslo_messaging $userClass }}
+ ---
 diff --git a/glance/templates/certificates.yaml b/glance/templates/certificates.yaml
 deleted file mode 100644
 index deb2a237f..000000000
@@ -502,8 +711,25 @@ index deb2a237f..000000000
 -{{- if .Values.manifests.certificates -}}
 -{{  dict "envAll" . "service" "image" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{- end -}}
+diff --git a/glance/templates/configmap-etc.yaml b/glance/templates/configmap-etc.yaml
+index d4eeac2e4..8ce851563 100644
+--- a/glance/templates/configmap-etc.yaml
++++ b/glance/templates/configmap-etc.yaml
+@@ -57,12 +57,8 @@ limitations under the License.
+ 
+ {{- if empty .Values.conf.glance.database.connection -}}
+ {{- $connection := tuple "oslo_db" "internal" "glance" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | set .Values.conf.glance.database "connection" -}}
+-{{- else -}}
+ {{- $_ := set .Values.conf.glance.database "connection" $connection -}}
+ {{- end -}}
+-{{- end -}}
+ 
+ {{- if empty .Values.conf.glance.DEFAULT.transport_url -}}
+ {{- $_ := tuple "oslo_messaging" "internal" "glance" "amqp" . | include "helm-toolkit.endpoints.authenticated_transport_endpoint_uri_lookup" | set .Values.conf.glance.DEFAULT "transport_url" -}}
 diff --git a/glance/templates/deployment-api.yaml b/glance/templates/deployment-api.yaml
-index fcd4a628f..39c025c49 100644
+index fcd4a628f..726ac5c99 100644
 --- a/glance/templates/deployment-api.yaml
 +++ b/glance/templates/deployment-api.yaml
 @@ -15,19 +15,11 @@ limitations under the License.
@@ -574,22 +800,25 @@ index fcd4a628f..39c025c49 100644
          - name: glance-api
  {{ tuple $envAll "glance_api" | include "helm-toolkit.snippets.image" | indent 10 }}
  {{ tuple $envAll $envAll.Values.pod.resources.api | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-@@ -309,7 +260,7 @@ spec:
+@@ -308,9 +259,7 @@ spec:
+               subPath: key
                readOnly: true
  {{- end }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" $envAll.Values.secrets.tls.image.api.internal "path" "/etc/glance/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" $envAll.Values.secrets.tls.image.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_glance_api.volumeMounts }}{{ toYaml $mounts_glance_api.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -374,7 +325,7 @@ spec:
+         - name: pod-tmp
+@@ -373,8 +322,6 @@ spec:
+           hostPath:
              path: /sys
  {{- end }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" $envAll.Values.secrets.tls.image.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" $envAll.Values.secrets.tls.image.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_glance_api.volumes }}{{ toYaml $mounts_glance_api.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/glance/templates/ingress-api.yaml b/glance/templates/ingress-api.yaml
@@ -622,6 +851,48 @@ index c1af58dcc..1097b8fd5 100644
  {{- end -}}
  {{- if .Values.helm3_hook }}
  {{- $_ := set $bootstrapJob "jobAnnotations" (include "metadata.annotations.job.bootstrap" . | fromYaml) }}
+diff --git a/glance/templates/job-db-drop.yaml b/glance/templates/job-db-drop.yaml
+index 66f3a1898..1f24b0c67 100644
+--- a/glance/templates/job-db-drop.yaml
++++ b/glance/templates/job-db-drop.yaml
+@@ -16,9 +16,6 @@ limitations under the License.
+ {{- $serviceName := "glance" -}}
+ {{- $dbToDrop := dict "adminSecret" .Values.secrets.oslo_db.admin "configFile" (printf "/etc/%s/%s.conf" $serviceName "glance-api" ) "logConfigFile" (printf "/etc/%s/logging.conf" $serviceName ) "configDbSection" "database" "configDbKey" "connection" -}}
+ {{- $dbDropJob := dict "envAll" . "serviceName" $serviceName "dbToDrop" $dbToDrop -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbToDrop "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.glance.enabled -}}
+ {{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
+ {{- end -}}
+diff --git a/glance/templates/job-db-init.yaml b/glance/templates/job-db-init.yaml
+index 6f797814d..4a947ef58 100644
+--- a/glance/templates/job-db-init.yaml
++++ b/glance/templates/job-db-init.yaml
+@@ -21,9 +21,6 @@ helm.sh/hook-weight: "-5"
+ {{- $serviceName := "glance" -}}
+ {{- $dbToInit := dict "adminSecret" .Values.secrets.oslo_db.admin "configFile" (printf "/etc/%s/%s.conf" $serviceName "glance-api" ) "logConfigFile" (printf "/etc/%s/logging.conf" $serviceName ) "configDbSection" "database" "configDbKey" "connection" -}}
+ {{- $dbInitJob := dict "envAll" . "serviceName" $serviceName "dbToInit" $dbToInit -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbInitJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbInitJob "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml) }}
+ {{- end }}
+diff --git a/glance/templates/job-db-sync.yaml b/glance/templates/job-db-sync.yaml
+index 1434edd1a..529199b7d 100644
+--- a/glance/templates/job-db-sync.yaml
++++ b/glance/templates/job-db-sync.yaml
+@@ -20,9 +20,6 @@ helm.sh/hook-weight: "-4"
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbToSync := index . "dbToSync" | default ( dict "configFile" (printf "/etc/%s/%s.conf" "glance" "glance-api" ) "logConfigFile" (printf "/etc/%s/logging.conf" "glance" ) "image" ( index .Values.images.tags ( printf "%s_db_sync" "glance" )) ) -}}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "glance" "podVolMounts" .Values.pod.mounts.glance_db_sync.glance_db_sync.volumeMounts "podVols" .Values.pod.mounts.glance_db_sync.glance_db_sync.volumes "dbToSync" $dbToSync -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbSyncJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbSyncJob "jobAnnotations" (include "metadata.annotations.job.db_sync" . | fromYaml) }}
+ {{- end }}
 diff --git a/glance/templates/job-ks-endpoints.yaml b/glance/templates/job-ks-endpoints.yaml
 index fe761a38c..c828eb803 100644
 --- a/glance/templates/job-ks-endpoints.yaml
@@ -661,6 +932,38 @@ index 7f646e39e..38912a277 100644
  {{- end -}}
  {{- if .Values.helm3_hook }}
  {{- $_ := set $ksUserJob "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) }}
+diff --git a/glance/templates/job-metadefs-load.yaml b/glance/templates/job-metadefs-load.yaml
+index ca6081fbd..0f2cff69b 100644
+--- a/glance/templates/job-metadefs-load.yaml
++++ b/glance/templates/job-metadefs-load.yaml
+@@ -85,7 +85,6 @@ spec:
+               subPath: {{ base .Values.conf.glance.DEFAULT.log_config_append }}
+               readOnly: true
+             {{- end }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+       volumes:
+         - name: pod-tmp
+           emptyDir: {}
+@@ -99,5 +98,4 @@ spec:
+           secret:
+             secretName: glance-etc
+             defaultMode: 0444
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{- end }}
+diff --git a/glance/templates/job-rabbit-init.yaml b/glance/templates/job-rabbit-init.yaml
+index 6bd14d6e1..5e1d0e57d 100644
+--- a/glance/templates/job-rabbit-init.yaml
++++ b/glance/templates/job-rabbit-init.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-4"
+ 
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "glance" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $rmqUserJob "tlsSecret" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $rmqUserJob "jobAnnotations" (include "metadata.annotations.job.rabbit_init" . | fromYaml) }}
+ {{- end }}
 diff --git a/glance/templates/job-storage-init.yaml b/glance/templates/job-storage-init.yaml
 index d24a0cfb3..d43e0736c 100644
 --- a/glance/templates/job-storage-init.yaml
@@ -711,6 +1014,35 @@ index 0ca17eb2f..6732c2395 100644
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.image.api.public | include "helm-toolkit.snippets.tls_volume" | indent 4 }}
  {{ if $mounts_tests.volumes }}{{ toYaml $mounts_tests.volumes | indent 4 }}{{ end }}
  {{- end }}
+diff --git a/glance/templates/secret-db.yaml b/glance/templates/secret-db.yaml
+index f8962ea9b..e7ebda476 100644
+--- a/glance/templates/secret-db.yaml
++++ b/glance/templates/secret-db.yaml
+@@ -26,10 +26,6 @@ metadata:
+ {{ tuple "oslo_db" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{  $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
+diff --git a/glance/templates/secret-rabbitmq.yaml b/glance/templates/secret-rabbitmq.yaml
+index ae34930ad..1120f512f 100644
+--- a/glance/templates/secret-rabbitmq.yaml
++++ b/glance/templates/secret-rabbitmq.yaml
+@@ -15,9 +15,6 @@ limitations under the License.
+ {{- if .Values.manifests.secret_rabbitmq }}
+ {{- $envAll := . }}
+ {{- $rabbitmqProtocol := "http" }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- $rabbitmqProtocol = "https" }}
+-{{- end }}
+ {{- range $key1, $userClass := tuple "admin" "glance" }}
+ {{- $secretName := index $envAll.Values.secrets.oslo_messaging $userClass }}
+ ---
 diff --git a/heat/templates/bin/_heat-api.sh.tpl b/heat/templates/bin/_heat-api.sh.tpl
 index 35afabcbf..90ac7c18f 100644
 --- a/heat/templates/bin/_heat-api.sh.tpl
@@ -840,11 +1172,68 @@ index 353dfd69d..000000000
 -{{  dict "envAll" . "service" "orchestration" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{  dict "envAll" . "service" "cloudformation" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{- end -}}
+diff --git a/heat/templates/configmap-etc.yaml b/heat/templates/configmap-etc.yaml
+index a14d087ac..b90bba6e5 100644
+--- a/heat/templates/configmap-etc.yaml
++++ b/heat/templates/configmap-etc.yaml
+@@ -80,12 +80,8 @@ limitations under the License.
+ 
+ {{- if empty .Values.conf.heat.database.connection -}}
+ {{- $connection := tuple "oslo_db" "internal" "heat" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | set .Values.conf.heat.database "connection" -}}
+-{{- else -}}
+ {{- $_ := set .Values.conf.heat.database "connection" $connection -}}
+ {{- end -}}
+-{{- end -}}
+ 
+ {{- if empty .Values.conf.heat.DEFAULT.transport_url -}}
+ {{- $_ := tuple "oslo_messaging" "internal" "heat" "amqp" . | include "helm-toolkit.endpoints.authenticated_transport_endpoint_uri_lookup" | set .Values.conf.heat.DEFAULT "transport_url" -}}
+diff --git a/heat/templates/cron-job-engine-cleaner.yaml b/heat/templates/cron-job-engine-cleaner.yaml
+index 51b5b281c..5e425167a 100644
+--- a/heat/templates/cron-job-engine-cleaner.yaml
++++ b/heat/templates/cron-job-engine-cleaner.yaml
+@@ -94,7 +94,6 @@ spec:
+                 readOnly: true
+               {{ end }}
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.internal "path" "/etc/heat/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 14 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 14 }}
+ {{ if $mounts_heat_engine_cleaner.volumeMounts }}{{ toYaml $mounts_heat_engine_cleaner.volumeMounts | indent 14 }}{{ end }}
+           volumes:
+             - name: pod-tmp
+@@ -106,7 +105,6 @@ spec:
+                 secretName: heat-etc
+                 defaultMode: 0444
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+             - name: heat-bin
+               configMap:
+                 name: heat-bin
+diff --git a/heat/templates/cron-job-purge-deleted.yaml b/heat/templates/cron-job-purge-deleted.yaml
+index 1c6226b37..9e3be164c 100644
+--- a/heat/templates/cron-job-purge-deleted.yaml
++++ b/heat/templates/cron-job-purge-deleted.yaml
+@@ -88,7 +88,6 @@ spec:
+                 readOnly: true
+               {{ end }}
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.internal "path" "/etc/heat/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 14 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 14 }}
+ {{ if $mounts_heat_purge_deleted.volumeMounts }}{{ toYaml $mounts_heat_purge_deleted.volumeMounts | indent 14 }}{{ end }}
+           volumes:
+             - name: pod-tmp
+@@ -100,7 +99,6 @@ spec:
+                 secretName: heat-etc
+                 defaultMode: 0444
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+             - name: heat-bin
+               configMap:
+                 name: heat-bin
 diff --git a/heat/templates/deployment-api.yaml b/heat/templates/deployment-api.yaml
-index 05f8feaeb..cf1876d0e 100644
+index 05f8feaeb..e4c6b1ded 100644
 --- a/heat/templates/deployment-api.yaml
 +++ b/heat/templates/deployment-api.yaml
-@@ -129,17 +129,7 @@ spec:
+@@ -129,18 +129,7 @@ spec:
                mountPath: /etc/heat/api_audit_map.conf
                subPath: api_audit_map.conf
                readOnly: true
@@ -859,11 +1248,12 @@ index 05f8feaeb..cf1876d0e 100644
 -              readOnly: true
 -            {{- end }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.internal "path" "/etc/heat/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_heat_api.volumeMounts }}{{ toYaml $mounts_heat_api.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -157,7 +147,7 @@ spec:
+         - name: pod-tmp
+@@ -157,7 +146,7 @@ spec:
            secret:
              secretName: heat-etc
              defaultMode: 0444
@@ -904,25 +1294,28 @@ index 773972ba8..00647372d 100644
  {{ if $mounts_heat_cfn.volumes }}{{ toYaml $mounts_heat_cfn.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/heat/templates/deployment-engine.yaml b/heat/templates/deployment-engine.yaml
-index fa463f023..ec7053747 100644
+index fa463f023..cee5d4f79 100644
 --- a/heat/templates/deployment-engine.yaml
 +++ b/heat/templates/deployment-engine.yaml
-@@ -109,7 +109,7 @@ spec:
+@@ -108,9 +108,7 @@ spec:
+               mountPath: /etc/heat/policy.yaml
                subPath: policy.yaml
                readOnly: true
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.internal "path" "/etc/heat/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_heat_engine.volumeMounts }}{{ toYaml $mounts_heat_engine.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -126,7 +126,7 @@ spec:
+         - name: pod-tmp
+@@ -125,8 +123,6 @@ spec:
+           secret:
              secretName: heat-etc
              defaultMode: 0444
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.orchestration.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_heat_engine.volumes }}{{ toYaml $mounts_heat_engine.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/heat/templates/ingress-api.yaml b/heat/templates/ingress-api.yaml
@@ -966,6 +1359,48 @@ index e5157dae8..0c69dcfd5 100644
  {{- end -}}
  {{- if .Values.helm3_hook }}
  {{- $_ := set $bootstrapJob "jobAnnotations" (include "metadata.annotations.job.bootstrap" . | fromYaml) }}
+diff --git a/heat/templates/job-db-drop.yaml b/heat/templates/job-db-drop.yaml
+index 7caa9619e..c3a7c35d7 100644
+--- a/heat/templates/job-db-drop.yaml
++++ b/heat/templates/job-db-drop.yaml
+@@ -14,9 +14,6 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "heat" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbDropJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.heat.enabled -}}
+ {{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
+ {{- end -}}
+diff --git a/heat/templates/job-db-init.yaml b/heat/templates/job-db-init.yaml
+index 442a2fa40..0a6cbb332 100644
+--- a/heat/templates/job-db-init.yaml
++++ b/heat/templates/job-db-init.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-5"
+ 
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "heat" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbInitJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbInitJob "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml) }}
+ {{- end }}
+diff --git a/heat/templates/job-db-sync.yaml b/heat/templates/job-db-sync.yaml
+index a25faf849..668f8a0d9 100644
+--- a/heat/templates/job-db-sync.yaml
++++ b/heat/templates/job-db-sync.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-4"
+ 
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "heat" "podVolMounts" .Values.pod.mounts.heat_db_sync.heat_db_sync.volumeMounts "podVols" .Values.pod.mounts.heat_db_sync.heat_db_sync.volumes -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbSyncJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbSyncJob "jobAnnotations" (include "metadata.annotations.job.db_sync" . | fromYaml) }}
+ {{- end }}
 diff --git a/heat/templates/job-ks-endpoints.yaml b/heat/templates/job-ks-endpoints.yaml
 index 21b0bd1ef..4cc29e419 100644
 --- a/heat/templates/job-ks-endpoints.yaml
@@ -1038,6 +1473,20 @@ index c5be1fea9..1788213a3 100644
  {{- end -}}
  {{- if .Values.helm3_hook }}
  {{- $_ := set $ksUserJob "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) }}
+diff --git a/heat/templates/job-rabbit-init.yaml b/heat/templates/job-rabbit-init.yaml
+index bd6b228c9..161a5aaa0 100644
+--- a/heat/templates/job-rabbit-init.yaml
++++ b/heat/templates/job-rabbit-init.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-4"
+ 
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "heat" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $rmqUserJob "tlsSecret" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $rmqUserJob "jobAnnotations" (include "metadata.annotations.job.rabbit_init" . | fromYaml) }}
+ {{- end }}
 diff --git a/heat/templates/job-trusts.yaml b/heat/templates/job-trusts.yaml
 index ae5bc6448..cf6a8a1a9 100644
 --- a/heat/templates/job-trusts.yaml
@@ -1088,6 +1537,286 @@ index ac6c636e3..4dc8154b7 100644
 +{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.secrets.tls.orchestration.api.public | include "helm-toolkit.snippets.tls_volume" | indent 4 }}
  {{ if $mounts_tests.volumes }}{{ toYaml $mounts_tests.volumes | indent 4 }}{{ end }}
  {{- end }}
+diff --git a/heat/templates/secret-db.yaml b/heat/templates/secret-db.yaml
+index 2a89ab8c2..fbf368af2 100644
+--- a/heat/templates/secret-db.yaml
++++ b/heat/templates/secret-db.yaml
+@@ -26,10 +26,6 @@ metadata:
+ {{ tuple "oslo_db" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{  $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
+diff --git a/heat/templates/secret-rabbitmq.yaml b/heat/templates/secret-rabbitmq.yaml
+index 7aa123716..91627ac9c 100644
+--- a/heat/templates/secret-rabbitmq.yaml
++++ b/heat/templates/secret-rabbitmq.yaml
+@@ -15,9 +15,6 @@ limitations under the License.
+ {{- if .Values.manifests.secret_rabbitmq }}
+ {{- $envAll := . }}
+ {{- $rabbitmqProtocol := "http" }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- $rabbitmqProtocol = "https" }}
+-{{- end }}
+ {{- range $key1, $userClass := tuple "admin" "heat" }}
+ {{- $secretName := index $envAll.Values.secrets.oslo_messaging $userClass }}
+ ---
+diff --git a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
+index 2b7ff2cdc..5e31a04db 100644
+--- a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
++++ b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
+@@ -37,7 +37,6 @@ limitations under the License.
+ {{- $backoffLimit := index . "backoffLimit" | default "1000" -}}
+ {{- $activeDeadlineSeconds := index . "activeDeadlineSeconds" -}}
+ {{- $serviceNamePretty := $serviceName | replace "_" "-" -}}
+-{{- $dbAdminTlsSecret := index . "dbAdminTlsSecret" | default "" -}}
+ 
+ {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-drop" }}
+ {{ tuple $envAll "db_drop" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+@@ -135,9 +134,6 @@ spec:
+               subPath: {{ base $dbToDrop.logConfigFile | quote }}
+               readOnly: true
+ {{- end }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- end }}
+ {{- end }}
+       volumes:
+         - name: pod-tmp
+@@ -152,9 +148,6 @@ spec:
+             name: {{ $configMapBin | quote }}
+             defaultMode: 0555
+ {{- end }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- end }}
+ {{- $local := dict "configMapBinFirst" true -}}
+ {{- range $key1, $dbToDrop := $dbsToDrop }}
+ {{- $dbToDropType := default "oslo" $dbToDrop.inputType }}
+diff --git a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
+index b8a1dce3b..ff5d54bab 100644
+--- a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
++++ b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
+@@ -37,7 +37,6 @@ limitations under the License.
+ {{- $backoffLimit := index . "backoffLimit" | default "1000" -}}
+ {{- $activeDeadlineSeconds := index . "activeDeadlineSeconds" -}}
+ {{- $serviceNamePretty := $serviceName | replace "_" "-" -}}
+-{{- $dbAdminTlsSecret := index . "dbAdminTlsSecret" | default "" -}}
+ 
+ {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-init" }}
+ {{ tuple $envAll "db_init" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+@@ -134,9 +133,6 @@ spec:
+               subPath: {{ base $dbToInit.logConfigFile | quote }}
+               readOnly: true
+ {{- end }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- end }}
+ {{- end }}
+       volumes:
+         - name: pod-tmp
+@@ -151,9 +147,6 @@ spec:
+             name: {{ $configMapBin | quote }}
+             defaultMode: 0555
+ {{- end }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- end }}
+ {{- $local := dict "configMapBinFirst" true -}}
+ {{- range $key1, $dbToInit := $dbsToInit }}
+ {{- $dbToInitType := default "oslo" $dbToInit.inputType }}
+diff --git a/helm-toolkit/templates/manifests/_job-db-sync.tpl b/helm-toolkit/templates/manifests/_job-db-sync.tpl
+index 03b048416..0320cc60e 100644
+--- a/helm-toolkit/templates/manifests/_job-db-sync.tpl
++++ b/helm-toolkit/templates/manifests/_job-db-sync.tpl
+@@ -36,7 +36,6 @@ limitations under the License.
+ {{- $backoffLimit := index . "backoffLimit" | default "1000" -}}
+ {{- $activeDeadlineSeconds := index . "activeDeadlineSeconds" -}}
+ {{- $serviceNamePretty := $serviceName | replace "_" "-" -}}
+-{{- $dbAdminTlsSecret := index . "dbAdminTlsSecret" | default "" -}}
+ 
+ {{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "db-sync" }}
+ {{ tuple $envAll "db_sync" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+@@ -110,7 +109,6 @@ spec:
+               mountPath: {{ $dbToSync.logConfigFile | quote }}
+               subPath: {{ base $dbToSync.logConfigFile | quote }}
+               readOnly: true
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{- if $podVolMounts }}
+ {{ $podVolMounts | toYaml | indent 12 }}
+ {{- end }}
+@@ -133,7 +131,6 @@ spec:
+           secret:
+             secretName: {{ $configMapEtc | quote }}
+             defaultMode: 0444
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $dbAdminTlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{- if $podVols }}
+ {{ $podVols | toYaml | indent 8 }}
+ {{- end }}
+diff --git a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
+index 2cfadafe3..f3ff145f5 100644
+--- a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
++++ b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
+@@ -25,9 +25,6 @@ limitations under the License.
+ {{- $backoffLimit := index . "backoffLimit" | default "1000" -}}
+ {{- $activeDeadlineSeconds := index . "activeDeadlineSeconds" -}}
+ {{- $serviceUserPretty := $serviceUser | replace "_" "-" -}}
+-{{- $serviceNamePretty := $serviceName | replace "_" "-" -}}
+-{{- $tlsPath := index . "tlsPath" | default "/etc/rabbitmq/certs" -}}
+-{{- $tlsSecret := index . "tlsSecret" | default "" -}}
+ 
+ {{- $serviceAccountName := printf "%s-%s" $serviceUserPretty "rabbit-init" }}
+ {{ tuple $envAll "rabbit_init" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+@@ -87,9 +84,6 @@ spec:
+               mountPath: /tmp/rabbit-init.sh
+               subPath: rabbit-init.sh
+               readOnly: true
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $tlsSecret "path" $tlsPath | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- end }}
+           env:
+           - name: RABBITMQ_ADMIN_CONNECTION
+             valueFrom:
+@@ -104,12 +98,6 @@ spec:
+ {{- if $envAll.Values.conf.rabbitmq }}
+           - name: RABBITMQ_AUXILIARY_CONFIGURATION
+             value: {{ toJson $envAll.Values.conf.rabbitmq | quote }}
+-{{- end }}
+-{{- if and $envAll.Values.manifests.certificates (ne $tlsSecret "") }}
+-          - name: RABBITMQ_X509
+-            value: "REQUIRE X509"
+-          - name: USER_CERT_PATH
+-            value: {{ $tlsPath | quote }}
+ {{- end }}
+       volumes:
+         - name: pod-tmp
+@@ -124,7 +112,4 @@ spec:
+             name: {{ $configMapBin | quote }}
+             defaultMode: 0555
+ {{- end }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $tlsSecret | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- end }}
+ {{- end -}}
+diff --git a/helm-toolkit/templates/scripts/_db-drop.py.tpl b/helm-toolkit/templates/scripts/_db-drop.py.tpl
+index c6a7521d2..913ffa144 100644
+--- a/helm-toolkit/templates/scripts/_db-drop.py.tpl
++++ b/helm-toolkit/templates/scripts/_db-drop.py.tpl
+@@ -55,13 +55,6 @@ else:
+     logger.critical('environment variable ROOT_DB_CONNECTION not set')
+     sys.exit(1)
+ 
+-mysql_x509 = os.getenv('MARIADB_X509', "")
+-ssl_args = {}
+-if mysql_x509:
+-    ssl_args = {'ssl': {'ca': '/etc/mysql/certs/ca.crt',
+-                        'key': '/etc/mysql/certs/tls.key',
+-                        'cert': '/etc/mysql/certs/tls.crt'}}
+-
+ # Get the connection string for the service db
+ if "OPENSTACK_CONFIG_FILE" in os.environ:
+     os_conf = os.environ['OPENSTACK_CONFIG_FILE']
+@@ -102,7 +95,7 @@ try:
+     host = root_engine_full.url.host
+     port = root_engine_full.url.port
+     root_engine_url = ''.join([drivername, '://', root_user, ':', root_password, '@', host, ':', str (port)])
+-    root_engine = create_engine(root_engine_url, connect_args=ssl_args)
++    root_engine = create_engine(root_engine_url)
+     connection = root_engine.connect()
+     connection.close()
+     logger.info("Tested connection to DB @ {0}:{1} as {2}".format(
+@@ -113,7 +106,7 @@ except:
+ 
+ # User DB engine
+ try:
+-    user_engine = create_engine(user_db_conn, connect_args=ssl_args)
++    user_engine = create_engine(user_db_conn)
+     # Get our user data out of the user_engine
+     database = user_engine.url.database
+     user = user_engine.url.username
+diff --git a/helm-toolkit/templates/scripts/_db-init.py.tpl b/helm-toolkit/templates/scripts/_db-init.py.tpl
+index 35d04d886..a0054b8f9 100644
+--- a/helm-toolkit/templates/scripts/_db-init.py.tpl
++++ b/helm-toolkit/templates/scripts/_db-init.py.tpl
+@@ -55,12 +55,6 @@ else:
+     logger.critical('environment variable ROOT_DB_CONNECTION not set')
+     sys.exit(1)
+ 
+-mysql_x509 = os.getenv('MARIADB_X509', "")
+-ssl_args = {}
+-if mysql_x509:
+-    ssl_args = {'ssl': {'ca': '/etc/mysql/certs/ca.crt',
+-                'key': '/etc/mysql/certs/tls.key',
+-                'cert': '/etc/mysql/certs/tls.crt'}}
+ 
+ # Get the connection string for the service db
+ if "OPENSTACK_CONFIG_FILE" in os.environ:
+@@ -102,7 +96,7 @@ try:
+     host = root_engine_full.url.host
+     port = root_engine_full.url.port
+     root_engine_url = ''.join([drivername, '://', root_user, ':', root_password, '@', host, ':', str (port)])
+-    root_engine = create_engine(root_engine_url, connect_args=ssl_args)
++    root_engine = create_engine(root_engine_url)
+     connection = root_engine.connect()
+     connection.close()
+     logger.info("Tested connection to DB @ {0}:{1} as {2}".format(
+@@ -113,7 +107,7 @@ except:
+ 
+ # User DB engine
+ try:
+-    user_engine = create_engine(user_db_conn, connect_args=ssl_args)
++    user_engine = create_engine(user_db_conn)
+     # Get our user data out of the user_engine
+     database = user_engine.url.database
+     user = user_engine.url.username
+@@ -140,8 +134,8 @@ except:
+ try:
+     with root_engine.connect() as connection:
+         connection.execute(
+-            text("CREATE USER IF NOT EXISTS \'{0}\'@\'%\' IDENTIFIED BY \'{1}\' {2}".format(
+-                user, password, mysql_x509)))
++            text("CREATE USER IF NOT EXISTS \'{0}\'@\'%\' IDENTIFIED BY \'{1}\'".format(
++                user, password)))
+         connection.execute(
+             text("GRANT ALL ON `{0}`.* TO \'{1}\'@\'%\'".format(database, user)))
+         try:
+diff --git a/helm-toolkit/templates/scripts/_rabbit-init.sh.tpl b/helm-toolkit/templates/scripts/_rabbit-init.sh.tpl
+index e6e9c6e8e..37f372750 100644
+--- a/helm-toolkit/templates/scripts/_rabbit-init.sh.tpl
++++ b/helm-toolkit/templates/scripts/_rabbit-init.sh.tpl
+@@ -51,27 +51,12 @@ RABBITMQ_VHOST=$(echo "${RABBITMQ_USER_CONNECTION}" | \
+ RABBITMQ_VHOST="${RABBITMQ_VHOST:-/}"
+ 
+ function rabbitmqadmin_cli () {
+-  if [ -n "$RABBITMQ_X509" ]
+-  then
+     rabbitmqadmin \
+-      --ssl \
+-      --ssl-disable-hostname-verification \
+-      --ssl-ca-cert-file="${USER_CERT_PATH}/ca.crt" \
+-      --ssl-cert-file="${USER_CERT_PATH}/tls.crt" \
+-      --ssl-key-file="${USER_CERT_PATH}/tls.key" \
+       --host="${RABBIT_HOSTNAME}" \
+       --port="${RABBIT_PORT}" \
+       --username="${RABBITMQ_ADMIN_USERNAME}" \
+       --password="${RABBITMQ_ADMIN_PASSWORD}" \
+       ${@}
+-  else
+-    rabbitmqadmin \
+-      --host="${RABBIT_HOSTNAME}" \
+-      --port="${RABBIT_PORT}" \
+-      --username="${RABBITMQ_ADMIN_USERNAME}" \
+-      --password="${RABBITMQ_ADMIN_PASSWORD}" \
+-      ${@}
+-  fi
+ }
+ 
+ echo "Managing: User: ${RABBITMQ_USERNAME}"
 diff --git a/horizon/templates/certificates.yaml b/horizon/templates/certificates.yaml
 deleted file mode 100644
 index 8dbb884a5..000000000
@@ -1112,7 +1841,7 @@ index 8dbb884a5..000000000
 -{{ dict "envAll" . "service" "dashboard" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{- end -}}
 diff --git a/horizon/templates/deployment.yaml b/horizon/templates/deployment.yaml
-index fab84924d..32013af77 100644
+index fab84924d..bd6db03bb 100644
 --- a/horizon/templates/deployment.yaml
 +++ b/horizon/templates/deployment.yaml
 @@ -76,7 +76,7 @@ spec:
@@ -1124,19 +1853,21 @@ index fab84924d..32013af77 100644
  {{- end }}
            lifecycle:
              preStop:
-@@ -173,7 +173,7 @@ spec:
+@@ -173,8 +173,7 @@ spec:
                mountPath: /tmp/favicon.ico
                subPath: favicon.ico
              {{- end }}
 -{{- dict "enabled" (or $envAll.Values.manifests.certificates $envAll.Values.tls.identity) "name" $envAll.Values.secrets.tls.dashboard.dashboard.internal "path" "/etc/openstack-dashboard/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or $envAll.Values.manifests.certificates $envAll.Values.tls.identity) "name" $envAll.Values.secrets.tls.dashboard.dashboard.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_horizon.volumeMounts }}{{ toYaml $mounts_horizon.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -197,6 +197,6 @@ spec:
+         - name: pod-tmp
+@@ -196,7 +195,6 @@ spec:
+           configMap:
              name: horizon-logo
          {{- end }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or $envAll.Values.manifests.certificates $envAll.Values.tls.identity) "name" $envAll.Values.secrets.tls.dashboard.dashboard.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or $envAll.Values.manifests.certificates $envAll.Values.tls.identity) "name" $envAll.Values.secrets.tls.dashboard.dashboard.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_horizon.volumes }}{{ toYaml $mounts_horizon.volumes | indent 8 }}{{ end }}
@@ -1154,6 +1885,53 @@ index 252ac523e..22f138144 100644
 -{{- $_ := set $ingressOpts "certIssuer" .Values.endpoints.dashboard.host_fqdn_override.default.tls.issuerRef.name -}}
 -{{- end -}}
  {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
+ {{- end }}
+diff --git a/horizon/templates/job-db-drop.yaml b/horizon/templates/job-db-drop.yaml
+index 6f761d7c4..858abc1fc 100644
+--- a/horizon/templates/job-db-drop.yaml
++++ b/horizon/templates/job-db-drop.yaml
+@@ -15,9 +15,6 @@ limitations under the License.
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbToDrop := dict "inputType" "secret" "adminSecret" .Values.secrets.oslo_db.admin "userSecret" .Values.secrets.oslo_db.horizon -}}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "horizon" "dbToDrop" $dbToDrop -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbDropJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.horizon.enabled -}}
+ {{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
+ {{- end -}}
+diff --git a/horizon/templates/job-db-init.yaml b/horizon/templates/job-db-init.yaml
+index 67169b530..3374984bb 100644
+--- a/horizon/templates/job-db-init.yaml
++++ b/horizon/templates/job-db-init.yaml
+@@ -20,9 +20,6 @@ helm.sh/hook-weight: "-5"
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbToInit := dict "inputType" "secret" "adminSecret" .Values.secrets.oslo_db.admin "userSecret" .Values.secrets.oslo_db.horizon -}}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "horizon" "dbToInit" $dbToInit -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbInitJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbInitJob "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml) }}
+ {{- end }}
+diff --git a/horizon/templates/job-db-sync.yaml b/horizon/templates/job-db-sync.yaml
+index c2229cdd0..6805bfa92 100644
+--- a/horizon/templates/job-db-sync.yaml
++++ b/horizon/templates/job-db-sync.yaml
+@@ -71,7 +71,6 @@ spec:
+             mountPath: /tmp/manage.py
+             subPath: manage.py
+             readOnly: true
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 10 }}
+ {{ if $mounts_horizon_db_sync.volumeMounts }}{{ toYaml $mounts_horizon_db_sync.volumeMounts | indent 10 }}{{ end }}
+       volumes:
+       - name: horizon-etc
+@@ -82,6 +81,5 @@ spec:
+         configMap:
+           name: horizon-bin
+           defaultMode: 0555
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 6 }}
+ {{ if $mounts_horizon_db_sync.volumes }}{{ toYaml $mounts_horizon_db_sync.volumes | indent 6 }}{{ end }}
  {{- end }}
 diff --git a/horizon/templates/pod-helm-tests.yaml b/horizon/templates/pod-helm-tests.yaml
 index 7d1630399..979402a70 100644
@@ -1176,11 +1954,42 @@ index 7d1630399..979402a70 100644
 +{{- dict "enabled" $envAll.Values.manifests.certificates "name" .Values.secrets.tls.dashboard.dashboard.public | include "helm-toolkit.snippets.tls_volume" | indent 4 }}
  {{ if $mounts_tests.volumes }}{{ toYaml $mounts_tests.volumes | indent 4 }}{{ end }}
  {{- end }}
+diff --git a/horizon/templates/secret-db.yaml b/horizon/templates/secret-db.yaml
+index cd4d31071..7f99c555b 100644
+--- a/horizon/templates/secret-db.yaml
++++ b/horizon/templates/secret-db.yaml
+@@ -26,10 +26,6 @@ metadata:
+ {{ tuple "oslo_db" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{  $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
 diff --git a/horizon/values.yaml b/horizon/values.yaml
-index 81b7f9e85..42216644a 100644
+index 81b7f9e85..7cdbd18d5 100644
 --- a/horizon/values.yaml
 +++ b/horizon/values.yaml
-@@ -490,7 +490,7 @@ conf:
+@@ -414,15 +414,6 @@ conf:
+                 'PASSWORD': '{{ .Values.endpoints.oslo_db.auth.horizon.password }}',
+                 'HOST': '{{ tuple "oslo_db" "internal" . | include "helm-toolkit.endpoints.hostname_fqdn_endpoint_lookup" }}',
+                 'default-character-set': 'utf8',
+-                {{- if .Values.manifests.certificates }}
+-                'OPTIONS':{
+-                    'ssl': {
+-                        'ca': '/etc/mysql/certs/ca.crt',
+-                        'cert': '/etc/mysql/certs/tls.crt',
+-                        'key': '/etc/mysql/certs/tls.key'
+-                    }
+-                },
+-                {{- end }}
+                 'PORT': '{{ tuple "oslo_db" "internal" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}'
+             }
+         }
+@@ -490,7 +481,7 @@ conf:
  
          {{- if .Values.manifests.certificates }}
          # The CA certificate to use to verify SSL connections
@@ -1189,6 +1998,42 @@ index 81b7f9e85..42216644a 100644
          {{- end }}
  
          # The OPENSTACK_KEYSTONE_BACKEND settings can be used to identify the
+diff --git a/keystone/templates/bin/_cred-clean.py.tpl b/keystone/templates/bin/_cred-clean.py.tpl
+index a7cbe6ba4..b29b64bc6 100644
+--- a/keystone/templates/bin/_cred-clean.py.tpl
++++ b/keystone/templates/bin/_cred-clean.py.tpl
+@@ -53,13 +53,6 @@ else:
+     logger.critical('environment variable ROOT_DB_CONNECTION not set')
+     sys.exit(1)
+ 
+-mysql_x509 = os.getenv('MARIADB_X509', "")
+-ssl_args = {}
+-if mysql_x509:
+-    ssl_args = {'ssl': {'ca': '/etc/mysql/certs/ca.crt',
+-                        'key': '/etc/mysql/certs/tls.key',
+-                        'cert': '/etc/mysql/certs/tls.crt'}}
+-
+ # Get the connection string for the service db
+ if "OPENSTACK_CONFIG_FILE" in os.environ:
+     os_conf = os.environ['OPENSTACK_CONFIG_FILE']
+@@ -104,7 +97,7 @@ try:
+     port = root_engine_full.url.port
+     root_engine_url = ''.join([drivername, '://', root_user, ':',
+                                root_password, '@', host, ':', str(port)])
+-    root_engine = create_engine(root_engine_url, connect_args=ssl_args)
++    root_engine = create_engine(root_engine_url)
+     connection = root_engine.connect()
+     connection.close()
+     logger.info("Tested connection to DB @ {0}:{1} as {2}".format(
+@@ -115,7 +108,7 @@ except:
+ 
+ # User DB engine
+ try:
+-    user_engine = create_engine(user_db_conn, connect_args=ssl_args)
++    user_engine = create_engine(user_db_conn)
+     # Get our user data out of the user_engine
+     database = user_engine.url.database
+     user = user_engine.url.username
 diff --git a/keystone/templates/bin/_keystone-api.sh.tpl b/keystone/templates/bin/_keystone-api.sh.tpl
 index f6216df17..85740a058 100644
 --- a/keystone/templates/bin/_keystone-api.sh.tpl
@@ -1227,32 +2072,53 @@ index f8a73c4b8..000000000
 -{{- if and .Values.manifests.certificates .Values.secrets.tls.identity.api.internal -}}
 -{{ dict "envAll" . "service" "identity" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{- end -}}
+diff --git a/keystone/templates/configmap-etc.yaml b/keystone/templates/configmap-etc.yaml
+index cde64386e..0c2e9e387 100644
+--- a/keystone/templates/configmap-etc.yaml
++++ b/keystone/templates/configmap-etc.yaml
+@@ -23,12 +23,8 @@ limitations under the License.
+ 
+ {{- if empty .Values.conf.keystone.database.connection -}}
+ {{- $connection := tuple "oslo_db" "internal" "keystone" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" -}}
+-{{- if and .Values.manifests.certificates .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- $_ := (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | set .Values.conf.keystone.database "connection" -}}
+-{{- else -}}
+ {{- $_ := set .Values.conf.keystone.database "connection" $connection -}}
+ {{- end -}}
+-{{- end -}}
+ 
+ {{- if empty .Values.conf.keystone.DEFAULT.transport_url -}}
+ {{- $_ := tuple "oslo_messaging" "internal" "keystone" "amqp" . | include "helm-toolkit.endpoints.authenticated_transport_endpoint_uri_lookup" | set .Values.conf.keystone.DEFAULT "transport_url" -}}
 diff --git a/keystone/templates/deployment-api.yaml b/keystone/templates/deployment-api.yaml
-index 1ddac4c6a..ec34a94f8 100644
+index 1ddac4c6a..8f3794f8a 100644
 --- a/keystone/templates/deployment-api.yaml
 +++ b/keystone/templates/deployment-api.yaml
-@@ -152,7 +152,9 @@ spec:
+@@ -151,9 +151,9 @@ spec:
+ {{- end }}
              - name: keystone-credential-keys
                mountPath: {{ .Values.conf.keystone.credential.key_repository }}
- {{- dict "enabled" .Values.tls.oslo_db "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.tls.oslo_db "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" .Values.tls.identity "name" .Values.secrets.tls.identity.api.internal "path" "/etc/keystone/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.tls.oslo_messaging "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- if and $envAll.Values.manifests.certificates .Values.secrets.tls.identity.api.public }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.identity.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- end  }}
- {{- dict "enabled" $envAll.Values.tls.oslo_messaging "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  
  {{ if $mounts_keystone_api.volumeMounts }}{{ toYaml $mounts_keystone_api.volumeMounts | indent 12 }}{{ end }}
-@@ -189,7 +191,9 @@ spec:
+       volumes:
+@@ -188,9 +188,9 @@ spec:
+         - name: keystone-credential-keys
            secret:
              secretName: keystone-credential-keys
- {{- dict "enabled" .Values.tls.oslo_db "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.tls.oslo_db "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" .Values.tls.identity "name" .Values.secrets.tls.identity.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.tls.oslo_messaging "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- if and $envAll.Values.manifests.certificates .Values.secrets.tls.identity.api.public }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.identity.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- end }}
- {{- dict "enabled" $envAll.Values.tls.oslo_messaging "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  
  {{ if $mounts_keystone_api.volumes }}{{ toYaml $mounts_keystone_api.volumes | indent 8 }}{{ end }}
+ {{- end }}
 diff --git a/keystone/templates/ingress-api.yaml b/keystone/templates/ingress-api.yaml
 index 525c21215..b7b0e2383 100644
 --- a/keystone/templates/ingress-api.yaml
@@ -1286,6 +2152,99 @@ index b1336b1c0..37ce4a481 100644
  {{- end -}}
  {{- if .Values.pod.tolerations.keystone.enabled -}}
  {{- $_ := set $bootstrapJob "tolerationsEnabled" true -}}
+diff --git a/keystone/templates/job-credential-cleanup.yaml b/keystone/templates/job-credential-cleanup.yaml
+index 9f2680270..37a161efd 100644
+--- a/keystone/templates/job-credential-cleanup.yaml
++++ b/keystone/templates/job-credential-cleanup.yaml
+@@ -73,10 +73,6 @@ spec:
+               value: {{ $dbToClean.configDbSection | quote }}
+             - name: OPENSTACK_CONFIG_DB_KEY
+               value: {{ $dbToClean.configDbKey | quote }}
+-{{- end }}
+-{{- if and $envAll.Values.manifests.certificates $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal }}
+-            - name: MARIADB_X509
+-              value: "REQUIRE X509"
+ {{- end }}
+           command:
+             - python
+@@ -99,9 +95,6 @@ spec:
+               mountPath: {{ $dbToClean.logConfigFile | quote }}
+               subPath: {{ base $dbToClean.logConfigFile | quote }}
+               readOnly: true
+-{{- end }}
+-{{- if and $envAll.Values.manifests.certificates $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{- end }}
+       volumes:
+         - name: pod-tmp
+@@ -110,9 +103,6 @@ spec:
+           configMap:
+             name: "keystone-bin"
+             defaultMode: 0555
+-{{- if and $envAll.Values.manifests.certificates $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- end }}
+ {{- $local := dict "configMapBinFirst" true -}}
+ {{- $dbToCleanType := default "oslo" $dbToClean.inputType }}
+ {{- if and (eq $dbToCleanType "oslo") $local.configMapBinFirst }}
+diff --git a/keystone/templates/job-db-drop.yaml b/keystone/templates/job-db-drop.yaml
+index df270ff62..598025486 100644
+--- a/keystone/templates/job-db-drop.yaml
++++ b/keystone/templates/job-db-drop.yaml
+@@ -14,9 +14,6 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "keystone" -}}
+-{{- if and .Values.manifests.certificates .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- $_ := set $dbDropJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.keystone.enabled -}}
+ {{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
+ {{- end -}}
+diff --git a/keystone/templates/job-db-init.yaml b/keystone/templates/job-db-init.yaml
+index 757b705e9..42f25c6f9 100644
+--- a/keystone/templates/job-db-init.yaml
++++ b/keystone/templates/job-db-init.yaml
+@@ -21,9 +21,6 @@ helm.sh/hook-weight: "-5"
+ 
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "keystone" "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml) -}}
+-{{- if and .Values.manifests.certificates .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- $_ := set $dbInitJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.keystone.enabled -}}
+ {{- $_ := set $dbInitJob "tolerationsEnabled" true -}}
+ {{- end -}}
+diff --git a/keystone/templates/job-db-sync.yaml b/keystone/templates/job-db-sync.yaml
+index 37db4464b..a813e299f 100644
+--- a/keystone/templates/job-db-sync.yaml
++++ b/keystone/templates/job-db-sync.yaml
+@@ -57,12 +57,6 @@ volumeMounts:
+   - name: keystone-fernet-keys
+     mountPath: {{ $envAll.Values.conf.keystone.fernet_tokens.key_repository }}
+     readOnly: true
+-{{- if and $envAll.Values.manifests.certificates $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 2 }}
+-{{- end }}
+-{{- if and $envAll.Values.manifests.certificates $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 2 }}
+-{{- end }}
+ {{- end }}
+ 
+ {{- define "keystone.templates._job_db_sync.pod_vols" -}}
+@@ -71,12 +65,6 @@ volumes:
+   - name: keystone-fernet-keys
+     secret:
+       secretName: keystone-fernet-keys
+-{{- if and $envAll.Values.manifests.certificates $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 2 }}
+-{{- end }}
+-{{- if and $envAll.Values.manifests.certificates $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 2 }}
+-{{- end }}
+ {{- end }}
+ 
+ {{- if .Values.manifests.job_db_sync }}
 diff --git a/keystone/templates/job-domain-manage.yaml b/keystone/templates/job-domain-manage.yaml
 index a783423c2..50e76b8d0 100644
 --- a/keystone/templates/job-domain-manage.yaml
@@ -1337,6 +2296,20 @@ index a783423c2..50e76b8d0 100644
 -{{- end }}
  {{ if $mounts_keystone_domain_manage.volumes }}{{ toYaml $mounts_keystone_domain_manage.volumes | indent 9 }}{{ end }}
  {{- end }}
+diff --git a/keystone/templates/job-rabbit-init.yaml b/keystone/templates/job-rabbit-init.yaml
+index e07bd1e4b..64234cc0f 100644
+--- a/keystone/templates/job-rabbit-init.yaml
++++ b/keystone/templates/job-rabbit-init.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-4"
+ 
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "keystone" "jobAnnotations" (include "metadata.annotations.job.rabbit_init" . | fromYaml) -}}
+-{{- if and .Values.tls.oslo_messaging .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal -}}
+-{{- $_ := set $rmqUserJob "tlsSecret" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.keystone.enabled -}}
+ {{- $_ := set $rmqUserJob "tolerationsEnabled" true -}}
+ {{- end -}}
 diff --git a/keystone/templates/pod-rally-test.yaml b/keystone/templates/pod-rally-test.yaml
 index ad5b23a03..2d5e9528b 100644
 --- a/keystone/templates/pod-rally-test.yaml
@@ -1387,6 +2360,35 @@ index ad5b23a03..2d5e9528b 100644
  {{- end }}
  {{ if $mounts_tests.volumes }}{{ toYaml $mounts_tests.volumes | indent 4 }}{{ end }}
  {{- end }}
+diff --git a/keystone/templates/secret-db.yaml b/keystone/templates/secret-db.yaml
+index 3a11383ab..be035966c 100644
+--- a/keystone/templates/secret-db.yaml
++++ b/keystone/templates/secret-db.yaml
+@@ -26,10 +26,6 @@ metadata:
+ {{ tuple "oslo_db" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{  $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
+diff --git a/keystone/templates/secret-rabbitmq.yaml b/keystone/templates/secret-rabbitmq.yaml
+index fe5cad4b3..162ae4d41 100644
+--- a/keystone/templates/secret-rabbitmq.yaml
++++ b/keystone/templates/secret-rabbitmq.yaml
+@@ -15,9 +15,6 @@ limitations under the License.
+ {{- if .Values.manifests.secret_rabbitmq }}
+ {{- $envAll := . }}
+ {{- $rabbitmqProtocol := "http" }}
+-{{- if and $envAll.Values.manifests.certificates $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal }}
+-{{- $rabbitmqProtocol = "https" }}
+-{{- end }}
+ {{- range $key1, $userClass := tuple "admin" "keystone" }}
+ {{- $secretName := index $envAll.Values.secrets.oslo_messaging $userClass }}
+ ---
 diff --git a/neutron/templates/certificates.yaml b/neutron/templates/certificates.yaml
 deleted file mode 100644
 index f65396d0f..000000000
@@ -1410,52 +2412,212 @@ index f65396d0f..000000000
 -{{- if .Values.manifests.certificates -}}
 -{{  dict "envAll" . "service" "network" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{- end -}}
+diff --git a/neutron/templates/configmap-etc.yaml b/neutron/templates/configmap-etc.yaml
+index db92641d9..df1fe525d 100644
+--- a/neutron/templates/configmap-etc.yaml
++++ b/neutron/templates/configmap-etc.yaml
+@@ -59,11 +59,7 @@ limitations under the License.
+ 
+ {{- if empty $envAll.Values.conf.neutron.database.connection -}}
+ {{- $connection := tuple "oslo_db" "internal" "neutron" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | set .Values.conf.neutron.database "connection" -}}
+-{{- else -}}
+ {{- $_ := set .Values.conf.neutron.database "connection" $connection -}}
+-{{- end -}}
+ {{- end }}
+ 
+ {{- if empty $envAll.Values.conf.neutron.DEFAULT.transport_url -}}
+diff --git a/neutron/templates/daemonset-dhcp-agent.yaml b/neutron/templates/daemonset-dhcp-agent.yaml
+index 17e15f8e1..4a5866737 100644
+--- a/neutron/templates/daemonset-dhcp-agent.yaml
++++ b/neutron/templates/daemonset-dhcp-agent.yaml
+@@ -245,7 +245,6 @@ spec:
+               mountPath: /run/netns
+               mountPropagation: Bidirectional
+             {{- end }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_neutron_dhcp_agent.volumeMounts }}{{ toYaml $mounts_neutron_dhcp_agent.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+         - name: pod-tmp
+@@ -274,7 +273,6 @@ spec:
+           hostPath:
+             path: /run/netns
+         {{- end }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_neutron_dhcp_agent.volumes }}{{ toYaml $mounts_neutron_dhcp_agent.volumes | indent 8 }}{{ end }}
+ {{- end }}
+ {{- end }}
+diff --git a/neutron/templates/daemonset-l2gw-agent.yaml b/neutron/templates/daemonset-l2gw-agent.yaml
+index e9481981a..954470747 100644
+--- a/neutron/templates/daemonset-l2gw-agent.yaml
++++ b/neutron/templates/daemonset-l2gw-agent.yaml
+@@ -136,7 +136,6 @@ spec:
+               mountPath: /etc/neutron/l2gw_agent.ini
+               subPath: l2gw_agent.ini
+               readOnly: true
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_neutron_l2gw_agent.volumeMounts }}{{ toYaml $mounts_neutron_l2gw_agent.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+         - name: pod-tmp
+@@ -151,7 +150,6 @@ spec:
+           secret:
+             secretName: {{ $configMapName }}
+             defaultMode: 0444
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_neutron_l2gw_agent.volumes }}{{ toYaml $mounts_neutron_l2gw_agent.volumes | indent 8 }}{{ end }}
+ {{- end }}
+ {{- end }}
+diff --git a/neutron/templates/daemonset-l3-agent.yaml b/neutron/templates/daemonset-l3-agent.yaml
+index b4bbd0969..5bddd62b0 100644
+--- a/neutron/templates/daemonset-l3-agent.yaml
++++ b/neutron/templates/daemonset-l3-agent.yaml
+@@ -245,7 +245,6 @@ spec:
+               mountPath: /run/netns
+               mountPropagation: Bidirectional
+             {{- end }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_neutron_l3_agent.volumeMounts }}{{ toYaml $mounts_neutron_l3_agent.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+         - name: pod-tmp
+@@ -277,7 +276,6 @@ spec:
+           hostPath:
+             path: /run/netns
+         {{- end }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_neutron_l3_agent.volumes }}{{ toYaml $mounts_neutron_l3_agent.volumes | indent 8 }}{{ end }}
+ {{- end }}
+ {{- end }}
+diff --git a/neutron/templates/daemonset-lb-agent.yaml b/neutron/templates/daemonset-lb-agent.yaml
+index 35ff8fe0d..a7437b376 100644
+--- a/neutron/templates/daemonset-lb-agent.yaml
++++ b/neutron/templates/daemonset-lb-agent.yaml
+@@ -199,7 +199,6 @@ spec:
+             {{- end }}
+             - name: run
+               mountPath: /run
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_neutron_lb_agent.volumeMounts }}{{ toYaml $mounts_neutron_lb_agent.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+         - name: pod-tmp
+@@ -222,7 +221,6 @@ spec:
+         - name: host-rootfs
+           hostPath:
+             path: /
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_neutron_lb_agent.volumes }}{{ toYaml $mounts_neutron_lb_agent.volumes | indent 8 }}{{ end }}
+ {{- end }}
+ {{- end }}
 diff --git a/neutron/templates/daemonset-metadata-agent.yaml b/neutron/templates/daemonset-metadata-agent.yaml
-index fc9a75ee4..4625765a9 100644
+index fc9a75ee4..4319886c4 100644
 --- a/neutron/templates/daemonset-metadata-agent.yaml
 +++ b/neutron/templates/daemonset-metadata-agent.yaml
-@@ -193,7 +193,7 @@ spec:
+@@ -193,8 +193,7 @@ spec:
                mountPath: /run/netns
                mountPropagation: Bidirectional
              {{- end }}
 -{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.compute_metadata.metadata.internal | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.compute_metadata.metadata.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_neutron_metadata_agent.volumeMounts }}{{ toYaml $mounts_neutron_metadata_agent.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -217,7 +217,7 @@ spec:
+         - name: pod-tmp
+@@ -217,8 +216,7 @@ spec:
            hostPath:
              path: /run/netns
          {{- end }}
 -{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.compute_metadata.metadata.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.compute_metadata.metadata.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_neutron_metadata_agent.volumes }}{{ toYaml $mounts_neutron_metadata_agent.volumes | indent 8 }}{{ end }}
  {{- end }}
+ {{- end }}
+diff --git a/neutron/templates/daemonset-ovs-agent.yaml b/neutron/templates/daemonset-ovs-agent.yaml
+index 0ea60f584..a5ed53451 100644
+--- a/neutron/templates/daemonset-ovs-agent.yaml
++++ b/neutron/templates/daemonset-ovs-agent.yaml
+@@ -279,7 +279,6 @@ spec:
+             {{- end }}
+             - name: run
+               mountPath: /run
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_neutron_ovs_agent.volumeMounts }}{{ toYaml $mounts_neutron_ovs_agent.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+         - name: pod-tmp
+@@ -310,7 +309,6 @@ spec:
+             path: /sys/bus/pci/devices
+             type: Directory
+ {{- end }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_neutron_ovs_agent.volumes }}{{ toYaml $mounts_neutron_ovs_agent.volumes | indent 8 }}{{ end }}
+ {{- end }}
+ {{- end }}
+diff --git a/neutron/templates/daemonset-sriov-agent.yaml b/neutron/templates/daemonset-sriov-agent.yaml
+index 5b96cd7cb..07f5931cd 100644
+--- a/neutron/templates/daemonset-sriov-agent.yaml
++++ b/neutron/templates/daemonset-sriov-agent.yaml
+@@ -213,7 +213,6 @@ spec:
+             {{- end }}
+             - name: run
+               mountPath: /run
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_neutron_sriov_agent.volumeMounts }}{{ toYaml $mounts_neutron_sriov_agent.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+         - name: host-sys-class-net
+@@ -239,7 +238,6 @@ spec:
+         - name: run
+           hostPath:
+             path: /run
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_neutron_sriov_agent.volumes }}{{ toYaml $mounts_neutron_sriov_agent.volumes | indent 8 }}{{ end }}
+ {{- end }}
+ {{- end }}
+diff --git a/neutron/templates/deployment-ironic-agent.yaml b/neutron/templates/deployment-ironic-agent.yaml
+index 014c9adfb..90d95d199 100644
+--- a/neutron/templates/deployment-ironic-agent.yaml
++++ b/neutron/templates/deployment-ironic-agent.yaml
+@@ -97,7 +97,6 @@ spec:
+               mountPath: /etc/neutron/plugins/ml2/ml2_conf.ini
+               subPath: ml2_conf.ini
+               readOnly: true
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_neutron_ironic_agent.volumeMounts }}{{ toYaml $mounts_neutron_ironic_agent.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+         - name: pod-tmp
+@@ -112,6 +111,5 @@ spec:
+           secret:
+             secretName: neutron-etc
+             defaultMode: 0444
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+ {{ if $mounts_neutron_ironic_agent.volumes }}{{ toYaml $mounts_neutron_ironic_agent.volumes | indent 8 }}{{ end }}
+ {{- end }}
 diff --git a/neutron/templates/deployment-rpc_server.yaml b/neutron/templates/deployment-rpc_server.yaml
-index 1866e21e7..a8a111d73 100644
+index 1866e21e7..ca0cab623 100644
 --- a/neutron/templates/deployment-rpc_server.yaml
 +++ b/neutron/templates/deployment-rpc_server.yaml
-@@ -194,7 +194,7 @@ spec:
+@@ -193,9 +193,7 @@ spec:
+               mountPath: /etc/neutron/policy.yaml
                subPath: policy.yaml
                readOnly: true
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.internal "path" "/etc/neutron/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_neutron_rpc_server.volumeMounts }}{{ toYaml $mounts_neutron_rpc_server.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -221,7 +221,7 @@ spec:
+         - name: pod-tmp
+@@ -220,8 +218,6 @@ spec:
+         - name: neutron-plugin-shared
            emptyDir: {}
          {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_neutron_rpc_server.volumes }}{{ toYaml $mounts_neutron_rpc_server.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/neutron/templates/deployment-server.yaml b/neutron/templates/deployment-server.yaml
-index b6b634d23..6b236a33b 100644
+index b6b634d23..f8a2492ba 100644
 --- a/neutron/templates/deployment-server.yaml
 +++ b/neutron/templates/deployment-server.yaml
 @@ -13,35 +13,17 @@ limitations under the License.
@@ -1545,16 +2707,17 @@ index b6b634d23..6b236a33b 100644
          - name: neutron-server
  {{ tuple $envAll "neutron_server" | include "helm-toolkit.snippets.image" | indent 10 }}
  {{ tuple $envAll $envAll.Values.pod.resources.server | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-@@ -272,7 +210,7 @@ spec:
+@@ -271,19 +209,13 @@ spec:
+               mountPath: /etc/neutron/policy.yaml
                subPath: policy.yaml
                readOnly: true
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.internal "path" "/etc/neutron/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_neutron_server.volumeMounts }}{{ toYaml $mounts_neutron_server.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -280,10 +218,6 @@ spec:
+         - name: pod-tmp
            emptyDir: {}
          - name: pod-shared
            emptyDir: {}
@@ -1565,13 +2728,14 @@ index b6b634d23..6b236a33b 100644
          - name: pod-var-neutron
            emptyDir: {}
          - name: neutron-bin
-@@ -299,7 +233,7 @@ spec:
+@@ -298,8 +230,6 @@ spec:
+         - name: neutron-plugin-shared
            emptyDir: {}
          {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_neutron_server.volumes }}{{ toYaml $mounts_neutron_server.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/neutron/templates/ingress-server.yaml b/neutron/templates/ingress-server.yaml
@@ -1601,6 +2765,48 @@ index ff9dbe8f4..ef799a4f8 100644
  {{- end -}}
  {{- if .Values.helm3_hook }}
  {{- $_ := set $bootstrapJob "jobAnnotations" (include "metadata.annotations.job.bootstrap" . | fromYaml) }}
+diff --git a/neutron/templates/job-db-drop.yaml b/neutron/templates/job-db-drop.yaml
+index 67d4174d6..5acedf1d0 100644
+--- a/neutron/templates/job-db-drop.yaml
++++ b/neutron/templates/job-db-drop.yaml
+@@ -15,9 +15,6 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "neutron" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbDropJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.neutron.enabled -}}
+ {{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
+ {{- end -}}
+diff --git a/neutron/templates/job-db-init.yaml b/neutron/templates/job-db-init.yaml
+index 184ec97d8..caf8b3593 100644
+--- a/neutron/templates/job-db-init.yaml
++++ b/neutron/templates/job-db-init.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-5"
+ 
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "neutron" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbInitJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbInitJob "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml) }}
+ {{- end }}
+diff --git a/neutron/templates/job-db-sync.yaml b/neutron/templates/job-db-sync.yaml
+index 1d2240792..f3e3320ed 100644
+--- a/neutron/templates/job-db-sync.yaml
++++ b/neutron/templates/job-db-sync.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-4"
+ 
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "neutron" "podVolMounts" .Values.pod.mounts.neutron_db_sync.neutron_db_sync.volumeMounts "podVols" .Values.pod.mounts.neutron_db_sync.neutron_db_sync.volumes -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbSyncJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbSyncJob "jobAnnotations" (include "metadata.annotations.job.db_sync" . | fromYaml) }}
+ {{- end }}
 diff --git a/neutron/templates/job-ks-endpoints.yaml b/neutron/templates/job-ks-endpoints.yaml
 index ec76b71dd..60788f676 100644
 --- a/neutron/templates/job-ks-endpoints.yaml
@@ -1640,6 +2846,20 @@ index 563ba7baf..aac6eeac7 100644
  {{- end -}}
  {{- if .Values.helm3_hook }}
  {{- $_ := set $ksUserJob "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) }}
+diff --git a/neutron/templates/job-rabbit-init.yaml b/neutron/templates/job-rabbit-init.yaml
+index 0d08170d7..685ee774a 100644
+--- a/neutron/templates/job-rabbit-init.yaml
++++ b/neutron/templates/job-rabbit-init.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-4"
+ 
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "neutron" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $rmqUserJob "tlsSecret" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $rmqUserJob "jobAnnotations" (include "metadata.annotations.job.rabbit_init" . | fromYaml) }}
+ {{- end }}
 diff --git a/neutron/templates/pod-rally-test.yaml b/neutron/templates/pod-rally-test.yaml
 index 5ef57fa34..8f289bf7d 100644
 --- a/neutron/templates/pod-rally-test.yaml
@@ -1679,6 +2899,35 @@ index 5ef57fa34..8f289bf7d 100644
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.network.server.public | include "helm-toolkit.snippets.tls_volume"  | indent 4 }}
  {{ if $mounts_tests.volumes }}{{ toYaml $mounts_tests.volumes | indent 4 }}{{ end }}
  {{- end }}
+diff --git a/neutron/templates/secret-db.yaml b/neutron/templates/secret-db.yaml
+index 59d6d9c5c..5e42748c7 100644
+--- a/neutron/templates/secret-db.yaml
++++ b/neutron/templates/secret-db.yaml
+@@ -26,10 +26,6 @@ metadata:
+ {{ tuple "oslo_db" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{  $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
+diff --git a/neutron/templates/secret-rabbitmq.yaml b/neutron/templates/secret-rabbitmq.yaml
+index fd3e24fbf..aa7266a1c 100644
+--- a/neutron/templates/secret-rabbitmq.yaml
++++ b/neutron/templates/secret-rabbitmq.yaml
+@@ -15,9 +15,6 @@ limitations under the License.
+ {{- if .Values.manifests.secret_rabbitmq }}
+ {{- $envAll := . }}
+ {{- $rabbitmqProtocol := "http" }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- $rabbitmqProtocol = "https" }}
+-{{- end }}
+ {{- range $key1, $userClass := tuple "admin" "neutron" }}
+ {{- $secretName := index $envAll.Values.secrets.oslo_messaging $userClass }}
+ ---
 diff --git a/neutron/values.yaml b/neutron/values.yaml
 index 1691e0049..540c0d2fc 100644
 --- a/neutron/values.yaml
@@ -1839,6 +3088,90 @@ index b53babbc4..000000000
 -{{ dict "envAll" . "service" "compute_serial_proxy" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{- end }}
 -{{- end -}}
+diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
+index 96617dbdd..220db538a 100644
+--- a/nova/templates/configmap-etc.yaml
++++ b/nova/templates/configmap-etc.yaml
+@@ -83,30 +83,18 @@ limitations under the License.
+ 
+ {{- if empty .Values.conf.nova.database.connection -}}
+ {{- $connection := tuple "oslo_db" "internal" "nova" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | set .Values.conf.nova.database "connection" -}}
+-{{- else -}}
+ {{- $_ := set .Values.conf.nova.database "connection" $connection -}}
+ {{- end -}}
+-{{- end -}}
+ 
+ {{- if empty .Values.conf.nova.api_database.connection -}}
+ {{- $connection := tuple "oslo_db_api" "internal" "nova" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | set .Values.conf.nova.api_database "connection" -}}
+-{{- else -}}
+ {{- $_ := set .Values.conf.nova.api_database "connection" $connection -}}
+ {{- end -}}
+-{{- end -}}
+ 
+ {{- if empty .Values.conf.nova.cell0_database.connection -}}
+ {{- $connection := tuple "oslo_db_cell0" "internal" "nova" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | set .Values.conf.nova.cell0_database "connection" -}}
+-{{- else -}}
+ {{- $_ := set .Values.conf.nova.cell0_database "connection" $connection -}}
+ {{- end -}}
+-{{- end -}}
+ 
+ {{- if empty .Values.conf.nova.DEFAULT.transport_url -}}
+ {{- $_ := tuple "oslo_messaging" "internal" "nova" "amqp" . | include "helm-toolkit.endpoints.authenticated_transport_endpoint_uri_lookup" | set .Values.conf.nova.DEFAULT "transport_url" -}}
+@@ -356,11 +344,6 @@ data:
+   nova-ironic.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_ironic | b64enc }}
+   nova-api-uwsgi.ini: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_api_uwsgi | b64enc }}
+   nova-metadata-uwsgi.ini: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_metadata_uwsgi | b64enc }}
+-{{- if .Values.manifests.certificates }}
+-{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.mpm_event "key" "mpm_event.conf" "format" "Secret" ) | indent 2 }}
+-{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.wsgi_nova_api "key" "wsgi-api.conf" "format" "Secret" ) | indent 2 }}
+-{{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.wsgi_nova_metadata "key" "wsgi-metadata.conf" "format" "Secret" ) | indent 2 }}
+-{{- end }}
+ {{- if .Values.conf.security }}
+ {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.security "key" "security.conf" "format" "Secret" ) | indent 2 }}
+ {{- end }}
+diff --git a/nova/templates/cron-job-archive-deleted-rows.yaml b/nova/templates/cron-job-archive-deleted-rows.yaml
+index 7316b3ace..9e62bbdb6 100644
+--- a/nova/templates/cron-job-archive-deleted-rows.yaml
++++ b/nova/templates/cron-job-archive-deleted-rows.yaml
+@@ -80,7 +80,6 @@ spec:
+                   readOnly: true
+                   subPath: archive-deleted-rows.sh
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal "path" "/etc/nova/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
+           volumes:
+             - name: pod-tmp
+               emptyDir: {}
+@@ -92,5 +91,4 @@ spec:
+               secret:
+                 secretName: nova-etc
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+ {{- end }}
+diff --git a/nova/templates/cron-job-cell-setup.yaml b/nova/templates/cron-job-cell-setup.yaml
+index b90b84e8c..cb4e58c28 100644
+--- a/nova/templates/cron-job-cell-setup.yaml
++++ b/nova/templates/cron-job-cell-setup.yaml
+@@ -88,7 +88,6 @@ spec:
+                   subPath: policy.yaml
+                   readOnly: true
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal "path" "/etc/nova/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 16 }}
+ 
+           volumes:
+             - name: pod-tmp
+@@ -104,6 +103,5 @@ spec:
+                 name: nova-bin
+                 defaultMode: 0555
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
+ 
+ {{- end }}
 diff --git a/nova/templates/cron-job-service-cleaner.yaml b/nova/templates/cron-job-service-cleaner.yaml
 index dd61db79d..0da8c5e19 100644
 --- a/nova/templates/cron-job-service-cleaner.yaml
@@ -1860,7 +3193,7 @@ index dd61db79d..0da8c5e19 100644
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume" | indent 12 }}
  {{- end }}
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 9124898d5..a772805f3 100644
+index 9124898d5..43a1b75b5 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
 @@ -313,7 +313,7 @@ spec:
@@ -1872,16 +3205,17 @@ index 9124898d5..a772805f3 100644
  {{- end }}
  {{ dict "envAll" $envAll "component" "compute" "container" "default" "type" "liveness" "probeTemplate" (include "novaComputeLivenessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
  {{ dict "envAll" $envAll "component" "compute" "container" "default" "type" "readiness" "probeTemplate" (include "novaComputeReadinessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
-@@ -467,7 +467,7 @@ spec:
+@@ -467,8 +467,7 @@ spec:
                subPath: tf-plugin.pth
                readOnly: true
              {{- end }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal "path" "/etc/nova/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_nova_compute.volumeMounts }}{{ toYaml $mounts_nova_compute.volumeMounts | indent 12 }}{{ end }}
          {{- if .Values.network.ssh.enabled }}
-@@ -482,7 +482,7 @@ spec:
+         - name: nova-compute-ssh
+@@ -482,7 +481,7 @@ spec:
                value: {{ .Values.network.ssh.port | quote }}
  {{- if or .Values.manifests.certificates .Values.tls.identity }}
              - name: REQUESTS_CA_BUNDLE
@@ -1890,7 +3224,7 @@ index 9124898d5..a772805f3 100644
  {{- end }}
            ports:
              - containerPort: {{ .Values.network.ssh.port }}
-@@ -496,7 +496,7 @@ spec:
+@@ -496,7 +495,7 @@ spec:
                mountPath: /tmp/ssh-start.sh
                subPath: ssh-start.sh
                readOnly: true
@@ -1899,20 +3233,21 @@ index 9124898d5..a772805f3 100644
  {{ if $mounts_nova_compute.volumeMounts }}{{ toYaml $mounts_nova_compute.volumeMounts | indent 12 }}{{ end }}
          {{ end }}
        volumes:
-@@ -582,7 +582,7 @@ spec:
+@@ -582,8 +581,7 @@ spec:
          - name: tf-plugin-bin
            emptyDir: {}
          {{- end }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_nova_compute.volumes }}{{ toYaml $mounts_nova_compute.volumes | indent 8 }}{{ end }}
  {{- end }}
+ {{- end }}
 diff --git a/nova/templates/deployment-api-metadata.yaml b/nova/templates/deployment-api-metadata.yaml
-index 51e30c9d3..ee5e38ea2 100644
+index 51e30c9d3..066ef7ba1 100644
 --- a/nova/templates/deployment-api-metadata.yaml
 +++ b/nova/templates/deployment-api-metadata.yaml
-@@ -183,20 +183,8 @@ spec:
+@@ -183,20 +183,7 @@ spec:
              - name: pod-shared
                mountPath: /tmp/pod-shared
                readOnly: true
@@ -1928,25 +3263,26 @@ index 51e30c9d3..ee5e38ea2 100644
 -              subPath: mpm_event.conf
 -              readOnly: true
 -            {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute_metadata.metadata.internal "path" "/etc/nova/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute_metadata.metadata.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_nova_api_metadata.volumeMounts }}{{ toYaml $mounts_nova_api_metadata.volumeMounts | indent 12 }}{{ end }}
        volumes:
          - name: pod-tmp
-@@ -216,6 +204,6 @@ spec:
+@@ -215,7 +202,6 @@ spec:
+             defaultMode: 0444
          - name: pod-shared
            emptyDir: {}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute_metadata.metadata.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute_metadata.metadata.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_nova_api_metadata.volumes }}{{ toYaml $mounts_nova_api_metadata.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/nova/templates/deployment-api-osapi.yaml b/nova/templates/deployment-api-osapi.yaml
-index b203ba6cf..04d70533b 100644
+index b203ba6cf..7aceeca10 100644
 --- a/nova/templates/deployment-api-osapi.yaml
 +++ b/nova/templates/deployment-api-osapi.yaml
-@@ -131,20 +131,8 @@ spec:
+@@ -131,21 +131,7 @@ spec:
                mountPath: /etc/nova/api_audit_map.conf
                subPath: api_audit_map.conf
                readOnly: true
@@ -1962,23 +3298,25 @@ index b203ba6cf..04d70533b 100644
 -              subPath: mpm_event.conf
 -              readOnly: true
 -            {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal "path" "/etc/nova/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_nova_api_osapi.volumeMounts }}{{ toYaml $mounts_nova_api_osapi.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -165,7 +153,7 @@ spec:
+         - name: pod-tmp
+@@ -164,8 +150,6 @@ spec:
+           secret:
              secretName: nova-etc
              defaultMode: 0444
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_nova_api_osapi.volumes}}{{ toYaml $mounts_nova_api_osapi.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/nova/templates/deployment-conductor.yaml b/nova/templates/deployment-conductor.yaml
-index b58b38559..44ed2858e 100644
+index b58b38559..7cffbcc21 100644
 --- a/nova/templates/deployment-conductor.yaml
 +++ b/nova/templates/deployment-conductor.yaml
 @@ -94,7 +94,7 @@ spec:
@@ -1990,48 +3328,54 @@ index b58b38559..44ed2858e 100644
  {{- end }}
            command:
              - /tmp/nova-conductor.sh
-@@ -123,7 +123,7 @@ spec:
+@@ -123,9 +123,7 @@ spec:
                mountPath: /etc/nova/policy.yaml
                subPath: policy.yaml
                readOnly: true
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal "path" "/etc/nova/certs" "certs" (tuple "ca.crt") | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_nova_conductor.volumeMounts }}{{ toYaml $mounts_nova_conductor.volumeMounts | indent 12 }}{{ end }}
-@@ -138,7 +138,7 @@ spec:
+       volumes:
+         - name: pod-tmp
+@@ -138,8 +136,6 @@ spec:
            secret:
              secretName: nova-etc
              defaultMode: 0444
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_nova_conductor.volumes }}{{ toYaml $mounts_nova_conductor.volumes | indent 8 }}{{ end }}
+ {{- end }}
 diff --git a/nova/templates/deployment-novncproxy.yaml b/nova/templates/deployment-novncproxy.yaml
-index f4c1d8ba7..aa5472633 100644
+index f4c1d8ba7..1491bffe3 100644
 --- a/nova/templates/deployment-novncproxy.yaml
 +++ b/nova/templates/deployment-novncproxy.yaml
-@@ -152,7 +152,7 @@ spec:
+@@ -151,9 +151,7 @@ spec:
+               readOnly: true
              {{- end }}
  
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.compute_novnc_proxy.novncproxy.internal "path" "/etc/nova/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.compute_novnc_proxy.novncproxy.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_nova_novncproxy.volumeMounts }}{{ toYaml $mounts_nova_novncproxy.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -177,7 +177,7 @@ spec:
+         - name: pod-tmp
+@@ -176,8 +174,6 @@ spec:
+             secretName: {{ .Values.secrets.tls.compute_novnc_proxy.vencrypt.internal }}
              defaultMode: 0444
          {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.compute_novnc_proxy.novncproxy.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.compute_novnc_proxy.novncproxy.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_nova_novncproxy.volumes }}{{ toYaml $mounts_nova_novncproxy.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/nova/templates/deployment-scheduler.yaml b/nova/templates/deployment-scheduler.yaml
-index bba444c96..d3f4095c6 100644
+index bba444c96..ebc627af2 100644
 --- a/nova/templates/deployment-scheduler.yaml
 +++ b/nova/templates/deployment-scheduler.yaml
 @@ -94,7 +94,7 @@ spec:
@@ -2043,22 +3387,25 @@ index bba444c96..d3f4095c6 100644
  {{- end }}
            command:
              - /tmp/nova-scheduler.sh
-@@ -124,7 +124,7 @@ spec:
+@@ -123,9 +123,7 @@ spec:
+               mountPath: /etc/nova/policy.yaml
                subPath: policy.yaml
                readOnly: true
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal "path" "/etc/nova/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal "path" "/etc/rabbitmq/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_nova_scheduler.volumeMounts }}{{ toYaml $mounts_nova_scheduler.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -139,7 +139,7 @@ spec:
+         - name: pod-tmp
+@@ -138,8 +136,6 @@ spec:
+           secret:
              secretName: nova-etc
              defaultMode: 0444
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_nova_scheduler.volumes }}{{ toYaml $mounts_nova_scheduler.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/nova/templates/deployment-spiceproxy.yaml b/nova/templates/deployment-spiceproxy.yaml
@@ -2147,7 +3494,7 @@ index de8812dd7..2aa62d21d 100644
  kind: ClusterRole
  apiVersion: rbac.authorization.k8s.io/v1
 diff --git a/nova/templates/job-cell-setup.yaml b/nova/templates/job-cell-setup.yaml
-index f6e51a4ff..678a062aa 100644
+index f6e51a4ff..f9d2e084a 100644
 --- a/nova/templates/job-cell-setup.yaml
 +++ b/nova/templates/job-cell-setup.yaml
 @@ -77,7 +77,7 @@ spec:
@@ -2159,24 +3506,68 @@ index f6e51a4ff..678a062aa 100644
        containers:
          - name: nova-cell-setup
  {{ tuple $envAll "nova_cell_setup" | include "helm-toolkit.snippets.image" | indent 10 }}
-@@ -114,7 +114,7 @@ spec:
+@@ -113,8 +113,7 @@ spec:
+               mountPath: /etc/nova/policy.yaml
                subPath: policy.yaml
                readOnly: true
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
        volumes:
          - name: pod-tmp
            emptyDir: {}
-@@ -129,7 +129,7 @@ spec:
+@@ -128,8 +127,7 @@ spec:
+           configMap:
              name: nova-bin
              defaultMode: 0555
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" .Values.manifests.certificates "name" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  ---
  kind: ClusterRole
  apiVersion: rbac.authorization.k8s.io/v1
+diff --git a/nova/templates/job-db-drop.yaml b/nova/templates/job-db-drop.yaml
+index b0471ef21..9acd5487d 100644
+--- a/nova/templates/job-db-drop.yaml
++++ b/nova/templates/job-db-drop.yaml
+@@ -19,9 +19,6 @@ limitations under the License.
+ {{- $dbCell := dict "adminSecret" .Values.secrets.oslo_db.admin "configFile" (printf "/etc/%s/%s.conf" $serviceName $serviceName ) "logConfigFile" (printf "/etc/%s/logging.conf" $serviceName ) "configDbSection" "cell0_database" "configDbKey" "connection" -}}
+ {{- $dbsToDrop := list $dbSvc $dbApi $dbCell }}
+ {{- $dbDropJob := dict "envAll" . "serviceName" $serviceName "dbsToDrop" $dbsToDrop -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbDropJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.nova.enabled -}}
+ {{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
+ {{- end -}}
+diff --git a/nova/templates/job-db-init.yaml b/nova/templates/job-db-init.yaml
+index 72b0a8086..ba3ff3008 100644
+--- a/nova/templates/job-db-init.yaml
++++ b/nova/templates/job-db-init.yaml
+@@ -24,9 +24,6 @@ helm.sh/hook-weight: "-5"
+ {{- $dbCell := dict "adminSecret" .Values.secrets.oslo_db.admin "configFile" (printf "/etc/%s/%s.conf" $serviceName $serviceName ) "logConfigFile" (printf "/etc/%s/logging.conf" $serviceName ) "configDbSection" "cell0_database" "configDbKey" "connection" -}}
+ {{- $dbsToInit := list $dbSvc $dbApi $dbCell }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" $serviceName "dbsToInit" $dbsToInit -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbInitJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbInitJob "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml) }}
+ {{- end }}
+diff --git a/nova/templates/job-db-sync.yaml b/nova/templates/job-db-sync.yaml
+index 061e18f18..c21a83121 100644
+--- a/nova/templates/job-db-sync.yaml
++++ b/nova/templates/job-db-sync.yaml
+@@ -40,9 +40,6 @@ env:
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $podEnvVars := include "nova.templates._job_db_sync.env_vars" (tuple .) | toString | fromYaml }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "nova" "podVolMounts" .Values.pod.mounts.nova_db_sync.nova_db_sync.volumeMounts "podVols" .Values.pod.mounts.nova_db_sync.nova_db_sync.volumes "podEnvVars" $podEnvVars.env -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbSyncJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbSyncJob "jobAnnotations" (include "metadata.annotations.job.db_sync" . | fromYaml) }}
+ {{- end }}
 diff --git a/nova/templates/job-ks-endpoints.yaml b/nova/templates/job-ks-endpoints.yaml
 index 1e41ec46d..01d434f6e 100644
 --- a/nova/templates/job-ks-endpoints.yaml
@@ -2216,6 +3607,20 @@ index 7d0f01975..b0e7413b9 100644
  {{- end -}}
  {{- if .Values.helm3_hook }}
  {{- $_ := set $ksUserJob "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) -}}
+diff --git a/nova/templates/job-rabbit-init.yaml b/nova/templates/job-rabbit-init.yaml
+index b5133d30f..021801f88 100644
+--- a/nova/templates/job-rabbit-init.yaml
++++ b/nova/templates/job-rabbit-init.yaml
+@@ -19,9 +19,6 @@ helm.sh/hook-weight: "-4"
+ 
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "nova" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $rmqUserJob "tlsSecret" .Values.endpoints.oslo_messaging.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $rmqUserJob "jobAnnotations" (include "metadata.annotations.job.rabbit_init" . | fromYaml) }}
+ {{- end }}
 diff --git a/nova/templates/pod-rally-test.yaml b/nova/templates/pod-rally-test.yaml
 index d53f2047d..9b66716b5 100644
 --- a/nova/templates/pod-rally-test.yaml
@@ -2246,6 +3651,65 @@ index d53f2047d..9b66716b5 100644
 +{{- dict "enabled" .Values.manifests.certificates "name"  .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume" | indent 4 }}
  {{ if $mounts_tests.volumes }}{{ toYaml $mounts_tests.volumes | indent 4 }}{{ end }}
  {{- end }}
+diff --git a/nova/templates/secret-db-api.yaml b/nova/templates/secret-db-api.yaml
+index de537031f..6eba7f5bc 100644
+--- a/nova/templates/secret-db-api.yaml
++++ b/nova/templates/secret-db-api.yaml
+@@ -26,10 +26,6 @@ metadata:
+ {{ tuple "oslo_db_api" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{ $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
+diff --git a/nova/templates/secret-db-cell0.yaml b/nova/templates/secret-db-cell0.yaml
+index ac74bf942..ce97fedc1 100644
+--- a/nova/templates/secret-db-cell0.yaml
++++ b/nova/templates/secret-db-cell0.yaml
+@@ -26,10 +26,6 @@ metadata:
+ {{ tuple "oslo_db_cell0" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{ $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
+diff --git a/nova/templates/secret-db.yaml b/nova/templates/secret-db.yaml
+index 885cae199..2bc0471cf 100644
+--- a/nova/templates/secret-db.yaml
++++ b/nova/templates/secret-db.yaml
+@@ -26,10 +26,6 @@ metadata:
+ {{ tuple "oslo_db" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{  $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
+diff --git a/nova/templates/secret-rabbitmq.yaml b/nova/templates/secret-rabbitmq.yaml
+index 32f216902..87f0072c5 100644
+--- a/nova/templates/secret-rabbitmq.yaml
++++ b/nova/templates/secret-rabbitmq.yaml
+@@ -15,9 +15,6 @@ limitations under the License.
+ {{- if .Values.manifests.secret_rabbitmq }}
+ {{- $envAll := . }}
+ {{- $rabbitmqProtocol := "http" }}
+-{{- if $envAll.Values.manifests.certificates }}
+-{{- $rabbitmqProtocol = "https" }}
+-{{- end }}
+ {{- range $key1, $userClass := tuple "admin" "nova" }}
+ {{- $secretName := index $envAll.Values.secrets.oslo_messaging $userClass }}
+ ---
 diff --git a/placement/templates/certificates.yaml b/placement/templates/certificates.yaml
 deleted file mode 100644
 index ada7fde1b..000000000
@@ -2269,23 +3733,42 @@ index ada7fde1b..000000000
 -{{- if .Values.manifests.certificates -}}
 -{{  dict "envAll" . "service" "placement" "type" "internal" | include "helm-toolkit.manifests.certificates" }}
 -{{- end -}}
+diff --git a/placement/templates/configmap-etc.yaml b/placement/templates/configmap-etc.yaml
+index efd651613..34a968333 100644
+--- a/placement/templates/configmap-etc.yaml
++++ b/placement/templates/configmap-etc.yaml
+@@ -19,12 +19,8 @@ limitations under the License.
+ 
+ {{- if empty .Values.conf.placement.placement_database.connection -}}
+ {{- $connection := tuple "oslo_db" "internal" "placement" "mysql" . | include "helm-toolkit.endpoints.authenticated_endpoint_uri_lookup" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | set .Values.conf.placement.placement_database "connection" -}}
+-{{- else -}}
+ {{- $_ := set .Values.conf.placement.placement_database "connection" $connection -}}
+ {{- end -}}
+-{{- end -}}
+ 
+ {{- if empty .Values.conf.placement.keystone_authtoken.auth_uri -}}
+ {{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.placement.keystone_authtoken "auth_uri" -}}
 diff --git a/placement/templates/deployment.yaml b/placement/templates/deployment.yaml
-index dc726dfc6..1322ef426 100644
+index dc726dfc6..77a4f7a1f 100644
 --- a/placement/templates/deployment.yaml
 +++ b/placement/templates/deployment.yaml
-@@ -145,7 +145,7 @@ spec:
+@@ -144,8 +144,7 @@ spec:
+             - name: log
                mountPath: {{ .Values.conf.placement.DEFAULT.log_dir }}
              {{- end }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal "path" "/etc/mysql/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.placement.api.internal "path" "/etc/placement/certs" | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.placement.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
  {{ if $mounts_placement.volumeMounts }}{{ toYaml $mounts_placement.volumeMounts | indent 12 }}{{ end }}
        volumes:
          - name: pod-tmp
-@@ -167,6 +167,6 @@ spec:
+@@ -166,7 +165,6 @@ spec:
+             path: {{ .Values.conf.placement.DEFAULT.log_dir }}
              type: DirectoryOrCreate
          {{- end }}
- {{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{- dict "enabled" $envAll.Values.manifests.certificates "name" $envAll.Values.endpoints.oslo_db.auth.admin.secret.tls.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 -{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.placement.api.internal | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
 +{{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.placement.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
  {{ if $mounts_placement.volumes }}{{ toYaml $mounts_placement.volumes | indent 8 }}{{ end }}
@@ -2304,6 +3787,55 @@ index 68ce111a5..779b2fe68 100644
 -{{- end -}}
  {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
  {{- end }}
+diff --git a/placement/templates/job-db-drop.yaml b/placement/templates/job-db-drop.yaml
+index f6e26e73d..5f2001ce9 100644
+--- a/placement/templates/job-db-drop.yaml
++++ b/placement/templates/job-db-drop.yaml
+@@ -17,9 +17,6 @@ limitations under the License.
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $serviceName := "placement" -}}
+ {{- $dbDropJob := dict "envAll" . "serviceName" $serviceName -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbDropJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.pod.tolerations.placement.enabled -}}
+ {{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
+ {{- end -}}
+diff --git a/placement/templates/job-db-init.yaml b/placement/templates/job-db-init.yaml
+index 6edd4175e..60667953f 100644
+--- a/placement/templates/job-db-init.yaml
++++ b/placement/templates/job-db-init.yaml
+@@ -24,9 +24,6 @@ helm.sh/hook-weight: "-5"
+ {{- $dbApi := dict "adminSecret" .Values.secrets.oslo_db.admin "configFile" (printf "/etc/%s/%s.conf" $serviceName $serviceName ) "logConfigFile" (printf "/etc/%s/logging.conf" $serviceName ) "configDbSection" "placement_database" "configDbKey" "connection" -}}
+ {{- $dbsToInit := list $dbApi }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" $serviceName "dbsToInit" $dbsToInit -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbInitJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbInitJob "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml) -}}
+ {{- end }}
+diff --git a/placement/templates/job-db-sync.yaml b/placement/templates/job-db-sync.yaml
+index fea53d970..538075028 100644
+--- a/placement/templates/job-db-sync.yaml
++++ b/placement/templates/job-db-sync.yaml
+@@ -21,9 +21,6 @@ helm.sh/hook-weight: "-3"
+ 
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "placement" -}}
+-{{- if .Values.manifests.certificates -}}
+-{{- $_ := set $dbSyncJob "dbAdminTlsSecret" .Values.endpoints.oslo_db.auth.admin.secret.tls.internal -}}
+-{{- end -}}
+ {{- if .Values.helm3_hook }}
+ {{- $_ := set $dbSyncJob "jobAnnotations" (include "metadata.annotations.job.db_sync" . | fromYaml) }}
+ {{- end }}
+@@ -31,4 +28,4 @@ helm.sh/hook-weight: "-3"
+ {{- $_ := set $dbSyncJob "tolerationsEnabled" true -}}
+ {{- end -}}
+ {{ $dbSyncJob | include "helm-toolkit.manifests.job_db_sync" }}
+-{{- end }}
+\ No newline at end of file
++{{- end }}
 diff --git a/placement/templates/job-ks-endpoints.yaml b/placement/templates/job-ks-endpoints.yaml
 index bfb0bd283..55b7e906a 100644
 --- a/placement/templates/job-ks-endpoints.yaml
@@ -2343,6 +3875,21 @@ index 056938bdd..02602c15a 100644
  {{- end -}}
  {{- if .Values.helm3_hook }}
  {{- $_ := set $ksUserJob "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml) -}}
+diff --git a/placement/templates/secret-db.yaml b/placement/templates/secret-db.yaml
+index 0e9214c45..44797b854 100644
+--- a/placement/templates/secret-db.yaml
++++ b/placement/templates/secret-db.yaml
+@@ -28,10 +28,6 @@ metadata:
+ {{ tuple "oslo_db" $userClass $envAll | include "helm-toolkit.snippets.custom_secret_annotations" | indent 4 }}
+ type: Opaque
+ data:
+-{{- if $envAll.Values.manifests.certificates }}
+-  DB_CONNECTION: {{ (printf "%s?charset=utf8&ssl_ca=/etc/mysql/certs/ca.crt&ssl_key=/etc/mysql/certs/tls.key&ssl_cert=/etc/mysql/certs/tls.crt&ssl_verify_cert" $connection ) | b64enc -}}
+-{{- else }}
+   DB_CONNECTION: {{  $connection | b64enc -}}
+ {{- end }}
+ {{- end }}
+-{{- end }}
 -- 
-2.43.0
+2.34.1
 

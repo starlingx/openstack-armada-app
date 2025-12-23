@@ -24,102 +24,149 @@ Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
 Signed-off-by: Giulia Melao <giulia.depaulamelao@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Merged similar patches under new OSH package]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
- aodh/templates/cron-job-alarms-cleaner.yaml              | 3 +++
- aodh/templates/deployment-api.yaml                       | 2 ++
- aodh/templates/deployment-evaluator.yaml                 | 2 ++
- aodh/templates/deployment-listener.yaml                  | 2 ++
- aodh/templates/deployment-notifier.yaml                  | 2 ++
- aodh/templates/pod-aodh-test.yaml                        | 2 ++
- aodh/values.yaml                                         | 1 +
- barbican/templates/deployment-api.yaml                   | 2 ++
- barbican/templates/pod-test.yaml                         | 2 ++
- barbican/values.yaml                                     | 1 +
- ceilometer/templates/daemonset-compute.yaml              | 2 ++
- ceilometer/templates/daemonset-ipmi.yaml                 | 2 ++
- ceilometer/templates/deployment-api.yaml                 | 2 ++
- ceilometer/templates/deployment-central.yaml             | 2 ++
- ceilometer/templates/deployment-collector.yaml           | 2 ++
- ceilometer/templates/deployment-notification.yaml        | 2 ++
- ceilometer/templates/job-db-init-mongodb.yaml            | 5 +++++
- ceilometer/templates/pod-rally-test.yaml                 | 3 +++
- ceilometer/values.yaml                                   | 1 +
- cinder/templates/cron-job-cinder-volume-usage-audit.yaml | 2 ++
- cinder/templates/deployment-api.yaml                     | 2 ++
- cinder/templates/deployment-backup.yaml                  | 2 ++
- cinder/templates/deployment-scheduler.yaml               | 2 ++
- cinder/templates/deployment-volume.yaml                  | 2 ++
- cinder/templates/job-backup-storage-init.yaml            | 2 ++
- cinder/templates/job-clean.yaml                          | 3 +++
- cinder/templates/job-create-internal-tenant.yaml         | 2 ++
- cinder/templates/job-storage-init.yaml                   | 3 +++
- cinder/templates/pod-rally-test.yaml                     | 2 ++
- cinder/values.yaml                                       | 1 +
- glance/templates/deployment-api.yaml                     | 2 ++
- glance/templates/job-clean.yaml                          | 3 +++
- glance/templates/job-metadefs-load.yaml                  | 2 ++
- glance/templates/job-storage-init.yaml                   | 2 ++
- glance/templates/pod-rally-test.yaml                     | 2 ++
- glance/values.yaml                                       | 1 +
- heat/templates/cron-job-engine-cleaner.yaml              | 1 +
- heat/templates/cron-job-purge-deleted.yaml               | 2 ++
- heat/templates/deployment-api.yaml                       | 2 ++
- heat/templates/deployment-cfn.yaml                       | 2 ++
- heat/templates/deployment-cloudwatch.yaml                | 2 ++
- heat/templates/deployment-engine.yaml                    | 2 ++
- heat/templates/job-ks-user-domain.yaml                   | 2 ++
- heat/templates/job-trusts.yaml                           | 2 ++
- heat/templates/pod-rally-test.yaml                       | 2 ++
- heat/values.yaml                                         | 1 +
- horizon/templates/deployment.yaml                        | 2 ++
- horizon/templates/job-db-sync.yaml                       | 2 ++
- horizon/templates/pod-helm-tests.yaml                    | 2 ++
- horizon/values.yaml                                      | 1 +
- ironic/templates/deployment-api.yaml                     | 2 ++
- ironic/templates/job-manage-cleaning-network.yaml        | 3 +++
- ironic/templates/statefulset-conductor.yaml              | 2 ++
- ironic/values.yaml                                       | 1 +
- keystone/templates/cron-job-credential-rotate.yaml       | 3 +++
- keystone/templates/cron-job-fernet-rotate.yaml           | 3 +++
- keystone/templates/deployment-api.yaml                   | 2 ++
- keystone/templates/job-credential-cleanup.yaml           | 2 ++
- keystone/templates/job-credential-setup.yaml             | 2 ++
- keystone/templates/job-domain-manage.yaml                | 2 ++
- keystone/templates/job-fernet-setup.yaml                 | 2 ++
- keystone/templates/pod-rally-test.yaml                   | 2 ++
- keystone/values.yaml                                     | 1 +
- neutron/templates/daemonset-bagpipe-bgp.yaml             | 2 ++
- neutron/templates/daemonset-dhcp-agent.yaml              | 2 ++
- neutron/templates/daemonset-l2gw-agent.yaml              | 2 ++
- neutron/templates/daemonset-l3-agent.yaml                | 2 ++
- neutron/templates/daemonset-lb-agent.yaml                | 2 ++
- neutron/templates/daemonset-metadata-agent.yaml          | 2 ++
- neutron/templates/daemonset-netns-cleanup-cron.yaml      | 2 ++
- neutron/templates/daemonset-ovn-metadata-agent.yaml      | 2 ++
- neutron/templates/daemonset-ovs-agent.yaml               | 2 ++
- neutron/templates/daemonset-sriov-agent.yaml             | 2 ++
- neutron/templates/deployment-ironic-agent.yaml           | 2 ++
- neutron/templates/deployment-server.yaml                 | 2 ++
- neutron/templates/pod-rally-test.yaml                    | 2 ++
- neutron/values.yaml                                      | 1 +
- nova/templates/cron-job-archive-deleted-rows.yaml        | 3 +++
- nova/templates/cron-job-cell-setup.yaml                  | 3 +++
- nova/templates/cron-job-service-cleaner.yaml             | 3 +++
- nova/templates/daemonset-compute.yaml                    | 2 ++
- nova/templates/deployment-api-metadata.yaml              | 2 ++
- nova/templates/deployment-api-osapi.yaml                 | 2 ++
- nova/templates/deployment-conductor.yaml                 | 2 ++
- nova/templates/deployment-novncproxy.yaml                | 2 ++
- nova/templates/deployment-scheduler.yaml                 | 2 ++
- nova/templates/deployment-spiceproxy.yaml                | 2 ++
- nova/templates/job-bootstrap.yaml                        | 2 ++
- nova/templates/job-cell-setup.yaml                       | 2 ++
- nova/templates/pod-rally-test.yaml                       | 2 ++
- nova/templates/statefulset-compute-ironic.yaml           | 2 ++
- nova/values.yaml                                         | 1 +
- placement/templates/deployment.yaml                      | 2 ++
- placement/values.yaml                                    | 1 +
- 94 files changed, 189 insertions(+)
+ aodh/templates/cron-job-alarms-cleaner.yaml                | 3 +++
+ aodh/templates/deployment-api.yaml                         | 2 ++
+ aodh/templates/deployment-evaluator.yaml                   | 2 ++
+ aodh/templates/deployment-listener.yaml                    | 2 ++
+ aodh/templates/deployment-notifier.yaml                    | 2 ++
+ aodh/templates/pod-aodh-test.yaml                          | 2 ++
+ aodh/values.yaml                                           | 1 +
+ barbican/templates/deployment-api.yaml                     | 2 ++
+ barbican/templates/pod-test.yaml                           | 2 ++
+ barbican/values.yaml                                       | 1 +
+ ceilometer/templates/daemonset-compute.yaml                | 2 ++
+ ceilometer/templates/daemonset-ipmi.yaml                   | 2 ++
+ ceilometer/templates/deployment-api.yaml                   | 2 ++
+ ceilometer/templates/deployment-central.yaml               | 2 ++
+ ceilometer/templates/deployment-collector.yaml             | 2 ++
+ ceilometer/templates/deployment-notification.yaml          | 2 ++
+ ceilometer/templates/job-db-init-mongodb.yaml              | 5 +++++
+ ceilometer/templates/pod-rally-test.yaml                   | 3 +++
+ ceilometer/values.yaml                                     | 1 +
+ ceph-rgw/templates/deployment-rgw.yaml                     | 2 ++
+ ceph-rgw/templates/job-bootstrap.yaml                      | 2 ++
+ ceph-rgw/templates/job-rgw-placement-targets.yaml          | 2 ++
+ ceph-rgw/templates/job-rgw-restart.yaml                    | 2 ++
+ ceph-rgw/templates/job-rgw-storage-init.yaml               | 2 ++
+ ceph-rgw/templates/job-s3-admin.yaml                       | 2 ++
+ ceph-rgw/templates/pod-helm-tests.yaml                     | 2 ++
+ ceph-rgw/values.yaml                                       | 1 +
+ cinder/templates/cron-job-cinder-volume-usage-audit.yaml   | 2 ++
+ cinder/templates/deployment-api.yaml                       | 2 ++
+ cinder/templates/deployment-backup.yaml                    | 2 ++
+ cinder/templates/deployment-scheduler.yaml                 | 2 ++
+ cinder/templates/deployment-volume.yaml                    | 2 ++
+ cinder/templates/job-backup-storage-init.yaml              | 2 ++
+ cinder/templates/job-clean.yaml                            | 3 +++
+ cinder/templates/job-create-internal-tenant.yaml           | 2 ++
+ cinder/templates/job-storage-init.yaml                     | 3 +++
+ cinder/templates/pod-rally-test.yaml                       | 2 ++
+ cinder/values.yaml                                         | 1 +
+ glance/templates/deployment-api.yaml                       | 2 ++
+ glance/templates/job-clean.yaml                            | 3 +++
+ glance/templates/job-metadefs-load.yaml                    | 2 ++
+ glance/templates/job-storage-init.yaml                     | 2 ++
+ glance/templates/pod-rally-test.yaml                       | 2 ++
+ glance/values.yaml                                         | 1 +
+ gnocchi/templates/cron-job-resources-cleaner.yaml          | 3 +++
+ gnocchi/templates/daemonset-metricd.yaml                   | 2 ++
+ gnocchi/templates/daemonset-statsd.yaml                    | 2 ++
+ gnocchi/templates/deployment-api.yaml                      | 2 ++
+ gnocchi/templates/job-clean.yaml                           | 3 +++
+ gnocchi/templates/job-db-init-indexer.yaml                 | 3 +++
+ gnocchi/templates/job-db-sync.yaml                         | 3 +++
+ gnocchi/templates/job-storage-init.yaml                    | 3 +++
+ gnocchi/templates/pod-gnocchi-test.yaml                    | 2 ++
+ gnocchi/values.yaml                                        | 1 +
+ heat/templates/cron-job-engine-cleaner.yaml                | 1 +
+ heat/templates/cron-job-purge-deleted.yaml                 | 2 ++
+ heat/templates/deployment-api.yaml                         | 2 ++
+ heat/templates/deployment-cfn.yaml                         | 2 ++
+ heat/templates/deployment-cloudwatch.yaml                  | 2 ++
+ heat/templates/deployment-engine.yaml                      | 2 ++
+ heat/templates/job-ks-user-domain.yaml                     | 2 ++
+ heat/templates/job-trusts.yaml                             | 2 ++
+ heat/templates/pod-rally-test.yaml                         | 2 ++
+ heat/values.yaml                                           | 1 +
+ helm-toolkit/templates/manifests/_job-bootstrap.tpl        | 4 ++++
+ helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl    | 5 +++++
+ helm-toolkit/templates/manifests/_job-db-init-mysql.tpl    | 4 ++++
+ helm-toolkit/templates/manifests/_job-db-sync.tpl          | 4 ++++
+ helm-toolkit/templates/manifests/_job-ks-endpoints.tpl     | 4 ++++
+ helm-toolkit/templates/manifests/_job-ks-service.tpl       | 4 ++++
+ helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl     | 4 ++++
+ helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl | 4 ++++
+ helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl   | 5 +++++
+ helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl     | 5 +++++
+ helm-toolkit/templates/manifests/_job_image_repo_sync.tpl  | 5 +++++
+ horizon/templates/deployment.yaml                          | 2 ++
+ horizon/templates/job-db-sync.yaml                         | 2 ++
+ horizon/templates/pod-helm-tests.yaml                      | 2 ++
+ horizon/values.yaml                                        | 1 +
+ ironic/templates/deployment-api.yaml                       | 2 ++
+ ironic/templates/job-manage-cleaning-network.yaml          | 3 +++
+ ironic/templates/statefulset-conductor.yaml                | 2 ++
+ ironic/values.yaml                                         | 1 +
+ keystone/templates/cron-job-credential-rotate.yaml         | 3 +++
+ keystone/templates/cron-job-fernet-rotate.yaml             | 3 +++
+ keystone/templates/deployment-api.yaml                     | 2 ++
+ keystone/templates/job-credential-cleanup.yaml             | 2 ++
+ keystone/templates/job-credential-setup.yaml               | 2 ++
+ keystone/templates/job-domain-manage.yaml                  | 2 ++
+ keystone/templates/job-fernet-setup.yaml                   | 2 ++
+ keystone/templates/pod-rally-test.yaml                     | 2 ++
+ keystone/values.yaml                                       | 1 +
+ libvirt/templates/daemonset-libvirt.yaml                   | 2 ++
+ libvirt/values.yaml                                        | 1 +
+ mariadb/templates/cron-job-backup-mariadb.yaml             | 3 +++
+ mariadb/templates/pod-test.yaml                            | 2 ++
+ mariadb/templates/statefulset.yaml                         | 2 ++
+ mariadb/values.yaml                                        | 1 +
+ memcached/templates/statefulset.yaml                       | 2 ++
+ memcached/values.yaml                                      | 1 +
+ mongodb/templates/statefulset.yaml                         | 2 ++
+ mongodb/values.yaml                                        | 1 +
+ neutron/templates/daemonset-bagpipe-bgp.yaml               | 2 ++
+ neutron/templates/daemonset-dhcp-agent.yaml                | 2 ++
+ neutron/templates/daemonset-l2gw-agent.yaml                | 2 ++
+ neutron/templates/daemonset-l3-agent.yaml                  | 2 ++
+ neutron/templates/daemonset-lb-agent.yaml                  | 2 ++
+ neutron/templates/daemonset-metadata-agent.yaml            | 2 ++
+ neutron/templates/daemonset-netns-cleanup-cron.yaml        | 2 ++
+ neutron/templates/daemonset-ovn-metadata-agent.yaml        | 2 ++
+ neutron/templates/daemonset-ovs-agent.yaml                 | 2 ++
+ neutron/templates/daemonset-sriov-agent.yaml               | 2 ++
+ neutron/templates/deployment-ironic-agent.yaml             | 2 ++
+ neutron/templates/deployment-server.yaml                   | 2 ++
+ neutron/templates/pod-rally-test.yaml                      | 2 ++
+ neutron/values.yaml                                        | 1 +
+ nova/templates/cron-job-archive-deleted-rows.yaml          | 3 +++
+ nova/templates/cron-job-cell-setup.yaml                    | 3 +++
+ nova/templates/cron-job-service-cleaner.yaml               | 3 +++
+ nova/templates/daemonset-compute.yaml                      | 2 ++
+ nova/templates/deployment-api-metadata.yaml                | 2 ++
+ nova/templates/deployment-api-osapi.yaml                   | 2 ++
+ nova/templates/deployment-conductor.yaml                   | 2 ++
+ nova/templates/deployment-novncproxy.yaml                  | 2 ++
+ nova/templates/deployment-scheduler.yaml                   | 2 ++
+ nova/templates/deployment-spiceproxy.yaml                  | 2 ++
+ nova/templates/job-bootstrap.yaml                          | 2 ++
+ nova/templates/job-cell-setup.yaml                         | 2 ++
+ nova/templates/pod-rally-test.yaml                         | 2 ++
+ nova/templates/statefulset-compute-ironic.yaml             | 2 ++
+ nova/values.yaml                                           | 1 +
+ openvswitch/templates/daemonset.yaml                       | 2 ++
+ openvswitch/values.yaml                                    | 1 +
+ placement/templates/deployment.yaml                        | 2 ++
+ placement/values.yaml                                      | 1 +
+ rabbitmq/templates/job-cluster-wait.yaml                   | 2 ++
+ rabbitmq/templates/pod-test.yaml                           | 2 ++
+ rabbitmq/templates/statefulset.yaml                        | 2 ++
+ rabbitmq/values.yaml                                       | 1 +
+ 139 files changed, 303 insertions(+)
 
 diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
 index ec0b58f7a..6a9848403 100644
@@ -431,6 +478,126 @@ index d933b9d8e..54d449d93 100644
    api:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
+diff --git a/ceph-rgw/templates/deployment-rgw.yaml b/ceph-rgw/templates/deployment-rgw.yaml
+index 1fde8afe5..a62f27574 100644
+--- a/ceph-rgw/templates/deployment-rgw.yaml
++++ b/ceph-rgw/templates/deployment-rgw.yaml
+@@ -123,11 +123,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-client-hash: {{ tuple "configmap-etc-client.yaml" . | include "helm-toolkit.utils.hash" }}
+         secret-keystone-rgw-hash: {{ tuple "secret-keystone-rgw.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw" "containerNames" (list "init" "ceph-rgw" "ceph-init-dirs" "ceph-rgw-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-bootstrap.yaml b/ceph-rgw/templates/job-bootstrap.yaml
+index 636896913..f75e5a43f 100644
+--- a/ceph-rgw/templates/job-bootstrap.yaml
++++ b/ceph-rgw/templates/job-bootstrap.yaml
+@@ -58,8 +58,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "bootstrap" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-bootstrap" "containerNames" (list "ceph-keyring-placement" "init" "ceph-rgw-bootstrap") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-rgw-placement-targets.yaml b/ceph-rgw/templates/job-rgw-placement-targets.yaml
+index 45b9486ad..d092069b7 100644
+--- a/ceph-rgw/templates/job-rgw-placement-targets.yaml
++++ b/ceph-rgw/templates/job-rgw-placement-targets.yaml
+@@ -59,8 +59,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-placement-targets" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-placement-targets" "containerNames" (list "ceph-keyring-placement" "init" "create-rgw-placement-targets") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-rgw-restart.yaml b/ceph-rgw/templates/job-rgw-restart.yaml
+index fdbec8f9d..080b5df2d 100644
+--- a/ceph-rgw/templates/job-rgw-restart.yaml
++++ b/ceph-rgw/templates/job-rgw-restart.yaml
+@@ -59,8 +59,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-restart" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-restart" "containerNames" (list "init" "ceph-rgw-restart") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-rgw-storage-init.yaml b/ceph-rgw/templates/job-rgw-storage-init.yaml
+index 4c3a6ed3e..a2c301305 100644
+--- a/ceph-rgw/templates/job-rgw-storage-init.yaml
++++ b/ceph-rgw/templates/job-rgw-storage-init.yaml
+@@ -56,8 +56,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-storage-init" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-storage-init" "containerNames" (list "ceph-keyring-placement" "init" "ceph-rgw-storage-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/job-s3-admin.yaml b/ceph-rgw/templates/job-s3-admin.yaml
+index d796395b7..94a831a9d 100644
+--- a/ceph-rgw/templates/job-s3-admin.yaml
++++ b/ceph-rgw/templates/job-s3-admin.yaml
+@@ -60,8 +60,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-s3-admin" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-s3-admin" "containerNames" (list "ceph-keyring-placement" "init" "create-s3-admin") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/ceph-rgw/templates/pod-helm-tests.yaml b/ceph-rgw/templates/pod-helm-tests.yaml
+index 54a0f8706..01c3325bb 100644
+--- a/ceph-rgw/templates/pod-helm-tests.yaml
++++ b/ceph-rgw/templates/pod-helm-tests.yaml
+@@ -22,8 +22,10 @@ kind: Pod
+ metadata:
+   name: {{ $serviceAccountName }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "ceph" "rgw-test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+ {{ dict "envAll" $envAll "podName" "ceph-rgw-test" "containerNames" (list "ceph-rgw-ks-validation" "ceph-rgw-s3-validation") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+ spec:
+diff --git a/ceph-rgw/values.yaml b/ceph-rgw/values.yaml
+index 3f3bbc6d0..abf9d618c 100644
+--- a/ceph-rgw/values.yaml
++++ b/ceph-rgw/values.yaml
+@@ -42,6 +42,7 @@ images:
+       - image_repo_sync
+ 
+ labels:
++  isApplication: false
+   job:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
 diff --git a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
 index e66286e44..d2b5db503 100644
 --- a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
@@ -695,6 +862,158 @@ index 328abeaed..31a0cafe7 100644
    api:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
+diff --git a/gnocchi/templates/cron-job-resources-cleaner.yaml b/gnocchi/templates/cron-job-resources-cleaner.yaml
+index 608bab5ff..6de846f61 100644
+--- a/gnocchi/templates/cron-job-resources-cleaner.yaml
++++ b/gnocchi/templates/cron-job-resources-cleaner.yaml
+@@ -42,7 +42,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "gnocchi" "resources-cleaner" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++          annotation:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+         spec:
+           serviceAccountName: {{ $serviceAccountName }}
+           restartPolicy: OnFailure
+diff --git a/gnocchi/templates/daemonset-metricd.yaml b/gnocchi/templates/daemonset-metricd.yaml
+index 6fe775939..5d94ce260 100644
+--- a/gnocchi/templates/daemonset-metricd.yaml
++++ b/gnocchi/templates/daemonset-metricd.yaml
+@@ -35,11 +35,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "gnocchi" "metricd" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       nodeSelector:
+diff --git a/gnocchi/templates/daemonset-statsd.yaml b/gnocchi/templates/daemonset-statsd.yaml
+index 316265bc8..371448eec 100644
+--- a/gnocchi/templates/daemonset-statsd.yaml
++++ b/gnocchi/templates/daemonset-statsd.yaml
+@@ -34,11 +34,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "gnocchi" "metricd" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       nodeSelector:
+diff --git a/gnocchi/templates/deployment-api.yaml b/gnocchi/templates/deployment-api.yaml
+index 68555b184..d34f76394 100644
+--- a/gnocchi/templates/deployment-api.yaml
++++ b/gnocchi/templates/deployment-api.yaml
+@@ -36,11 +36,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "gnocchi" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       affinity:
+diff --git a/gnocchi/templates/job-clean.yaml b/gnocchi/templates/job-clean.yaml
+index e1023aa32..e2635facd 100644
+--- a/gnocchi/templates/job-clean.yaml
++++ b/gnocchi/templates/job-clean.yaml
+@@ -57,6 +57,9 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll "gnocchi" "clean" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/gnocchi/templates/job-db-init-indexer.yaml b/gnocchi/templates/job-db-init-indexer.yaml
+index 397dbee23..d1c796ac6 100644
+--- a/gnocchi/templates/job-db-init-indexer.yaml
++++ b/gnocchi/templates/job-db-init-indexer.yaml
+@@ -28,6 +28,9 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll "gnocchi" "db-init-indexer" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/gnocchi/templates/job-db-sync.yaml b/gnocchi/templates/job-db-sync.yaml
+index 123a5e164..d4a33034e 100644
+--- a/gnocchi/templates/job-db-sync.yaml
++++ b/gnocchi/templates/job-db-sync.yaml
+@@ -28,6 +28,9 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll "gnocchi" "db-sync" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/gnocchi/templates/job-storage-init.yaml b/gnocchi/templates/job-storage-init.yaml
+index 9aaae9a5c..621008cd1 100644
+--- a/gnocchi/templates/job-storage-init.yaml
++++ b/gnocchi/templates/job-storage-init.yaml
+@@ -56,6 +56,9 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll "gnocchi" "storage-init" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/gnocchi/templates/pod-gnocchi-test.yaml b/gnocchi/templates/pod-gnocchi-test.yaml
+index c3cbe67bf..961f8a2c1 100644
+--- a/gnocchi/templates/pod-gnocchi-test.yaml
++++ b/gnocchi/templates/pod-gnocchi-test.yaml
+@@ -26,8 +26,10 @@ kind: Pod
+ metadata:
+   name: "{{.Release.Name}}-test"
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "gnocchi" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+ spec:
+   nodeSelector:
+diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
+index f33e5de07..4454e7d8c 100644
+--- a/gnocchi/values.yaml
++++ b/gnocchi/values.yaml
+@@ -16,6 +16,7 @@
+ 
+ ---
+ labels:
++  isApplication: false
+   api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
 diff --git a/heat/templates/cron-job-engine-cleaner.yaml b/heat/templates/cron-job-engine-cleaner.yaml
 index 5e425167a..dff130288 100644
 --- a/heat/templates/cron-job-engine-cleaner.yaml
@@ -858,6 +1177,226 @@ index 9d33c6476..814f62aa6 100644
    api:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
+diff --git a/helm-toolkit/templates/manifests/_job-bootstrap.tpl b/helm-toolkit/templates/manifests/_job-bootstrap.tpl
+index cefd4e859..58ead020c 100644
+--- a/helm-toolkit/templates/manifests/_job-bootstrap.tpl
++++ b/helm-toolkit/templates/manifests/_job-bootstrap.tpl
+@@ -64,11 +64,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "bootstrap" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
+       annotations:
++        {{- if $envAll.Values.labels.isApplication }}
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++        {{- end }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
+index 5e31a04db..404c3d495 100644
+--- a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
++++ b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
+@@ -65,10 +65,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "db-drop" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
++      {{- if $envAll.Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++      {{- end}}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       restartPolicy: OnFailure
+diff --git a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
+index ff5d54bab..84b8e1a9e 100644
+--- a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
++++ b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
+@@ -63,11 +63,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "db-init" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
+       annotations:
++        {{- if $envAll.Values.labels.isApplication }}
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++        {{- end }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/helm-toolkit/templates/manifests/_job-db-sync.tpl b/helm-toolkit/templates/manifests/_job-db-sync.tpl
+index 0320cc60e..3a375466b 100644
+--- a/helm-toolkit/templates/manifests/_job-db-sync.tpl
++++ b/helm-toolkit/templates/manifests/_job-db-sync.tpl
+@@ -62,11 +62,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "db-sync" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
+       annotations:
++        {{- if $envAll.Values.labels.isApplication }}
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++        {{- end }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl b/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
+index e4b0e45d3..387716c41 100644
+--- a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
++++ b/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
+@@ -64,11 +64,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "ks-endpoints" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
+       annotations:
++        {{- if $envAll.Values.labels.isApplication }}
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++        {{- end }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/helm-toolkit/templates/manifests/_job-ks-service.tpl b/helm-toolkit/templates/manifests/_job-ks-service.tpl
+index 9604c6372..8111d37be 100644
+--- a/helm-toolkit/templates/manifests/_job-ks-service.tpl
++++ b/helm-toolkit/templates/manifests/_job-ks-service.tpl
+@@ -64,11 +64,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "ks-service" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
+       annotations:
++        {{- if $envAll.Values.labels.isApplication }}
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++        {{- end }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl b/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
+index 58dcdc5c6..f768e68ee 100644
+--- a/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
++++ b/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
+@@ -86,11 +86,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "ks-user" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
+       annotations:
++        {{- if $envAll.Values.labels.isApplication }}
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++        {{- end }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName | quote }}
+diff --git a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
+index f3ff145f5..4fda90deb 100644
+--- a/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
++++ b/helm-toolkit/templates/manifests/_job-rabbit-init.yaml.tpl
+@@ -51,11 +51,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "rabbit-init" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
+       annotations:
++        {{- if $envAll.Values.labels.isApplication }}
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++        {{- end }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName | quote }}
+diff --git a/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl b/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
+index b5fdc09c3..7c4b605fd 100644
+--- a/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
++++ b/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
+@@ -61,10 +61,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "s3-bucket" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
++      {{- if $envAll.Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++      {{- end}}
+     spec:
+       serviceAccountName: {{ $serviceAccountName | quote }}
+       restartPolicy: OnFailure
+diff --git a/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl b/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
+index 77d1a71e9..e07549c66 100644
+--- a/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
++++ b/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
+@@ -59,10 +59,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "s3-user" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
++      {{- if $envAll.Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++      {{- end}}
+     spec:
+       serviceAccountName: {{ $serviceAccountName | quote }}
+       restartPolicy: OnFailure
+diff --git a/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl b/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl
+index 0906df4c9..bc135c64d 100644
+--- a/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl
++++ b/helm-toolkit/templates/manifests/_job_image_repo_sync.tpl
+@@ -57,10 +57,15 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
+ {{ tuple $envAll $serviceName "image-repo-sync" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+ {{- if $jobLabels }}
+ {{ toYaml $jobLabels | indent 8 }}
+ {{- end }}
++      {{- if $envAll.Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++      {{- end}}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       restartPolicy: OnFailure
 diff --git a/horizon/templates/deployment.yaml b/horizon/templates/deployment.yaml
 index bd6db03bb..76d64b388 100644
 --- a/horizon/templates/deployment.yaml
@@ -1126,6 +1665,152 @@ index 7d17cc425..e642d1cb4 100644
  labels:
 +  isApplication: false
    api:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
+index 48c16b04c..6acbb2709 100644
+--- a/libvirt/templates/daemonset-libvirt.yaml
++++ b/libvirt/templates/daemonset-libvirt.yaml
+@@ -51,12 +51,14 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{- dict "envAll" $envAll "podName" "libvirt-libvirt-default" "containerNames" (list "libvirt") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "libvirt" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+       serviceAccountName: {{ $serviceAccountName }}
+diff --git a/libvirt/values.yaml b/libvirt/values.yaml
+index 4ce6f990f..6fa3619c2 100644
+--- a/libvirt/values.yaml
++++ b/libvirt/values.yaml
+@@ -19,6 +19,7 @@
+ release_group: null
+ 
+ labels:
++  isApplication: false
+   agent:
+     libvirt:
+       node_selector_key: openstack-compute-node
+diff --git a/mariadb/templates/cron-job-backup-mariadb.yaml b/mariadb/templates/cron-job-backup-mariadb.yaml
+index cb8381254..9222a0862 100644
+--- a/mariadb/templates/cron-job-backup-mariadb.yaml
++++ b/mariadb/templates/cron-job-backup-mariadb.yaml
+@@ -47,7 +47,10 @@ spec:
+       template:
+         metadata:
+           labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "mariadb-backup" "backup" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++          annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+         spec:
+ {{ dict "envAll" $envAll "application" "mariadb_backup" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+           serviceAccountName: {{ $serviceAccountName }}
+diff --git a/mariadb/templates/pod-test.yaml b/mariadb/templates/pod-test.yaml
+index c8b3c29c3..2f4ef8511 100644
+--- a/mariadb/templates/pod-test.yaml
++++ b/mariadb/templates/pod-test.yaml
+@@ -30,8 +30,10 @@ kind: Pod
+ metadata:
+   name: "{{.deployment_name}}-test"
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "mariadb" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ {{ dict "envAll" $envAll "podName" "mariadb-test" "containerNames" (list "init" "mariadb-test") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
+index 316dc9539..dc1d3eb50 100644
+--- a/mariadb/templates/statefulset.yaml
++++ b/mariadb/templates/statefulset.yaml
+@@ -114,8 +114,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "mariadb" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index 72783bdc7..c0e30a040 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -38,6 +38,7 @@ images:
+       - image_repo_sync
+ 
+ labels:
++  isApplication: false
+   server:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/memcached/templates/statefulset.yaml b/memcached/templates/statefulset.yaml
+index 77692d1bb..c416c5cea 100644
+--- a/memcached/templates/statefulset.yaml
++++ b/memcached/templates/statefulset.yaml
+@@ -55,10 +55,12 @@ spec:
+   template:
+     metadata:
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "memcached" "containerNames" (list "init" "memcached") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "memcached" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "server" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/memcached/values.yaml b/memcached/values.yaml
+index 41fcb5086..b56313100 100644
+--- a/memcached/values.yaml
++++ b/memcached/values.yaml
+@@ -133,6 +133,7 @@ images:
+       - image_repo_sync
+ 
+ labels:
++  isApplication: false
+   server:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/mongodb/templates/statefulset.yaml b/mongodb/templates/statefulset.yaml
+index 7456a0778..6c4c5148a 100644
+--- a/mongodb/templates/statefulset.yaml
++++ b/mongodb/templates/statefulset.yaml
+@@ -35,10 +35,12 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "mongodb" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       affinity:
+diff --git a/mongodb/values.yaml b/mongodb/values.yaml
+index e0d353e5a..00afdcfe3 100644
+--- a/mongodb/values.yaml
++++ b/mongodb/values.yaml
+@@ -70,6 +70,7 @@ volume:
+     host_path: /var/lib/openstack-helm/mongodb
+ 
+ labels:
++  isApplication: false
+   server:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/neutron/templates/daemonset-bagpipe-bgp.yaml b/neutron/templates/daemonset-bagpipe-bgp.yaml
@@ -1615,6 +2300,34 @@ index f330471d8..ba5f5bb74 100644
    agent:
      compute:
        node_selector_key: openstack-compute-node
+diff --git a/openvswitch/templates/daemonset.yaml b/openvswitch/templates/daemonset.yaml
+index a6c7527b5..1bd5ba85c 100644
+--- a/openvswitch/templates/daemonset.yaml
++++ b/openvswitch/templates/daemonset.yaml
+@@ -76,9 +76,11 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "openvswitch" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+ {{ dict "envAll" $envAll "podName" "openvswitch" "containerNames" (list "openvswitch-db" "openvswitch-db-perms" "openvswitch-vswitchd" "openvswitch-vswitchd-modules" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+diff --git a/openvswitch/values.yaml b/openvswitch/values.yaml
+index 89aeb88f6..5f9ee7d57 100644
+--- a/openvswitch/values.yaml
++++ b/openvswitch/values.yaml
+@@ -32,6 +32,7 @@ images:
+       - image_repo_sync
+ 
+ labels:
++  isApplication: false
+   ovs:
+     node_selector_key: openvswitch
+     node_selector_value: enabled
 diff --git a/placement/templates/deployment.yaml b/placement/templates/deployment.yaml
 index 77a4f7a1f..702ec0f51 100644
 --- a/placement/templates/deployment.yaml
@@ -1645,6 +2358,73 @@ index 3541b95ed..66df39ed3 100644
    api:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
+diff --git a/rabbitmq/templates/job-cluster-wait.yaml b/rabbitmq/templates/job-cluster-wait.yaml
+index 1c4378c70..223291e48 100644
+--- a/rabbitmq/templates/job-cluster-wait.yaml
++++ b/rabbitmq/templates/job-cluster-wait.yaml
+@@ -46,11 +46,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "rabbitmq" "cluster-wait" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "rabbitmq-cluster-wait" "containerNames" (list "init" "rabbitmq-cookie" "rabbitmq-rabbitmq-cluster-wait" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "cluster_wait" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/rabbitmq/templates/pod-test.yaml b/rabbitmq/templates/pod-test.yaml
+index 37d8af364..2cdc047d4 100644
+--- a/rabbitmq/templates/pod-test.yaml
++++ b/rabbitmq/templates/pod-test.yaml
+@@ -40,10 +40,12 @@ kind: Pod
+ metadata:
+   name: "{{.deployment_name}}-test"
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "rabbitmq" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+     "helm.sh/hook": test-success
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "rabbitmq-rabbitmq-test" "containerNames" (list "init" "rabbitmq-rabbitmq-test") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
+ spec:
+ {{ dict "envAll" $envAll "application" "test" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 2 }}
+diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
+index 827a83827..2f9f663dc 100644
+--- a/rabbitmq/templates/statefulset.yaml
++++ b/rabbitmq/templates/statefulset.yaml
+@@ -107,6 +107,7 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "rabbitmq" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+@@ -114,6 +115,7 @@ spec:
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
+         secret-rabbit-admin-hash: {{ tuple "secret-rabbit-admin.yaml" . | include "helm-toolkit.utils.hash" }}
+         secret-erlang-cookie-hash: {{ tuple "secret-erlang-cookie.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "rabbitmq" "containerNames" (list "init" "rabbitmq-password" "rabbitmq-cookie" "rabbitmq-perms" "rabbitmq") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "server" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
+index 015d3d259..1f8f44174 100644
+--- a/rabbitmq/values.yaml
++++ b/rabbitmq/values.yaml
+@@ -17,6 +17,7 @@
+ 
+ ---
+ labels:
++  isApplication: false
+   server:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
 -- 
-2.43.0
+2.34.1
 

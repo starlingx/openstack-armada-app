@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import os
+
 from oslo_log import log as logging
 from sysinv.common import constants
 from sysinv.common import exception
@@ -13,6 +15,7 @@ from tsconfig import tsconfig as tsc
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import _get_value_from_application
 from k8sapp_openstack.utils import discover_netapp_configs
 from k8sapp_openstack.utils import discover_netapp_credentials
 from k8sapp_openstack.utils import get_available_volume_backends
@@ -40,7 +43,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             backend_name, app_constants.BACKUP_DEFAULT_DRIVER
         )
 
-    def _get_mount_overrides(self):
+    def _get_mount_overrides(self, netapp_enabled=False):
         overrides = {
             'volumes': [],
             'volumeMounts': []
@@ -53,6 +56,40 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             'name': 'newvolume',
             'mountPath': tsc.IMAGE_CONVERSION_PATH
         })
+
+        # Mount CA certificate for NetApp HTTPS connections
+        if netapp_enabled:
+            host_cert = _get_value_from_application(
+                default_value=app_constants.NETAPP_TLS_DEFAULT_HOST_CERT,
+                chart_name=self.CHART,
+                override_name=app_constants.OVERRIDE_NETAPP_TLS_HOST_CERT
+            )
+            container_cert = _get_value_from_application(
+                default_value=app_constants.NETAPP_TLS_DEFAULT_CONTAINER_CERT,
+                chart_name=self.CHART,
+                override_name=app_constants.OVERRIDE_NETAPP_TLS_CONTAINER_CERT
+            )
+            if host_cert and container_cert:
+                if not os.path.isfile(host_cert):
+                    LOG.warning(
+                        f"NetApp CA certificate not found at '{host_cert}'. "
+                        f"Skipping mount. Update 'storage_conf.netapp_tls.host_cert' "
+                        f"if using HTTPS."
+                    )
+                else:
+                    overrides['volumes'].append({
+                        'name': 'netapp-ca-cert',
+                        'hostPath': {
+                            'path': host_cert,
+                            'type': 'File'
+                        }
+                    })
+                    overrides['volumeMounts'].append({
+                        'name': 'netapp-ca-cert',
+                        'mountPath': container_cert,
+                        'readOnly': True
+                    })
+
         return overrides
 
     def get_overrides(self, namespace=None):
@@ -160,7 +197,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                     },
                     'mounts': {
                         'cinder_volume': {
-                            'cinder_volume': self._get_mount_overrides()
+                            'cinder_volume': self._get_mount_overrides(
+                                netapp_enabled=any(self.available_netapp_backends)
+                            )
                         }
                     },
                     'replicas': {

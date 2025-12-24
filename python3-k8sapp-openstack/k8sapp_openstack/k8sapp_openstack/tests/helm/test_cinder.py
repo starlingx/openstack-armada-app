@@ -27,6 +27,7 @@ class CinderConversionTestCase(test_plugins.K8SAppOpenstackAppMixin,
 class CinderGetOverrideTest(CinderConversionTestCase,
                             dbbase.ControllerHostTestCase):
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -79,6 +80,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             }
         })
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch(
             'os.path.exists',
             return_value=True
@@ -197,6 +199,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             },
         })
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -281,6 +284,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -358,6 +363,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -443,6 +450,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -549,6 +558,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -644,6 +655,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert default_backup_driver == app_constants.CEPH_BACKUP_DRIVER
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -739,6 +752,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert default_backup_driver == app_constants.NETAPP_NFS_BACKUP_DRIVER
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False

@@ -194,6 +194,12 @@ NETAPP_DEFAULT_NFS_SHARES = """127.0.0.1:/nfs_volume\n"""
 NFS_SHARES_CONFIG = "/etc/cinder/nfs.shares"
 NFS_MOUNT_OPTIONS = "nolock"
 
+# NetApp TLS CA Certificate Configuration
+NETAPP_TLS_DEFAULT_HOST_CERT = '/var/opt/openstack/certs/netapp.pem'
+NETAPP_TLS_DEFAULT_CONTAINER_CERT = '/usr/lib/ssl/cert.pem'
+OVERRIDE_NETAPP_TLS_HOST_CERT = 'storage_conf.netapp_tls.host_cert'
+OVERRIDE_NETAPP_TLS_CONTAINER_CERT = 'storage_conf.netapp_tls.container_cert'
+
 # Backup drivers
 CEPH_BACKUP_DRIVER = "cinder.backup.drivers.ceph.CephBackupDriver"
 NETAPP_NFS_BACKUP_DRIVER = "cinder.backup.drivers.nfs.NFSBackupDriver"

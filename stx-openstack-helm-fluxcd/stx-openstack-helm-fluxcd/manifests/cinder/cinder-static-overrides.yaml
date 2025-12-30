@@ -1471,6 +1471,9 @@ storage_conf:
     - netapp-nfs
     - netapp-iscsi
     - netapp-fc
+  netapp_tls:
+    host_cert: /var/opt/openstack/certs/netapp.pem
+    container_cert: /usr/lib/ssl/cert.pem
 
 manifests:
   certificates: false

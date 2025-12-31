@@ -626,12 +626,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         }
 
     def _get_ceph_client_overrides(self):
-        # A secret is required by the chart for ceph client access. Use the
-        # secret for the kube-rbd pool associated with the primary ceph tier
-        ceph_backend_name = constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH]
-        user_secret_name = storage_backend_conf.K8RbdProvisioner\
-            .get_user_secret_name({'name': ceph_backend_name})
         return {
-            'user_secret_name': user_secret_name,
-            'internal_ceph_backend': ceph_backend_name,
+            'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
+            'internal_ceph_backend': constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH],
         }

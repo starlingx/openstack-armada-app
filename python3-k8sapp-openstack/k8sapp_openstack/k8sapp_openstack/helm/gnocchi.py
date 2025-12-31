@@ -24,7 +24,7 @@ class GnocchiHelm(openstack.OpenstackBaseHelm):
     AUTH_USERS = ['gnocchi']
 
     def get_overrides(self, namespace=None):
-        self._rook_ceph, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
+        self._rook_ceph, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
 
         overrides = {
             common.HELM_NS_OPENSTACK: {

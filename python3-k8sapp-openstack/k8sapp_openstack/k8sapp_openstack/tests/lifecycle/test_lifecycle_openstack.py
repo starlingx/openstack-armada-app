@@ -384,8 +384,6 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             self.lifecycle._create_app_specific_resources_pre_apply,
             self.lifecycle._delete_app_specific_resources_post_remove,
             self.lifecycle._recover_actions,
-            mock_lifecycle_utils.create_rbd_provisioner_secrets,
-            mock_lifecycle_utils.delete_rbd_provisioner_secrets,
             self.lifecycle._semantic_check_evaluate_app_reapply,
             self.lifecycle._pre_apply_check,
             self.lifecycle._pre_remove_check,
@@ -478,31 +476,6 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
         ]
 
-        rbd_cases = [
-            {
-                'hook_info': mock.Mock(
-                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_RBD,
-                    operation=constants.APP_APPLY_OP,
-                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
-                ),
-                'assertions': [
-                    mock_lifecycle_utils.create_rbd_provisioner_secrets.assert_called_once,
-                    mock_lifecycle_utils.delete_rbd_provisioner_secrets.assert_not_called,
-                ]
-            },
-            {
-                'hook_info': mock.Mock(
-                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_RBD,
-                    operation=constants.APP_REMOVE_OP,
-                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_POST,
-                ),
-                'assertions': [
-                    mock_lifecycle_utils.create_rbd_provisioner_secrets.assert_not_called,
-                    mock_lifecycle_utils.delete_rbd_provisioner_secrets.assert_called_once,
-                ]
-            },
-        ]
-
         semantic_cases = [
             {
                 'hook_info': mock.Mock(
@@ -569,7 +542,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             },
         ]
 
-        cases = operation_cases + resource_cases + rbd_cases + semantic_cases + manifest_cases
+        cases = operation_cases + resource_cases + semantic_cases + manifest_cases
 
         for case in cases:
             hook_info = case['hook_info']

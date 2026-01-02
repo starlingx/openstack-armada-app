@@ -18,6 +18,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import check_netapp_backends
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_hosts_uuids
 from k8sapp_openstack.utils import get_image_rook_ceph
@@ -785,6 +786,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             admin_keyring = self._get_rook_ceph_admin_keyring()
 
         overrides = {
+            'enable_iscsi': self._enable_multipath(),
             'ceph': {
                 'ephemeral_storage': self._get_rbd_ephemeral_storage(),
                 'admin_keyring': admin_keyring,
@@ -822,6 +824,9 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             overrides['nova']['libvirt'] = {
                 'rbd_secret_uuid': ceph_uuid,
             }
+
+        # Add the multipath config to nova.conf libvirt section
+        overrides['nova']['libvirt']['volume_use_multipath'] = self._enable_multipath()
 
         if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides = self._update_overrides(overrides, {
@@ -862,3 +867,22 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 }
             }
         }
+
+    def _enable_multipath(self):
+        """
+        Check whether multipath should be enabled.
+
+        This method verifies whether iSCSI and/or Fibre Channel (FC)
+        storage backends are available and enabled.
+
+        Returns:
+            bool: True if at least one backend (iSCSI or FC) is available and enabled.
+                  False if no compatible backend is available.
+        """
+
+        backends = check_netapp_backends()
+
+        self._iscsi_enabled = backends.get("netapp-iscsi", False)
+        self._fc_enabled = backends.get("netapp-fc", False)
+
+        return self._iscsi_enabled or self._fc_enabled

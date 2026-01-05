@@ -40,3 +40,4 @@
 0040-Change-makefile.patch
 0041-Add-Netapp-backend-support-to-Cinder.patch
 0042-Add-backend-checks-to-skip-Ceph-init-for-NetApp-stor.patch
+0043-Remove-cinder-default-rbd1-backend.patch

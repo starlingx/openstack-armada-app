@@ -1,0 +1,48 @@
+From b49593ed630ee69413429f1626d6793673df0aba Mon Sep 17 00:00:00 2001
+From: vrochalo <vinicius.rochalobo@windriver.com>
+Date: Tue, 6 Jan 2026 04:23:29 -0300
+Subject: [PATCH] Remove cinder default rbd1 backend
+
+This patch removes dummy backend configuration from
+Cinder that is not used and comes from values.yaml of
+OpenStack-Helm. It should be removed because it is a
+dummy/example config and even on Ceph deployments it
+is not really used.
+
+Signed-off-by: vrochalo <Vinicius.RochaLobo@windriver.com>
+---
+ cinder/values.yaml | 18 +-----------------
+ 1 file changed, 1 insertion(+), 17 deletions(-)
+
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 46c5fce38..2fb2064a8 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -928,23 +928,7 @@ conf:
+         apply-to: all
+         pattern: '^(?!(amq\.|reply_)).*'
+ 
+-  backends:
+-    # Those options will be written to backends.conf as-is.
+-    rbd1:
+-      volume_driver: cinder.volume.drivers.rbd.RBDDriver
+-      volume_backend_name: rbd1
+-      rbd_pool: cinder.volumes
+-      rbd_ceph_conf: "/etc/ceph/ceph.conf"
+-      rbd_flatten_volume_from_snapshot: false
+-      report_discard_supported: true
+-      rbd_max_clone_depth: 5
+-      rbd_store_chunk_size: 4
+-      rados_connect_timeout: -1
+-      rbd_user: cinder
+-      rbd_secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
+-      image_volume_cache_enabled: true
+-      image_volume_cache_max_size_gb: 200
+-      image_volume_cache_max_count: 50
++  backends: null
+   rally_tests:
+     run_tempest: false
+     clean_up: |
+-- 
+2.34.1
+

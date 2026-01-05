@@ -918,23 +918,7 @@ conf:
         priority: 0
         apply-to: all
         pattern: '^(?!(amq\.|reply_)).*'
-  backends:
-    # Those options will be written to backends.conf as-is.
-    rbd1:
-      volume_driver: cinder.volume.drivers.rbd.RBDDriver
-      volume_backend_name: rbd1
-      rbd_pool: cinder.volumes
-      rbd_ceph_conf: "/etc/ceph/ceph.conf"
-      rbd_flatten_volume_from_snapshot: false
-      report_discard_supported: true
-      rbd_max_clone_depth: 5
-      rbd_store_chunk_size: 4
-      rados_connect_timeout: -1
-      rbd_user: cinder
-      rbd_secret_uuid: 457eb676-33da-42ec-9a8c-9293d545c337
-      image_volume_cache_enabled: true
-      image_volume_cache_max_size_gb: 200
-      image_volume_cache_max_count: 50
+  backends: null
   rally_tests:
     run_tempest: false
     clean_up: |

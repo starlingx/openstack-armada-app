@@ -39,3 +39,4 @@
 0039-Add-volume-storage-class-priorities.patch
 0040-Change-makefile.patch
 0041-Add-Netapp-backend-support-to-Cinder.patch
+0042-Add-backend-checks-to-skip-Ceph-init-for-NetApp-stor.patch

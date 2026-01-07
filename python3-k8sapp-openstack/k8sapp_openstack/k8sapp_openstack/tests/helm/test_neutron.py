@@ -52,6 +52,7 @@ class NeutronGetOverrideTest(NeutronHelmTestCase,
             },
         })
 
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_neutron_reuses_nova_user(self, *_):
         overrides_nova = self.operator.get_helm_chart_overrides(

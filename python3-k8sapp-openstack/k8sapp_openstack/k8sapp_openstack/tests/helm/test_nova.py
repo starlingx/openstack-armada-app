@@ -45,6 +45,7 @@ class NovaGetOverrideTest(NovaHelmTestCase,
             'enable_dad': self.oam_subnet.version == 6
         })
 
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_nova_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
@@ -67,6 +68,7 @@ class NovaGetOverrideTest(NovaHelmTestCase,
             },
         })
 
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     @mock.patch('k8sapp_openstack.utils._get_value_from_application',
                 return_value=app_constants.VSWITCH_LABEL_NONE)
@@ -97,6 +99,7 @@ class NovaGetOverrideTest(NovaHelmTestCase,
             overrides_placement["endpoints"]["identity"]["auth"]["placement"],
         )
 
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
@@ -125,12 +128,14 @@ class NovaGetOverrideTest(NovaHelmTestCase,
                     },
                     'libvirt': {
                         'virt_type': mock.ANY,
+                        'volume_use_multipath': mock.ANY,
                     },
                     'vnc': {
                         'novncproxy_base_url': mock.ANY,
                     },
                     'pci': mock.ANY,
                 },
+                'enable_iscsi': mock.ANY,
                 'ceph': {
                     'ephemeral_storage': mock.ANY,
                     'admin_keyring': mock.ANY,
@@ -208,6 +213,7 @@ class NovaGetOverrideTest(NovaHelmTestCase,
             },
         })
 
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_nova_overrides_invalid_namespace(self, *_):
         """
@@ -219,6 +225,7 @@ class NovaGetOverrideTest(NovaHelmTestCase,
                           app_constants.HELM_CHART_NOVA,
                           cnamespace=common.HELM_NS_DEFAULT)
 
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_nova_overrides_missing_namespace(self, *_):
         """

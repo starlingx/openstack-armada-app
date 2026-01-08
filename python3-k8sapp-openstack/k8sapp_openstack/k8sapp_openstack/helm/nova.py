@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -86,6 +86,9 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     def get_overrides(self, namespace=None):
         self._rook_ceph = is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
+        )
+        self._host_ceph, _ = is_ceph_backend_available(
+            ceph_type=constants.SB_TYPE_CEPH
         )
 
         self.labels_by_hostid = self._get_host_labels()
@@ -784,10 +787,22 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         if self._rook_ceph:
             admin_keyring = self._get_rook_ceph_admin_keyring()
 
+        cinder_overrides = {}
+
+        # Check if ceph is present and apply overrides if not
+        ceph_enabled = self._rook_ceph or self._host_ceph
+
+        if not ceph_enabled:
+            cinder_overrides['keyring'] = 'null'
+            cinder_overrides['secret_uuid'] = 'null'
+            cinder_overrides['user'] = 'null'
+
         overrides = {
             'ceph': {
+                'enabled': ceph_enabled,
                 'ephemeral_storage': self._get_rbd_ephemeral_storage(),
                 'admin_keyring': admin_keyring,
+                'cinder': cinder_overrides,
             },
             # NOTE(tcervi): Nova config options reference:
             # https://docs.openstack.org/nova/latest/configuration/sample-config.html

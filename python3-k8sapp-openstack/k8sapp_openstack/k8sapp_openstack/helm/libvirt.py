@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -32,6 +32,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
         self.labels_by_hostid = {}
         self.addresses_by_hostid = {}
         self._rook_ceph, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
+        self._host_ceph, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH)
 
     def get_overrides(self, namespace=None):
         self.labels_by_hostid = self._get_host_labels()
@@ -73,6 +74,19 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
         if self._rook_ceph:
             admin_keyring = self._get_rook_ceph_admin_keyring()
 
+        cinder_overrides = {}
+
+        # Check if ceph is present and apply overrides if not
+        ceph_enabled = self._rook_ceph or self._host_ceph
+
+        if not ceph_enabled:
+            cinder_overrides = {
+                'external_ceph': {
+                    'enabled': ceph_enabled
+                }
+            }
+            cinder_overrides['keyring'] = 'null'
+
         overrides = {
             'qemu': {
                 'user': "root",
@@ -85,7 +99,9 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                 'clear_emulator_capabilities': 0
             },
             'ceph': {
+                'enabled': ceph_enabled,
                 'admin_keyring': admin_keyring,
+                'cinder': cinder_overrides,
             },
             'overrides': {
                 'libvirt_libvirt': {

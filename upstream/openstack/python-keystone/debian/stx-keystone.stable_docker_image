@@ -6,8 +6,7 @@ PROJECT_REF=0d4625051dc6bff22ee13c4e5e0c6b80d7af1d26
 PIP_PACKAGES="\
   ldap \
   ldappool \
-  python-ldap \
-  python-openstackclient
+  python-ldap
 "
 DIST_PACKAGES="libapache2-mod-auth-openidc"
 DIST_REPOS="OS"

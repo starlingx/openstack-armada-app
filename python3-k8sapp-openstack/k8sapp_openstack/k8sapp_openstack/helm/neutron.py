@@ -299,6 +299,8 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                     lower_iface = i
             if lower_iface:
                 return self._get_interface_port_name(host, lower_iface)
+        if iface['iftype'] == constants.INTERFACE_TYPE_AE:
+            return iface['ifname']
         assert iface['iftype'] == constants.INTERFACE_TYPE_ETHERNET
         ifports = self.ports_by_ifaceid.get(iface.id, [])
         if ifports:

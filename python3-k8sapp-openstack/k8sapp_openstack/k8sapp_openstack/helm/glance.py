@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -115,11 +115,26 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         if ceph_backend:
             replicas_count = self._num_provisioned_controllers()
 
-        return {
+        overrides = {
             'replicas': {
                 'api': replicas_count,
-            }
+            },
         }
+
+        if self._image_store == app_constants.GLANCE_IMAGE_STORE_CINDER:
+            overrides['security_context'] = {
+                'glance': {
+                    'container': {
+                        'glance_api': {
+                            'readOnlyRootFilesystem': False,
+                            'privileged': True,
+                            'allowPrivilegeEscalation': True,
+                        },
+                    },
+                },
+            }
+
+        return overrides
 
     def _get_endpoints_overrides(self):
         return {
@@ -208,6 +223,23 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     'show_image_direct_url': False,
                     'show_multiple_locations': False,
                     'enabled_backends': f"{self._image_store}:{self._image_store}"
+                },
+                'cinder': {
+                    'cinder_api_insecure': not self._is_openstack_https_ready(self.SERVICE_NAME),
+                    'cinder_catalog_info': app_constants.GLANCE_CINDER_CATALOG_INFO,
+                    'cinder_store_auth_address': self._get_service_public_endpoint(
+                        app_constants.HELM_CHART_KEYSTONE,
+                        path="v3"
+                    ),
+                    'cinder_store_user_name': self._get_admin_user_name(),
+                    'cinder_store_password': self._get_identity_password(
+                        app_constants.HELM_CHART_KEYSTONE,
+                        self._get_admin_user_name()
+                    ),
+                    'cinder_store_project_name': self._get_admin_project_name(),
+                    'cinder_store_user_domain_name': self._get_admin_user_domain(),
+                    'cinder_store_project_domain_name': self._get_admin_project_domain(),
+                    'cinder_volume_type': '__DEFAULT__'
                 },
                 'file': {
                     'filesystem_store_datadir': constants.GLANCE_IMAGE_PATH,

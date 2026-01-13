@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -139,6 +139,9 @@ ROOK_CEPH_POOL_CINDER_BACKUP_CHUNK_SIZE = 0
 ROOK_CEPH_POOL_GLANCE_CHUNK_SIZE = 0
 ROOK_CEPH_POOL_NOVA_RBD_CHUNK_SIZE = 0
 
+# Keystone version used as the default value when getting service name and type
+KEYSTONE_CURRENT_VERSION = 'v3'
+
 # Cinder version used as the default value when getting service name and type
 CINDER_CURRENT_VERSION = 'v3'
 
@@ -210,6 +213,7 @@ NETAPP_FC_BACKUP_DRIVER = "cinder.backup.drivers.posix.PosixBackupDriver"
 GLANCE_BACKEND_RBD = 'rbd'
 GLANCE_BACKEND_PVC = 'pvc'
 GLANCE_BACKEND_CINDER = 'cinder'
+GLANCE_CINDER_CATALOG_INFO = 'volumev3:cinderv3:publicURL'
 GLANCE_DEFAULT_BACKEND = GLANCE_BACKEND_CINDER
 GLANCE_IMAGE_STORE_RBD = 'rbd'
 GLANCE_IMAGE_STORE_FILE = 'file'

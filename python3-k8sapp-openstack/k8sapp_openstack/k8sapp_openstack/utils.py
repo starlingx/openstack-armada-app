@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -683,6 +683,113 @@ def is_netapp_storageclass_available() -> bool:
     if not netapp_storageclasses:
         LOG.warning("Unable to find NetApp storageclasses")
     return bool(netapp_storageclasses)
+
+
+def get_pvc_storageclass(pvc_name: str) -> str:
+    """This function inspects the PVC's StorageClass.
+
+    Args:
+        param pvc_name (str): Name of the PVC to inspect.
+
+    Returns:
+        str: The PVC's StorageClass or an empty string if it's not able to fetch
+             the PVC's StorageClass.
+    """
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "-n", app_constants.HELM_NS_OPENSTACK,
+        "get", "pvc", pvc_name,
+        "-o", "jsonpath={.spec.storageClassName}",
+    ]
+    output = ""
+    try:
+        output = send_cmd_read_response(cmd)
+        if not output:
+            LOG.warning(f"Unable to find storageclasses for '{pvc_name}' "
+                        "PersistentVolumeClaim")
+    except Exception as e:
+        LOG.error("Unexpected error while fetching storageclasses for"
+                  f" '{pvc_name}' PersistentVolumeClaim: {e}")
+    return output
+
+
+def check_if_namespace_exists(namespace) -> bool:
+    """Check if the given namespace exists.
+
+    This function queries the Kubernetes API using
+    kubectl get namespaces <namespace>.
+
+    Returns:
+        bool: 'True' if the namespace exists, 'False' otherwise.
+    """
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "get", "namespaces", namespace,
+    ]
+    output = ""
+    try:
+        output = send_cmd_read_response(cmd)
+        return bool(output.strip())
+    except Exception as e:
+        LOG.error(f"Unexpected error while fetching {namespace} namespace: {e}")
+        return False
+
+
+def check_if_pvc_exists_in_a_namespace(namespace) -> bool:
+    """Check if there is any pvc for the given namespace.
+
+    This function queries the Kubernetes API using
+    'kubectl get pvc -n <namespace>'.
+
+    Returns:
+        bool: 'True' if any PVC exists in the given namespace, 'False' otherwise.
+    """
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "-n", namespace,
+        "get", "pvc"
+    ]
+    output = ""
+    try:
+        output = send_cmd_read_response(cmd)
+        return bool(output.strip())
+    except Exception as e:
+        LOG.error(f"Unexpected error while fetching PVCs for {namespace}"
+                  f" namespace: {e}")
+
+
+def check_storageclass_change(
+    priority_list: list[str],
+    available_backends: dict[str, str],
+    current_storage_class: str,
+):
+    """Validate if there was a change on the StorageClass, according to the
+    priority list and backends available.
+
+    Args:
+        str: param current_storage_class: Reference StorageClass for evaluation.
+
+        list: param priority_list: Ordered list of backend identifiers, where lower
+                                   index means higher priority.
+              param available_backends: Dict of backend identifiers currently available
+                                        (keys), and their corresponding storage classes
+                                        (values).
+    Returns:
+        bool: 'True' if the StorageClass didn't change, 'False' otherwise.
+        str: Reference new StorageClass priority.
+    """
+    ordered_available = {
+        k: available_backends[k]
+        for k in priority_list
+        if available_backends.get(k)
+    }
+
+    value = list(ordered_available.values())[0]
+
+    if current_storage_class != value:
+        return True, value
+    else:
+        return False, value
 
 
 def check_netapp_backends(chart_name: str = app_constants.HELM_CHART_CINDER,

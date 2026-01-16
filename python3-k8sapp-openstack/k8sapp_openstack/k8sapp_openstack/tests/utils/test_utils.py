@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -2233,3 +2233,41 @@ class UtilsTest(dbbase.ControllerHostTestCase):
 
         priority_list = app_utils.get_storage_backup_priority_list(chart)
         assert priority_list == ["netapp-nfs", "ceph", "netapp-iscsi", "netapp-fc"]
+
+    def test_check_storage_class_change(self):
+        """Test if a change is detected on the storageclass"""
+        priority_list = ["ceph", "netapp-fc", "netapp-iscsi", "netapp-nfs"]
+        available_backend = {
+            "ceph": "general",
+            "netapp-nfs": "netapp-nas-backend",
+            "netapp-iscsi": "",
+            "netapp-fc": "",
+        }
+        current_storage_class = "netapp-nas-backend"
+
+        result, storageclass = app_utils.check_storageclass_change(
+            priority_list,
+            available_backend,
+            current_storage_class,
+        )
+
+        self.assertTrue(result)
+
+    def test_check_storageclass_change_not_changed(self):
+        """Test if there is not a change in the storageclass"""
+        priority_list = ["ceph", "netapp-fc", "netapp-iscsi", "netapp-nfs"]
+        available_backend = {
+            "ceph": "general",
+            "netapp-nfs": "netapp-nas-backend",
+            "netapp-iscsi": "",
+            "netapp-fc": "",
+        }
+        current_storage_class = "general"
+
+        result, storageclass = app_utils.check_storageclass_change(
+            priority_list,
+            available_backend,
+            current_storage_class,
+        )
+
+        self.assertFalse(result)

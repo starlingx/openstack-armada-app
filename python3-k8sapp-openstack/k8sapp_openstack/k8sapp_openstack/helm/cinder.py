@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -123,7 +123,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             self.available_backends.get(app_constants.NETAPP_FC_BACKEND_NAME, False)
         )
         LOG.info(f"Cinder available backends: {self.available_backends}")
-        LOG.info(f"Cinder available NetApp backends: {self.available_backends}")
+        LOG.info(f"Cinder available NetApp backends: {self.available_netapp_backends}")
         LOG.info(f"Cinder volume priority list: {self.VOLUME_PRIORITY_LIST}")
         LOG.info(f"Cinder backup priority list: {self.BACKUP_PRIORITY_LIST}")
         LOG.info(f"Cinder Ceph enabled: {self._ceph_enabled}")
@@ -158,7 +158,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             # mode [1][2]
             # [1] https://review.opendev.org/c/openstack/tripleo-heat-templates/+/538272
             # [2] https://review.opendev.org/c/openstack/openstack-helm/+/770008
-            cinder_backup_privileged = self._netapp_iscsi_enabled
+            cinder_backup_privileged = (self._netapp_iscsi_enabled or
+                                        self._netapp_fc_enabled)
 
             cinder_overrides = self._get_conf_netapp_cinder_overrides(cinder_overrides)
             backend_overrides = self._get_conf_netapp_backends_overrides(backend_overrides)
@@ -192,8 +193,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                     # [1] https://review.opendev.org/c/openstack/openstack-helm/+/770008
                     # [2] https://review.opendev.org/c/openstack/openstack-helm/+/709378
                     'useHostNetwork': {
-                        'volume': self._netapp_iscsi_enabled,
-                        'backup': self._netapp_iscsi_enabled
+                        'volume': (self._netapp_iscsi_enabled or
+                                   self._netapp_fc_enabled),
+                        'backup': (self._netapp_iscsi_enabled or
+                                   self._netapp_fc_enabled),
                     },
                     'mounts': {
                         'cinder_volume': {
@@ -226,6 +229,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                     },
                 },
                 'conf': {
+                    'enable_iscsi': (self._netapp_iscsi_enabled or
+                                     self._netapp_fc_enabled),
                     'cinder': cinder_overrides,
                     'ceph': ceph_overrides,
                     'backends': backend_overrides,

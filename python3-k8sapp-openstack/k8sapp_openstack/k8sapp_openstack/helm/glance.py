@@ -232,10 +232,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                         path="v3"
                     ),
                     'cinder_store_user_name': self._get_admin_user_name(),
-                    'cinder_store_password': self._get_identity_password(
-                        app_constants.HELM_CHART_KEYSTONE,
-                        self._get_admin_user_name()
-                    ),
+                    'cinder_store_password': self._get_admin_password(),
                     'cinder_store_project_name': self._get_admin_project_name(),
                     'cinder_store_user_domain_name': self._get_admin_user_domain(),
                     'cinder_store_project_domain_name': self._get_admin_project_domain(),

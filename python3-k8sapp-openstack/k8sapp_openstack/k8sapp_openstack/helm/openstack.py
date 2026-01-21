@@ -124,6 +124,10 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         keystone_operator = self._get_chart_operator(app_constants.HELM_CHART_KEYSTONE)
         return keystone_operator.get_admin_user_domain()
 
+    def _get_admin_password(self):
+        keystone_operator = self._get_chart_operator(app_constants.HELM_CHART_KEYSTONE)
+        return keystone_operator.get_admin_password()
+
     def _get_identity_password(self, service, user):
         passwords = self.context.setdefault('_service_passwords', {})
         if service not in passwords:

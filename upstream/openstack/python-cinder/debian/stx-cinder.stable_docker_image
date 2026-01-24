@@ -8,7 +8,10 @@ UPGRADE_PIP_PACKAGES=pip
 PROJECT_UID=42425
 PROJECT_GID=42425
 NON_UNIQUE_SYSTEM_ACCOUNT="yes"
-DIST_PACKAGES="nfs-common"
+DIST_PACKAGES="nfs-common \
+               udev \
+               lsscsi
+"
 PIP_PACKAGES="\
   pycryptodomex \
   python-swiftclient

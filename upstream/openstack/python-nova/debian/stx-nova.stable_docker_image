@@ -20,7 +20,9 @@ DIST_PACKAGES="\
   libvirt-login-shell \
   nfs-common \
   openssh-client \
-  openssh-server
+  openssh-server \
+  udev \
+  lsscsi
 "
 PROFILES="fluent nova ceph linuxbridge openvswitch configdrive qemu apache"
 CUSTOMIZATION="\

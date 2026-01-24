@@ -574,6 +574,8 @@ conf:
       OIDCPassClaimsAs: "both"
       OIDCOAuthSSLValidateServer: "Off"
       OIDCEnableMemcached: true
+      # Delimiter for multi-valued claims (Keystone expects semicolon for groups)
+      OIDCClaimDelimiter: ";"
     dex_idp:
       # Enable DEX integration
       enabled: false
@@ -586,6 +588,16 @@ conf:
       # Horizon WebSSO configuration
       websso_label: "Login with DEX SSO"
       websso_initial_choice: "credentials"
+      # Enable group-based authentication (groups from OIDC provider)
+      claim_groups: false
+      # Groups to create when claim_groups is enabled (project defaults to <name>_project, role defaults to member)
+      groups: []
+      # groups:
+      #   - name: developers
+      #     project: dev_project
+      #     role: admin
+      #   - name: operators
+      # Mapping for claim_groups: false
       default_mapping: |
         [{
           "local": [{
@@ -594,14 +606,39 @@ conf:
           }],
           "remote": [{"type": "OIDC-email"}]
         }]
+      # Mapping for claim_groups: true
+      # Maps OIDC groups directly to Keystone groups (groups must exist in Keystone)
+      groups_mapping: |
+        [{
+          "local": [
+            {"user": {"name": "{0}"}},
+            {"groups": "{1}", "domain": {"name": "Default"}}
+          ],
+          "remote": [
+            {"type": "OIDC-email"},
+            {"type": "OIDC-groups"}
+          ]
+        }]
       # Add DEX extra bootstrap commands to keystone bootstrap
       bootstrap:
         enabled: true
         script: |
           openstack role create member 2>/dev/null || true
+          openstack role create admin 2>/dev/null || true
+          {{- if .Values.conf.federation.dex_idp.claim_groups }}
+          {{- range .Values.conf.federation.dex_idp.groups }}
+          {{- $groupName := .name }}
+          {{- $projectName := .project | default (printf "%s_project" .name) }}
+          {{- $roleName := .role | default "member" }}
+          openstack group create {{ $groupName }} 2>/dev/null || true
+          openstack project create {{ $projectName }} 2>/dev/null || true
+          openstack role add --group {{ $groupName }} --project {{ $projectName }} {{ $roleName }} 2>/dev/null || true
+          {{- end }}
+          {{- else }}
           openstack group create {{ .Values.conf.federation.dex_idp.group_name }} 2>/dev/null || true
           openstack project create {{ .Values.conf.federation.dex_idp.project_name }} 2>/dev/null || true
           openstack role add --group {{ .Values.conf.federation.dex_idp.group_name }} --project {{ .Values.conf.federation.dex_idp.project_name }} member 2>/dev/null || true
+          {{- end }}
           openstack identity provider create {{ .Values.conf.federation.dex_idp.provider_name }} --remote-id {{ .Values.conf.federation.dex_idp.provider_remote_id }} 2>/dev/null || true
           openstack mapping create --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }} 2>/dev/null || \
           openstack mapping set --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }}
@@ -856,7 +893,12 @@ conf:
         # Claim configuration
         OIDCClaimPrefix "{{ .Values.conf.federation.wsgi.OIDCClaimPrefix }}"
         OIDCRemoteUserClaim {{ .Values.conf.federation.wsgi.OIDCRemoteUserClaim }}
+        {{- if .Values.conf.federation.dex_idp.claim_groups }}
+        # Include "groups" scope for group-based authentication
+        OIDCScope "{{ .Values.conf.federation.wsgi.OIDCScope }} groups"
+        {{- else }}
         OIDCScope "{{ .Values.conf.federation.wsgi.OIDCScope }}"
+        {{- end }}
 
         # Authorization code flow
         OIDCResponseType "{{ .Values.conf.federation.wsgi.OIDCResponseType }}"
@@ -866,6 +908,9 @@ conf:
 
         # Pass claims to Keystone
         OIDCPassClaimsAs {{ .Values.conf.federation.wsgi.OIDCPassClaimsAs }}
+        {{- if .Values.conf.federation.wsgi.OIDCClaimDelimiter }}
+        OIDCClaimDelimiter "{{ .Values.conf.federation.wsgi.OIDCClaimDelimiter }}"
+        {{- end }}
         OIDCCryptoPassphrase {{ $dexPassphrase }}
 
         # Cache directory

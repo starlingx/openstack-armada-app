@@ -1,4 +1,4 @@
-From e252d383d9973c33192b5e4b969b5f777947df63 Mon Sep 17 00:00:00 2001
+From 95e91fb4c8cec5ef03b9a3c83bbcefb0633683e8 Mon Sep 17 00:00:00 2001
 From: Daniel Caires <DanielMarques.Caires@windriver.com>
 Date: Thu, 23 Oct 2025 10:07:47 -0300
 Subject: [PATCH] Add DEX integration
@@ -17,12 +17,14 @@ Change-Id: I8540dce2dd0f1d1100872cec0ddf3a9e6df9ae81
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ Add DEX http requests configurations ]
 Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+[ Ported to 2025.1 Epoxy ]
+Signed-off-by: Murillo Arantes <murillo.arantes@windriver.com>
 ---
- keystone/templates/bin/_bootstrap.sh.tpl |  4 +++
- keystone/templates/configmap-bin.yaml    |  8 +++++
- keystone/templates/job-bootstrap.yaml    |  8 ++++-
- keystone/values.yaml                     | 48 ++++++++++++++++++++++++
- 4 files changed, 67 insertions(+), 1 deletion(-)
+ keystone/templates/bin/_bootstrap.sh.tpl |  4 ++
+ keystone/templates/configmap-bin.yaml    | 12 ++++
+ keystone/templates/job-bootstrap.yaml    |  8 ++-
+ keystone/values.yaml                     | 85 ++++++++++++++++++++++++
+ 4 files changed, 108 insertions(+), 1 deletion(-)
 
 diff --git a/keystone/templates/bin/_bootstrap.sh.tpl b/keystone/templates/bin/_bootstrap.sh.tpl
 index c325824d8..7b268548c 100644
@@ -37,16 +39,20 @@ index c325824d8..7b268548c 100644
 +   bash /tmp/dex-bootstrap.sh
 +fi
 diff --git a/keystone/templates/configmap-bin.yaml b/keystone/templates/configmap-bin.yaml
-index 45512d3ec..d55ed5672 100644
+index 45512d3ec..d6e2af523 100644
 --- a/keystone/templates/configmap-bin.yaml
 +++ b/keystone/templates/configmap-bin.yaml
-@@ -55,4 +55,12 @@ data:
+@@ -55,4 +55,16 @@ data:
  {{ tuple "bin/_domain-manage.py.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
    rabbit-init.sh: |
  {{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
 +{{- if .Values.conf.federation.dex_idp.enabled}}
 +  dex_mapping.json: |
++{{- if .Values.conf.federation.dex_idp.claim_groups }}
++{{ tpl .Values.conf.federation.dex_idp.groups_mapping . | indent 4 }}
++{{- else }}
 +{{ tpl .Values.conf.federation.dex_idp.default_mapping . | indent 4 }}
++{{- end }}
 +{{- if .Values.conf.federation.dex_idp.bootstrap.enabled }}
 +  dex-bootstrap.sh: |
 +{{ tpl .Values.conf.federation.dex_idp.bootstrap.script . | indent 4 }}
@@ -74,10 +80,10 @@ index 37ce4a481..cae003b9b 100644
  {{- $_ := set $bootstrapJob "tlsSecret" .Values.secrets.tls.identity.api.public -}}
  {{- end -}}
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index 7e262d5f9..d1a4bea83 100644
+index 7e43fd64c..be2e18931 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
-@@ -565,6 +565,54 @@ conf:
+@@ -567,6 +567,91 @@ conf:
        # NOTE(vdrok): The following two options have effect only for SQL backend
        lockout_failure_attempts: 5
        lockout_duration: 1800
@@ -92,6 +98,8 @@ index 7e262d5f9..d1a4bea83 100644
 +      OIDCPassClaimsAs: "both"
 +      OIDCOAuthSSLValidateServer: "Off"
 +      OIDCEnableMemcached: true
++      # Delimiter for multi-valued claims (Keystone expects semicolon for groups)
++      OIDCClaimDelimiter: ";"
 +    dex_conf:
 +      verify: False
 +      retries: 1
@@ -109,6 +117,16 @@ index 7e262d5f9..d1a4bea83 100644
 +      # Horizon WebSSO configuration
 +      websso_label: "Login with DEX SSO"
 +      websso_initial_choice: "credentials"
++      # Enable group-based authentication (groups from OIDC provider)
++      claim_groups: false
++      # Groups to create when claim_groups is enabled (project defaults to <name>_project, role defaults to member)
++      groups: []
++      # groups:
++      #   - name: developers
++      #     project: dev_project
++      #     role: admin
++      #   - name: operators
++      # Mapping for claim_groups: false
 +      default_mapping: |
 +        [{
 +          "local": [{
@@ -117,14 +135,39 @@ index 7e262d5f9..d1a4bea83 100644
 +          }],
 +          "remote": [{"type": "OIDC-email"}]
 +        }]
++      # Mapping for claim_groups: true
++      # Maps OIDC groups directly to Keystone groups (groups must exist in Keystone)
++      groups_mapping: |
++        [{
++          "local": [
++            {"user": {"name": "{0}"}},
++            {"groups": "{1}", "domain": {"name": "Default"}}
++          ],
++          "remote": [
++            {"type": "OIDC-email"},
++            {"type": "OIDC-groups"}
++          ]
++        }]
 +      # Add DEX extra bootstrap commands to keystone bootstrap
 +      bootstrap:
 +        enabled: true
 +        script: |
 +          openstack role create member 2>/dev/null || true
++          openstack role create admin 2>/dev/null || true
++          {{- if .Values.conf.federation.dex_idp.claim_groups }}
++          {{- range .Values.conf.federation.dex_idp.groups }}
++          {{- $groupName := .name }}
++          {{- $projectName := .project | default (printf "%s_project" .name) }}
++          {{- $roleName := .role | default "member" }}
++          openstack group create {{ $groupName }} 2>/dev/null || true
++          openstack project create {{ $projectName }} 2>/dev/null || true
++          openstack role add --group {{ $groupName }} --project {{ $projectName }} {{ $roleName }} 2>/dev/null || true
++          {{- end }}
++          {{- else }}
 +          openstack group create {{ .Values.conf.federation.dex_idp.group_name }} 2>/dev/null || true
 +          openstack project create {{ .Values.conf.federation.dex_idp.project_name }} 2>/dev/null || true
 +          openstack role add --group {{ .Values.conf.federation.dex_idp.group_name }} --project {{ .Values.conf.federation.dex_idp.project_name }} member 2>/dev/null || true
++          {{- end }}
 +          openstack identity provider create {{ .Values.conf.federation.dex_idp.provider_name }} --remote-id {{ .Values.conf.federation.dex_idp.provider_remote_id }} 2>/dev/null || true
 +          openstack mapping create --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }} 2>/dev/null || \
 +          openstack mapping set --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }}
@@ -134,3 +177,4 @@ index 7e262d5f9..d1a4bea83 100644
    # https://docs.openstack.org/keystone/pike/admin/identity-domain-specific-config.html.
 -- 
 2.34.1
+

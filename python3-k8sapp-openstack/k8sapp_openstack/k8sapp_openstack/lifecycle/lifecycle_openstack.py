@@ -894,7 +894,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         if rabbitmq_storageclass_change_validation:
             raise exception.LifecycleSemanticCheckException(
                 f"{app_constants.HELM_CHART_RABBITMQ} is currently running using "
-                f"StorageClass:\"{rabbitmq_current_storageclass}\ while is trying to reapply "
+                f"StorageClass:\"{rabbitmq_current_storageclass}\" while is trying to reapply "
                 f"with StorageClass:\"{rabbitmq_new_storageclass}\" and migration is not supported. "
                 "Please backup your data and remove/apply the application to modify the current StorageClass."
             )

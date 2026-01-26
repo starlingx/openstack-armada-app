@@ -1663,3 +1663,107 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_get_endpoint_domain.assert_called_once_with(fake_db)
         mock_oidc_parameters_exist.assert_called_once_with(fake_db)
         mock_check_dex_healthy.assert_called_once_with(fake_db, True)
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_pvc_exists_in_a_namespace')
+    def test_semantic_check_backend_storageclass_no_namespace(
+        self,
+        mock_check_if_pvc_exists,
+        mock_check_if_namespace_exists,
+    ):
+        """Test if _semantic_check_backend_storageclass returns when there is no namespace"""
+        mock_check_if_namespace_exists.return_value = False
+
+        self.lifecycle._semantic_check_backend_storageclass()
+
+        mock_check_if_pvc_exists.assert_not_called()
+
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.LOG")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_pvc_exists_in_a_namespace")
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists')
+    def test_semantic_check_backend_storageclass_no_pvc(
+        self,
+        mock_check_if_namespace_exists,
+        mock_check_if_pvc_exists_in_a_namespace,
+        mock_log,
+    ):
+        """Test if _semantic_check_backend_storageclass returns when there is no pvc in the namespace"""
+        mock_check_if_namespace_exists.return_value = True
+        mock_check_if_pvc_exists_in_a_namespace.return_value = False
+
+        self.assertIsNone(self.lifecycle._semantic_check_backend_storageclass())
+        msg = mock_log.info.call_args[0][0]
+        mock_log.info.assert_called_once()
+        self.assertIn("no PVCs", msg)
+
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_storageclass_change")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_storage_backends_priority_list")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_pvc_exists_in_a_namespace", return_value=True)
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists", return_value=True)
+    def test_semantic_check_backend_storageclass_mariadb_failed(
+        self,
+        mock_check_if_namespace_exists,
+        mock_check_if_pvc_exists_in_a_namespace,
+        mock_get_available_volume_backends,
+        mock_get_storage_backends_priority_list,
+        mock_get_pvc_storageclass,
+        mock_check_storageclass_change,
+    ):
+        """Test if _semantic_check_backend_storageclass fails in case a storage class is detected for mariadb"""
+        mock_get_available_volume_backends.return_value = ["storageclass"]
+        mock_get_storage_backends_priority_list.side_effect = [
+            ["storageclass"],  # mariadb priority list
+            ["storageclass"],  # rabbitmq priority list
+        ]
+
+        mock_get_pvc_storageclass.side_effect = [
+            "storageclass",
+            "storageclass",
+        ]
+        mock_check_storageclass_change.side_effect = [
+            (True, "new"),
+            (False, None),
+        ]
+
+        try:
+            self.lifecycle._semantic_check_backend_storageclass()
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("mariadb", str(e).lower())
+
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_storageclass_change")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_storage_backends_priority_list")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_pvc_exists_in_a_namespace", return_value=True)
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists", return_value=True)
+    def test_semantic_check_backend_storageclass_rabbitmq_failed(
+        self,
+        mock_check_if_namespace_exists,
+        mock_check_if_pvc_exists_in_a_namespace,
+        mock_get_available_volume_backends,
+        mock_get_storage_backends_priority_list,
+        mock_get_pvc_storageclass,
+        mock_check_storageclass_change,
+    ):
+        """Test if _semantic_check_backend_storageclass raises in case a storage class is detected for rabbitmq"""
+        mock_get_available_volume_backends.return_value = ["storageclass"]
+        mock_get_storage_backends_priority_list.side_effect = [
+            ["storageclass"],
+            ["storageclass"],
+        ]
+
+        mock_get_pvc_storageclass.side_effect = [
+            "storageclass",
+            "storageclass",
+        ]
+        mock_check_storageclass_change.side_effect = [
+            (False, None),
+            (True, "new"),
+        ]
+
+        try:
+            self.lifecycle._semantic_check_backend_storageclass()
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("rabbitmq", str(e).lower())

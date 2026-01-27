@@ -15,7 +15,7 @@ images:
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     mariadb_backup: null
-    ks_user: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
     scripted_test: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
     mariadb_controller: docker.io/openstackhelm/mariadb:latest-ubuntu_jammy

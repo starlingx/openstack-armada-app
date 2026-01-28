@@ -184,6 +184,10 @@ NETAPP_BACKEND_TO_TYPE = {
     NETAPP_FC_BACKEND_NAME: BACKEND_TYPE_NETAPP_FC,
 }
 
+# PVC Names for StorageClass validation
+MARIADB_PVC_NAME = "mysql-data-mariadb-server-0"
+RABBITMQ_PVC_NAME = "rabbitmq-data-osh-openstack-rabbitmq-rabbitmq-0"
+
 # NetApp Default and Placeholder Values
 NETAPP_CINDER_VOLUME_DRIVER = "cinder.volume.drivers.netapp.common.NetAppDriver"
 NETAPP_STORAGE_FAMILY = "ontap_cluster"

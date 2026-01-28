@@ -44,3 +44,4 @@
 0044-Add-Tolerations-to-mariadb-controller-pod.patch
 0045-Modify-nova-compute-liveness-startup-probe.patch
 0046-Fix-Cinder-and-Placement-TLS-install.patch
+0047-Add-NFS-support-for-nova-ephemeral-storage.patch

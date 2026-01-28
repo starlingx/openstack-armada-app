@@ -3022,3 +3022,37 @@ def post_apply_update_dex_redirect_uri(context, conductor_obj) -> bool:
         return False
 
     return True
+
+
+def get_nova_nfs_share() -> dict:
+    """
+    This function returns the necessary data to configure the nova nfs shares.
+
+    Returns:
+        dict: The resulting configuration dictionary after applying overrides.
+
+    Example:
+        nfs_share = {
+            'server': '127.0.0.1',
+            'path': '/openstack_instances',
+            'instances_path': '/var/lib/instances',
+        }
+    """
+    return {
+        'server': _get_value_from_application(
+            default_value=app_constants.NETAPP_NFS_DEFAULT_SERVER,
+            chart_name=app_constants.HELM_CHART_NOVA,
+            override_name=app_constants.NETAPP_NFS_SERVER_OVERRIDE),
+        'path': _get_value_from_application(
+            default_value=app_constants.NETAPP_NFS_DEFAULT_PATH,
+            chart_name=app_constants.HELM_CHART_NOVA,
+            override_name=app_constants.NETAPP_NFS_PATH_OVERRIDE),
+        'instances_path': _get_value_from_application(
+            default_value=app_constants.NETAPP_NFS_DEFAULT_MOUNT_POINT,
+            chart_name=app_constants.HELM_CHART_NOVA,
+            override_name=app_constants.NETAPP_NFS_MOUNT_POINT_OVERRIDE),
+        'enabled': _get_value_from_application(
+            default_value=app_constants.NETAPP_NFS_DEFAULT_ENABLED,
+            chart_name=app_constants.HELM_CHART_NOVA,
+            override_name=app_constants.NETAPP_NFS_ENABLED_OVERRIDE),
+    }

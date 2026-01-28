@@ -104,6 +104,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.ifdatanets_by_ifaceid = self._get_interface_datanets()
         self.datanets_by_netuuid = self._get_datanetworks()
         self.rbd_config = self._get_storage_ceph_config()
+        nfs_shares = self._get_instances_nfs_shares_config()
         ssh_privatekey, ssh_publickey = \
             self._get_or_generate_ssh_keys(self.SERVICE_NAME, common.HELM_NS_OPENSTACK)
 
@@ -179,6 +180,21 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                     ['nova_service_cleaner', 'nova_storage_init'],
                     get_image_rook_ceph())
 
+        if nfs_shares.get('enabled', False):
+            overrides[common.HELM_NS_OPENSTACK]["conf"]["nova"].update({
+                "DEFAULT": {
+                    "instances_path": nfs_shares["instances_path"],
+                },
+            })
+            overrides[common.HELM_NS_OPENSTACK].update({
+                "storage_conf": {
+                    "nfs_shares": {
+                        "server": nfs_shares["server"],
+                        "path": nfs_shares["path"],
+                        "enabled": nfs_shares["enabled"],
+                    }
+                }
+            })
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:

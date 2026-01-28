@@ -187,6 +187,15 @@ NETAPP_BACKEND_TO_TYPE = {
     NETAPP_ISCSI_BACKEND_NAME: BACKEND_TYPE_NETAPP_ISCSI,
     NETAPP_FC_BACKEND_NAME: BACKEND_TYPE_NETAPP_FC,
 }
+NETAPP_NFS_DEFAULT_SERVER = "127.0.0.1"
+NETAPP_NFS_SERVER_OVERRIDE = "storage_conf.nfs_shares.server"
+NETAPP_NFS_DEFAULT_PATH = "/openstack_instances"
+NETAPP_NFS_PATH_OVERRIDE = "storage_conf.nfs_shares.path"
+NETAPP_NFS_DEFAULT_MOUNT_POINT = "/var/lib/instances"
+NETAPP_NFS_MOUNT_POINT_OVERRIDE = "conf.nova.DEFAULT.instances_path"
+NETAPP_NFS_DEFAULT_ENABLED = False
+NETAPP_NFS_ENABLED_OVERRIDE = "storage_conf.nfs_shares.enabled"
+NFS_BACKEND_NAME = "nfs"
 
 # PVC Names for StorageClass validation
 MARIADB_PVC_NAME = "mysql-data-mariadb-server-0"

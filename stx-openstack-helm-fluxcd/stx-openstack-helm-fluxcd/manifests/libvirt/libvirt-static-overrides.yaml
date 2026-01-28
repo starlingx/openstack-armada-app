@@ -387,6 +387,13 @@ dependencies:
         - endpoint: internal
           service: local_image_registry
 
+storage_conf:
+  nfs_shares:
+    enabled: false
+    server: 127.0.0.1
+    path: /openstack_instances
+    instances_path: /var/lib/instances
+
 manifests:
   configmap_bin: true
   configmap_etc: true

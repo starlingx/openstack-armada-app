@@ -29,6 +29,9 @@ from sysinv.helm import common
 
 from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.utils import get_enabled_storage_backends_from_override
+from k8sapp_openstack.utils import get_nova_nfs_share
+from k8sapp_openstack.utils import get_storage_backends_priority_list
 
 
 LOG = log.getLogger(__name__)
@@ -836,3 +839,29 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             }
         })
         return overrides
+
+    @staticmethod
+    def _get_instances_nfs_shares_config() -> dict:
+        """
+        Determine the NFS share configuration for Nova ephemeral storage.
+
+        Iterates through the storage backends priority list and checks
+        each against the enabled backends from user overrides. If NetApp
+        NFS is the highest-priority enabled backend, returns its share
+        config (server, path, mount point) from the Nova Helm overrides.
+
+        Returns:
+            dict: The NFS share configuration with 'enabled' set to
+            True, or an empty dictionary if NFS is not selected.
+        """
+        priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_NOVA)
+        enabled_backends = get_enabled_storage_backends_from_override(app_constants.HELM_CHART_NOVA,
+                                                                      app_constants.OVERRIDE_STORAGE_BACKENDS)
+        for priority in priority_list:
+            if priority in enabled_backends and priority == app_constants.NETAPP_NFS_NAS_TYPE:
+                nfs_share = get_nova_nfs_share()
+                nfs_share.update({
+                    'enabled': True
+                })
+                return nfs_share
+        return {}

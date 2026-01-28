@@ -37,6 +37,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
     def get_overrides(self, namespace=None):
         self.labels_by_hostid = self._get_host_labels()
         self.addresses_by_hostid = self._get_host_addresses()
+        nova_shares = self._get_instances_nfs_shares_config()
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -61,6 +62,17 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                     ['ceph_config_helper'],
                     get_image_rook_ceph())
 
+        if nova_shares.get('enabled'):
+            overrides[common.HELM_NS_OPENSTACK].update({
+                'storage_conf': {
+                    'nfs_shares': {
+                        'enabled': nova_shares['enabled'],
+                        'server': nova_shares['server'],
+                        'path': nova_shares['path'],
+                        'instances_path': nova_shares['instances_path'],
+                    }
+                }
+            })
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:

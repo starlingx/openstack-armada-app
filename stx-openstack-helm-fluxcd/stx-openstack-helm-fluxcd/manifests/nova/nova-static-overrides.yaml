@@ -1412,6 +1412,7 @@ conf:
       disk_allocation_ratio: 1.0
       cpu_allocation_ratio: 16.0
       state_path: /var/lib/nova
+      instances_path: /var/lib/nova/instances
       osapi_compute_listen: "::"
       # NOTE(portdirect): the bind port should not be defined, and is manipulated
       # via the endpoints section.
@@ -2721,6 +2722,21 @@ tls:
   identity: false
   oslo_messaging: false
   oslo_db: false
+
+storage_conf:
+  # This list is for compatibility with other charts.
+  storage_backends:
+    - name: host-path
+      enabled: true
+    - name: nfs
+      enabled: true
+  volume_storage_class_priority:
+    - host-path
+    - nfs
+  nfs_shares:
+    enabled: false
+    server: 127.0.0.1
+    path: /openstack_instances
 
 manifests:
   certificates: false

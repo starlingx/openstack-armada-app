@@ -2271,3 +2271,25 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         )
 
         self.assertFalse(result)
+
+    @mock.patch("k8sapp_openstack.utils.LOG")
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_check_if_namespace_exists_failed(self, mock_send_cmd_response, mock_log_error):
+        """Test if check_if_namespace_exists fails as expected"""
+        mock_send_cmd_response.side_effect = [Exception()]
+        namespace = ""
+        result = app_utils.check_if_namespace_exists(namespace)
+
+        self.assertFalse(result)
+        mock_log_error.error.assert_called_once()
+
+    @mock.patch("k8sapp_openstack.utils.LOG")
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_check_if_pvc_exists_in_a_namespace_failed(self, mock_send_cmd_response, mock_log_error):
+        """Test if check_if_pvc_exists_in_a_namespace fails as expected"""
+        mock_send_cmd_response.side_effect = [Exception()]
+        namespace = ""
+        result = app_utils.check_if_pvc_exists_in_a_namespace(namespace)
+
+        self.assertFalse(result)
+        mock_log_error.error.assert_called_once()

@@ -853,13 +853,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         Raises: LifecycleSemanticCheckException:
             - If there was a change in the StorageClass
         """
-        mariadb_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_MARIADB)
-        mariadb_current_storageclass = get_pvc_storageclass(app_constants.MARIADB_PVC_NAME)
-        rabbitmq_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_RABBITMQ)
-        rabbitmq_current_storageclass = get_pvc_storageclass(app_constants.RABBITMQ_PVC_NAME)
-        available_backends = get_available_volume_backends()
-
-        LOG.info(mariadb_current_storageclass, rabbitmq_current_storageclass)
         if not check_if_namespace_exists(app_constants.HELM_NS_OPENSTACK):
             LOG.info(f"{app_constants.HELM_NS_OPENSTACK} namespace doesn't exist, "
                         "skipping StorageClasses semantic check")
@@ -870,11 +863,16 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                         "skipping StorageClasses semantic check")
             return
 
+        available_backends = get_available_volume_backends()
+        mariadb_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_MARIADB)
+        mariadb_current_storageclass = get_pvc_storageclass(app_constants.MARIADB_PVC_NAME)
         mariadb_storageclass_change_validation, mariadb_new_storageclass = check_storageclass_change(
             mariadb_priority_list,
             available_backends,
             mariadb_current_storageclass
              )
+        rabbitmq_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_RABBITMQ)
+        rabbitmq_current_storageclass = get_pvc_storageclass(app_constants.RABBITMQ_PVC_NAME)
         rabbitmq_storageclass_change_validation, rabbitmq_new_storageclass = check_storageclass_change(
             rabbitmq_priority_list,
             available_backends,

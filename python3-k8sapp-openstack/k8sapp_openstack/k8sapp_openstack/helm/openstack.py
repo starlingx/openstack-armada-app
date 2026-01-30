@@ -334,7 +334,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             overrides.update({'ca': cert_ca_file})
         return overrides
 
-    def _get_endpoints_host_fqdn_overrides(self, service_name):
+    def _get_endpoints_host_fqdn_overrides(self, service_name, tls_service_name=None):
         overrides = {'public': {}}
         endpoint_domain = self._get_service_parameter(
             constants.SERVICE_TYPE_OPENSTACK,
@@ -350,7 +350,8 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             overrides['public'].update({'host': service_endpoint})
 
         if self._is_openstack_https_ready():
-            tls_overrides = self._get_endpoint_public_tls(service_name)
+            tls_lookup_name = tls_service_name if tls_service_name else service_name
+            tls_overrides = self._get_endpoint_public_tls(tls_lookup_name)
             if tls_overrides:
                 overrides['public'].update({
                     'tls': tls_overrides

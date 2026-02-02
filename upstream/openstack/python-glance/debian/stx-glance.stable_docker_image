@@ -8,10 +8,15 @@ UPDATE_SYSTEM_ACCOUNT="yes"
 NON_UNIQUE_SYSTEM_ACCOUNT="yes"
 PIP_PACKAGES="\
   os-brick \
+  oslo.rootwrap \
   pycryptodomex \
   python-cinderclient \
   python-swiftclient \
   psutil
 "
-DIST_PACKAGES="libpq5"
+DIST_PACKAGES="libpq5 \
+               nfs-common \
+               udev \
+               lsscsi
+"
 PROFILES="fluent glance ceph"

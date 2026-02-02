@@ -43,22 +43,41 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             backend_name, app_constants.BACKUP_DEFAULT_DRIVER
         )
 
-    def _get_mount_overrides(self, netapp_enabled=False):
+    def _get_mount_overrides(self):
         overrides = {
             'volumes': [],
             'volumeMounts': []
         }
         overrides['volumes'].append({
-            'name': 'newvolume',
+            'name': 'imageconversion',
             'hostPath': {'path': tsc.IMAGE_CONVERSION_PATH}
         })
         overrides['volumeMounts'].append({
-            'name': 'newvolume',
+            'name': 'imageconversion',
             'mountPath': tsc.IMAGE_CONVERSION_PATH
         })
 
-        # Mount CA certificate for NetApp HTTPS connections
-        if netapp_enabled:
+        if self.netapp_enabled:
+            # Mount Cinder writable state path used by default for:
+            # - `$state_path/ssh_known_hosts`: file containing SSH host keys
+            # for the systems with which Cinder needs to communicate;
+            # - `$state_path/volumes`: directory used by some drivers to
+            # store volume configuration data;
+            # - `$state_path/mnt`: directory used as mount point for NFS shares.
+            state_path = _get_value_from_application(
+                default_value=app_constants.CINDER_STATE_PATH,
+                chart_name=self.CHART,
+                override_name=app_constants.OVERRIDE_CINDER_STATE_PATH
+            )
+            overrides['volumes'].append({
+                'name': 'varlibcinder',
+                'emptyDir': {}
+            })
+            overrides['volumeMounts'].append({
+                'name': 'varlibcinder',
+                'mountPath': state_path
+            })
+            # Mount CA certificate for NetApp HTTPS connections
             host_cert = _get_value_from_application(
                 default_value=app_constants.NETAPP_TLS_DEFAULT_HOST_CERT,
                 chart_name=self.CHART,
@@ -122,6 +141,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         self._netapp_fc_enabled = bool(
             self.available_backends.get(app_constants.NETAPP_FC_BACKEND_NAME, False)
         )
+        self.netapp_enabled = any(self.available_netapp_backends)
         LOG.info(f"Cinder available backends: {self.available_backends}")
         LOG.info(f"Cinder available NetApp backends: {self.available_netapp_backends}")
         LOG.info(f"Cinder volume priority list: {self.VOLUME_PRIORITY_LIST}")
@@ -200,9 +220,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                     },
                     'mounts': {
                         'cinder_volume': {
-                            'cinder_volume': self._get_mount_overrides(
-                                netapp_enabled=any(self.available_netapp_backends)
-                            )
+                            'cinder_volume': self._get_mount_overrides()
+                        },
+                        'cinder_backup': {
+                            'cinder_backup': self._get_mount_overrides()
                         }
                     },
                     'replicas': {
@@ -341,17 +362,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         existing_backends = cinder_overrides['DEFAULT'].get('enabled_backends', '').split(',')
         backends_list = list(filter(None, set(existing_backends + new_backends_list)))
         cinder_overrides['DEFAULT']['enabled_backends'] = ','.join(backends_list)
-
-        # Check if conversion overrides should be generated
-        current_host_fs_list = self.dbapi.host_fs_get_list()
-        chosts = self.dbapi.ihost_get_by_personality(constants.CONTROLLER)
-        chosts_fs = [fs for fs in current_host_fs_list
-                            if fs['name'] == constants.FILESYSTEM_NAME_IMAGE_CONVERSION]
-
-        # conversion overrides should be generated only if each controller node
-        # configured has the conversion partition added
-        if len(chosts) == len(chosts_fs):
-            cinder_overrides['DEFAULT']['image_conversion_dir'] = tsc.IMAGE_CONVERSION_PATH
 
         # Always set the default_volume_type to the volume type associated with the
         # primary Ceph backend/tier which is available on all StarlingX platform
@@ -539,6 +549,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         cinder_overrides = {
             'DEFAULT': {
                 'os_region_name': self.get_region_name(),
+                'state_path': app_constants.CINDER_STATE_PATH,
             },
         }
 
@@ -546,6 +557,17 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             cinder_overrides["keystone_authtoken"] = {
                 'cafile': self.get_ca_file()
             }
+
+        # Check if conversion overrides should be generated
+        current_host_fs_list = self.dbapi.host_fs_get_list()
+        chosts = self.dbapi.ihost_get_by_personality(constants.CONTROLLER)
+        chosts_fs = [fs for fs in current_host_fs_list
+                    if fs['name'] == constants.FILESYSTEM_NAME_IMAGE_CONVERSION]
+
+        # conversion overrides should be generated only if each controller node
+        # configured has the conversion partition added
+        if len(chosts) == len(chosts_fs):
+            cinder_overrides['DEFAULT']['image_conversion_dir'] = tsc.IMAGE_CONVERSION_PATH
 
         return cinder_overrides
 

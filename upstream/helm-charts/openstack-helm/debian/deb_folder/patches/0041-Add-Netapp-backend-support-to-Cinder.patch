@@ -1,4 +1,4 @@
-From 908c5bdc444f14639b798fb35d37d22d6d53c9d1 Mon Sep 17 00:00:00 2001
+From d0aa6062f664833204b80ee05a5d298da71d3749 Mon Sep 17 00:00:00 2001
 From: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 Date: Wed, 26 Nov 2025 11:36:33 -0300
 Subject: [PATCH] Add Netapp backend support to Cinder
@@ -26,17 +26,23 @@ initializations.
 
 Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 
-[ Ported to 2025.1 Epoxy ]
-Signed-off-by: Murillo Arantes <murillo.arantes@windriver.com>
+[Removes Cinder state path mounts]
+Cinder state path can be mounted dynamically by overriding the
+`pod.mounts.cinder_volume` and `pod.mounts.cinder_backup` when required
+per cinder storage backend.
+
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+
+[ Ported from Caracal to Epoxy]
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 ---
  cinder/templates/bin/_storage-init.sh.tpl     |  5 ++++
- cinder/templates/deployment-backup.yaml       |  4 +++
- cinder/templates/deployment-volume.yaml       |  8 ++++-
+ cinder/templates/deployment-volume.yaml       |  4 ++-
  cinder/templates/job-storage-init.yaml        | 18 +++++++----
  cinder/templates/utils/_has_ceph_backend.tpl  |  4 ++-
  .../templates/utils/_has_netapp_backend.tpl   | 25 ++++++++++++++++
  .../templates/utils/_is_backend_enabled.tpl   | 30 +++++++++++++++++++
- 7 files changed, 86 insertions(+), 8 deletions(-)
+ 6 files changed, 78 insertions(+), 8 deletions(-)
  create mode 100644 cinder/templates/utils/_has_netapp_backend.tpl
  create mode 100644 cinder/templates/utils/_is_backend_enabled.tpl
 
@@ -56,30 +62,8 @@ index 53b0b071c..a04cc0856 100644
  set -x
  if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
    SECRET=$(mktemp --suffix .yaml)
-diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
-index 6de1ae0a8..57ea9c401 100644
---- a/cinder/templates/deployment-backup.yaml
-+++ b/cinder/templates/deployment-backup.yaml
-@@ -286,6 +286,8 @@ spec:
-             - name: cinder-bin
-               mountPath: /usr/local/sbin/iscsiadm
-               subPath: iscsiadm
-+            - name: varlibcinder
-+              mountPath: /var/lib/cinder
-             {{- end }}
- {{ if $mounts_cinder_backup.volumeMounts }}{{ toYaml $mounts_cinder_backup.volumeMounts | indent 12 }}{{ end }}
-       volumes:
-@@ -365,6 +367,8 @@ spec:
-             path: /etc/iscsi
-         - name: usrlocalsbin
-           emptyDir: {}
-+        - name: varlibcinder
-+          emptyDir: {}
-         {{- end }}
- {{ if $mounts_cinder_backup.volumes }}{{ toYaml $mounts_cinder_backup.volumes | indent 8 }}{{ end }}
- {{- end }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index 9ecf7f122..0ee246a91 100644
+index 9ecf7f122..35692473f 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
 @@ -74,6 +74,7 @@ spec:
@@ -107,24 +91,6 @@ index 9ecf7f122..0ee246a91 100644
              - name: cinder-etc
                mountPath: /etc/cinder/nfs.shares
                subPath: nfs.shares
-@@ -295,6 +297,8 @@ spec:
-               {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
-               mountPropagation: HostToContainer
-               {{- end }}
-+            - name: varlibcinder
-+              mountPath: /var/lib/cinder
-             {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
- {{ if $mounts_cinder_volume.volumeMounts }}{{ toYaml $mounts_cinder_volume.volumeMounts | indent 12 }}{{ end }}
-@@ -371,6 +375,8 @@ spec:
-         - name: sys
-           hostPath:
-             path: /sys
-+        - name: varlibcinder
-+          emptyDir: {}
-         {{- end }}
- {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
- {{ if $mounts_cinder_volume.volumes }}{{ toYaml $mounts_cinder_volume.volumes | indent 8 }}{{ end }}
 diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
 index 6a63ce4a0..b1dca36bf 100755
 --- a/cinder/templates/job-storage-init.yaml

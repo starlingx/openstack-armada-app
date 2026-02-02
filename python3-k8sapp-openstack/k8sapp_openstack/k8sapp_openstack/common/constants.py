@@ -142,6 +142,9 @@ ROOK_CEPH_POOL_NOVA_RBD_CHUNK_SIZE = 0
 # Keystone version used as the default value when getting service name and type
 KEYSTONE_CURRENT_VERSION = 'v3'
 
+# Cinder definitions
+CINDER_STATE_PATH = "/var/lib/cinder"
+OVERRIDE_CINDER_STATE_PATH = "cinder.DEFAULT.state_path"
 # Cinder version used as the default value when getting service name and type
 CINDER_CURRENT_VERSION = 'v3'
 

@@ -29,6 +29,7 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
         'k8sapp_openstack.helm.glance._get_value_from_application',
         return_value=["ceph"]
     )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list', return_value=['ceph'])
     @mock.patch(
         'k8sapp_openstack.helm.glance.get_available_volume_backends',
         return_value={"ceph": "general",
@@ -74,6 +75,7 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
         'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
         return_value='/etc/ssl/private/openstack/ca-cert.pem'
     )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list', return_value=['ceph'])
     @mock.patch(
         'k8sapp_openstack.utils.get_openstack_certificate_values',
         return_value={
@@ -165,6 +167,8 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
     )
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.glance.get_available_volume_backends', return_value={})
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list', return_value=[])
     def test_glance_overrides_invalid_namespace(self, *_):
         """
         Asserts that an exception is raised if an invalid namespace
@@ -186,6 +190,7 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
                       app_constants.NETAPP_NFS_BACKEND_NAME: "",
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
     )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list', return_value=['ceph'])
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_glance_overrides_missing_namespace(self, *_):
         """

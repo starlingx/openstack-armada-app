@@ -2293,3 +2293,89 @@ class UtilsTest(dbbase.ControllerHostTestCase):
 
         self.assertFalse(result)
         mock_log_error.error.assert_called_once()
+
+
+class NetAppCACertSecretTest(dbbase.ControllerHostTestCase):
+    """Tests for NetApp CA certificate secret management functions."""
+
+    def setUp(self):
+        super(NetAppCACertSecretTest, self).setUp()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='/var/opt/openstack/certs/netapp.pem')
+    @mock.patch('os.path.isfile', return_value=True)
+    @mock.patch('builtins.open', mock.mock_open(read_data='test-certificate-content'))
+    def test_create_netapp_ca_cert_secret(self, *_):
+        """Test creation and update of NetApp CA certificate secret."""
+        mock_kube = mock.Mock()
+
+        # Test create new secret
+        mock_kube.kube_get_secret.return_value = None
+        app_utils.create_netapp_ca_cert_secret(mock_kube)
+        mock_kube.kube_create_secret.assert_called_once()
+        secret_body = mock_kube.kube_create_secret.call_args[0][1]
+        self.assertEqual(secret_body['metadata']['name'], app_constants.NETAPP_CA_CERT_SECRET_NAME)
+
+        # Test update existing secret
+        mock_kube.reset_mock()
+        mock_kube.kube_get_secret.return_value = mock.Mock()
+        app_utils.create_netapp_ca_cert_secret(mock_kube)
+        mock_kube.kube_patch_secret.assert_called_once()
+        mock_kube.kube_create_secret.assert_not_called()
+
+    def test_create_netapp_ca_cert_secret_skipped(self):
+        """Test secret not created when cert file is missing, empty, or not configured."""
+        mock_kube = mock.Mock()
+
+        # Test: no host cert configured
+        with mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=None):
+            app_utils.create_netapp_ca_cert_secret(mock_kube)
+            mock_kube.kube_create_secret.assert_not_called()
+
+        # Test: file not found
+        with mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                        return_value='/path/to/cert.pem'):
+            with mock.patch('os.path.isfile', return_value=False):
+                app_utils.create_netapp_ca_cert_secret(mock_kube)
+                mock_kube.kube_create_secret.assert_not_called()
+
+        # Test: empty file
+        with mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                        return_value='/path/to/cert.pem'):
+            with mock.patch('os.path.isfile', return_value=True):
+                with mock.patch('builtins.open', mock.mock_open(read_data='')):
+                    app_utils.create_netapp_ca_cert_secret(mock_kube)
+                    mock_kube.kube_create_secret.assert_not_called()
+
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_delete_netapp_ca_cert_secret(self, mock_kube_operator):
+        """Test deletion of NetApp CA certificate secret."""
+        mock_kube = mock_kube_operator.return_value
+
+        # Test: delete existing secret
+        mock_kube.kube_get_secret.return_value = mock.Mock()
+        app_utils.delete_netapp_ca_cert_secret()
+        mock_kube.kube_delete_secret.assert_called_once()
+
+        # Test: skip deletion when secret doesn't exist
+        mock_kube.reset_mock()
+        mock_kube.kube_get_secret.return_value = None
+        app_utils.delete_netapp_ca_cert_secret()
+        mock_kube.kube_delete_secret.assert_not_called()
+
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_is_netapp_ca_cert_secret_available(self, mock_kube_operator):
+        """Test checking if NetApp CA certificate secret exists."""
+        mock_kube = mock_kube_operator.return_value
+
+        # Test: secret exists
+        mock_kube.kube_get_secret.return_value = mock.Mock()
+        self.assertTrue(app_utils.is_netapp_ca_cert_secret_available())
+
+        # Test: secret doesn't exist
+        mock_kube.kube_get_secret.return_value = None
+        self.assertFalse(app_utils.is_netapp_ca_cert_secret_available())
+
+        # Test: exception handling
+        mock_kube.kube_get_secret.side_effect = Exception("Kubernetes error")
+        self.assertFalse(app_utils.is_netapp_ca_cert_secret_available())

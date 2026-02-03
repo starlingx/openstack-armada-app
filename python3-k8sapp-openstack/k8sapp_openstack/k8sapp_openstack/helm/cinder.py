@@ -24,6 +24,7 @@ from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import get_storage_backup_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
+from k8sapp_openstack.utils import is_netapp_ca_cert_secret_available
 
 LOG = logging.getLogger(__name__)
 
@@ -77,7 +78,13 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 'name': 'varlibcinder',
                 'mountPath': state_path
             })
-            # Mount CA certificate for NetApp HTTPS connections
+            # Mount NetApp CA certificate from Kubernetes secret.
+            # The secret is created during the pre-apply lifecycle hook
+            # (which runs after overrides but before helm install).
+            # We include the mount if the host cert file exists (the
+            # lifecycle hook will create the secret from it) or if the
+            # secret already exists (e.g., user created it manually or
+            # from a previous apply).
             host_cert = _get_value_from_application(
                 default_value=app_constants.NETAPP_TLS_DEFAULT_HOST_CERT,
                 chart_name=self.CHART,
@@ -88,26 +95,26 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 chart_name=self.CHART,
                 override_name=app_constants.OVERRIDE_NETAPP_TLS_CONTAINER_CERT
             )
-            if host_cert and container_cert:
-                if not os.path.isfile(host_cert):
-                    LOG.warning(
-                        f"NetApp CA certificate not found at '{host_cert}'. "
-                        f"Skipping mount. Update 'storage_conf.netapp_tls.host_cert' "
-                        f"if using HTTPS."
-                    )
-                else:
-                    overrides['volumes'].append({
-                        'name': 'netapp-ca-cert',
-                        'hostPath': {
-                            'path': host_cert,
-                            'type': 'File'
-                        }
-                    })
-                    overrides['volumeMounts'].append({
-                        'name': 'netapp-ca-cert',
-                        'mountPath': container_cert,
-                        'readOnly': True
-                    })
+            if container_cert and (
+                os.path.isfile(host_cert) or
+                is_netapp_ca_cert_secret_available()
+            ):
+                overrides['volumes'].append({
+                    'name': 'netapp-ca-cert',
+                    'secret': {
+                        'secretName': app_constants.NETAPP_CA_CERT_SECRET_NAME,
+                        'items': [{
+                            'key': app_constants.NETAPP_CA_CERT_SECRET_KEY,
+                            'path': app_constants.NETAPP_CA_CERT_SECRET_KEY
+                        }]
+                    }
+                })
+                overrides['volumeMounts'].append({
+                    'name': 'netapp-ca-cert',
+                    'mountPath': container_cert,
+                    'subPath': app_constants.NETAPP_CA_CERT_SECRET_KEY,
+                    'readOnly': True
+                })
 
         return overrides
 

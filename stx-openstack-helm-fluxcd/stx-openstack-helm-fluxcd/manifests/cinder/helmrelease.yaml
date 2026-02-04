@@ -16,7 +16,7 @@ spec:
   chart:
     spec:
       chart: cinder
-      version: 0.3.22
+      version: 2025.1.0
       sourceRef:
         kind: HelmRepository
         name: starlingx

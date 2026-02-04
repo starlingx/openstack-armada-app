@@ -1,0 +1,69 @@
+From a8ef0407811373b98a91be7787fcdcca18c76e23 Mon Sep 17 00:00:00 2001
+From: "Hu, Yong" <yong.hu@intel.com>
+Date: Tue, 17 Dec 2019 15:11:13 +0000
+Subject: [PATCH] Enable override of mariadb-server probe parameters
+
+Parameters are exported for startupProbe and readinessProbe.
+They are set with the default values, and might be overridden in
+ some special cases. For example, some cases require more times
+of "readinessProbe" failure before the peer mariadb-server node is
+recovered. Other cases, in which the regular readiness probe cannot
+be performed because only one signle mariadb-server exists, have to
+take use of "startupProbe" to ensure the WSREP status are ready.
+For all these exceptional cases above, which are different from the
+default mariadb cluster with 3 nodes, we have to export the probe
+parameters and override the related probe parameters.
+
+Signed-off-by: Hu, Yong <yong.hu@intel.com>
+Co-Authored-By: Zhipeng, Liu <zhipengs.liu@intel.com>
+[ upversioned openstack-helm-infra base commit ]
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+Change-Id: Idffb247ea722e53976238cfeacde4f70b9171393
+---
+ mariadb/templates/statefulset.yaml |  1 +
+ mariadb/values.yaml                | 10 +++++++++-
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
+index 889ff71e3..7a58b7165 100644
+--- a/mariadb/templates/statefulset.yaml
++++ b/mariadb/templates/statefulset.yaml
+@@ -221,6 +221,7 @@ spec:
+           command:
+             - /tmp/start.py
+ {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "readiness" "probeTemplate" (include "mariadbReadinessProbe" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
++{{ dict "envAll" . "component" "server" "container" "mariadb" "type" "startup" "probeTemplate" (include "mariadbReadinessProbe" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+ {{ dict "envAll" . "component" "server" "container" "mariadb" "type" "liveness" "probeTemplate" (include "mariadbLivenessProbe" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+           volumeMounts:
+             - name: pod-tmp
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index 4fa5fb50d..909afd8dc 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -70,12 +70,20 @@ pod:
+             initialDelaySeconds: 30
+             periodSeconds: 30
+             timeoutSeconds: 15
++            failureThreshold: 3
+         liveness:
+-          enabled: true
++          enabled: false
+           params:
+             initialDelaySeconds: 120
+             periodSeconds: 30
+             timeoutSeconds: 15
++            failureThreshold: 5
++        startup:
++          enabled: false
++          params:
++            initialDelaySeconds: 60
++            periodSeconds: 60
++            failureThreshold: 10
+       mariadb_exporter:
+         readiness:
+           enabled: true
+-- 
+2.34.1
+

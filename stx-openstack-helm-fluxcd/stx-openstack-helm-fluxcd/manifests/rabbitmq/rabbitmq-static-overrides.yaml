@@ -20,14 +20,15 @@ labels:
   jobs:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+
 images:
   tags:
     prometheus_rabbitmq_exporter: null
     prometheus_rabbitmq_exporter_helm_tests: null
     rabbitmq_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    rabbitmq: docker.io/library/rabbitmq:3.9.29
+    rabbitmq: docker.io/library/rabbitmq:3.13.0
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
-    scripted_test: docker.io/library/rabbitmq:3.9.29-management
+    scripted_test: docker.io/library/rabbitmq:3.13.0-management
     image_repo_sync: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
   pull_policy: "IfNotPresent"
@@ -36,6 +37,7 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
+
 # forceBoot: executes 'rabbitmqctl force_boot' to force boot on
 # cluster shut down unexpectedly in an unknown order.
 # ref: https://www.rabbitmq.com/rabbitmqctl.8.html#force_boot
@@ -186,6 +188,7 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+
 conf:
   enabled_plugins:
     - rabbitmq_management
@@ -231,6 +234,38 @@ conf:
   # To deploy with specific feature, separate each feature with comma
   # To deploy with all features disabled, leave blank or empty
   feature_flags: default
+  users: {}
+  # define users in the section below which have to be
+  # created by rabbitmq at start up stage through definitions.json
+  # file and enable job_users_create manifest.
+  #  users:
+  #    keystone_service:
+  #      auth:
+  #        keystone_username:
+  #          username: keystone
+  #          password: password
+  #      path: /keystone
+  aux_conf: {}
+  # aux_conf can be used to pass additional options to definitions.json, allowed keys are:
+  #           - policies
+  #           - bindings
+  #           - parameters
+  #           - queues
+  #           - exchanges
+  #          vhosts,users and permissions are created in users section of values.
+  #  aux_conf:
+  #    policies:
+  #      - vhost: "keystone"
+  #        name: "ha_ttl_keystone"
+  #        definition:
+  #          #mirror messges to other nodes in rmq cluster
+  #          ha-mode: "all"
+  #          ha-sync-mode: "automatic"
+  #          #70s
+  #          message-ttl: 70000
+  #        priority: 0
+  #        apply-to: all
+  #        pattern: '^(?!amq\.).*'
 dependencies:
   dynamic:
     common:
@@ -269,11 +304,13 @@ dependencies:
       services:
         - endpoint: internal
           service: local_image_registry
+
 monitoring:
   prometheus:
     enabled: false
     rabbitmq_exporter:
       scrape: true
+
 network:
   host_namespace: false
   management:
@@ -284,6 +321,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+
 secrets:
   oci_image_registry:
     rabbitmq: rabbitmq-oci-image-registry-key
@@ -291,6 +329,7 @@ secrets:
     oslo_messaging:
       server:
         internal: rabbitmq-tls-direct
+
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
@@ -345,6 +384,8 @@ endpoints:
       user:
         username: rabbitmq
         password: password
+      guest:
+        password: password
     hosts:
       default: rabbitmq
       # NOTE(portdirect): the public host is only used to the management WUI
@@ -396,6 +437,7 @@ endpoints:
       dns:
         default: 53
         protocol: UDP
+
 network_policy:
   prometheus_rabbitmq_exporter:
     ingress:
@@ -422,6 +464,7 @@ volume:
 # Hook break for helm2.
 # Set helm3_hook to false while using helm2
 helm3_hook: true
+
 io_thread_pool:
   enabled: false
   size: 64

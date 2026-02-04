@@ -14,10 +14,10 @@ This repository is divided into the following sections:
   - Service clients
   - Docker images
 
-- Helm charts (openstack-helm, openstack-helm-infra and stx-openstack-helm-fluxcd)
+- Helm charts (upstream/helm-charts/openstack-helm, upstream/helm-charts/ingress-nginx-helm and stx-openstack-helm-fluxcd)
 
   - Openstack Helm (openstack-helm)
-  - Openstack Helm Infra (openstack-helm-infra)
+  - NGINX Ingress Helm chart (ingress-nginx-helm)
   - STX-Openstack specific helm charts (stx-openstack-helm-fluxcd)
 
 - FluxCD manifests (stx-openstack-helm-fluxcd)
@@ -130,14 +130,13 @@ Example stx-openstackclients_:
 Helm Charts
 -----------
 
-The OpenStack community provides two upstream repositories delivering helm-charts
-for its services (openstack-helm_) and for its required infrastructure
-(openstack-helm-infra_).
+The OpenStack community provides an upstream repository delivering Helm charts
+for OpenStack services and their required infrastructure (openstack-helm_).
 
-Both repositories are used by STX-Openstack. Since it might be needed to control
-the version of Helm charts we are using and/or apply specific patches to the Helm
-charts source, both repositories points to a fixed base commit SHA and are
-delivered as any other StarlignX Debian package.
+This repository is used by STX-Openstack. Since it might be necessary to control
+the version of Helm charts being used and/or apply specific patches to the Helm
+chart sources, the repository points to a fixed base commit SHA and is delivered
+as any other StarlingX Debian package.
 
 The common approach when developing a patch for such Helm charts is to first
 understand if it is a StarlingX specific patch (i.e., for STX-Openstack use case
@@ -146,19 +145,23 @@ patch is described on the `StarlingX Debian package build structure docs. <BUILD
 
 Whenever it is a generic code enhancement, the approach is to create the patch to
 quickly fix the STX-Openstack issue/feature but also propose it upstream to the
-openstack-helm and/or openstack-helm-infra community. If the change is accepted,
-later it will be available on a newest base commit SHA, and when STX-Openstack
-uprevs its base version for such packages, the patch can be deleted.
+openstack-helm community. If the change is accepted, later it will be available
+on a newest base commit SHA, and when STX-Openstack uprevs its base version for
+the package, the patch can be deleted.
 
 There are also cases when the issue can be solved by simply changing the Helm
 override values for the chart, in that case, you can go for the static overrides
 route described in the "FluxCD Manifests" section below.
 
-Additionally, not all the Helm charts used by STX-Openstack are delivered by the
-OpenStack community as part of openstack-helm and openstack-helm-infra repositories.
-Some charts are custom to the application and are therefore developed/maintained
-by the StarlingX community itself.
-Such helm-charts can be found under `the stx-openstack-helm-fluxcd folder <STX-CHARTS>`__.
+In addition to the OpenStack Helm charts, STX-Openstack also consumes the NGINX
+Ingress Controller Helm chart from its upstream community. This chart follows
+the same general principles regarding version pinning, patching, and override
+management when used within STX-Openstack.
+
+Additionally, not all Helm charts used by STX-Openstack are delivered by upstream
+communities. Some charts are custom to the application and are therefore
+developed/maintained by the StarlingX community itself. Such helm-charts can be
+found under `the stx-openstack-helm-fluxcd folder <STX-CHARTS>`__.
 Currently the list contains the following charts:
 
 - Clients
@@ -266,7 +269,7 @@ This directory contains a series of examples for YAML overrides in order to cust
 .. _BUILD: https://wiki.openstack.org/wiki/StarlingX/DebianBuildStructure
 .. _SALSA: https://salsa.debian.org/openstack-team
 .. _openstack-helm: https://opendev.org/openstack/openstack-helm
-.. _openstack-helm-infra: https://opendev.org/openstack/openstack-helm-infra
+.. _ingress-nginx-helm: https://github.com/kubernetes/ingress-nginx
 .. _STX-CHARTS: https://opendev.org/starlingx/openstack-armada-app/src/branch/master/stx-openstack-helm-fluxcd/stx-openstack-helm-fluxcd/helm-charts
 .. _STX-O-APP-METADATA: https://opendev.org/starlingx/openstack-armada-app/src/branch/master/stx-openstack-helm-fluxcd/stx-openstack-helm-fluxcd/files/metadata.yaml
 .. _STX-O-APP-KUSTOMIZATION: https://opendev.org/starlingx/openstack-armada-app/src/branch/master/stx-openstack-helm-fluxcd/stx-openstack-helm-fluxcd/manifests/kustomization.yaml

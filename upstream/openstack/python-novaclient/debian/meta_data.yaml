@@ -1,13 +1,13 @@
 ---
 debname: python-novaclient
-debver: 18.6.0-3
+debver: 18.9.0-2
 dl_path:
-  name: python-novaclient-debian-18.6.0-3.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-novaclient/-/archive/debian/18.6.0-3/python-novaclient-debian-18.6.0-3.tar.gz
-  md5sum: 75b67344ba1a5404ed90737aead07d41
-  sha256sum: e189f8a62b4dd677ffceeb44f40fce4b54e067ced32631b066cd397c9167a335
+  name: python-novaclient-debian-18.9.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-novaclient/-/archive/debian/18.9.0-2/python-novaclient-debian-18.9.0-2.tar.gz
+  md5sum: a1a1c32c2d933676fdc83cbb98cbce8d
+  sha256sum: 1e79e9ef290b454e7ba9581c847536299c8ab662e8cbfbc5a9ecc843d85df314
 revision:
   dist: $STX_DIST
   GITREVCOUNT:
-    BASE_SRCREV: 27acda9a6b4885a50064cebc0858892e71aa37ce
+    BASE_SRCREV: eb92e8be5b4ba9bb489ad1369c3bc7b9276b0323
     SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-novaclient

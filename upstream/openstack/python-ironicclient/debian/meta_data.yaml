@@ -1,11 +1,11 @@
 ---
 debname: python-ironicclient
-debver: 5.5.0-3
+debver: 5.10.0-4
 dl_path:
-  name: python-ironicclient-debian-5.5.0-3.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-ironicclient/-/archive/debian/5.5.0-3/python-ironicclient-debian-5.5.0-3.tar.gz
-  md5sum: 341121cad820191cfda5d7c9a7f13677
-  sha256sum: d735218ea24256fb20255015c50603d761a0adf5b088716e571a3063a5c478c3
+  name: python-ironicclient-debian-5.10.0-4.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-ironicclient/-/archive/debian/5.10.0-4/python-ironicclient-debian-5.10.0-4.tar.gz
+  md5sum: f6faf164d1b4664c52c67284b3ec5ca7
+  sha256sum: 4b2192258c82a9bd16a044683a5e86956f488437a79ff61b4eeb271753c6188d
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

@@ -5,7 +5,6 @@ Maintainer: StarlingX Developers <starlingx-discuss@lists.starlingx.io>
 Build-Depends: debhelper-compat (= 13),
  chartmuseum,
  helm,
- openstack-helm-infra,
  openstack-helm,
  procps,
  python3-k8sapp-openstack-wheels,
@@ -17,7 +16,6 @@ Package: stx-openstack-helm-fluxcd
 Section: libs
 Architecture: all
 Depends: ${misc:Depends},
- openstack-helm-infra,
  openstack-helm,
  python3-k8sapp-openstack-wheels,
  ingress-nginx-helm

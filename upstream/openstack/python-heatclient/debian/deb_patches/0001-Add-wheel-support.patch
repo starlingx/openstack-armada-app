@@ -1,4 +1,4 @@
-From da246ea09aaa25ffdc82875349005d1ec22d347a Mon Sep 17 00:00:00 2001
+From aa2bb833aeb81bd9ab712f741db003cba3848dbd Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Wed, 27 Oct 2021 12:29:52 +0000
 Subject: [PATCH] Add wheel support
@@ -6,6 +6,9 @@ Subject: [PATCH] Add wheel support
 Add python3-heatclient-wheel package.
 
 Signed-off-by: Charles Short <charles.short@windriver.com>
+
+[Ported to python-heatclient v4.1.0-3 @ Epoxy]
+Signed-off-by: jbarboza <joaopedro.barbozalioneza@windriver.com>
 ---
  debian/control | 17 +++++++++++++++++
  debian/rules   |  2 +-
@@ -42,13 +45,13 @@ index 6ddd5de..e6ffb06 100755
 +++ b/debian/rules
 @@ -14,7 +14,7 @@ override_dh_auto_build:
  	echo "Do nothing..."
-
+ 
  override_dh_auto_install:
 -	pkgos-dh_auto_install --no-py2 --in-tmp
 +	pkgos-dh_auto_install --no-py2 --in-tmp --wheel
-
+ 
  ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
  	PYTHONPATH=$(CURDIR)/debian/tmp/usr/lib/python3/dist-packages pkgos-dh_auto_test --no-py2
---
+-- 
 2.34.1
 

@@ -1,4 +1,4 @@
-From 20cc3794d0ccd4bd1c696bed7f7ec2dcdfb09fe0 Mon Sep 17 00:00:00 2001
+From ca8aa728a757b79de0f7443c99348669792c1a64 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
 Date: Tue, 26 Oct 2021 16:59:10 +0000
 Subject: [PATCH] Add wheel support
@@ -8,16 +8,18 @@ Add python3-novaclient-wheel package.
 Signed-off-by: Charles Short <charles.short@windriver.com>
 [Fix merge conflicts from Antelope to Caracal]
 Signed-off-by: vrochalo <vinicius.rochalobo@windriver.com>
+[Ported this patch to python-novaclient v18.9.0-2 @ Epoxy]
+Signed-off-by: Murillo Arantes <murillo.arantes@windriver.com>
 ---
  debian/control | 18 ++++++++++++++++++
  debian/rules   |  2 +-
  2 files changed, 19 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index 6e05d934..9c18db96 100644
+index 6237672b..b0a58f00 100644
 --- a/debian/control
 +++ b/debian/control
-@@ -91,3 +91,21 @@ Description: client library for OpenStack Compute API - 3.x
+@@ -90,3 +90,21 @@ Description: client library for OpenStack Compute API - 3.x
   Compute (Nova) through the OpenStack Compute API.
   .
   This package provides the Python 3.x module.
@@ -40,7 +42,7 @@ index 6e05d934..9c18db96 100644
 + .
 + This package contains the Python3 Wheel.
 diff --git a/debian/rules b/debian/rules
-index 364e3527..842222bc 100755
+index 4dd77a13..ff895a13 100755
 --- a/debian/rules
 +++ b/debian/rules
 @@ -14,7 +14,7 @@ override_dh_auto_build:

@@ -16,7 +16,7 @@ spec:
   chart:
     spec:
       chart: garbd
-      version: 0.2.0
+      version: 2025.1.0
       sourceRef:
         kind: HelmRepository
         name: starlingx

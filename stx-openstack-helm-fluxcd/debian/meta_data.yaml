@@ -7,5 +7,5 @@ src_files:
 revision:
   dist: $STX_DIST
   GITREVCOUNT:
-    BASE_SRCREV: daef54697f354ca8fda128c46e50771f8ee7eb45
+    BASE_SRCREV: 10ebb85a976fe7c81c6cb75d3b0e60145d927e4d
     SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/stx-openstack-helm-fluxcd

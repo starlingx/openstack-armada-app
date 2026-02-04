@@ -1,0 +1,1045 @@
+From a378cbea96985e35c3b8d6bc6df1551e0cf9435b Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Tue, 19 Aug 2024 14:28:05 -0300
+Subject: [PATCH] Add pre-apply cleanup Job to STX-O Helm charts
+
+After verification, it was noted that it is not possible
+to reapply STX-Openstack after a helm-override that changes
+a job template since the template section of job is
+immutable or not updatable
+
+Due to the use of kubernetes-entrypoint DEPENDENCY_JOBS it was
+also noted that deleting the jobs after the application is applied
+it is not an option. If this happened, the application would not
+come back after a host reboot.
+
+This patch creates a Job template that runs right before the Helm
+chart is installed ou updated. This Job deletes all jobs that have
+its status as completed.
+
+[ Upversioned openstack-helm-infra base commit to Caracal ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Adapt openstack-helm-infra patches to Epoxy release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Merged similar patches under new OSH package]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+---
+ aodh/templates/job-pre-apply-cleanup.yaml     | 18 ++++
+ aodh/values.yaml                              |  2 +
+ barbican/templates/job-pre-apply-cleanup.yaml | 18 ++++
+ barbican/values.yaml                          |  2 +
+ .../templates/job-pre-apply-cleanup.yaml      | 18 ++++
+ ceilometer/values.yaml                        |  2 +
+ ceph-rgw/templates/job-pre-apply-cleanup.yaml | 18 ++++
+ ceph-rgw/values.yaml                          |  2 +
+ cinder/templates/job-pre-apply-cleanup.yaml   | 18 ++++
+ cinder/values.yaml                            |  2 +
+ glance/templates/job-pre-apply-cleanup.yaml   | 18 ++++
+ glance/values.yaml                            |  2 +
+ gnocchi/templates/job-pre-apply-cleanup.yaml  | 18 ++++
+ gnocchi/values.yaml                           |  2 +
+ heat/templates/job-pre-apply-cleanup.yaml     | 18 ++++
+ heat/values.yaml                              |  2 +
+ .../manifests/_job-pre-apply-cleanup.tpl      | 93 +++++++++++++++++++
+ horizon/templates/job-pre-apply-cleanup.yaml  | 18 ++++
+ horizon/values.yaml                           |  2 +
+ ironic/templates/job-pre-apply-cleanup.yaml   | 18 ++++
+ ironic/values.yaml                            |  2 +
+ keystone/templates/job-pre-apply-cleanup.yaml | 18 ++++
+ keystone/values.yaml                          |  2 +
+ libvirt/templates/job-pre-apply-cleanup.yaml  | 18 ++++
+ libvirt/values.yaml                           |  2 +
+ mariadb/templates/job-pre-apply-cleanup.yaml  | 18 ++++
+ mariadb/values.yaml                           |  2 +
+ .../templates/job-pre-apply-cleanup.yaml      | 18 ++++
+ memcached/values.yaml                         |  2 +
+ neutron/templates/job-pre-apply-cleanup.yaml  | 18 ++++
+ neutron/values.yaml                           |  2 +
+ nova/templates/job-pre-apply-cleanup.yaml     | 18 ++++
+ nova/values.yaml                              |  2 +
+ .../templates/job-pre-apply-cleanup.yaml      | 18 ++++
+ openvswitch/values.yaml                       |  2 +
+ .../templates/job-pre-apply-cleanup.yaml      | 18 ++++
+ placement/values.yaml                         |  2 +
+ rabbitmq/templates/job-pre-apply-cleanup.yaml | 18 ++++
+ rabbitmq/values.yaml                          |  2 +
+ 39 files changed, 473 insertions(+)
+ create mode 100644 aodh/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 barbican/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 ceilometer/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 ceph-rgw/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 cinder/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 glance/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 gnocchi/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 heat/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 helm-toolkit/templates/manifests/_job-pre-apply-cleanup.tpl
+ create mode 100644 horizon/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 ironic/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 keystone/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 libvirt/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 mariadb/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 memcached/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 neutron/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 nova/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 openvswitch/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 placement/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 rabbitmq/templates/job-pre-apply-cleanup.yaml
+
+diff --git a/aodh/templates/job-pre-apply-cleanup.yaml b/aodh/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..ba0f0df36
+--- /dev/null
++++ b/aodh/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "aodh" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/aodh/values.yaml b/aodh/values.yaml
+index 56882dcc9..10608103f 100644
+--- a/aodh/values.yaml
++++ b/aodh/values.yaml
+@@ -59,6 +59,7 @@ images:
+     aodh_alarms_cleaner: docker.io/kolla/ubuntu-source-aodh-base:ocata
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -727,6 +728,7 @@ manifests:
+   deployment_listener: true
+   deployment_notifier: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_db_drop: false
+   job_db_init: true
+diff --git a/barbican/templates/job-pre-apply-cleanup.yaml b/barbican/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..5755d4ec4
+--- /dev/null
++++ b/barbican/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "barbican" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/barbican/values.yaml b/barbican/values.yaml
+index 4264341bb..0f7a1c96f 100644
+--- a/barbican/values.yaml
++++ b/barbican/values.yaml
+@@ -48,6 +48,7 @@ images:
+     barbican_api: quay.io/airshipit/barbican:2024.1-ubuntu_jammy
+     rabbit_init: docker.io/rabbitmq:3.13-management
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -730,6 +731,7 @@ manifests:
+   configmap_etc: true
+   deployment_api: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_db_init: true
+   job_db_sync: true
+diff --git a/ceilometer/templates/job-pre-apply-cleanup.yaml b/ceilometer/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..1900b9d8e
+--- /dev/null
++++ b/ceilometer/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "ceilometer" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
+index 54d449d93..4235ede04 100644
+--- a/ceilometer/values.yaml
++++ b/ceilometer/values.yaml
+@@ -63,6 +63,7 @@ images:
+     ceilometer_notification: docker.io/kolla/ubuntu-source-ceilometer-notification:wallaby
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -2128,6 +2129,7 @@ manifests:
+   daemonset_ipmi: false
+   deployment_notification: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_db_drop: false
+   job_db_init: true
+diff --git a/ceph-rgw/templates/job-pre-apply-cleanup.yaml b/ceph-rgw/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..2a1d6d91e
+--- /dev/null
++++ b/ceph-rgw/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "ceph-rgw" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/ceph-rgw/values.yaml b/ceph-rgw/values.yaml
+index abf9d618c..02f69e092 100644
+--- a/ceph-rgw/values.yaml
++++ b/ceph-rgw/values.yaml
+@@ -35,6 +35,7 @@ images:
+     ks_endpoints: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
+     ks_service: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
+     ks_user: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
++    pre_apply_cleanup: 'docker.io/starlingx/stx-vault-manager:master-debian-stable-latest'
+   local_registry:
+     active: false
+     exclude:
+@@ -724,6 +725,7 @@ manifests:
+   configmap_etc: true
+   deployment_rgw: true
+   ingress_rgw: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: false
+   job_rgw_restart: false
+   job_ceph_rgw_storage_init: true
+diff --git a/cinder/templates/job-pre-apply-cleanup.yaml b/cinder/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..db570af64
+--- /dev/null
++++ b/cinder/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "cinder" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 5246c20f8..8179fc8f6 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -61,6 +61,7 @@ images:
+     cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -1479,6 +1480,7 @@ manifests:
+   deployment_scheduler: true
+   deployment_volume: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_backup_storage_init: true
+   job_bootstrap: true
+   job_clean: true
+diff --git a/glance/templates/job-pre-apply-cleanup.yaml b/glance/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..2e4f2e11f
+--- /dev/null
++++ b/glance/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "glance" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/glance/values.yaml b/glance/values.yaml
+index 31a0cafe7..9318db0eb 100644
+--- a/glance/values.yaml
++++ b/glance/values.yaml
+@@ -50,6 +50,7 @@ images:
+     bootstrap: quay.io/airshipit/heat:2024.1-ubuntu_jammy
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -1047,6 +1048,7 @@ manifests:
+   configmap_etc: true
+   deployment_api: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_clean: true
+   job_db_init: true
+diff --git a/gnocchi/templates/job-pre-apply-cleanup.yaml b/gnocchi/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..0e4424dae
+--- /dev/null
++++ b/gnocchi/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "gnocchi" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
+index 4454e7d8c..7fd8ce5e3 100644
+--- a/gnocchi/values.yaml
++++ b/gnocchi/values.yaml
+@@ -52,6 +52,7 @@ images:
+     gnocchi_metricd: quay.io/attcomdev/ubuntu-source-gnocchi-metricd:3.0.3
+     gnocchi_resources_cleaner: quay.io/attcomdev/ubuntu-source-gnocchi-base:3.0.3
+     image_repo_sync: docker.io/library/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -639,6 +640,7 @@ manifests:
+   daemonset_statsd: true
+   deployment_api: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_clean: true
+   job_db_drop: false
+diff --git a/heat/templates/job-pre-apply-cleanup.yaml b/heat/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..be97d27d5
+--- /dev/null
++++ b/heat/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "heat" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/heat/values.yaml b/heat/values.yaml
+index 814f62aa6..356fa084a 100644
+--- a/heat/values.yaml
++++ b/heat/values.yaml
+@@ -58,6 +58,7 @@ images:
+     heat_purge_deleted: quay.io/airshipit/heat:2024.1-ubuntu_jammy
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -1293,6 +1294,7 @@ manifests:
+   ingress_api: true
+   ingress_cfn: true
+   ingress_cloudwatch: false
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_db_init: true
+   job_db_sync: true
+diff --git a/helm-toolkit/templates/manifests/_job-pre-apply-cleanup.tpl b/helm-toolkit/templates/manifests/_job-pre-apply-cleanup.tpl
+new file mode 100644
+index 000000000..84f88bfca
+--- /dev/null
++++ b/helm-toolkit/templates/manifests/_job-pre-apply-cleanup.tpl
+@@ -0,0 +1,93 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++# This function creates a manifest for keystone user management.
++# It can be used in charts dict created similar to the following:
++# {- $ksUserJob := dict "envAll" . "serviceName" "senlin" }
++# { $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }
++
++
++{{- define "helm-toolkit.manifests.job_pre_apply_cleanup" -}}
++{{- $envAll := index . "envAll" -}}
++{{- $serviceName := index . "serviceName" -}}
++
++{{- $serviceNamePretty := $serviceName | replace "_" "-" -}}
++
++{{- $serviceAccountName := printf "%s-%s" $serviceNamePretty "pre-apply-cleanup" }}
++---
++apiVersion: v1
++kind: ServiceAccount
++metadata:
++  name: {{ $serviceAccountName }}
++  namespace: {{ $envAll.Release.Namespace }}
++  annotations:
++      "helm.sh/hook": pre-install
++      "helm.sh/hook-weight": "-8"
++imagePullSecrets:
++  - name: default-registry-key
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: Role
++metadata:
++  name: {{ $serviceAccountName }}
++rules:
++- apiGroups:
++    - batch
++  resources:
++    - jobs
++  verbs:
++    - "*"
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: RoleBinding
++metadata:
++  name: {{ $serviceAccountName }}
++subjects:
++- kind: ServiceAccount
++  name: {{ $serviceAccountName }}
++  namespace: {{ $envAll.Release.Namespace }}
++roleRef:
++  kind: Role
++  name: {{ $serviceAccountName }}
++  apiGroup: rbac.authorization.k8s.io
++---
++apiVersion: batch/v1
++kind: Job
++metadata:
++  name: {{ printf "%s-%s" $serviceNamePretty "pre-apply-cleanup" | quote }}
++  annotations:
++    "helm.sh/hook": pre-install,pre-upgrade
++    "helm.sh/hook-weight": "-7"
++spec:
++  ttlSecondsAfterFinished: 200
++  template:
++    metadata:
++      labels:
++        app.starlingx.io/component: {{ if $envAll.Values.labels.isApplication }}{{ ternary "application" "platform" $envAll.Values.labels.isApplication }}{{ else }}platform{{ end }}
++      {{- if $envAll.Values.labels.isApplication }}
++      annotations:
++        configchecksum: {{ toYaml $envAll.Values.labels.isApplication | sha256sum | trunc 63 }}
++      {{- end }}
++    spec:
++      serviceAccountName: {{ $serviceAccountName }}
++      containers:
++      - name: cleanup
++        image: {{ $envAll.Values.images.tags.pre_apply_cleanup }}
++        imagePullPolicy: {{ $envAll.Values.images.pull_policy }}
++        command: ["sh", "-c", "
++          for job in $(kubectl get jobs -n openstack -l 'release_group=osh-openstack-{{ $serviceNamePretty }}' -o jsonpath='{.items[?(@.status.succeeded==1)].metadata.name}'); do
++            kubectl delete job $job -n openstack;
++          done"]
++      restartPolicy: OnFailure
++{{- end }}
+\ No newline at end of file
+diff --git a/horizon/templates/job-pre-apply-cleanup.yaml b/horizon/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..258ad6f39
+--- /dev/null
++++ b/horizon/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "horizon" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/horizon/values.yaml b/horizon/values.yaml
+index 1146acfac..cb55a480c 100644
+--- a/horizon/values.yaml
++++ b/horizon/values.yaml
+@@ -25,6 +25,7 @@ images:
+     test: docker.io/openstackhelm/osh-selenium:latest-ubuntu_jammy
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -1394,6 +1395,7 @@ manifests:
+   configmap_logo: false
+   deployment: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_db_init: true
+   job_db_sync: true
+   job_db_drop: false
+diff --git a/ironic/templates/job-pre-apply-cleanup.yaml b/ironic/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..34c6af542
+--- /dev/null
++++ b/ironic/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "ironic" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/ironic/values.yaml b/ironic/values.yaml
+index fb3e01f39..d35b3bed5 100644
+--- a/ironic/values.yaml
++++ b/ironic/values.yaml
+@@ -53,6 +53,7 @@ images:
+     ironic_pxe_http: docker.io/nginx:1.13.3
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -808,6 +809,7 @@ manifests:
+   configmap_etc: true
+   deployment_api: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_db_drop: false
+   job_db_init: true
+diff --git a/keystone/templates/job-pre-apply-cleanup.yaml b/keystone/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..259ef91f7
+--- /dev/null
++++ b/keystone/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "keystone" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/keystone/values.yaml b/keystone/values.yaml
+index e642d1cb4..7e43fd64c 100644
+--- a/keystone/values.yaml
++++ b/keystone/values.yaml
+@@ -52,6 +52,7 @@ images:
+     keystone_domain_manage: quay.io/airshipit/keystone:2024.1-ubuntu_jammy
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -1125,6 +1126,7 @@ manifests:
+   cron_fernet_rotate: true
+   deployment_api: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_credential_cleanup: true
+   job_credential_setup: true
+diff --git a/libvirt/templates/job-pre-apply-cleanup.yaml b/libvirt/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..7c44fd2b2
+--- /dev/null
++++ b/libvirt/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "libvirt" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/libvirt/values.yaml b/libvirt/values.yaml
+index 6fa3619c2..47511663a 100644
+--- a/libvirt/values.yaml
++++ b/libvirt/values.yaml
+@@ -33,6 +33,7 @@ images:
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/library/docker:17.07.0
+     kubectl: docker.io/bitnami/kubectl:latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -400,6 +401,7 @@ manifests:
+   configmap_bin: true
+   configmap_etc: true
+   daemonset_libvirt: true
++  job_pre_apply_cleanup: true
+   job_image_repo_sync: true
+   network_policy: false
+   role_cert_manager: false
+diff --git a/mariadb/templates/job-pre-apply-cleanup.yaml b/mariadb/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..4c2cef3bb
+--- /dev/null
++++ b/mariadb/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "mariadb" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index c0e30a040..581e358a3 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -30,6 +30,7 @@ images:
+     ks_user: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
+     scripted_test: docker.io/openstackhelm/mariadb:ubuntu_focal-20210415
+     mariadb_controller: docker.io/openstackhelm/mariadb:latest-ubuntu_jammy
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -708,6 +709,7 @@ manifests:
+   configmap_bin: true
+   configmap_etc: true
+   configmap_services_tcp: true
++  job_pre_apply_cleanup: true
+   job_image_repo_sync: true
+   cron_job_mariadb_backup: false
+   job_ks_user: false
+diff --git a/memcached/templates/job-pre-apply-cleanup.yaml b/memcached/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..f2d125787
+--- /dev/null
++++ b/memcached/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "memcached" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/memcached/values.yaml b/memcached/values.yaml
+index b56313100..38cba6d14 100644
+--- a/memcached/values.yaml
++++ b/memcached/values.yaml
+@@ -126,6 +126,7 @@ images:
+     memcached: 'docker.io/library/memcached:1.5.5'
+     prometheus_memcached_exporter: docker.io/prom/memcached-exporter:v0.4.1
+     image_repo_sync: docker.io/library/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   local_registry:
+     active: false
+     exclude:
+@@ -141,6 +142,7 @@ labels:
+ manifests:
+   configmap_bin: true
+   statefulset: true
++  job_pre_apply_cleanup: true
+   job_image_repo_sync: true
+   network_policy: false
+   service: true
+diff --git a/neutron/templates/job-pre-apply-cleanup.yaml b/neutron/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..6fd7c757b
+--- /dev/null
++++ b/neutron/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "neutron" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/neutron/values.yaml b/neutron/values.yaml
+index 688613ce7..6a1a3d243 100644
+--- a/neutron/values.yaml
++++ b/neutron/values.yaml
+@@ -49,6 +49,7 @@ images:
+     neutron_netns_cleanup_cron: quay.io/airshipit/neutron:2024.1-ubuntu_jammy
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -2656,6 +2657,7 @@ manifests:
+   deployment_server: true
+   deployment_rpc_server: true
+   ingress_server: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_db_init: true
+   job_db_sync: true
+diff --git a/nova/templates/job-pre-apply-cleanup.yaml b/nova/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..0eb2fbaa2
+--- /dev/null
++++ b/nova/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "nova" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/nova/values.yaml b/nova/values.yaml
+index ba5f5bb74..0551266ea 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -88,6 +88,7 @@ images:
+     test: docker.io/xrally/xrally-openstack:2.0.0
+     image_repo_sync: docker.io/docker:17.07.0
+     nova_wait_for_computes_init: gcr.io/google_containers/hyperkube-amd64:v1.11.6
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   local_registry:
+     active: false
+     exclude:
+@@ -2665,6 +2666,7 @@ manifests:
+   ingress_serialproxy: true
+   ingress_spiceproxy: true
+   ingress_osapi: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_storage_init: true
+   job_db_init: true
+diff --git a/openvswitch/templates/job-pre-apply-cleanup.yaml b/openvswitch/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..3a29b2391
+--- /dev/null
++++ b/openvswitch/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "openvswitch" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/openvswitch/values.yaml b/openvswitch/values.yaml
+index 5f9ee7d57..351b351af 100644
+--- a/openvswitch/values.yaml
++++ b/openvswitch/values.yaml
+@@ -24,6 +24,7 @@ images:
+     openvswitch_vswitchd: docker.io/openstackhelm/openvswitch:latest-ubuntu_focal
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/library/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -206,6 +207,7 @@ manifests:
+   configmap_bin: true
+   daemonset: true
+   daemonset_ovs_vswitchd: true
++  job_pre_apply_cleanup: true
+   job_image_repo_sync: true
+   network_policy: false
+   secret_registry: true
+diff --git a/placement/templates/job-pre-apply-cleanup.yaml b/placement/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..6cbf5c847
+--- /dev/null
++++ b/placement/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "placement" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/placement/values.yaml b/placement/values.yaml
+index 66df39ed3..dd0ee4e07 100644
+--- a/placement/values.yaml
++++ b/placement/values.yaml
+@@ -40,6 +40,7 @@ images:
+     placement_db_sync: quay.io/airshipit/placement:2024.1-ubuntu_jammy
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   local_registry:
+     active: false
+     exclude:
+@@ -451,6 +452,7 @@ manifests:
+   configmap_bin: true
+   configmap_etc: true
+   deployment: true
++  job_pre_apply_cleanup: true
+   job_image_repo_sync: true
+   job_db_init: true
+   job_db_sync: true
+diff --git a/rabbitmq/templates/job-pre-apply-cleanup.yaml b/rabbitmq/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..428d7c01e
+--- /dev/null
++++ b/rabbitmq/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "rabbitmq" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
+index 1f8f44174..bfd996325 100644
+--- a/rabbitmq/values.yaml
++++ b/rabbitmq/values.yaml
+@@ -40,6 +40,7 @@ images:
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     scripted_test: docker.io/library/rabbitmq:3.13.0-management
+     image_repo_sync: docker.io/library/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -480,6 +481,7 @@ manifests:
+   configmap_etc: true
+   config_ipv6: false
+   ingress_management: true
++  job_pre_apply_cleanup: true
+   job_cluster_wait: true
+   job_image_repo_sync: true
+   monitoring:
+-- 
+2.34.1
+

@@ -451,6 +451,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             } | netaapp_credentials | netapp_storage_configs
             if backend == app_constants.NETAPP_NFS_BACKEND_NAME:
                 backend_overrides[backend] |= nfs_constant_configs
+            elif ((backend == app_constants.NETAPP_ISCSI_BACKEND_NAME) or
+                  (backend == app_constants.NETAPP_FC_BACKEND_NAME)):
+                backend_overrides[backend]['netapp_pool_name_search_pattern'] = \
+                    app_constants.NETAPP_SAN_POOL_PATTERN
 
         # TODO: For full FC support, we'll need to include Zoning config, as it's described
         # in the documentation

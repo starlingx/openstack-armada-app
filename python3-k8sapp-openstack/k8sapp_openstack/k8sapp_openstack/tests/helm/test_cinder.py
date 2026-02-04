@@ -10,6 +10,7 @@ from sysinv.helm import common
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
 from sysinv.tests.helm import base
+import testtools
 import tsconfig.tsconfig as tsc
 
 from k8sapp_openstack.common import constants as app_constants
@@ -848,3 +849,31 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         default_backup_driver = overrides['conf']['cinder']['DEFAULT']['backup_driver']
 
         assert default_backup_driver == app_constants.NETAPP_ISCSI_BACKUP_DRIVER
+
+
+class CinderHelmTestCase(testtools.TestCase):
+
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_credentials',
+        return_value={"netapp_login": "user", "netapp_password": "pwd"}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_configs',
+        return_value={"netapp_vserver": "svm_nfs"}
+    )
+    def test_san_pool_name_search_pattern(self, *_):
+        ch = cinder.CinderHelm(None)
+
+        def check_nsp_override(backend, has_nsp):
+            ch.available_netapp_backends = [backend]
+            overrides = ch._get_conf_netapp_backends_overrides({})
+            if has_nsp:
+                self.assertIn('netapp_pool_name_search_pattern', overrides[backend])
+                self.assertEqual(app_constants.NETAPP_SAN_POOL_PATTERN,
+                                 overrides[backend]['netapp_pool_name_search_pattern'])
+            else:
+                self.assertNotIn('netapp_pool_name_search_pattern', overrides[backend])
+
+        check_nsp_override(app_constants.NETAPP_NFS_BACKEND_NAME, False)
+        check_nsp_override(app_constants.NETAPP_ISCSI_BACKEND_NAME, True)
+        check_nsp_override(app_constants.NETAPP_FC_BACKEND_NAME, True)

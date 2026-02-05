@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# Placeholder  for the OSH metadata
-=======
 ---
 debname: openstack-helm
 debver: 2025.1-0
@@ -18,4 +15,3 @@ revision:
   GITREVCOUNT:
     BASE_SRCREV: 0a50ff4f895fb2d20122c23019f76d08d885a12f
     SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/helm-charts/openstack-helm/files
->>>>>>> d2bf7d1dc01f15bcebc6d8f0d9c868607c121749

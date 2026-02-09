@@ -258,6 +258,21 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         self.assertIn("public", result)
         self.assertIn("host", result["public"])
 
+    @mock.patch('k8sapp_openstack.utils.get_services_fqdn_pattern',
+                return_value="{service_name}.{endpoint_domain}")
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_endpoint_public_tls',
+                return_value={'crt': "fake", 'key': "fake", 'ca': "fake"})
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_parameter',
+                return_value=mock.Mock(value="domain.com"))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._is_openstack_https_ready',
+                return_value=True)
+    def test_get_endpoints_host_fqdn_https_overrides(self, *_):
+        """Tests the retrieval of service hostnames when HTTPS is enabled."""
+        result = self.helm._get_endpoints_host_fqdn_overrides(app_constants.HELM_CHART_KEYSTONE)
+        self.assertIn("public", result)
+        self.assertIn("host", result["public"])
+        self.assertIn("tls", result["public"])
+
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_keyring_password',
                 return_value=b"pw")
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.context', new={})

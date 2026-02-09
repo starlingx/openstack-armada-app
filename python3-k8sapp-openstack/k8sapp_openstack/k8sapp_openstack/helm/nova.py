@@ -69,6 +69,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     AUTH_USERS = ['nova']
     SERVICE_USERS = ['neutron', 'ironic', 'placement', 'cinder']
     NOVNCPROXY_SERVICE_NAME = 'novncproxy'
+    NOVNCPROXY_TLS_NAME = 'nova-novncproxy'
     NOVNCPROXY_NODE_PORT = '30680'
 
     def __init__(self, operator):
@@ -210,7 +211,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             },
             'compute': {
                 'host_fqdn_override':
-                    self._get_endpoints_host_fqdn_overrides(self.SERVICE_FQDN),
+                    self._get_endpoints_host_fqdn_overrides(
+                        self.SERVICE_FQDN, self.SERVICE_NAME),
 
                 'port': self._get_endpoints_port_api_public_overrides(),
                 'scheme': self._get_endpoints_scheme_public_overrides(),
@@ -218,7 +220,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             'compute_novnc_proxy': {
                 'host_fqdn_override':
                     self._get_endpoints_host_fqdn_overrides(
-                        self.NOVNCPROXY_SERVICE_NAME),
+                        self.NOVNCPROXY_SERVICE_NAME, self.NOVNCPROXY_TLS_NAME),
                 'port': self._get_endpoints_port_api_public_overrides(),
                 'scheme': self._get_endpoints_scheme_public_overrides(),
             },

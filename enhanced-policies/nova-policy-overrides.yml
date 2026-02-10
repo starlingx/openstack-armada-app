@@ -50,6 +50,7 @@ conf:
         os_compute_api:server-metadata:update_all: rule:admin_or_projectadmin_owner
         os_compute_api:servers:confirm_resize: rule:admin_or_projectadmin_owner
         os_compute_api:servers:create: rule:admin_or_projectmember_owner
+        os_compute_api:servers:create:attach_volume: rule:admin_or_projectmember_owner
         os_compute_api:servers:create_image: rule:admin_or_projectadmin_owner
         os_compute_api:servers:delete: rule:admin_or_projectadmin_owner
         os_compute_api:servers:detail: rule:admin_or_projectreadonly_required

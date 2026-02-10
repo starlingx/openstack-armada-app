@@ -207,6 +207,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         lifecycle_utils.delete_persistent_volume_claim(app_op, common.HELM_NS_OPENSTACK)
         lifecycle_utils.delete_configmap(app_op, common.HELM_NS_OPENSTACK, self.APP_OPENSTACK_RESOURCE_CONFIG_MAP)
         app_utils.delete_dex_secret()
+        app_utils.delete_netapp_ca_cert_secret()
         lifecycle_utils.delete_namespace(app_op, common.HELM_NS_OPENSTACK)
 
         # Perform post remove LDAP-related actions.
@@ -243,6 +244,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
             # Create secret containing dex integration credentials
             app_utils.pre_apply_create_dex_resources_secret(kube)
+
+            # Create secret containing NetApp CA certificate for TLS connections
+            app_utils.create_netapp_ca_cert_secret(kube)
         except Exception as e:
             LOG.error(e)
             raise

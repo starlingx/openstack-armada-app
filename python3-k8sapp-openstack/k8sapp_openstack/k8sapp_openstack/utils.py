@@ -2651,6 +2651,103 @@ def delete_dex_secret():
             in the {app_constants.HELM_NS_OPENSTACK}. Skipping deletion")
 
 
+def create_netapp_ca_cert_secret(kube):
+    """
+    Create or update a Kubernetes secret containing the NetApp CA certificate.
+
+    Reads the certificate from the host filesystem and stores it as a K8s secret,
+    making it available across all controllers without requiring the file on each.
+
+    Args:
+        kube: Kubernetes operator instance.
+
+    """
+    host_cert = _get_value_from_application(
+        default_value=app_constants.NETAPP_TLS_DEFAULT_HOST_CERT,
+        chart_name=app_constants.HELM_CHART_CINDER,
+        override_name=app_constants.OVERRIDE_NETAPP_TLS_HOST_CERT
+    )
+
+    if not host_cert or not os.path.isfile(host_cert):
+        LOG.info(
+            f"NetApp CA certificate not found at '{host_cert}'. "
+            "Secret will not be created."
+        )
+        return
+
+    try:
+        with open(host_cert, 'r') as cert_file:
+            cert_content = cert_file.read()
+    except IOError as e:
+        LOG.warning(f"Failed to read NetApp CA certificate from '{host_cert}': {e}")
+        return
+
+    if not cert_content.strip():
+        LOG.warning(f"NetApp CA certificate at '{host_cert}' is empty. Skipping secret creation.")
+        return
+
+    secret_name = app_constants.NETAPP_CA_CERT_SECRET_NAME
+    secret_key = app_constants.NETAPP_CA_CERT_SECRET_KEY
+    namespace = app_constants.HELM_NS_OPENSTACK
+
+    secret_exists = kube.kube_get_secret(secret_name, namespace)
+
+    secret_body = {
+        'apiVersion': kubernetes.CERT_MANAGER_VERSION,
+        'kind': 'Secret',
+        'metadata': {
+            'name': secret_name,
+            'namespace': namespace
+        },
+        'type': constants.K8S_SECRET_TYPE_OPAQUE,
+        'data': {
+            secret_key: base64.encode_as_text(cert_content.encode()),
+        }
+    }
+
+    try:
+        if secret_exists:
+            kube.kube_patch_secret(secret_name, namespace, secret_body)
+            LOG.info(f"Secret {secret_name} updated with NetApp CA certificate")
+        else:
+            kube.kube_create_secret(namespace, secret_body)
+            LOG.info(f"Secret {secret_name} created with NetApp CA certificate")
+    except Exception as e:
+        LOG.error(f"Failed to create/update NetApp CA certificate secret: {e}")
+
+
+def delete_netapp_ca_cert_secret():
+    """Delete the NetApp CA certificate secret from the OpenStack namespace."""
+    kube = kubernetes.KubeOperator()
+    secret_name = app_constants.NETAPP_CA_CERT_SECRET_NAME
+    namespace = app_constants.HELM_NS_OPENSTACK
+
+    secret = kube.kube_get_secret(secret_name, namespace)
+
+    if secret:
+        kube.kube_delete_secret(secret_name, namespace)
+        LOG.info(f"Secret {secret_name} deleted from {namespace} namespace")
+    else:
+        LOG.info(
+            f"Secret {secret_name} is not present in the {namespace} namespace. "
+            "Skipping deletion."
+        )
+
+
+def is_netapp_ca_cert_secret_available() -> bool:
+    """Check if the NetApp CA certificate secret exists in the OpenStack namespace."""
+    try:
+        kube = kubernetes.KubeOperator()
+        secret = kube.kube_get_secret(
+            app_constants.NETAPP_CA_CERT_SECRET_NAME,
+            app_constants.HELM_NS_OPENSTACK
+        )
+        return secret is not None
+    except Exception as e:
+        LOG.error(f"Error checking NetApp CA certificate secret: {e}")
+        return False
+
+
 def get_endpoint_domain(dbapi) -> str:
     """
     This function queries the StarlingX system database for the value

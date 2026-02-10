@@ -211,6 +211,10 @@ NETAPP_TLS_DEFAULT_CONTAINER_CERT = '/usr/lib/ssl/cert.pem'
 OVERRIDE_NETAPP_TLS_HOST_CERT = 'storage_conf.netapp_tls.host_cert'
 OVERRIDE_NETAPP_TLS_CONTAINER_CERT = 'storage_conf.netapp_tls.container_cert'
 
+# NetApp CA Certificate Kubernetes Secret
+NETAPP_CA_CERT_SECRET_NAME = "netapp-ca-cert"
+NETAPP_CA_CERT_SECRET_KEY = "ca.crt"
+
 # Backup drivers
 CEPH_BACKUP_DRIVER = "cinder.backup.drivers.ceph.CephBackupDriver"
 NETAPP_NFS_BACKUP_DRIVER = "cinder.backup.drivers.nfs.NFSBackupDriver"

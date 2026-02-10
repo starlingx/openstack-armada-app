@@ -211,6 +211,14 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 break
         cinder_overrides['DEFAULT']['backup_driver'] = self.default_backup_driver
 
+        backup_replicas = self._num_provisioned_controllers()
+        if self.default_backup_type in [app_constants.NETAPP_ISCSI_BACKEND_NAME, app_constants.NETAPP_FC_BACKEND_NAME]:
+            # Trident doesn't support multiple replicas when deployed using
+            # storage backends because RWX volumes cannot be created
+            # using "ontap-san" (iSCSI/FC) [1] provisioned through K8S PVCs.
+            # [1] https://docs.netapp.com/us-en/trident/trident-use/ontap-san.html
+            backup_replicas = 1
+
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'pod': {
@@ -237,7 +245,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                         'api': self._num_provisioned_controllers(),
                         'volume': self._num_provisioned_controllers(),
                         'scheduler': self._num_provisioned_controllers(),
-                        'backup': self._num_provisioned_controllers()
+                        'backup': backup_replicas
                     },
                     'security_context': {
                         'cinder_volume': {

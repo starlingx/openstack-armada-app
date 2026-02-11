@@ -122,6 +122,7 @@ conf:
         volume_extension:snapshot_admin_actions:reset_status: rule:admin_api
         volume_extension:snapshot_backup_status_attribute: rule:admin_or_projectadmin_owner
         volume_extension:snapshot_export_attributes: rule:admin_or_projectadmin_owner
+        volume_extension:type_get_all: rule:admin_or_owner
         volume_extension:types_extra_specs:create: rule:admin_api
         volume_extension:types_extra_specs:delete: rule:admin_api
         volume_extension:types_extra_specs:index: rule:admin_api

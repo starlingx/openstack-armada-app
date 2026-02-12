@@ -66,10 +66,10 @@ images:
     nova_novncproxy: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_novncproxy_assets: 'docker.io/starlingx/stx-nova:master-debian-stable-latest'
     nova_scheduler: docker.io/starlingx/stx-nova:master-debian-stable-latest
-    nova_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
+    nova_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     # NOTE(portdirect): we simply use the ceph config helper here,
     # as it has both oscli and jq.
-    nova_service_cleaner: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
+    nova_service_cleaner: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     nova_serialproxy: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_spiceproxy: docker.io/starlingx/stx-nova:master-debian-stable-latest
     nova_spiceproxy_assets: docker.io/starlingx/stx-nova:master-debian-stable-latest

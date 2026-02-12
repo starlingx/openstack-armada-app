@@ -35,7 +35,6 @@ images:
     cinder_db_sync: docker.io/starlingx/stx-cinder:master-debian-stable-latest
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
     rabbit_init: docker.io/rabbitmq:3.13-management
-
     ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
@@ -44,9 +43,9 @@ images:
     cinder_scheduler: docker.io/starlingx/stx-cinder:master-debian-stable-latest
     cinder_volume: docker.io/starlingx/stx-cinder:master-debian-stable-latest
     cinder_volume_usage_audit: docker.io/starlingx/stx-cinder:master-debian-stable-latest
-    cinder_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
+    cinder_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     cinder_backup: docker.io/starlingx/stx-cinder:master-debian-stable-latest
-    cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
+    cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest

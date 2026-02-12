@@ -7,8 +7,8 @@
 ---
 images:
   tags:
-    prometheus_openstack_exporter: docker.io/openstackhelm/prometheus-openstack-exporter:latest-ubuntu_jammy
-    dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+    prometheus_openstack_exporter: docker.io/openstackhelm/prometheus-openstack-exporter:ubuntu_jammy-20250816
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
   pull_policy: IfNotPresent

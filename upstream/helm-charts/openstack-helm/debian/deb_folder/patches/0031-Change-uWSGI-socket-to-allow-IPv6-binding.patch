@@ -1,4 +1,4 @@
-From 3310ceaae3ae5b87bce79417fbe3f28d8c00a8c4 Mon Sep 17 00:00:00 2001
+From 000be2918f15130ebd0bb55a33babf368b4ae08c Mon Sep 17 00:00:00 2001
 From: Daniel Caires <DanielMarques.Caires@windriver.com>
 Date: Fri, 11 Apr 2025 15:17:27 -0300
 Subject: [PATCH] Change uWSGI socket to allow IPv6 binding
@@ -17,14 +17,23 @@ IPs but IPv6 IPs as well.
 Change-Id: I0e3bca24a121bb94149f2fc13320a0d16f06936b
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Fix IPv6 deployments after changes introduced for Epoxy]
+After [1], placement API is also using uWSGI for API server. As usual,
+the uWSGI http-socket config used by OSH community supports only IPv4,
+failling for IPv6 deployments. This patch update includes placement
+uWSGI to the fix being applied to uWSGI http-socket in order to support
+both IPv4 and IPv6 deployments.
+[1]https://review.opendev.org/c/openstack/openstack-helm/+/899914
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 ---
- barbican/templates/configmap-etc.yaml | 2 +-
- cinder/templates/configmap-etc.yaml   | 2 +-
- glance/templates/configmap-etc.yaml   | 2 +-
- heat/templates/configmap-etc.yaml     | 4 ++--
- neutron/templates/configmap-etc.yaml  | 2 +-
- nova/templates/configmap-etc.yaml     | 4 ++--
- 6 files changed, 8 insertions(+), 8 deletions(-)
+ barbican/templates/configmap-etc.yaml  | 2 +-
+ cinder/templates/configmap-etc.yaml    | 2 +-
+ glance/templates/configmap-etc.yaml    | 2 +-
+ heat/templates/configmap-etc.yaml      | 4 ++--
+ neutron/templates/configmap-etc.yaml   | 2 +-
+ nova/templates/configmap-etc.yaml      | 4 ++--
+ placement/templates/configmap-etc.yaml | 2 +-
+ 7 files changed, 9 insertions(+), 9 deletions(-)
 
 diff --git a/barbican/templates/configmap-etc.yaml b/barbican/templates/configmap-etc.yaml
 index 2b9762e82..a86a71b64 100644
@@ -40,7 +49,7 @@ index 2b9762e82..a86a71b64 100644
  {{- end -}}
  
 diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
-index 685966fe1..b567f4b18 100644
+index f7ba5dd96..9fde4d477 100644
 --- a/cinder/templates/configmap-etc.yaml
 +++ b/cinder/templates/configmap-etc.yaml
 @@ -145,7 +145,7 @@ limitations under the License.
@@ -122,6 +131,19 @@ index 220db538a..6de893719 100644
  {{- $_ := set .Values.conf.nova_metadata_uwsgi.uwsgi "http-socket" $http_socket -}}
  {{- end -}}
  
+diff --git a/placement/templates/configmap-etc.yaml b/placement/templates/configmap-etc.yaml
+index 34a968333..57a9dcb8d 100644
+--- a/placement/templates/configmap-etc.yaml
++++ b/placement/templates/configmap-etc.yaml
+@@ -56,7 +56,7 @@ limitations under the License.
+ 
+ {{- if empty (index .Values.conf.placement_api_uwsgi.uwsgi "http-socket") -}}
+ {{- $http_socket_port := tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
+-{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
++{{- $http_socket := printf "[::]:%s" $http_socket_port }}
+ {{- $_ := set .Values.conf.placement_api_uwsgi.uwsgi "http-socket" $http_socket -}}
+ {{- end -}}
+ ---
 -- 
-2.43.0
+2.34.1
 

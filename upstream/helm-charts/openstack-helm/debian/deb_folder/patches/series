@@ -5,7 +5,7 @@
 0005-Add-io_thread_pool-for-rabbitmq.patch
 0006-Support-ingress-creation-for-keystone-admin-endpoint.patch
 0007-Enable-override-of-mariadb-server-probe-parameters.patch
-0008-Add-mariadb-database-config-override-to-support-ipv6.patch
+0008-Support-MariaDB-on-IPv6-deployments.patch
 0009-Allow-set-public-endpoint-url-for-all-openstack-types.patch
 0010-Allow-set-public-endpoint-url-for-keystone-endpoints.patch
 0011-Wrong-usage-of-rbd_store_chunk_size.patch

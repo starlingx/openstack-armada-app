@@ -1,7 +1,7 @@
-From 64815b6eef92a949e607c7382ac3c93f568497c1 Mon Sep 17 00:00:00 2001
+From f62c5574cede4cd7060e48866ecebce12144d049 Mon Sep 17 00:00:00 2001
 From: "Liu, ZhipengS" <zhipengs.liu@intel.com>
 Date: Thu, 28 May 2020 08:03:42 +0000
-Subject: [PATCH] Add mariadb database config override to support ipv6
+Subject: [PATCH] Support MariaDB on IPv6 deployments
 
 Signed-off-by: Liu, ZhipengS <zhipengs.liu@intel.com>
 [ Enable Values.conf.database.config_override for mariadb option wsrep_provider_options override ]
@@ -13,12 +13,48 @@ Taking the state snapshot between nodes was crashing the multinode deployments.]
 Signed-off-by: Johnny Chia <johnny.chialun@windriver.com>
 [ Adapt openstack-helm-infra patches to Epoxy release ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Fix IPv6 deployments after changes introduced for Epoxy]
+After [1], mariadb `start.py` script is failing on IPv6 deployments. The
+function `socket.gethostbyname` [2] introduced by [1] to query the IP
+address doesn't support IPv6. This patch update replaces the function
+`socket.gethostbyname` by `socket.getaddrinfo` [3], which supports both
+IPv4 and IPv6 stacks.
+[1]https://review.opendev.org/c/openstack/openstack-helm-infra/+/935488
+[2]https://docs.python.org/3/library/socket.html#socket.gethostbyname
+[3]https://docs.python.org/3/library/socket.html#socket.getaddrinfo
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 ---
+ mariadb/templates/bin/_start.py.tpl  | 14 +++++++++++++-
  mariadb/templates/configmap-etc.yaml |  5 +++++
  mariadb/templates/statefulset.yaml   |  6 ++++++
  mariadb/values.yaml                  | 10 ++++++++++
- 3 files changed, 21 insertions(+)
+ 4 files changed, 34 insertions(+), 1 deletion(-)
 
+diff --git a/mariadb/templates/bin/_start.py.tpl b/mariadb/templates/bin/_start.py.tpl
+index 90fea03f9..8851044be 100644
+--- a/mariadb/templates/bin/_start.py.tpl
++++ b/mariadb/templates/bin/_start.py.tpl
+@@ -50,7 +50,19 @@ local_hostname = socket.gethostname()
+ logger.info("This instance hostname: {0}".format(local_hostname))
+ 
+ # Get local node IP address
+-local_ip = socket.gethostbyname(local_hostname)
++infos = socket.getaddrinfo(local_hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
++# `getaddrinfo` returns a list of 5-tuples [1] with the following structure:
++# (family, type, proto, canonname, sockaddr)
++# `sockaddr` is a tuple describing a socket address, whose format depends on
++# the returned family (a (address, port) 2-tuple for AF_INET,
++# a (address, port, flowinfo, scope_id) 4-tuple for AF_INET6)
++# [1] https://docs.python.org/3/library/socket.html#socket.getaddrinfo
++#
++# We want to prefer IPv6 addresses, so we sort the list of tuples by the
++# first element (the address family) in reverse order, which will put IPv6
++# addresses before IPv4 addresses.
++infos.sort(key=lambda x: x[0], reverse=True)
++local_ip = infos[0][4][0]
+ logger.info("This instance IP address: {0}".format(local_ip))
+ 
+ # Get the instance number
 diff --git a/mariadb/templates/configmap-etc.yaml b/mariadb/templates/configmap-etc.yaml
 index 5367f18d9..e7bdba355 100644
 --- a/mariadb/templates/configmap-etc.yaml

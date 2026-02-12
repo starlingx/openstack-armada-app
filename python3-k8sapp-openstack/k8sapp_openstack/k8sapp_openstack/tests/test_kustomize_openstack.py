@@ -19,46 +19,11 @@ class TestOpenstackFluxCDKustomizeOperator(unittest.TestCase):
         super(TestOpenstackFluxCDKustomizeOperator, self).setUp()
         self.fluxCDKustomizeOperator = OpenstackFluxCDKustomizeOperator()
 
-    def test_manifest_chart_groups_disable(self, *_):
-        """ Tests the manifest_chart_groups_disable method
-        Guarantees that it changes "enabled" to False on system overrides and
-        that updates the helm overrides with the new value
-        """
-        app_id = 'app_id'
-        kube_app_get_endswith_return_value = mock.Mock()
-        kube_app_get_endswith_return_value.id = app_id
-        kube_app_get_endswith = mock.Mock()
-        kube_app_get_endswith.return_value = kube_app_get_endswith_return_value
-
-        db_helm_override = mock.Mock(
-            system_overrides={'enabled': True}
-        )
-        helm_override_get = mock.Mock()
-        helm_override_get.return_value = db_helm_override
-
-        chart = {}
-        dbapi = mock.Mock(
-            kube_app_get_endswith=kube_app_get_endswith,
-            helm_override_get=helm_override_get,
-            helm_override_update=mock.Mock(),
-        )
-        namespace = 'namespace'
-        self.fluxCDKustomizeOperator.manifest_chart_groups_disable(dbapi, namespace, chart)
-
-        dbapi.kube_app_get_endswith.assert_called_once_with(self.fluxCDKustomizeOperator.APP)
-        dbapi.helm_override_get.assert_called_once_with(app_id, chart, namespace)
-        self.assertEqual(db_helm_override.system_overrides['enabled'], False)
-        dbapi.helm_override_update.assert_called_once_with(
-            app_id, chart, namespace,
-            {app_constants.HELM_OVERRIDE_GROUP_SYSTEM: db_helm_override.system_overrides}
-        )
-
     def test_chart_remove(self, *_):
         """ Tests chart_remove method, just checks if the expected
         calls are present
         """
         self.fluxCDKustomizeOperator.helm_release_resource_delete = mock.Mock()
-        self.fluxCDKustomizeOperator.manifest_chart_groups_disable = mock.Mock()
 
         chart = {}
         dbapi = mock.Mock()
@@ -67,7 +32,6 @@ class TestOpenstackFluxCDKustomizeOperator(unittest.TestCase):
         self.fluxCDKustomizeOperator.chart_remove(dbapi, namespace, chart)
 
         self.fluxCDKustomizeOperator.helm_release_resource_delete.assert_called_once_with(chart)
-        self.fluxCDKustomizeOperator.manifest_chart_groups_disable.assert_called_once_with(dbapi, namespace, chart)
 
     def test_enable_helmrelease_resource(self, *_):
         """ Tests the enable_helmrelease_resource method

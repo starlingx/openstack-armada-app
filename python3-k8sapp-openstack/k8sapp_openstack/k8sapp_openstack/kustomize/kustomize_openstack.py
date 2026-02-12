@@ -47,25 +47,8 @@ class OpenstackFluxCDKustomizeOperator(base.FluxCDKustomizeOperator):
         app_constants.FLUXCD_HELMRELEASE_CEILOMETER
     ]
 
-    def manifest_chart_groups_disable(self, dbapi, namespace, chart):
-        """ Disable charts in chart group
-
-        :param dbapi: DB api object
-        :param namespace: cgroup namespace
-        :param chart: the chart
-        """
-        app_id = dbapi.kube_app_get_endswith(self.APP).id
-        db_helm_override = dbapi.helm_override_get(
-            app_id, chart, namespace)
-
-        db_helm_override.system_overrides.update({'enabled': False})
-        dbapi.helm_override_update(
-            app_id, chart, namespace,
-            {app_constants.HELM_OVERRIDE_GROUP_SYSTEM: db_helm_override.system_overrides})
-
     def chart_remove(self, dbapi, namespace, chart):
         self.helm_release_resource_delete(chart)
-        self.manifest_chart_groups_disable(dbapi, namespace, chart)
 
     def enable_helmrelease_resource(self, resource):
         """ Enables a disabled resource that was moved from KustomizeOperator

@@ -1,0 +1,66 @@
+From 8bb6d3daea8366c2e8591d05c1840b1e71a48336 Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Thu, 12 Feb 2026 14:04:51 -0300
+Subject: [PATCH] Fix Cinder and Placement TLS install
+
+Two upstream commits [1][2] introduced changes that cause the Cinder and
+Placement charts to fail when TLS is enabled in an STX-O deployment.
+
+These commits removed values snippets that are still required when TLS is
+enabled. As a result, the charts attempt to access missing keys in the values
+file, leading to nil pointer errors during template rendering. This causes
+the corresponding HelmRelease installations to fail.
+
+[1] - https://opendev.org/openstack/openstack-helm/commit/6ec2773c958b9f09507c1d9bb7d1cb09c464fe9b#diff-852cd948055f91b4113c9d395a7166082b187d69
+[2] - https://opendev.org/openstack/openstack-helm/commit/30c22e2286ce78362899cb1854edb1ff081da774#diff-26bdd36b09082220c29f5ed3107c0faec8b84834
+
+Change-Id: Ie64bf9b2f61cad05a281262a422fdae9162a742e
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+---
+ cinder/templates/ingress-api.yaml        | 2 +-
+ cinder/templates/secret-ingress-tls.yaml | 2 +-
+ placement/values.yaml                    | 6 ++++++
+ 3 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/cinder/templates/ingress-api.yaml b/cinder/templates/ingress-api.yaml
+index a514adfde..be8c04d06 100644
+--- a/cinder/templates/ingress-api.yaml
++++ b/cinder/templates/ingress-api.yaml
+@@ -13,6 +13,6 @@ limitations under the License.
+ */}}
+ 
+ {{- if and .Values.manifests.ingress_api .Values.network.api.ingress.public }}
+-{{- $ingressOpts := dict "envAll" . "backendServiceType" "volume" "backendPort" "c-api" -}}
++{{- $ingressOpts := dict "envAll" . "backendServiceType" "volumev3" "backendPort" "c-api" -}}
+ {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
+ {{- end }}
+diff --git a/cinder/templates/secret-ingress-tls.yaml b/cinder/templates/secret-ingress-tls.yaml
+index 6a185b29c..f298d67bf 100644
+--- a/cinder/templates/secret-ingress-tls.yaml
++++ b/cinder/templates/secret-ingress-tls.yaml
+@@ -13,5 +13,5 @@ limitations under the License.
+ */}}
+ 
+ {{- if .Values.manifests.secret_ingress_tls }}
+-{{- include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendServiceType" "volume" ) }}
++{{- include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendServiceType" "volumev3" ) }}
+ {{- end }}
+diff --git a/placement/values.yaml b/placement/values.yaml
+index dd0ee4e07..a34161e5c 100644
+--- a/placement/values.yaml
++++ b/placement/values.yaml
+@@ -63,6 +63,12 @@ network:
+       port: 30778
+ 
+ conf:
++  software:
++    apache2:
++      binary: apache2
++      start_parameters: -DFOREGROUND
++      a2enmod: null
++      a2dismod: null
+   policy: {}
+   placement:
+     DEFAULT:
+-- 
+2.34.1

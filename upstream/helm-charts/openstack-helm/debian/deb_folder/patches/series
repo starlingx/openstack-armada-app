@@ -43,3 +43,4 @@
 0043-Remove-cinder-default-rbd1-backend.patch
 0044-Add-Tolerations-to-mariadb-controller-pod.patch
 0045-Modify-nova-compute-liveness-startup-probe.patch
+0046-Fix-Cinder-and-Placement-TLS-install.patch

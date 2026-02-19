@@ -8,7 +8,7 @@
 release_group: osh-openstack-mariadb
 images:
   tags:
-    mariadb: docker.io/openstackhelm/mariadb:ubuntu_focal-20250809
+    mariadb: docker.io/openstackhelm/mariadb:ubuntu_jammy-20251205
     prometheus_create_mysql_user: null
     prometheus_mysql_exporter: null
     prometheus_mysql_exporter_helm_tests: null
@@ -18,7 +18,7 @@ images:
     ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
     scripted_test: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
-    mariadb_controller: docker.io/openstackhelm/mariadb:ubuntu_focal-20250809
+    mariadb_controller: docker.io/openstackhelm/mariadb:ubuntu_jammy-20251205
   pull_policy: "IfNotPresent"
   local_registry:
     active: false

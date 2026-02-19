@@ -23,18 +23,35 @@ IPv4 and IPv6 stacks.
 [2]https://docs.python.org/3/library/socket.html#socket.gethostbyname
 [3]https://docs.python.org/3/library/socket.html#socket.getaddrinfo
 Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+[ Fix IST communication for IPv6 clusters ]
+After [1], the new retrieval logic for DB node IP is setting the config option
+wsrep_node_address, which is reused by the default value [2] of another config
+wsrep_provider_options:ist.recv_addr, but IPv6 addresses should be within []
+to consider the proper port identification.
+[1] openstack/openstack-helm/commit/c2269d70a23b55c459233ab5fc28362b7c2ca766
+[2] https://mariadb.com/docs/galera-cluster/reference/wsrep-variable-details/
+    wsrep_provider_options#ist.recv_addr
+Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
 ---
- mariadb/templates/bin/_start.py.tpl  | 14 +++++++++++++-
+ mariadb/templates/bin/_start.py.tpl  | 24 ++++++++++++++++++++++--
  mariadb/templates/configmap-etc.yaml |  5 +++++
  mariadb/templates/statefulset.yaml   |  6 ++++++
  mariadb/values.yaml                  | 10 ++++++++++
- 4 files changed, 34 insertions(+), 1 deletion(-)
+ 4 files changed, 43 insertions(+), 2 deletions(-)
 
 diff --git a/mariadb/templates/bin/_start.py.tpl b/mariadb/templates/bin/_start.py.tpl
-index 90fea03f9..8851044be 100644
+index 90fea03f9..41213356b 100644
 --- a/mariadb/templates/bin/_start.py.tpl
 +++ b/mariadb/templates/bin/_start.py.tpl
-@@ -50,7 +50,19 @@ local_hostname = socket.gethostname()
+@@ -15,6 +15,7 @@ limitations under the License.
+ */}}
+ 
+ import errno
++import ipaddress
+ import logging
+ import os
+ import secrets
+@@ -50,7 +51,19 @@ local_hostname = socket.gethostname()
  logger.info("This instance hostname: {0}".format(local_hostname))
  
  # Get local node IP address
@@ -55,6 +72,22 @@ index 90fea03f9..8851044be 100644
  logger.info("This instance IP address: {0}".format(local_ip))
  
  # Get the instance number
+@@ -274,7 +287,14 @@ def mysqld_write_cluster_conf(mode='run'):
+     for node in range(int(mariadb_replicas)):
+         node_hostname = "{0}-{1}".format(pod_name_prefix, node)
+         if local_hostname == node_hostname:
+-            cluster_config_params['wsrep_node_address'] = local_ip
++            try:
++               ip_addr = ipaddress.ip_address(local_ip)
++               if ip_addr.version == 6 and not local_ip.startswith('['):
++                   cluster_config_params['wsrep_node_address'] = "[{}]".format(local_ip)
++               else:
++                   cluster_config_params['wsrep_node_address'] = local_ip
++            except Exception as error:
++               logger.error("Error trying to get local_ip address: {0}".format(error))
+             wsrep_node_name = "{0}.{1}".format(node_hostname, discovery_domain)
+             cluster_config_params['wsrep_node_name'] = wsrep_node_name
+ 
 diff --git a/mariadb/templates/configmap-etc.yaml b/mariadb/templates/configmap-etc.yaml
 index 5367f18d9..e7bdba355 100644
 --- a/mariadb/templates/configmap-etc.yaml

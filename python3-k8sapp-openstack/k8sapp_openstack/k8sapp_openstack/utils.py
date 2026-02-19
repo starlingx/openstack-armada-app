@@ -786,7 +786,7 @@ def check_storageclass_change(
 
     value = list(ordered_available.values())[0]
 
-    if current_storage_class != value:
+    if current_storage_class and current_storage_class != value:
         return True, value
     else:
         return False, value

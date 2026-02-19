@@ -2272,6 +2272,27 @@ class UtilsTest(dbbase.ControllerHostTestCase):
 
         self.assertFalse(result)
 
+    def test_check_storageclass_change_empty(self):
+        """Test that the cuntion returns False when there is no PVC created
+        should return that there is not a change in the storageclass"""
+        priority_list = ["ceph", "netapp-fc", "netapp-iscsi", "netapp-nfs"]
+        available_backend = {
+            "ceph": "general",
+            "netapp-nfs": "netapp-nas-backend",
+            "netapp-iscsi": "",
+            "netapp-fc": "",
+        }
+        # Empty current storage class to simulate no PVC return
+        current_storage_class = ""
+
+        result, storageclass = app_utils.check_storageclass_change(
+            priority_list,
+            available_backend,
+            current_storage_class,
+        )
+
+        self.assertFalse(result)
+
     @mock.patch("k8sapp_openstack.utils.LOG")
     @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
     def test_check_if_namespace_exists_failed(self, mock_send_cmd_response, mock_log_error):

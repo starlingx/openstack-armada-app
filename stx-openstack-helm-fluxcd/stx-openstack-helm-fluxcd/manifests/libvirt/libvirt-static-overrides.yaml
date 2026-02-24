@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -394,6 +394,10 @@ storage_conf:
     enabled: false
     server: 127.0.0.1
     path: /openstack_instances
+    instances_path: /var/lib/instances
+  pvc:
+    enabled: false
+    name: nova-instances
     instances_path: /var/lib/instances
 
 manifests:

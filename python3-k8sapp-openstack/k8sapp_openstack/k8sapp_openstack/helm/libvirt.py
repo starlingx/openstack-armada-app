@@ -38,6 +38,8 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
         self.addresses_by_hostid = self._get_host_addresses()
         nova_shares = self._get_instances_nfs_shares_config()
 
+        pvc_resolution = self._resolve_nova_pvc_overrides()
+
         self._rook_ceph, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
 
         # Check if ceph is present and apply overrides if not
@@ -58,6 +60,23 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                 'conf': self._get_conf_overrides(),
             }
         }
+
+        if pvc_resolution:
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {
+                    'storage_conf': {
+                        'pvc': {
+                            'enabled': pvc_resolution.get('enabled', False),
+                            'name': pvc_resolution.get('name', app_constants.DEFAULT_NOVA_PVC_NAME),
+                            'instances_path': pvc_resolution.get(
+                                'instances_path',
+                                app_constants.DEFAULT_NOVA_PVC_INSTANCES_PATH,
+                            ),
+                        }
+                    }
+                }
+            )
 
         # The ceph client versions supported by baremetal and rook ceph backends
         # are not necessarily the same. Therefore, the ceph client image must be
@@ -80,6 +99,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                     }
                 }
             })
+
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
         elif namespace:

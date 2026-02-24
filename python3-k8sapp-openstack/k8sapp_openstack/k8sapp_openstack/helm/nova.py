@@ -87,6 +87,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.rbd_config = {}
 
     def get_overrides(self, namespace=None):
+        pvc_resolution = self._resolve_nova_pvc_overrides()
+
         self._rook_ceph, _ = is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
@@ -150,6 +152,36 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 'hosts_uuids': get_hosts_uuids(),
             }
         }
+
+        if pvc_resolution:
+            pvc_instances_path = pvc_resolution.get(
+                'instances_path',
+                app_constants.DEFAULT_NOVA_PVC_INSTANCES_PATH
+            )
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {
+                    'conf': {
+                        'nova': {
+                            'DEFAULT': {
+                                'instances_path': pvc_instances_path,
+                            }
+                        }
+                    },
+                    'storage_conf': {
+                        'pvc': {
+                            'enabled': pvc_resolution.get('enabled', False),
+                            'name': pvc_resolution.get('name', app_constants.DEFAULT_NOVA_PVC_NAME),
+                            'volume': {
+                                'class_name': pvc_resolution.get(
+                                    'storage_class',
+                                    app_constants.BACKEND_DEFAULT_STORAGE_CLASS,
+                                ),
+                            }
+                        }
+                    }
+                }
+            )
 
         # https://bugs.launchpad.net/starlingx/+bug/1956229
         # The volume/volumeMount below are needed if we want to use the root user to ssh to the destiny host during a

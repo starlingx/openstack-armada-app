@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -2726,19 +2726,35 @@ tls:
   oslo_db: false
 
 storage_conf:
-  # This list is for compatibility with other charts.
   storage_backends:
     - name: host-path
       enabled: true
     - name: nfs
       enabled: true
+    - name: pvc
+      enabled: true
   volume_storage_class_priority:
     - host-path
     - nfs
+    - pvc
   nfs_shares:
     enabled: false
     server: 127.0.0.1
     path: /openstack_instances
+  pvc:
+    name: "nova-instances"
+    enabled: false
+    instances_path: /var/lib/instances
+    volume:
+      class_name: general
+      size: 10Gi
+      access_modes:
+        - ReadWriteMany
+    storage_backends:
+      - name: netapp-nfs
+        enabled: true
+    storage_class_priority:
+      - netapp-nfs
 
 manifests:
   certificates: false

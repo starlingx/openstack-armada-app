@@ -1674,6 +1674,25 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         assert len(enabled_backends) == 0
 
     @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_enabled_storage_backends_from_override_custom_default(self, mock_get_values):
+        chart = app_constants.HELM_CHART_NOVA
+        custom_default = app_constants.DEFAULT_NOVA_STORAGE_BACKEND_SELECT
+        mock_get_values.return_value = custom_default
+
+        enabled_backends = app_utils.get_enabled_storage_backends_from_override(
+            chart_name=chart,
+            override_name=app_constants.OVERRIDE_STORAGE_BACKENDS,
+            default_storage_backends=custom_default
+        )
+
+        assert enabled_backends == ["host-path", "nfs", "pvc"]
+        mock_get_values.assert_called_once_with(
+            default_value=custom_default,
+            chart_name=chart,
+            override_name=app_constants.OVERRIDE_STORAGE_BACKENDS
+        )
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
     def test_get_storage_backends_priority_list(self, mock_get_values):
         """ Test if get_storage_backends_priority_list works properly
         """
@@ -1684,6 +1703,30 @@ class UtilsTest(dbbase.ControllerHostTestCase):
 
         priority_list = app_utils.get_storage_backends_priority_list(chart)
         assert priority_list == ["netapp-nfs", "ceph", "netapp-iscsi", "netapp-fc"]
+        mock_get_values.assert_called_once_with(
+            default_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST,
+            chart_name=chart,
+            override_name=app_constants.OVERRIDE_STORAGE_PRIORITY
+        )
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_storage_backends_priority_list_custom(self, mock_get_values):
+        chart = app_constants.HELM_CHART_NOVA
+        custom_priority = [app_constants.NETAPP_NFS_BACKEND_NAME]
+        mock_get_values.return_value = custom_priority
+
+        priority_list = app_utils.get_storage_backends_priority_list(
+            chart=chart,
+            override_name=app_constants.OVERRIDE_NOVA_PVC_STORAGE_PRIORITY,
+            default_priority_list=app_constants.DEFAULT_NOVA_PVC_PRIORITY_LIST
+        )
+
+        assert priority_list == custom_priority
+        mock_get_values.assert_called_once_with(
+            default_value=app_constants.DEFAULT_NOVA_PVC_PRIORITY_LIST,
+            chart_name=chart,
+            override_name=app_constants.OVERRIDE_NOVA_PVC_STORAGE_PRIORITY
+        )
 
     @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
                 return_value="netapp-nas-backend other-nas")

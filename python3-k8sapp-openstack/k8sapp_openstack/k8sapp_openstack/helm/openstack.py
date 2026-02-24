@@ -291,6 +291,66 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         overrides_updated = self._update_overrides(overrides, images_overrides)
         return overrides_updated
 
+    def _resolve_nova_pvc_overrides(self):
+        """Resolve Nova PVC settings from overrides.
+
+        This method reads Nova storage backend selections and PVC-related
+        override values, determines whether the PVC backend is the effective
+        backend based on priority ordering, and normalizes the result for
+        downstream Nova/libvirt override generation.
+
+        Returns:
+            dict: Nova PVC configuration values.
+                {
+                    "enabled": bool,
+                    "name": str,
+                    "instances_path": str,
+                    "storage_class": str,
+                }
+        """
+        enabled_storage_backends = app_utils.get_enabled_storage_backends_from_override(
+            chart_name=app_constants.HELM_CHART_NOVA,
+            override_name=app_constants.OVERRIDE_STORAGE_BACKENDS,
+            default_storage_backends=app_constants.DEFAULT_NOVA_STORAGE_BACKEND_SELECT
+        )
+        storage_backends_priority_list = app_utils.get_storage_backends_priority_list(
+            app_constants.HELM_CHART_NOVA,
+            app_constants.OVERRIDE_STORAGE_PRIORITY,
+            app_constants.DEFAULT_NOVA_STORAGE_PRIORITY_LIST
+        )
+        pvc_backend_selected = False
+        for backend in storage_backends_priority_list:
+            if backend in enabled_storage_backends:
+                pvc_backend_selected = (backend == app_constants.PVC_BACKEND_NAME)
+                break
+
+        if not pvc_backend_selected:
+            return {}
+
+        pvc_available_backend = app_utils.get_available_volume_backends(
+            app_constants.HELM_CHART_NOVA,
+            app_constants.OVERRIDE_NOVA_PVC_STORAGE_BACKENDS,
+        )
+        pvc_priority_list = app_utils.get_storage_backends_priority_list(
+            app_constants.HELM_CHART_NOVA,
+            app_constants.OVERRIDE_NOVA_PVC_STORAGE_PRIORITY,
+            app_constants.DEFAULT_NOVA_PVC_PRIORITY_LIST
+        )
+        pvc_priority_storage_class = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
+
+        for priority in pvc_priority_list:
+            backend_storage_class = pvc_available_backend.get(priority)
+            if backend_storage_class:
+                pvc_priority_storage_class = backend_storage_class
+                break
+
+        return {
+            'enabled': True,
+            'name': app_utils.get_nova_pvc_name(),
+            'instances_path': app_utils.get_nova_pvc_instances_path(),
+            'storage_class': pvc_priority_storage_class,
+        }
+
     def _get_endpoints_identity_overrides(self, service_name, users,
                                           service_users=()):
         # Returns overrides for admin and individual users

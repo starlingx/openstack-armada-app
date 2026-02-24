@@ -771,5 +771,58 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
             'test': {
                 'type': 'multistring',
                 'values': [jsonutils.dumps(values[0]), jsonutils.dumps(values[1]), 'value1', 'value2']
-            }
+            }})
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_enabled_storage_backends_from_override')
+    def test_resolve_nova_pvc_overrides_skips_when_effective_backend_is_not_pvc(
+        self,
+        mock_get_enabled_storage_backends,
+        mock_get_storage_backends_priority_list,
+        mock_get_available_volume_backends
+    ):
+        mock_get_enabled_storage_backends.return_value = [
+            app_constants.HOST_PATH_BACKEND_NAME,
+            app_constants.PVC_BACKEND_NAME,
+        ]
+        mock_get_storage_backends_priority_list.return_value = [
+            app_constants.HOST_PATH_BACKEND_NAME,
+            app_constants.PVC_BACKEND_NAME,
+        ]
+
+        result = self.helm._resolve_nova_pvc_overrides()
+
+        self.assertEqual(result, {})
+        mock_get_available_volume_backends.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_instances_path',
+                return_value='/var/lib/nova/instances')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_name',
+                return_value='nova-instances')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends',
+                return_value={app_constants.NETAPP_NFS_BACKEND_NAME: 'netapp-nas-backend'})
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_enabled_storage_backends_from_override',
+                return_value=[app_constants.PVC_BACKEND_NAME])
+    def test_resolve_nova_pvc_overrides_resolves_values(
+        self,
+        _mock_get_enabled_storage_backends,
+        mock_get_storage_backends_priority_list,
+        _mock_get_available_volume_backends,
+        _mock_get_nova_pvc_name,
+        _mock_get_nova_pvc_instances_path
+    ):
+        mock_get_storage_backends_priority_list.side_effect = [
+            [app_constants.HOST_PATH_BACKEND_NAME, app_constants.PVC_BACKEND_NAME],
+            [app_constants.NETAPP_NFS_BACKEND_NAME],
+        ]
+
+        result = self.helm._resolve_nova_pvc_overrides()
+
+        self.assertEqual(result, {
+            'enabled': True,
+            'name': 'nova-instances',
+            'instances_path': '/var/lib/nova/instances',
+            'storage_class': 'netapp-nas-backend',
         })

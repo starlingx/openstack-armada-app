@@ -47,3 +47,4 @@
 0047-Add-NFS-support-for-nova-ephemeral-storage.patch
 0048-keep-app.kubernetes.io-name-label-always-enabled.patch
 0049-Initialize-Ceph-when-Cinder-is-using-it-as-a-backend.patch
+0050-Add-PVC-support-for-nova-ephemeral-storage.patch

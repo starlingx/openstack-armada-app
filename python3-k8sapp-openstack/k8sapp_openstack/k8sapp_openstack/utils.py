@@ -1500,7 +1500,8 @@ def get_vswitch_label_from_override_file() -> set:
 
 def get_enabled_storage_backends_from_override(
     chart_name: str = app_constants.HELM_CHART_CINDER,
-    override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS
+    override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS,
+    default_storage_backends=None
 ) -> list:
     """
     Retrieves the available storage backends from Cinder's
@@ -1509,40 +1510,51 @@ def get_enabled_storage_backends_from_override(
     Args:
         chart_name (str): The Helm Chart name
         override_name (str): The name of the override field in values.yaml.
+        default_storage_backends (list): Default backends list used when there
+            is no user override.
 
     Returns:
         list: a list of enabled backends names (for instance,
         ["ceph", "netap_nfs"]), as defined in the overrides file
     """
 
+    if default_storage_backends is None:
+        default_storage_backends = app_constants.DEFAULT_STORAGE_BACKEND_SELECT
+
     storage_backends = _get_value_from_application(
-        default_value=app_constants.DEFAULT_STORAGE_BACKEND_SELECT,
+        default_value=default_storage_backends,
         chart_name=chart_name,
         override_name=override_name
     )
-
-    if storage_backends:
-        return [backend["name"] for backend in storage_backends if backend["enabled"]]
-    else:
-        return []
+    return [backend["name"] for backend in storage_backends if backend["enabled"]] if storage_backends else []
 
 
-def get_storage_backends_priority_list(chart) -> list:
+def get_storage_backends_priority_list(
+    chart: str,
+    override_name: str = app_constants.OVERRIDE_STORAGE_PRIORITY,
+    default_priority_list=None
+) -> list:
     """
-    Retrieves the list of storage backends' priority from
-    the given override file.
+    Retrieves the list of storage backends' priority from the given
+    override file.
 
-        Args:
-        chart: Helm Chart name
+    Args:
+        chart (str): Helm Chart name.
+        override_name (str): Path for the chart override key.
+        default_priority_list (list): Default priority list to use when no user
+            override is defined.
 
     Returns:
-        list: a list with the storage backend ordered by
-        priority
+        list: A list with the storage backends ordered by priority.
     """
+
+    if default_priority_list is None:
+        default_priority_list = app_constants.DEFAULT_VOLUME_PRIORITY_LIST
+
     return _get_value_from_application(
-        default_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST,
+        default_value=default_priority_list,
         chart_name=chart,
-        override_name=app_constants.OVERRIDE_STORAGE_PRIORITY
+        override_name=override_name
     )
 
 
@@ -3101,3 +3113,21 @@ def get_nova_nfs_share() -> dict:
             chart_name=app_constants.HELM_CHART_NOVA,
             override_name=app_constants.NETAPP_NFS_ENABLED_OVERRIDE),
     }
+
+
+def get_nova_pvc_instances_path() -> str:
+    """Return Nova PVC instances_path from chart overrides."""
+    return _get_value_from_application(
+        default_value=app_constants.DEFAULT_NOVA_PVC_INSTANCES_PATH,
+        chart_name=app_constants.HELM_CHART_NOVA,
+        override_name=app_constants.OVERRIDE_NOVA_PVC_INSTANCES_PATH
+    )
+
+
+def get_nova_pvc_name() -> str:
+    """Return Nova PVC name from chart overrides."""
+    return _get_value_from_application(
+        default_value=app_constants.DEFAULT_NOVA_PVC_NAME,
+        chart_name=app_constants.HELM_CHART_NOVA,
+        override_name=app_constants.OVERRIDE_NOVA_PVC_NAME
+    )

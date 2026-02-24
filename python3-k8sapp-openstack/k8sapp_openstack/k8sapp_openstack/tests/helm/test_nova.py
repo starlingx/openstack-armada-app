@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -32,6 +32,12 @@ class NovaGetOverrideTest(NovaHelmTestCase,
         super(NovaGetOverrideTest, self).setUp()
         self.operator = helm.HelmOperator(self.dbapi)
         self.nova = nova.NovaHelm(self.operator)
+        pvc_resolution_patcher = mock.patch(
+            'k8sapp_openstack.helm.nova.NovaHelm._resolve_nova_pvc_overrides',
+            return_value={}
+        )
+        pvc_resolution_patcher.start()
+        self.addCleanup(pvc_resolution_patcher.stop)
         self.worker = self._create_test_host(
             personality=constants.WORKER,
             administrative=constants.ADMIN_LOCKED)
@@ -236,3 +242,60 @@ class NovaGetOverrideTest(NovaHelmTestCase,
             app_constants.HELM_CHART_NOVA)
         self.assertIsInstance(overrides, dict)
         self.assertIn(common.HELM_NS_OPENSTACK, overrides)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.helm.nova.NovaHelm._resolve_nova_pvc_overrides',
+        return_value={
+            'enabled': True,
+            'name': "nova-instances",
+            'storage_class': "netapp-nas-backend",
+        }
+    )
+    def test_nova_overrides_resolves_pvc_storage_class(
+        self,
+        mock_resolve_nova_pvc_overrides,
+        *_
+    ):
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK
+        )
+
+        self.assertEqual(
+            overrides['storage_conf']['pvc']['volume']['class_name'],
+            "netapp-nas-backend"
+        )
+        self.assertEqual(
+            overrides['storage_conf']['pvc']['enabled'],
+            True
+        )
+        self.assertEqual(
+            overrides['storage_conf']['pvc']['name'],
+            "nova-instances"
+        )
+        self.assertEqual(
+            overrides['conf']['nova']['DEFAULT']['instances_path'],
+            app_constants.DEFAULT_NOVA_PVC_INSTANCES_PATH
+        )
+        mock_resolve_nova_pvc_overrides.assert_called_once_with()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.helm.nova.NovaHelm._resolve_nova_pvc_overrides',
+        return_value={}
+    )
+    def test_nova_overrides_skips_pvc_resolution_when_not_enabled(
+        self,
+        mock_resolve_nova_pvc_overrides,
+        *_
+    ):
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK
+        )
+
+        self.assertNotIn('storage_conf', overrides)
+        mock_resolve_nova_pvc_overrides.assert_called_once_with()

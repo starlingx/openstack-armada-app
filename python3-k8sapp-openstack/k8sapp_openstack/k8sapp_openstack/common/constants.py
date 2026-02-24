@@ -196,6 +196,8 @@ NETAPP_NFS_MOUNT_POINT_OVERRIDE = "conf.nova.DEFAULT.instances_path"
 NETAPP_NFS_DEFAULT_ENABLED = False
 NETAPP_NFS_ENABLED_OVERRIDE = "storage_conf.nfs_shares.enabled"
 NFS_BACKEND_NAME = "nfs"
+HOST_PATH_BACKEND_NAME = "host-path"
+PVC_BACKEND_NAME = "pvc"
 
 # PVC Names for StorageClass validation
 MARIADB_PVC_NAME = "mysql-data-mariadb-server-0"
@@ -280,6 +282,27 @@ DEFAULT_BACKUP_PRIORITY_LIST = [
     NETAPP_NFS_BACKEND_NAME,
     NETAPP_ISCSI_BACKEND_NAME,
     NETAPP_FC_BACKEND_NAME
+]
+
+# Nova storage overrides
+DEFAULT_NOVA_STORAGE_BACKEND_SELECT = [
+    {"name": HOST_PATH_BACKEND_NAME, "enabled": True},
+    {"name": NFS_BACKEND_NAME, "enabled": True},
+    {"name": PVC_BACKEND_NAME, "enabled": True},
+]
+DEFAULT_NOVA_STORAGE_PRIORITY_LIST = [
+    HOST_PATH_BACKEND_NAME,
+    NFS_BACKEND_NAME,
+    PVC_BACKEND_NAME,
+]
+OVERRIDE_NOVA_PVC_INSTANCES_PATH = "storage_conf.pvc.instances_path"
+DEFAULT_NOVA_PVC_INSTANCES_PATH = "/var/lib/instances"
+OVERRIDE_NOVA_PVC_NAME = "storage_conf.pvc.name"
+DEFAULT_NOVA_PVC_NAME = "nova-instances"
+OVERRIDE_NOVA_PVC_STORAGE_BACKENDS = "storage_conf.pvc.storage_backends"
+OVERRIDE_NOVA_PVC_STORAGE_PRIORITY = "storage_conf.pvc.storage_class_priority"
+DEFAULT_NOVA_PVC_PRIORITY_LIST = [
+    NETAPP_NFS_BACKEND_NAME,
 ]
 
 # Map backend -> driver

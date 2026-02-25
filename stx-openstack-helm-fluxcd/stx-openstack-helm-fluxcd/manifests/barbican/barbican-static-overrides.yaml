@@ -30,6 +30,8 @@ images:
     scripted_test: docker.io/starlingx/stx-heat:master-debian-stable-latest
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
 pod:
+  labels:
+    include_app_kubernetes_io: false
   replicas:
     api: 2
   affinity:

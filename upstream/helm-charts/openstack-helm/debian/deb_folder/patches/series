@@ -45,3 +45,4 @@
 0045-Modify-nova-compute-liveness-startup-probe.patch
 0046-Fix-Cinder-and-Placement-TLS-install.patch
 0047-Add-NFS-support-for-nova-ephemeral-storage.patch
+0048-keep-app.kubernetes.io-name-label-always-enabled.patch

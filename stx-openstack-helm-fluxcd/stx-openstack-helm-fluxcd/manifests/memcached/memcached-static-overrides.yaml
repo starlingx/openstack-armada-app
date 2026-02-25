@@ -141,6 +141,8 @@ manifests:
   secret_registry: true
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   security_context:
     server:
       pod:

@@ -54,6 +54,8 @@ network:
         namespace: "nginx-openstack"
         cluster: "nginx"
 pod:
+  labels:
+    include_app_kubernetes_io: false
   replicas:
     api: 2
     registry: 2

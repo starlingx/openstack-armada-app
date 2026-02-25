@@ -45,6 +45,8 @@ labels:
     node_selector_value: enabled
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   env:
     mariadb_controller:
       MARIADB_CONTROLLER_DEBUG: 0

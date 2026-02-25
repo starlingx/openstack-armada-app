@@ -371,6 +371,8 @@ dependencies:
           service: local_image_registry
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   use_fqdn:
     neutron_agent: true
   # Probes fail cause a long delay and eventual failure of the armada

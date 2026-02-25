@@ -22,4 +22,7 @@ tolerations:
   - key: openstack-compute-node
     operator: Exists
     effect: NoSchedule
+pod:
+  labels:
+    include_app_kubernetes_io: false
 ...

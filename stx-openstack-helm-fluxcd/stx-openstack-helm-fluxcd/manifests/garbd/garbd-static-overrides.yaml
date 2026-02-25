@@ -12,6 +12,8 @@ labels:
     node_selector_key: openstack-compute-node
     node_selector_value: enabled
 pod:
+  labels:
+    include_app_kubernetes_io: false
   tolerations:
     garbd:
       enabled: true

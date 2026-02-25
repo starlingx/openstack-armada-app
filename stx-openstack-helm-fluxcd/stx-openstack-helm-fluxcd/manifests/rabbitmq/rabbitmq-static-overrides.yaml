@@ -44,6 +44,8 @@ images:
 forceBoot:
   enabled: true
 pod:
+  labels:
+    include_app_kubernetes_io: false
   probes:
     prometheus_rabbitmq_exporter:
       rabbitmq_exporter:

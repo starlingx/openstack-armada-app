@@ -27,6 +27,8 @@ labels:
     node_selector_value: enabled
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   tini:
     enabled: true
   tolerations:

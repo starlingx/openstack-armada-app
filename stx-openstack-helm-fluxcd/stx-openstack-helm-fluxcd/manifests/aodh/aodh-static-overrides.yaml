@@ -27,6 +27,8 @@ images:
     rabbit_init: docker.io/rabbitmq:3.13.2-management
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
 pod:
+  labels:
+    include_app_kubernetes_io: false
   affinity:
     anti:
       type:

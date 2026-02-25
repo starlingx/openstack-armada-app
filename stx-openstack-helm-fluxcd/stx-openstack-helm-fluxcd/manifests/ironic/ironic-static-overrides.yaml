@@ -7,6 +7,8 @@
 ---
 release_group: osh-openstack-ironic
 pod:
+  labels:
+    include_app_kubernetes_io: false
   replicas:
     api: 2
     conductor: 2

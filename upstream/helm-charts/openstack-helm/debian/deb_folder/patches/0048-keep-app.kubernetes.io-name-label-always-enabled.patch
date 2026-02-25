@@ -1,0 +1,48 @@
+From ae2ccd34554ce77f4c40785ba524e949fef357b5 Mon Sep 17 00:00:00 2001
+From: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+Date: Wed, 25 Feb 2026 17:37:54 -0300
+Subject: [PATCH] keep app.kubernetes.io/name label always enabled
+
+Since [1], stx-openstack Charts have been deployed including
+the `app.kubernetes.io/name` label by default. However, the
+Openstack-Helm (OSH) community has also included the additional labels
+`app.kubernetes.io/component` and `app.kubernetes.io/instance` [2].
+
+The addtional labels added by OSH community and brought to
+stx-openstack during Epoxy upgrade broke the helm charts backward
+compatibility, blocking stx-openstack upgrades between Caracal and
+Epoxy based versions. This issue was also noticed by the OSH community
+and a new config `pod.labels.include_app_kubernetes_io` was included to
+disable the new labels when required [3].
+
+To enable backward compatibility with stx-openstack Caracal based
+versions, this patch keep `app.kubernetes.io/name` label always
+enabled and allow the user to disable the incompatible OSH labels
+per Helm Chart by setting `pod.labels.include_app_kubernetes_io: false`.
+
+[1]https://review.opendev.org/c/starlingx/openstack-armada-app/+/930508
+[2]https://review.opendev.org/c/openstack/openstack-helm-infra/+/930948
+[3]https://review.opendev.org/c/openstack/openstack-helm/+/946090
+
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+---
+ helm-toolkit/templates/snippets/_kubernetes_metadata_labels.tpl | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/helm-toolkit/templates/snippets/_kubernetes_metadata_labels.tpl b/helm-toolkit/templates/snippets/_kubernetes_metadata_labels.tpl
+index 5439a812e..2ece8f7e0 100644
+--- a/helm-toolkit/templates/snippets/_kubernetes_metadata_labels.tpl
++++ b/helm-toolkit/templates/snippets/_kubernetes_metadata_labels.tpl
+@@ -42,8 +42,8 @@ return: |
+ release_group: {{ $envAll.Values.release_group | default $envAll.Release.Name }}
+ application: {{ $application }}
+ component: {{ $component }}
+-{{- if or $labels.include_app_kubernetes_io (not (hasKey $labels "include_app_kubernetes_io")) }}
+ app.kubernetes.io/name: {{ $application }}
++{{- if or $labels.include_app_kubernetes_io (not (hasKey $labels "include_app_kubernetes_io")) }}
+ app.kubernetes.io/component: {{ $component }}
+ app.kubernetes.io/instance: {{ $envAll.Values.release_group | default $envAll.Release.Name }}
+ {{- end -}}
+-- 
+2.34.1
+

@@ -295,6 +295,8 @@ endpoints:
         service: 8778
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   security_context:
     placement:
       pod:

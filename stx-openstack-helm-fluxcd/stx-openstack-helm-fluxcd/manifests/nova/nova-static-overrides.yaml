@@ -2165,6 +2165,8 @@ endpoints:
         default: 80
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   probes:
     rpc_timeout: 60
     rpc_retries: 2

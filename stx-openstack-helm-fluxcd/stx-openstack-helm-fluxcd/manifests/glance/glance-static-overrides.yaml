@@ -839,6 +839,8 @@ endpoints:
         default: 80
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   security_context:
     glance:
       pod:

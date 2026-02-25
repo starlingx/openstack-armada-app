@@ -1159,6 +1159,8 @@ dependencies:
           service: dashboard
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   security_context:
     horizon:
       pod:

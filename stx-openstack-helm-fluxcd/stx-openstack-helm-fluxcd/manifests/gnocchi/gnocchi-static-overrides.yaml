@@ -96,6 +96,8 @@ network:
         namespace: "nginx-openstack"
         cluster: "nginx"
 pod:
+  labels:
+    include_app_kubernetes_io: false
   affinity:
     anti:
       type:

@@ -29,4 +29,7 @@ conf:
       bind_host: "::"
       remote_host: keystone.openstack.svc.cluster.local
       remote_port: 80
+pod:
+  labels:
+    include_app_kubernetes_io: false
 ...

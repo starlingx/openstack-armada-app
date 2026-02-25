@@ -165,6 +165,8 @@ dependencies:
           service: local_image_registry
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   security_context:
     keystone:
       pod:

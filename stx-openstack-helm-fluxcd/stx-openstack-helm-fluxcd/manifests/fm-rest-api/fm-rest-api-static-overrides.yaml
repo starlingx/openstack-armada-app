@@ -10,6 +10,8 @@ endpoints:
   identity:
     force_public_endpoint: true
 pod:
+  labels:
+    include_app_kubernetes_io: false
   affinity:
     anti:
       type:

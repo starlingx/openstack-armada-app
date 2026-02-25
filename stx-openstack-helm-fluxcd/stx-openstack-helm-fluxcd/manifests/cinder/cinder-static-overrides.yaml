@@ -65,6 +65,8 @@ jobs:
       failed: 1
 
 pod:
+  labels:
+    include_app_kubernetes_io: false
   security_context:
     volume_usage_audit:
       pod:

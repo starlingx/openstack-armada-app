@@ -236,6 +236,8 @@ conf:
       kubectl -n ${POD_NAMESPACE} get secret ${POD_NAME}-${TYPE} -o jsonpath='{.data.tls\.key}' | base64 -d > /tmp/${TYPE}.key
       kubectl -n ${POD_NAMESPACE} get secret ${POD_NAME}-${TYPE} -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/${TYPE}-ca.crt
 pod:
+  labels:
+    include_app_kubernetes_io: false
   probes:
     libvirt:
       libvirt:

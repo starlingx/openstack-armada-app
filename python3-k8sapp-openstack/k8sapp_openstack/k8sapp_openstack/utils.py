@@ -792,6 +792,51 @@ def check_storageclass_change(
         return False, value
 
 
+def check_ceph_backends(chart_name: str = app_constants.HELM_CHART_CINDER,
+                          override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS) -> dict:
+    """
+    Check the availability of Ceph backends considering user overrides.
+    To be considered an available backend, two conditions must be met:
+    1. The backend must be discovered automatically via `is_ceph_backend_available`.
+    2. If user overrides are defined for storage backends, the backend must be
+       explicitly enabled in those overrides.
+    Args:
+        chart_name (str): The Helm chart name to check for user overrides.
+                     Defaults to `app_constants.HELM_CHART_CINDER`.
+        override_name (str): The name of the override field in values.yaml.
+    Returns:
+        dict: A dictionary indicating the availability of each Ceph backend:
+        ```
+        {
+          "ceph": True/False,
+          "ceph-rook-store": True/False,
+        }
+        ```
+    """
+    ceph_backend_types = [
+        (app_constants.CEPH_BACKEND_NAME, constants.SB_TYPE_CEPH),
+        (app_constants.CEPH_ROOK_BACKEND_NAME, constants.SB_TYPE_CEPH_ROOK)
+    ]
+    ceph_backends_available = dict([
+        (name, is_ceph_backend_available(ceph_type)[0])
+        for name, ceph_type in ceph_backend_types
+    ])
+
+    if is_user_overrides_available(chart_name=chart_name,
+                                   override_name=override_name):
+        enabled_backends = get_enabled_storage_backends_from_override(
+            chart_name=chart_name,
+            override_name=override_name
+        )
+
+        for ceph_backend, _ in ceph_backend_types:
+            ceph_backends_available[ceph_backend] &= (
+                app_constants.CEPH_BACKEND_NAME in enabled_backends
+            )
+
+    return ceph_backends_available
+
+
 def check_netapp_backends(chart_name: str = app_constants.HELM_CHART_CINDER,
                           override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS) -> dict:
     """
@@ -2186,22 +2231,22 @@ def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CIN
             "netapp-fc": "netapp-fc-backend"
         }
     """
+    ceph_backends = check_ceph_backends(chart_name, override_name)
     ceph_storage_class = ""
-    if is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)[0]:
-        LOG.info("Rook Ceph backend is available.")
-        ceph_storage_class = get_ceph_rbd_storage_class_name(
-            constants.SB_TYPE_CEPH_ROOK
-        )
-    elif is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH)[0]:
-        LOG.info("Host-based Ceph backend is available.")
-        ceph_storage_class = get_ceph_rbd_storage_class_name(
-            constants.SB_TYPE_CEPH
-        )
+
+    # if there's a Ceph backend available we must report the correct storage class
+    if ceph_backends.get(app_constants.CEPH_ROOK_BACKEND_NAME, False):
+        LOG.info(f"Rook Ceph backend is available and enabled for {chart_name} Helm Chart.")
+        ceph_storage_class = get_ceph_rbd_storage_class_name(constants.SB_TYPE_CEPH_ROOK)
+    elif ceph_backends.get(app_constants.CEPH_BACKEND_NAME, False):
+        LOG.info(f"Host-based Ceph backend is available and enabled for {chart_name} Helm Chart.")
+        ceph_storage_class = get_ceph_rbd_storage_class_name(constants.SB_TYPE_CEPH)
     else:
-        LOG.warning("No Ceph backend is available.")
+        LOG.warning(f"No Ceph backend is available or enabled for {chart_name} Helm Chart.")
+
     netapp_backend = check_netapp_backends(chart_name, override_name)
     available_volume_backends = {
-        "ceph": ceph_storage_class,
+        app_constants.CEPH_BACKEND_NAME: ceph_storage_class,
         app_constants.NETAPP_NFS_BACKEND_NAME: (
             get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_NFS)
             if netapp_backend.get(app_constants.NETAPP_NFS_BACKEND_NAME, False)

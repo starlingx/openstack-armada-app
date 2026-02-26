@@ -29,7 +29,7 @@ class RabbitmqHelm(openstack.OpenstackBaseHelm):
         elif io_thread_pool_size > 1024:
             io_thread_pool_size = 1024
 
-        available_backend = get_available_volume_backends()
+        available_backend = get_available_volume_backends(app_constants.HELM_CHART_RABBITMQ)
         default_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_RABBITMQ)
         priority_storage_class = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
 

@@ -28,7 +28,7 @@ class MariadbHelm(openstack.OpenstackBaseHelm):
 
     def get_overrides(self, namespace=None):
 
-        available_backend = get_available_volume_backends()
+        available_backend = get_available_volume_backends(app_constants.HELM_CHART_MARIADB)
         default_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_MARIADB)
         priority_storage_class = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
 

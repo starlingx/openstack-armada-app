@@ -29,7 +29,7 @@ images:
     keystone_db_sync: docker.io/starlingx/stx-keystone:master-debian-stable-latest
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
-    rabbit_init: docker.io/rabbitmq:3.13.2-management
+    rabbit_init: docker.io/rabbitmq:3.10.25-management
     keystone_fernet_setup: docker.io/starlingx/stx-keystone:master-debian-stable-latest
     keystone_fernet_rotate: docker.io/starlingx/stx-keystone:master-debian-stable-latest
     keystone_credential_setup: docker.io/starlingx/stx-keystone:master-debian-stable-latest

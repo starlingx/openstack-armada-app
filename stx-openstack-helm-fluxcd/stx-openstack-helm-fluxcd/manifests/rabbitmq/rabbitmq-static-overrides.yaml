@@ -26,9 +26,9 @@ images:
     prometheus_rabbitmq_exporter: null
     prometheus_rabbitmq_exporter_helm_tests: null
     rabbitmq_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    rabbitmq: docker.io/rabbitmq:3.13.2
+    rabbitmq: docker.io/rabbitmq:3.10.25
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
-    scripted_test: docker.io/rabbitmq:3.13.2-management
+    scripted_test: docker.io/rabbitmq:3.10.25-management
     image_repo_sync: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
   pull_policy: "IfNotPresent"
@@ -235,7 +235,7 @@ conf:
   # To deploy with standard list of feature, leave as default
   # To deploy with specific feature, separate each feature with comma
   # To deploy with all features disabled, leave blank or empty
-  feature_flags: default
+  feature_flags: all
   users: {}
   # define users in the section below which have to be
   # created by rabbitmq at start up stage through definitions.json

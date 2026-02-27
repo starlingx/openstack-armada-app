@@ -14,7 +14,7 @@ images:
     db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
     neutron_db_sync: docker.io/starlingx/stx-neutron:master-debian-stable-latest
     db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    rabbit_init: docker.io/rabbitmq:3.13.2-management
+    rabbit_init: docker.io/rabbitmq:3.10.25-management
     ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest

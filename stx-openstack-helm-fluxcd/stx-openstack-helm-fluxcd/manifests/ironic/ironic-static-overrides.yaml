@@ -69,7 +69,7 @@ images:
     ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
     ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
-    rabbit_init: docker.io/rabbitmq:3.13.2-management
+    rabbit_init: docker.io/rabbitmq:3.10.25-management
 conf:
   ironic:
     DEFAULT:

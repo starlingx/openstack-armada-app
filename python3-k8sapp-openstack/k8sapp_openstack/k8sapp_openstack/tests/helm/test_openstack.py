@@ -1,12 +1,16 @@
-# Copyright (c) 2020-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 import base64
 
+from eventlet.green import subprocess
 import mock
+from oslo_serialization import jsonutils
 from sqlalchemy.orm.exc import NoResultFound
+from sysinv.common import exception
+from sysinv.helm import common
 from sysinv.helm import helm
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
@@ -111,6 +115,15 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
             app_constants.HELM_CHART_KEYSTONE,
             self.helm.context['_service_params'])
 
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_parameters',
+            return_value=[])
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.context', new={})
+    def test_get_service_parameter_configs_unavailable(self, *_):
+        """Tests post retrieval caching of service configuration values for empty returned params,
+        when api not available or service not found"""
+        result = self.helm._get_service_parameter_configs("test_service_name")
+        assert result is None
+
     def test_service_parameter_lookup_one_found(self, *_):
         """Asserts successful lookup of a configuration parameter."""
         params = [
@@ -160,6 +173,54 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         pw = self.helm._get_keyring_password(app_constants.HELM_CHART_KEYSTONE, "usr")
         self.assertEqual(pw, b"pw")
         set_password.assert_called_once_with(app_constants.HELM_CHART_KEYSTONE, "usr", "pw")
+
+    @mock.patch('k8sapp_openstack.helm.openstack.keyring.get_password',
+                return_value="keyring_password")
+    @mock.patch('k8sapp_openstack.helm.openstack.keyring.set_password')
+    def test_get_keyring_password_from_keyring_config(self, set_password, *_):
+        """Tests password retrieval from keyring config associated with a service."""
+        pw = self.helm._get_keyring_password(app_constants.HELM_CHART_KEYSTONE, "usr")
+        self.assertEqual(pw, b"keyring_password")
+        set_password.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.helm.openstack.keyring.get_password', return_value=None)
+    @mock.patch('k8sapp_openstack.helm.openstack.subprocess.check_output',
+                return_value='ceph_password'.encode('utf8'))
+    @mock.patch('k8sapp_openstack.helm.openstack.keyring.set_password')
+    def test_get_keyring_password_generate_ceph_key(self, set_password, *_):
+        """Tests keyring password generation associated with a service when ceph password format is
+        given as parameter, (pw_format == comom.PASSWORD_FORMAT_CEPH) condition is valid"""
+        pw = self.helm._get_keyring_password(
+            app_constants.HELM_CHART_KEYSTONE,
+            "usr",
+            common.PASSWORD_FORMAT_CEPH)
+
+        self.assertEqual(pw, b"ceph_password")
+        set_password.assert_called_once_with(
+            app_constants.HELM_CHART_KEYSTONE,
+            "usr",
+            "ceph_password")
+
+    @mock.patch('k8sapp_openstack.helm.openstack.keyring.get_password', return_value=None)
+    @mock.patch('k8sapp_openstack.helm.openstack.subprocess.check_output')
+    @mock.patch('k8sapp_openstack.helm.openstack.keyring.set_password')
+    def test_get_keyring_password_generate_ceph_key_fail(self, set_password, mock_check_output, *_):
+        """Tests keyring password generation associated with a service when ceph password format is
+        given as parameter, but gets an error when generating key (subprocess.check_output throws
+        exception)"""
+
+        mock_check_output.side_effect = subprocess.CalledProcessError(
+            returncode=1,
+            cmd="ceph-authtool --gen-print-key",
+            output=b"",
+            stderr=b"error generating key")
+
+        self.assertRaises(exception.SysinvException,
+                          self.helm._get_keyring_password,
+                          app_constants.HELM_CHART_KEYSTONE,
+                          "usr",
+                          common.PASSWORD_FORMAT_CEPH)
+        set_password.assert_not_called()
 
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._region_config',
                 return_value=False)
@@ -246,6 +307,89 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         pw = self.helm._get_or_generate_password('chart', 'ns', 'test')
         self.assertEqual(pw, b'name')
 
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    @mock.patch('sysinv.common.utils.find_openstack_app', return_value=mock.Mock(id=1,))
+    def test_get_or_generate_password_fails_to_retrieve_and_create_overrides(self, *_):
+        """Tests on general purpose password retrieval or generation. When it fails to get chart
+        overrides and its password and also fails to create them, this method should return None"""
+        with mock.patch.object(
+                self.helm.dbapi,
+                'helm_override_get') as mock_helm_override_get, \
+            mock.patch.object(
+                self.helm.dbapi,
+                'helm_override_create') as mock_helm_override_create:
+            mock_helm_override_get.side_effect = exception.HelmOverrideNotFound("test")
+            mock_helm_override_create.side_effect = Exception("test_case: error creating overrides")
+            result = self.helm._get_or_generate_password('chart', 'ns', 'test')
+            assert result is None
+
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    @mock.patch('sysinv.common.utils.find_openstack_app', return_value=mock.Mock(id=1))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._generate_random_password',
+                return_value="generated_password")
+    def test_get_or_generate_password_fails_to_store_generated_passsword(self, *_):
+        """Tests on general purpose password retrieval or generation. In this case it fails to get
+        override values and password from them, instead it generates one but fails to store it."""
+        with mock.patch.object(self.helm.dbapi, 'helm_override_update', side_effect=Exception(
+                "test case: failed to store override")) as mock_helm_override_update, \
+            mock.patch.object(self.helm.dbapi, 'kube_app_get_inactive', return_value=[]), \
+            mock.patch.object(self.helm.dbapi, 'helm_override_get', return_value=mock.Mock(
+                system_overrides={'key_dummy': 'value_dummy'})):
+            pw = self.helm._get_or_generate_password('chart', 'ns', 'test_password_field')
+            mock_helm_override_update.assert_called_once_with(
+                app_id=1,
+                name='chart',
+                namespace='ns',
+                values={
+                    'system_overrides': {
+                        'key_dummy': 'value_dummy',
+                        'test_password_field': 'generated_password'
+                    }
+                }
+            )
+            self.assertEqual(pw, b'generated_password')
+
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    @mock.patch('sysinv.common.utils.find_openstack_app', return_value=mock.Mock(id=1))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._generate_random_password',
+                return_value="generated_password")
+    def test_get_or_generate_password_gets_from_inactive_app(self, *_):
+        """Tests on general purpose password retrieval or generation. In this case it retrieves the
+        override values from inactive app."""
+        with mock.patch.object(self.helm.dbapi,
+                               'helm_override_update'
+                               ) as mock_helm_override_update, \
+            mock.patch.object(self.helm.dbapi,
+                              'kube_app_get_inactive',
+                              return_value=[mock.Mock(id=1)]
+                              ), \
+            mock.patch.object(self.helm.dbapi,
+                              'helm_override_get',
+                              side_effect=[
+                                  mock.Mock(system_overrides={'key_dummy': 'value_dummy'}),
+                                  mock.Mock(system_overrides={'pw_field': 'pw_from_inactive_app'})]
+                              ):
+            pw = self.helm._get_or_generate_password('chart', 'ns', 'pw_field')
+            mock_helm_override_update.assert_called_once_with(
+                app_id=1,
+                name='chart',
+                namespace='ns',
+                values={
+                    'system_overrides': {
+                        'key_dummy': 'value_dummy',
+                        'pw_field': 'pw_from_inactive_app'
+                    }
+                }
+            )
+            self.assertEqual(pw, b'pw_from_inactive_app')
+
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=None)
+    def test_get_or_generate_password_dbapi_unavailable(self, *_):
+        """Tests on general purpose password retrieval or generation. When dbapi not available this
+        method should return None"""
+        result = self.helm._get_or_generate_password('chart', 'ns', 'test')
+        assert result is None
+
     @mock.patch('k8sapp_openstack.utils.get_services_fqdn_pattern',
                 return_value="{service_name}.{endpoint_domain}")
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_parameter',
@@ -291,6 +435,36 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         priv, pub = self.helm._get_or_generate_ssh_keys("chart", "ns")
         self.assertEqual(priv, "priv")
         self.assertEqual(pub, "pub")
+
+    @mock.patch("sysinv.common.utils.find_openstack_app", return_value=mock.Mock(id=1))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.helm_override_get',
+                side_effect=[
+                    mock.Mock(system_overrides={"key_dummy": "value_dummy"}),
+                    mock.Mock(system_overrides={"privatekey": "priv", "publickey": "pub"})])
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    def test_get_or_generate_ssh_keys_from_inactive_app(self, *_):
+        """Asserts on the contents of retrieved SSH keys from inactive apps."""
+        with mock.patch.object(self.helm.dbapi,
+                               'helm_override_update'
+                               ) as mock_helm_override_update, \
+            mock.patch.object(self.helm.dbapi,
+                              'kube_app_get_inactive',
+                              return_value=[mock.Mock(id=1)]
+                              ):
+            priv, pub = self.helm._get_or_generate_ssh_keys("chart", "ns")
+            mock_helm_override_update.assert_called_once_with(
+                app_id=1,
+                name='chart',
+                namespace='ns',
+                values={
+                    'system_overrides': {
+                        'key_dummy': 'value_dummy',
+                        'privatekey': 'priv', 'publickey': 'pub'
+                    }
+                }
+            )
+            self.assertEqual(priv, "priv")
+            self.assertEqual(pub, "pub")
 
     def test_get_service_default_dns_name(self):
         """Tests the formatting of services' DNS names."""
@@ -338,6 +512,17 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         self.assertEqual(result.id, 2)
         get_interface_network_query.assert_called_once_with(2, 3)
 
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_host_interfaces',
+                return_value={1: [mock.Mock(id=2)]})
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_interface_network_query',
+                side_effect=exception.InterfaceNetworkNotFoundByHostInterfaceNetwork("test_error"))
+    def test_get_cluster_host_iface_fails(self, get_interface_network_query, *_):
+        """Tests querying of cluster host network interfaces."""
+        fake_host = mock.Mock(id=1)
+        result = self.helm._get_cluster_host_iface(fake_host, 3)
+        assert result is None
+        get_interface_network_query.assert_called_once_with(2, 3)
+
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_cluster_host_iface',
                 return_value=mock.Mock(id=3))
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.network_get_by_type',
@@ -350,6 +535,20 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         addresses_by_hostid = {1: [fake_addr]}
         result = self.helm._get_cluster_host_ip(fake_host, addresses_by_hostid)
         self.assertEqual(result, "10.0.0.1")
+
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_cluster_host_iface',
+                return_value=None)
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.network_get_by_type',
+                return_value=mock.Mock(id=2))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    def test_get_cluster_host_ip_none_iface_found(self, *_):
+        """Tests the querying the network address of cluster hosts, for none cluster-host interface
+        found"""
+        fake_host = mock.Mock(id=1)
+        fake_addr = mock.Mock(interface_id=3, address="10.0.0.1")
+        addresses_by_hostid = {1: [fake_addr]}
+        result = self.helm._get_cluster_host_ip(fake_host, addresses_by_hostid)
+        assert result is None
 
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._is_enabled', return_value=False)
     def test_execute_kustomize_updates(self, *_):
@@ -365,6 +564,212 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         result = self.helm._get_rook_ceph_admin_keyring()
         self.assertEqual(result, "secret\n")
 
+    @mock.patch('sysinv.common.kubernetes.KubeOperator.kube_get_secret',
+                side_effect=Exception("test case: error"))
+    def test_get_rook_ceph_admin_keyring_fails(self, *_):
+        """Matches an error on retrieval of the Rook Ceph keyring password, Catching an Exception
+        should make this method returns 'null'."""
+        result = self.helm._get_rook_ceph_admin_keyring()
+        self.assertEqual(result, 'null')
+
     def test_get_ca_file(self):
         """Matches the default certificate authority file path."""
         self.assertEqual(self.helm.get_ca_file(), "/etc/ssl/certs/openstack-helm.crt")
+
+    def test_get_chart_operator_with_plugin_manager_class(self, *_):
+        """Tests the retrieval of an operator for a given chart name
+        using Plugin Manager _get_chart_operator method"""
+        with mock.patch.object(
+                self.operator,
+                'get_chart_operator',
+                return_value="operator_from_plugin_manager") as mock_get_chart_operator:
+            chart_operator = self.helm._get_chart_operator("valid_chart_name")
+            self.assertEqual(chart_operator, "operator_from_plugin_manager")
+            mock_get_chart_operator.assert_called_once_with("valid_chart_name")
+
+    def test_get_chart_operator_without_plugin_manager_class(self, *_):
+        """Tests the retrieval of an operator for a given chart name using _operator.chart_operators
+        attribute, asserts that, for this test environment, trying to recover chart name using
+        _operator attribute "chart_operator[]" is not supported, and should raise an exception"""
+        with mock.patch.object(
+                self.operator,
+                'get_chart_operator',
+                side_effect=AttributeError(
+                    "Old versions of starlingx does not include Plugin Manager class")):
+            self.operator.chart_operators = {}
+            self.assertRaises(KeyError,
+                              self.helm._get_chart_operator,
+                              "valid_chart_name")
+
+    def test__update_image_tag_overrides_for_empty_overrides(self):
+        """Tests the flow of execution for image tag overrides config, in this case it receives
+        empty overrides as parameter and should create and return expected dictionary"""
+        overrides = {}
+        images = ['image1', 'image2', 'image3']
+        tag = 'test.io/tag:v2.3.4'
+
+        result = self.helm._update_image_tag_overrides(overrides, images, tag)
+
+        self.assertOverridesParameters(result, {
+            'images': {
+                'tags': {
+                    'image1': 'test.io/tag:v2.3.4',
+                    'image2': 'test.io/tag:v2.3.4',
+                    'image3': 'test.io/tag:v2.3.4'
+                }
+            }
+        })
+
+    def test__update_image_tag_overrides_for_existing_overrides(self):
+        """Tests the flow of execution for image tag overrides config, in this case it receives
+        existing overrides as parameter and should merge and return expected dictionary"""
+        overrides = {
+            'key1': 'value1',
+            'key2': {
+                'key3': 'value2',
+                'key4': 'value3'
+            },
+            'images': {
+                'tags': {
+                    'test_image': 'test.io/tag:v1.2.3'
+                }
+            }
+        }
+
+        images = ['image1']
+        tag = 'test.io/tag:v2.3.4'
+
+        result = self.helm._update_image_tag_overrides(overrides, images, tag)
+
+        self.assertOverridesParameters(result, {
+            'key1': 'value1',
+            'key2': {
+                'key3': 'value2',
+                'key4': 'value3'
+            },
+            'images': {
+                'tags': {
+                    'test_image': 'test.io/tag:v1.2.3',
+                    'image1': 'test.io/tag:v2.3.4'
+                }
+            }
+        })
+
+    def test__update_image_tag_overrides_for_existing_image(self):
+        """Tests the flow of execution for image tag overrides config, in this case it receives
+        existing overrides with the image that is also passed as parameter and should replace
+        its tag and return the expected dictionary"""
+        overrides = {
+            'images': {
+                'tags': {
+                    'test_image': 'test.io/tag:deprecated_version'
+                }
+            }
+        }
+
+        images = ['test_image']
+        tag = 'test.io/tag:latest_version'
+
+        result = self.helm._update_image_tag_overrides(overrides, images, tag)
+
+        self.assertOverridesParameters(result, {
+            'images': {
+                'tags': {
+                    'test_image': 'test.io/tag:latest_version'
+                }
+            }
+        })
+
+    def test__update_image_tag_overrides_for_empty_image_list(self):
+        """Tests the flow of execution for image tag overrides config, in this case it receives
+        as parameter a empty list o images, and should return the same unaltered overrides  """
+        overrides = {
+            'images': {
+                'tags': {
+                    'test_image': 'test.io/tag:deprecated_version'
+                }
+            }
+        }
+
+        images = []
+        tag = 'test.io/tag:latest_version'
+
+        result = self.helm._update_image_tag_overrides(overrides, images, tag)
+
+        self.assertOverridesParameters(result, overrides)
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.is_ceph_backend_available',
+                return_value=(True, ""))
+    def test_is_rook_ceph_is_available(self, *_):
+        """Tests method that checks rook_ceph availability"""
+        is_rook_ceph = self.helm._is_rook_ceph()
+        assert is_rook_ceph is True
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.is_ceph_backend_available',
+                return_value=(False, "test: rook ceph not available"))
+    def test_is_rook_ceph_is_unavailable(self, *_):
+        """Tests method that checks rook_ceph availability"""
+        is_rook_ceph = self.helm._is_rook_ceph()
+        assert is_rook_ceph is False
+
+    @mock.patch(
+            'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.interface_datanetwork_get_all',
+            return_value=[])
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    def test_get_interface_datanets_empty(self, *_):
+        """Tests interface datanets with no datanets returned from database."""
+        result = self.helm._get_interface_datanets()
+        self.assertEqual(result, {})
+
+    @mock.patch(
+            'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.interface_datanetwork_get_all',
+            return_value=[
+                mock.Mock(interface_id=1),
+                mock.Mock(interface_id=2),
+                mock.Mock(interface_id=3),
+                mock.Mock(interface_id=1),
+                mock.Mock(interface_id=3)
+            ])
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    def test_get_interface_datanets_grouped(self, *_):
+        """Tests interface datanets grouping by interface id."""
+        result = self.helm._get_interface_datanets()
+        self.assertIn(1, result)
+        self.assertIn(2, result)
+        self.assertIn(3, result)
+        self.assertEqual(len(result[1]), 2)
+        self.assertEqual(len(result[2]), 1)
+        self.assertEqual(len(result[3]), 2)
+
+    def test_oslo_multistring_override_empty_values_or_name(self, *_):
+        """Tests oslo multistring override with empty values or name."""
+        result = self.helm._oslo_multistring_override(None, ["test"])
+        assert result is None
+
+        result = self.helm._oslo_multistring_override("test", [])
+        assert result is None
+
+        result = self.helm._oslo_multistring_override(None, [])
+        assert result is None
+
+    def test_oslo_multistring_override_strings(self, *_):
+        """Tests oslo multistring override configuration for simple type, like strings"""
+        result = self.helm._oslo_multistring_override('test', ['value1', 'value2'])
+        self.assertOverridesParameters(result, {
+            'test': {
+                'type': 'multistring',
+                'values': ['value1', 'value2']
+            }
+        })
+
+    def test_oslo_multistring_override_complex_types(self, *_):
+        """Tests oslo multistring override configurationfor simple and for complex types,
+        like dict and set for example"""
+        values = [['set_value1', 'set_value2'], {'dict_key1': 'dict_value1'}, 'value1', 'value2']
+        result = self.helm._oslo_multistring_override('test', values)
+        self.assertOverridesParameters(result, {
+            'test': {
+                'type': 'multistring',
+                'values': [jsonutils.dumps(values[0]), jsonutils.dumps(values[1]), 'value1', 'value2']
+            }
+        })

@@ -201,3 +201,62 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
             app_constants.HELM_CHART_GLANCE)
         self.assertIsInstance(overrides, dict)
         self.assertIn(common.HELM_NS_OPENSTACK, overrides)
+
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=[app_constants.GLANCE_BACKEND_CINDER]
+    )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_glance_cinder_ceph_hostnetwork_disabled(self, mock_https, mock_priority, *_):
+        """
+        Tests that hostNetwork is NOT enabled when Glance uses Cinder with Ceph backend.
+        """
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_CINDER],
+            [app_constants.CEPH_BACKEND_NAME]
+        ]
+        with mock.patch(
+            'k8sapp_openstack.helm.glance.get_available_volume_backends',
+            return_value={
+                app_constants.GLANCE_BACKEND_CINDER: app_constants.GLANCE_BACKEND_CINDER,
+                app_constants.GLANCE_BACKEND_RBD: app_constants.GLANCE_BACKEND_RBD,
+                app_constants.CEPH_BACKEND_NAME: app_constants.BACKEND_DEFAULT_BACKEND_NAME,
+                app_constants.NETAPP_ISCSI_BACKEND_NAME: app_constants.NETAPP_ISCSI_BACKEND_NAME
+            }
+        ):
+            overrides = self.operator.get_helm_chart_overrides(
+                app_constants.HELM_CHART_GLANCE,
+                cnamespace=common.HELM_NS_OPENSTACK)
+            self.assertIn('pod', overrides)
+            self.assertNotIn('useHostNetwork', overrides['pod'])
+
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=[app_constants.GLANCE_BACKEND_CINDER]
+    )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_glance_cinder_iscsi_hostnetwork_enabled(self, mock_https, mock_priority, *_):
+        """
+        Tests that hostNetwork is enabled when Glance uses Cinder with iSCSI backend.
+        """
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_CINDER],
+            [app_constants.NETAPP_ISCSI_BACKEND_NAME]
+        ]
+        with mock.patch(
+            'k8sapp_openstack.helm.glance.get_available_volume_backends',
+            return_value={
+                app_constants.GLANCE_BACKEND_CINDER: app_constants.GLANCE_BACKEND_CINDER,
+                app_constants.GLANCE_BACKEND_RBD: app_constants.GLANCE_BACKEND_RBD,
+                app_constants.NETAPP_ISCSI_BACKEND_NAME: app_constants.NETAPP_ISCSI_BACKEND_NAME,
+                app_constants.NETAPP_FC_BACKEND_NAME: app_constants.NETAPP_FC_BACKEND_NAME
+            }
+        ):
+            overrides = self.operator.get_helm_chart_overrides(
+                app_constants.HELM_CHART_GLANCE,
+                cnamespace=common.HELM_NS_OPENSTACK)
+            self.assertIn('pod', overrides)
+            self.assertIn('useHostNetwork', overrides['pod'])
+            self.assertEqual(overrides['pod']['useHostNetwork']['api'], True)

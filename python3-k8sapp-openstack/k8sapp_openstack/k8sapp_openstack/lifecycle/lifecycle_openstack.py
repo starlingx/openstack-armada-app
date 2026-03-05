@@ -260,25 +260,23 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         Raises:
             LifecycleMissingInfo: Reports an issue when reading the source config map.
         """
-        available_backends = get_available_volume_backends()
-        if not bool(available_backends.get(app_constants.CEPH_BACKEND_NAME,
-                                           False)):
-            LOG.warning("Ceph is not available, skipping Ceph ConfigMap copy")
-            return
-
-        available, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
-        if available:
+        rook_ceph_available, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
+        host_ceph_available, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH)
+        if rook_ceph_available:
             LOG.info(f"Read {self.APP_OPENSTACK_RESOURCE_CONFIG_MAP} config map"
                      "from rook-ceph namespace "
                      f"({app_constants.HELM_NS_ROOK_CEPH})")
             src_config_map_name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
             src_config_map_ns = app_constants.HELM_NS_ROOK_CEPH
-        else:
+        elif host_ceph_available:
             LOG.info(f"Read {self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP} config map"
                      "from host-ceph namespace "
                      f"({common.HELM_NS_RBD_PROVISIONER})")
             src_config_map_name = self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP
             src_config_map_ns = common.HELM_NS_RBD_PROVISIONER
+        else:
+            LOG.warning("Ceph is not available, skipping Ceph ConfigMap copy")
+            return
 
         config_map_body = kube.kube_read_config_map(src_config_map_name, src_config_map_ns)
 

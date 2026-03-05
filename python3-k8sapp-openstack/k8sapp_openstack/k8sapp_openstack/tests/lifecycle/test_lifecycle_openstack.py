@@ -1165,7 +1165,8 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             app_constants.NETAPP_FC_BACKEND_NAME: ""
         }
     )
-    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_ceph_backend_available')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_ceph_backend_available',
+                return_value=(False, "Other reason"))
     def test_pre_apply_copy_storage_backend_config_backend_not_configured(
         self,
         *_
@@ -1201,7 +1202,12 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         fake_configmap.metadata.namespace = "kube-system"
         fake_configmap.metadata.name = "rbd-storage-init"
 
-        mock_is_ceph_backend_available.return_value = (False, "Other reason")
+        def ceph_backend_availability(ceph_type):
+            if ceph_type == constants.SB_TYPE_CEPH_ROOK:
+                return False, "Other reason"
+            return True, ""
+
+        mock_is_ceph_backend_available.side_effect = ceph_backend_availability
         mock_kube.kube_read_config_map.return_value = fake_configmap
 
         self.lifecycle._pre_apply_copy_storage_backend_config(mock_kube)

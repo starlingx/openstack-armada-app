@@ -19,6 +19,7 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import check_netapp_backends
+from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_hosts_uuids
 from k8sapp_openstack.utils import get_image_rook_ceph
@@ -89,8 +90,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self._rook_ceph, _ = is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
-        self._host_ceph, _ = is_ceph_backend_available(
-            ceph_type=constants.SB_TYPE_CEPH
+
+        # Check if ceph is present and apply overrides if not
+        self.available_backends = get_available_volume_backends()
+        self._ceph_enabled = bool(
+            self.available_backends.get(app_constants.CEPH_BACKEND_NAME, False)
         )
 
         self.labels_by_hostid = self._get_host_labels()
@@ -802,16 +806,13 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             return True
 
     def _get_conf_overrides(self):
-        admin_keyring = 'null'
-        if self._rook_ceph:
-            admin_keyring = self._get_rook_ceph_admin_keyring()
-
         cinder_overrides = {}
 
-        # Check if ceph is present and apply overrides if not
-        ceph_enabled = self._rook_ceph or self._host_ceph
-
-        if not ceph_enabled:
+        admin_keyring = 'null'
+        if self._ceph_enabled:
+            if self._rook_ceph:
+                admin_keyring = self._get_rook_ceph_admin_keyring()
+        else:
             cinder_overrides['keyring'] = 'null'
             cinder_overrides['secret_uuid'] = 'null'
             cinder_overrides['user'] = 'null'
@@ -819,7 +820,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         overrides = {
             'enable_iscsi': self._enable_multipath(),
             'ceph': {
-                'enabled': ceph_enabled,
+                'enabled': self._ceph_enabled,
                 'ephemeral_storage': self._get_rbd_ephemeral_storage(),
                 'admin_keyring': admin_keyring,
                 'cinder': cinder_overrides,

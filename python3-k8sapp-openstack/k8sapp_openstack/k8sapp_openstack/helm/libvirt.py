@@ -11,6 +11,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import is_ceph_backend_available
@@ -31,13 +32,19 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
         }
         self.labels_by_hostid = {}
         self.addresses_by_hostid = {}
-        self._rook_ceph, message = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
-        self._host_ceph, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH)
 
     def get_overrides(self, namespace=None):
         self.labels_by_hostid = self._get_host_labels()
         self.addresses_by_hostid = self._get_host_addresses()
         nova_shares = self._get_instances_nfs_shares_config()
+
+        self._rook_ceph, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
+
+        # Check if ceph is present and apply overrides if not
+        self.available_backends = get_available_volume_backends()
+        self._ceph_enabled = bool(
+            self.available_backends.get(app_constants.CEPH_BACKEND_NAME, False)
+        )
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -82,19 +89,16 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
             return overrides
 
     def _get_conf_overrides(self):
-        admin_keyring = 'null'
-        if self._rook_ceph:
-            admin_keyring = self._get_rook_ceph_admin_keyring()
-
         cinder_overrides = {}
 
-        # Check if ceph is present and apply overrides if not
-        ceph_enabled = self._rook_ceph or self._host_ceph
-
-        if not ceph_enabled:
+        admin_keyring = 'null'
+        if self._ceph_enabled:
+            if self._rook_ceph:
+                admin_keyring = self._get_rook_ceph_admin_keyring()
+        else:
             cinder_overrides = {
                 'external_ceph': {
-                    'enabled': ceph_enabled
+                    'enabled': self._ceph_enabled
                 }
             }
             cinder_overrides['keyring'] = 'null'
@@ -111,7 +115,7 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                 'clear_emulator_capabilities': 0
             },
             'ceph': {
-                'enabled': ceph_enabled,
+                'enabled': self._ceph_enabled,
                 'admin_keyring': admin_keyring,
                 'cinder': cinder_overrides,
             },

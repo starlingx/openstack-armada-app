@@ -21,7 +21,7 @@ upgrades:
     - ^25\.09.*
 
 supported_k8s_version:
-  minimum: 1.24.4
+  minimum: "1.32"
 
 behavior:
   platform_managed_app: yes

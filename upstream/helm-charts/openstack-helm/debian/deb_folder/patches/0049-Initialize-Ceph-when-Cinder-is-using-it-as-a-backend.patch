@@ -1,0 +1,207 @@
+From 7278211d8a4a658cc7118f00f25b27b2fccd1a32 Mon Sep 17 00:00:00 2001
+From: Thiago Miranda <tmarques@windriver.com>
+Date: Thu, 19 Feb 2026 19:41:22 -0300
+Subject: [PATCH] Initialize Ceph when Cinder is using it as a backend
+
+This commit enables Glance to properly initialize Ceph configuration
+when using Cinder as its backend and Cinder uses Ceph for storage.
+
+Changes:
+--------
+1. Added CINDER_USES_CEPH environment variable to control Ceph
+   initialization based on Cinder's backend configuration
+
+2. Modified storage-init.sh to initialize Ceph pools and verify
+   connectivity when storage backend is "cinder" and Cinder uses Ceph
+
+3. Added ceph-cinder-keyring mounting in deployment-api.yaml:
+   - Mounts Cinder's Ceph keyring from secret (rbd_cinder)
+   - Only mounted when storage is "cinder" and cinder_uses_ceph is true
+   - Enables Glance to authenticate with Ceph via Cinder credentials
+
+4. Updated ceph-keyring.sh to generate ceph.client.cinder.keyring
+   when CINDER_USES_CEPH is enabled
+
+5. Extended conditional checks throughout templates to include
+   Cinder+Ceph scenario alongside existing RBD storage backend
+
+This allows Glance to leverage Ceph storage through Cinder while
+maintaining proper authentication and pool initialization.
+
+Signed-off-by: Thiago Miranda <tmarques@windriver.com>
+---
+ glance/templates/bin/_ceph-keyring.sh.tpl |  7 +++++++
+ glance/templates/bin/_storage-init.sh.tpl |  4 ++--
+ glance/templates/deployment-api.yaml      | 19 ++++++++++++++++---
+ glance/templates/job-storage-init.yaml    | 10 ++++++----
+ glance/values.yaml                        |  3 +++
+ 5 files changed, 34 insertions(+), 9 deletions(-)
+
+diff --git a/glance/templates/bin/_ceph-keyring.sh.tpl b/glance/templates/bin/_ceph-keyring.sh.tpl
+index cbafe3d3f..88f7db39c 100644
+--- a/glance/templates/bin/_ceph-keyring.sh.tpl
++++ b/glance/templates/bin/_ceph-keyring.sh.tpl
+@@ -22,4 +22,11 @@ cat > /etc/ceph/ceph.client.${RBD_STORE_USER}.keyring <<EOF
+     key = $(cat /tmp/client-keyring)
+ EOF
+ 
++if [ "x$CINDER_USES_CEPH" == "xtrue" ]; then
++  cat > /etc/ceph/ceph.client.cinder.keyring <<EOF
++[client.cinder]
++    key = $(cat /tmp/client-cinder-keyring)
++EOF
++fi
++
+ exit 0
+diff --git a/glance/templates/bin/_storage-init.sh.tpl b/glance/templates/bin/_storage-init.sh.tpl
+index 53ba9f155..dbda2edfa 100644
+--- a/glance/templates/bin/_storage-init.sh.tpl
++++ b/glance/templates/bin/_storage-init.sh.tpl
+@@ -15,7 +15,7 @@ limitations under the License.
+ */}}
+ 
+ set -x
+-if [ "x$STORAGE_BACKEND" == "xrbd" ]; then
++if [ "x$STORAGE_BACKEND" == "xrbd" ] || ([ "x$STORAGE_BACKEND" == "xcinder" ] && [ "x$CINDER_USES_CEPH" == "xtrue" ]); then
+   SECRET=$(mktemp --suffix .yaml)
+   KEYRING=$(mktemp --suffix .keyring)
+   function cleanup {
+@@ -41,7 +41,7 @@ elif [ "x$STORAGE_BACKEND" == "xswift" ]; then
+   curl --fail -i -X POST "${OS_SWIFT_SCOPED_ENDPOINT}" \
+     -H "X-Auth-Token: ${OS_TOKEN}" \
+     -H "X-Account-Meta-Temp-URL-Key: ${SWIFT_TMPURL_KEY}"
+-elif [ "x$STORAGE_BACKEND" == "xrbd" ]; then
++elif [ "x$STORAGE_BACKEND" == "xrbd" ] || ([ "x$STORAGE_BACKEND" == "xcinder" ] && [ "x$CINDER_USES_CEPH" == "xtrue" ]); then
+   ceph -s
+   function ensure_pool () {
+     if [ "$2" -eq 0 ]; then
+diff --git a/glance/templates/deployment-api.yaml b/glance/templates/deployment-api.yaml
+index 651cdb749..b867147f4 100644
+--- a/glance/templates/deployment-api.yaml
++++ b/glance/templates/deployment-api.yaml
+@@ -90,13 +90,15 @@ spec:
+               mountPath: /tmp
+             - name: glance-images
+               mountPath: {{ .Values.conf.glance.file.filesystem_store_datadir }}
+-        {{ if eq .Values.storage "rbd" }}
++        {{ if or (eq .Values.storage "rbd") (and (eq .Values.storage "cinder") (.Values.conf.cinder.cinder_uses_ceph)) }}
+         - name: ceph-keyring-placement
+ {{ tuple $envAll "glance_api" | include "helm-toolkit.snippets.image" | indent 10 }}
+ {{ dict "envAll" $envAll "application" "glance" "container" "ceph_keyring_placement" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+           env:
+             - name: RBD_STORE_USER
+               value: {{ .Values.conf.glance.rbd.rbd_store_user | quote }}
++            - name: CINDER_USES_CEPH
++              value: {{ .Values.conf.cinder.cinder_uses_ceph | quote }}
+           command:
+             - /tmp/ceph-keyring.sh
+           volumeMounts:
+@@ -112,6 +114,12 @@ spec:
+               mountPath: /tmp/client-keyring
+               subPath: key
+               readOnly: true
++            {{- if and (eq .Values.storage "cinder") (.Values.conf.cinder.cinder_uses_ceph) }}
++            - name: ceph-cinder-keyring
++              mountPath: /tmp/client-cinder-keyring
++              subPath: key
++              readOnly: true
++            {{- end }}
+         {{ end }}
+       containers:
+         - name: glance-api
+@@ -249,7 +257,7 @@ spec:
+               mountPropagation: HostToContainer
+               {{- end }}
+ {{- end }}
+-{{- if eq .Values.storage "rbd" }}
++{{- if or (eq .Values.storage "rbd") (and (eq .Values.storage "cinder") (.Values.conf.cinder.cinder_uses_ceph)) }}
+             - name: etcceph
+               mountPath: /etc/ceph
+             - name: ceph-etc
+@@ -291,7 +299,7 @@ spec:
+         - name: glance-images
+           emptyDir: {}
+ {{- end }}
+-{{- if eq .Values.storage "rbd" }}
++{{- if or (eq .Values.storage "rbd") (and (eq .Values.storage "cinder") (.Values.conf.cinder.cinder_uses_ceph)) }}
+         - name: etcceph
+           emptyDir: {}
+         - name: ceph-etc
+@@ -301,6 +309,11 @@ spec:
+         - name: ceph-keyring
+           secret:
+             secretName: {{ .Values.secrets.rbd | quote }}
++{{- if and (eq .Values.storage "cinder") (.Values.conf.cinder.cinder_uses_ceph) }}
++        - name: ceph-cinder-keyring
++          secret:
++            secretName: {{ .Values.secrets.rbd_cinder | quote }}
++{{- end }}
+ {{- end }}
+ {{- if eq .Values.storage "cinder" }}
+         - name: host-rootfs
+diff --git a/glance/templates/job-storage-init.yaml b/glance/templates/job-storage-init.yaml
+index 6a2454eb6..1e4923c19 100644
+--- a/glance/templates/job-storage-init.yaml
++++ b/glance/templates/job-storage-init.yaml
+@@ -78,7 +78,7 @@ spec:
+         {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
+       initContainers:
+ {{ tuple $envAll "storage_init" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+-        {{ if or (eq .Values.storage "rbd") (eq .Values.storage "radosgw") }}
++        {{ if or (eq .Values.storage "rbd") (eq .Values.storage "radosgw") (and (eq .Values.storage "cinder") (.Values.conf.cinder.cinder_uses_ceph)) }}
+         - name: ceph-keyring-placement
+ {{ tuple $envAll "glance_api" | include "helm-toolkit.snippets.image" | indent 10 }}
+ {{ dict "envAll" $envAll "application" "storage_init" "container" "ceph_keyring_placement" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+@@ -112,7 +112,9 @@ spec:
+                   fieldPath: metadata.namespace
+             - name: STORAGE_BACKEND
+               value: {{ .Values.storage | quote }}
+-            {{- if eq .Values.storage "rbd" }}
++            - name: CINDER_USES_CEPH
++              value: {{ .Values.conf.cinder.cinder_uses_ceph | quote }}
++            {{ if or (eq .Values.storage "rbd") (and (eq .Values.storage "cinder") (.Values.conf.cinder.cinder_uses_ceph)) }}
+             - name: RBD_POOL_NAME
+               value: {{ .Values.conf.glance.rbd.rbd_store_pool | quote }}
+             - name: RBD_POOL_APP_NAME
+@@ -152,7 +154,7 @@ spec:
+               mountPath: /tmp/storage-init.sh
+               subPath: storage-init.sh
+               readOnly: true
+-            {{ if or (eq .Values.storage "rbd") (eq .Values.storage "radosgw") }}
++            {{ if or (eq .Values.storage "rbd") (eq .Values.storage "radosgw") (and (eq .Values.storage "cinder") (.Values.conf.cinder.cinder_uses_ceph)) }}
+             - name: etcceph
+               mountPath: /etc/ceph
+             - name: ceph-etc
+@@ -174,7 +176,7 @@ spec:
+           configMap:
+             name: glance-bin
+             defaultMode: 0555
+-        {{ if or (eq .Values.storage "rbd") (eq .Values.storage "radosgw") }}
++        {{ if or (eq .Values.storage "rbd") (eq .Values.storage "radosgw") (and (eq .Values.storage "cinder") (.Values.conf.cinder.cinder_uses_ceph)) }}
+         - name: etcceph
+           emptyDir: {}
+         - name: ceph-etc
+diff --git a/glance/values.yaml b/glance/values.yaml
+index 9318db0eb..7d4d8661d 100644
+--- a/glance/values.yaml
++++ b/glance/values.yaml
+@@ -245,6 +245,8 @@ conf:
+         chown: CommandFilter, chown, root
+         mount: CommandFilter, mount, root
+         umount: CommandFilter, umount, root
++  cinder:
++    cinder_uses_ceph: false
+   glance:
+     DEFAULT:
+       log_config_append: /etc/glance/logging.conf
+@@ -551,6 +553,7 @@ secrets:
+     admin: glance-db-admin
+     glance: glance-db-user
+   rbd: images-rbd-keyring
++  rbd_cinder: cinder-volume-rbd-keyring
+   oslo_messaging:
+     admin: glance-rabbitmq-admin
+     glance: glance-rabbitmq-user
+-- 
+2.34.1
+

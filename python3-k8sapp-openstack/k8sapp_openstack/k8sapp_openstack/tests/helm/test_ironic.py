@@ -51,6 +51,7 @@ class IronicGetOverrideTest(IronicHelmTestCase,
                       app_constants.NETAPP_NFS_BACKEND_NAME: "",
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
     )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list', return_value=['ceph'])
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_ironic_reuses_glance_user(self, *_):
         overrides_glance = self.operator.get_helm_chart_overrides(

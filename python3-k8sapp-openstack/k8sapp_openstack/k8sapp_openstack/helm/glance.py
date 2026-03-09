@@ -15,6 +15,7 @@ from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import _get_value_from_application
 from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_image_rook_ceph
+from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
 
 LOG = logging.getLogger(__name__)
@@ -60,6 +61,22 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             self._backend
         ]
 
+        if self._backend == app_constants.GLANCE_BACKEND_CINDER:
+            cinder_default = self._get_cinder_default_backend()
+            self._cinder_uses_ceph = cinder_default in [
+                app_constants.CEPH_BACKEND_NAME,
+                app_constants.CEPH_ROOK_BACKEND_NAME
+            ]
+            if self._cinder_uses_ceph:
+                cinder_ceph_type = self._get_cinder_ceph_type(cinder_default)
+                self._ceph_enabled = True
+                self._rook_ceph = (
+                    self._rook_ceph or
+                    (cinder_ceph_type == constants.SB_TYPE_CEPH_ROOK)
+                )
+        else:
+            self._cinder_uses_ceph = False
+
         LOG.info(f"Glance available backends: {self._available_backends}")
         LOG.info(f"Glance available NetApp backends: {self._available_netapp_backends}")
         LOG.info(f"Glance priority list: {self._priority_list}")
@@ -68,6 +85,8 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         LOG.info(f"Glance backend: {self._backend}")
         if self._backend == app_constants.GLANCE_BACKEND_PVC:
             LOG.info(f"Glance storage class: {self._storage_class}")
+        if self._backend == app_constants.GLANCE_BACKEND_CINDER:
+            LOG.info(f"Glance Cinder uses Ceph: {self._cinder_uses_ceph}")
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
@@ -178,7 +197,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
 
     def _get_conf_overrides(self):
         ceph_backend = self._get_primary_ceph_backend()
-        if not ceph_backend and not self._rook_ceph:
+        if not ceph_backend and not self._rook_ceph and not self._cinder_uses_ceph:
             rbd_store_pool = ""
             rbd_store_user = ""
             replication = 1
@@ -217,6 +236,9 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         }
 
         conf = {
+            'cinder': {
+                'cinder_uses_ceph': self._cinder_uses_ceph
+            },
             'glance': {
                 'DEFAULT': {
                     'graceful_shutdown': True,
@@ -248,7 +270,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             }
         }
 
-        if ceph_backend:
+        if ceph_backend or (self._cinder_uses_ceph and not self._rook_ceph):
             conf['ceph'] = self._get_ceph_overrides()
         elif self._rook_ceph:
             conf['ceph'] = {
@@ -325,6 +347,48 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     storage_class = self._available_backends.get(priority, "")
                 break
         return backend, storage_class
+
+    def _get_cinder_default_backend(self) -> str:
+        """
+        Get the default storage backend configured for Cinder.
+        The default Cinder backend is the one enabled with the highest priority
+        in the Cinder configuration.
+
+        Returns:
+            str: default Cinder backend name or None if not found.
+
+        Example:
+            >>> cinder_default = self._get_cinder_default_backend()
+        """
+        cinder_priority_list = get_storage_backends_priority_list(
+            app_constants.HELM_CHART_CINDER
+        )
+        cinder_available_backends = get_available_volume_backends(
+            chart_name=app_constants.HELM_CHART_CINDER,
+            override_name=app_constants.OVERRIDE_STORAGE_BACKENDS
+        )
+        for priority in cinder_priority_list:
+            if cinder_available_backends.get(priority, ""):
+                return priority
+        LOG.error("No available storage backends found for Cinder.")
+        return None
+
+    def _get_cinder_ceph_type(self, cinder_backend: str) -> str:
+        """
+        Get the Ceph type used by Cinder backend.
+
+        Args:
+            cinder_backend: The Cinder backend name.
+
+        Returns:
+            str: Ceph type constant (SB_TYPE_CEPH_ROOK or SB_TYPE_CEPH).
+
+        Example:
+            >>> ceph_type = self._get_cinder_ceph_type('ceph-rook')
+        """
+        if cinder_backend == app_constants.CEPH_ROOK_BACKEND_NAME:
+            return constants.SB_TYPE_CEPH_ROOK
+        return constants.SB_TYPE_CEPH
 
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)

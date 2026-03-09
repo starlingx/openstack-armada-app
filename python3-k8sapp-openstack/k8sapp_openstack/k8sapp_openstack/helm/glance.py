@@ -152,6 +152,13 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     },
                 },
             }
+            # Enable hostNetwork when Cinder uses iSCSI backend
+            # to allow glance-api pod to access host's iscsid service
+            cinder_default = self._get_cinder_default_backend()
+            if cinder_default == app_constants.NETAPP_ISCSI_BACKEND_NAME:
+                overrides['useHostNetwork'] = {
+                    'api': True
+                }
 
         return overrides
 

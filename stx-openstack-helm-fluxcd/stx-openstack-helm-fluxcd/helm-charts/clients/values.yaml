@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2024 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,6 +17,7 @@ images:
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     bootstrap: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    host_ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     rook_ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_jammy_18.2.2-1-20240312
   pull_policy: "IfNotPresent"
   local_registry:

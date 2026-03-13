@@ -13,9 +13,9 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import _get_value_from_application
+from k8sapp_openstack.utils import auto_config_dex_federation
 from k8sapp_openstack.utils import get_external_service_url
 from k8sapp_openstack.utils import get_services_fqdn_pattern
-from k8sapp_openstack.utils import is_dex_enabled
 
 LOG = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
             })
 
         # WebSSO configuration when DEX federation is enabled
-        if is_dex_enabled():
+        if auto_config_dex_federation():
             websso_config = self._get_websso_auth_config_overrides()
             local_settings_config.update(websso_config)
 

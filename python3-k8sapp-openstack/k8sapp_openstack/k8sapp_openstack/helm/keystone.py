@@ -14,6 +14,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import auto_config_dex_federation
 from k8sapp_openstack.utils import get_dex_issuer_url
 from k8sapp_openstack.utils import get_external_service_url
 from k8sapp_openstack.utils import is_dex_enabled
@@ -230,7 +231,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
         }
 
     def _get_conf_overrides(self):
-        return {
+        overrides = {
             'keystone': self._get_conf_keystone_overrides(),
             'policy': self._get_conf_policy_overrides(),
             'federation': {
@@ -238,6 +239,11 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
                 **self._get_external_federation_urls()
             }
         }
+
+        if auto_config_dex_federation():
+            overrides['federation'].setdefault('dex_idp', {})['enabled'] = True
+
+        return overrides
 
     def _region_config(self):
         # A wrapper over the Base region_config check.

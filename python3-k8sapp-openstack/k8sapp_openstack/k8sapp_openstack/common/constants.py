@@ -351,3 +351,7 @@ KEYSTONE_WEBSSO_REDIRECT_PATH = "/v3/auth/OS-FEDERATION/identity_providers/dex/p
 
 # Keystone federation OIDC client ID override
 KEYSTONE_OIDC_CLIENT_ID_OVERRIDE = "conf.federation.wsgi.OIDCClientID"
+
+# Dex IDP chart
+DEX_IDP_OVERRIDE = "conf.federation.dex_idp.enabled"
+DEX_DEFAULT_IDP_OVERRIDE = False

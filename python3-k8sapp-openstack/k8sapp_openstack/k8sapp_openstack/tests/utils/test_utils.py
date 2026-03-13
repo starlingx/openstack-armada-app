@@ -2400,3 +2400,54 @@ class NetAppCACertSecretTest(dbbase.ControllerHostTestCase):
         # Test: exception handling
         mock_kube.kube_get_secret.side_effect = Exception("Kubernetes error")
         self.assertFalse(app_utils.is_netapp_ca_cert_secret_available())
+
+    @mock.patch('k8sapp_openstack.utils.get_endpoint_domain', return_value="example.com")
+    @mock.patch('k8sapp_openstack.utils.check_dex_healthy', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.oidc_parameters_exist', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available', return_value=False)
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_auto_config_dex_federation_success(self, *_):
+        """Test auto_config_dex_federation returns True when all conditions are met."""
+        result = app_utils.auto_config_dex_federation()
+        self.assertTrue(result)
+
+    @mock.patch('k8sapp_openstack.utils.get_endpoint_domain', return_value="")
+    @mock.patch('k8sapp_openstack.utils.check_dex_healthy', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.oidc_parameters_exist', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available', return_value=False)
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_auto_config_dex_federation_no_endpoint(self, *_):
+        """Test auto_config_dex_federation returns False when endpoint domain is not configured."""
+        result = app_utils.auto_config_dex_federation()
+        self.assertFalse(result)
+
+    @mock.patch('k8sapp_openstack.utils.get_endpoint_domain', return_value="example.com")
+    @mock.patch('k8sapp_openstack.utils.check_dex_healthy', return_value=False)
+    @mock.patch('k8sapp_openstack.utils.oidc_parameters_exist', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available', return_value=False)
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_auto_config_dex_federation_no_healthy_dex(self, *_):
+        """Test auto_config_dex_federation returns False when Dex is not healthy."""
+        result = app_utils.auto_config_dex_federation()
+        self.assertFalse(result)
+
+    @mock.patch('k8sapp_openstack.utils.get_endpoint_domain', return_value="example.com")
+    @mock.patch('k8sapp_openstack.utils.check_dex_healthy', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.oidc_parameters_exist', return_value=False)
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available', return_value=False)
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_auto_config_dex_federation_no_OIDC_parameters(self, *_):
+        """Test auto_config_dex_federation returns False when OIDC parameters are missing."""
+        result = app_utils.auto_config_dex_federation()
+        self.assertFalse(result)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.utils.get_endpoint_domain', return_value="example.com")
+    @mock.patch('k8sapp_openstack.utils.check_dex_healthy', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.oidc_parameters_exist', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_user_overrides_available', return_value=True)
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_auto_config_dex_federation_user_override_disable_dex(self, *_):
+        """Test auto_config_dex_federation returns False when user override disables dex federation."""
+        result = app_utils.auto_config_dex_federation()
+        self.assertFalse(result)

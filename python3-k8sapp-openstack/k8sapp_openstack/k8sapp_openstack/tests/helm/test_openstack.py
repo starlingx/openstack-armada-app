@@ -826,3 +826,55 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
             'instances_path': '/var/lib/nova/instances',
             'storage_class': 'netapp-nas-backend',
         })
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends',
+                return_value={
+                    app_constants.CEPH_BACKEND_NAME: "ceph-rbd",
+                    app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas",
+                    app_constants.NETAPP_ISCSI_BACKEND_NAME: "netapp-iscsi",
+                    app_constants.NETAPP_FC_BACKEND_NAME: "netapp-fc",
+                })
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list',
+                return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST)
+    def test_get_cinder_volumes_backends_all_available(self, *_):
+        """Tests all prioritized backends are returned when available."""
+        result = self.helm._get_cinder_volumes_backends()
+        self.assertEqual(result, app_constants.DEFAULT_VOLUME_PRIORITY_LIST)
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends',
+                return_value={
+                    app_constants.CEPH_BACKEND_NAME: "",
+                    app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas",
+                    app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
+                    app_constants.NETAPP_FC_BACKEND_NAME: "netapp-fc",
+                })
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list',
+                return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST)
+    def test_get_cinder_volumes_backends_partial_availability(self, *_):
+        """Tests only available backends are returned from priority list."""
+        result = self.helm._get_cinder_volumes_backends()
+        self.assertEqual(result, [app_constants.NETAPP_NFS_BACKEND_NAME,
+                                app_constants.NETAPP_FC_BACKEND_NAME])
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends',
+                return_value={
+                    app_constants.CEPH_BACKEND_NAME: "",
+                    app_constants.NETAPP_NFS_BACKEND_NAME: "",
+                    app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
+                    app_constants.NETAPP_FC_BACKEND_NAME: "",
+                })
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list',
+                return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST)
+    def test_get_cinder_volumes_backends_none_available(self, *_):
+        """Tests empty list when no prioritized backends are available."""
+        result = self.helm._get_cinder_volumes_backends()
+        self.assertEqual(result, [])
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list',
+                return_value=[])
+    def test_get_cinder_volumes_backends_empty_priority(self, _mock_priority, mock_get_backends):
+        """Tests empty list when priority list is empty."""
+        result = self.helm._get_cinder_volumes_backends()
+        self.assertEqual(result, [])
+        mock_get_backends.assert_not_called()

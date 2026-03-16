@@ -11,7 +11,6 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
-from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import is_ceph_backend_available
@@ -40,13 +39,12 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
 
         pvc_resolution = self._resolve_nova_pvc_overrides()
 
-        self._rook_ceph, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
-
-        # Check if ceph is present and apply overrides if not
-        self.available_backends = get_available_volume_backends()
-        self._ceph_enabled = bool(
-            self.available_backends.get(app_constants.CEPH_BACKEND_NAME, False)
-        )
+        cinder_backends = self._get_cinder_volumes_backends()
+        self._ceph_enabled = app_constants.CEPH_BACKEND_NAME in cinder_backends
+        self._rook_ceph = False
+        if self._ceph_enabled:
+            self._rook_ceph, _ = is_ceph_backend_available(
+                ceph_type=constants.SB_TYPE_CEPH_ROOK)
 
         overrides = {
             common.HELM_NS_OPENSTACK: {

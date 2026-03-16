@@ -925,3 +925,28 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
                 })
                 return nfs_share
         return {}
+
+    def _get_cinder_volumes_backends(self) -> list:
+        """Get the list of enabled Cinder volume backends in priority order.
+
+        Cross-references the Cinder volume priority list with the
+        available backends, returning only those that are both
+        prioritized and available (non-empty storage class).
+
+        Returns:
+            list: Enabled backend names in priority order.
+
+        Example:
+            >>> self._get_cinder_volumes_backends()
+            ['ceph', 'netapp-nfs']
+        """
+        priority_list = app_utils.get_storage_backends_priority_list(
+            chart=app_constants.HELM_CHART_CINDER,
+            override_name=app_constants.OVERRIDE_STORAGE_PRIORITY,
+            default_priority_list=app_constants.DEFAULT_VOLUME_PRIORITY_LIST)
+        if not priority_list:
+            return []
+        available_backends = app_utils.get_available_volume_backends(
+            chart_name=app_constants.HELM_CHART_CINDER,
+            override_name=app_constants.OVERRIDE_STORAGE_BACKENDS)
+        return [b for b in priority_list if available_backends.get(b)]

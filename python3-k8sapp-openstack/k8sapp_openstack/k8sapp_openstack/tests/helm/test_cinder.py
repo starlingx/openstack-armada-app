@@ -48,6 +48,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                       app_constants.NETAPP_NFS_BACKEND_NAME: "",
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
     )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
+    )
     def test_cinder_overrides(self, *_):
         """
         Test if cinder overrides are loaded correctly
@@ -120,6 +124,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                       app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
                       app_constants.NETAPP_NFS_BACKEND_NAME: "",
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     def test_cinder_overrides_https_enabled(self, *_):
         """
@@ -263,6 +271,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                       app_constants.NETAPP_NFS_BACKEND_NAME: "",
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
     )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
+    )
     def test_set_default_storage_backend_ceph(self, *_):
         """
         Test if ceph is defined as the default storage backend
@@ -327,6 +339,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
     )
     @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
+    )
+    @mock.patch(
         'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
         return_value=(False, "")
     )
@@ -384,6 +400,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                       app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
                       app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
@@ -491,6 +511,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                       app_constants.NETAPP_ISCSI_BACKEND_NAME: "netapp-san-backend",
                       app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
@@ -601,6 +625,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
     )
     @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
+    )
+    @mock.patch(
         'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
         return_value=(False, "")
     )
@@ -696,6 +724,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                       app_constants.NETAPP_ISCSI_BACKEND_NAME: "netapp-san-backend",
                       app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
@@ -795,6 +827,10 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                       app_constants.NETAPP_FC_BACKEND_NAME: ""}
     )
     @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
+    )
+    @mock.patch(
         'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
         return_value=(False, "")
     )
@@ -866,6 +902,7 @@ class CinderHelmTestCase(testtools.TestCase):
 
         def check_nsp_override(backend, has_nsp):
             ch.available_netapp_backends = [backend]
+            ch.VOLUME_PRIORITY_LIST = [backend]
             overrides = ch._get_conf_netapp_backends_overrides({})
             if has_nsp:
                 self.assertIn('netapp_pool_name_search_pattern', overrides[backend])

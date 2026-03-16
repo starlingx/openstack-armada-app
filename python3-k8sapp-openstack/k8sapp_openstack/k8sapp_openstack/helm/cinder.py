@@ -197,9 +197,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             if self.available_backends.get(priority, ""):
                 self.default_volume_type = priority
                 break
-        if self.default_volume_type != "ceph":   # Only set if not ceph, as ceph is handled
-                                            # separately by _get_conf_ceph_cinder_overrides
-                                            # and _get_conf_rook_ceph_cinder_overrides
+        if self.default_volume_type != app_constants.CEPH_BACKEND_NAME:
+            # Only set if not ceph, as ceph is handled separately by
+            # _get_conf_ceph_cinder_overrides and _get_conf_rook_ceph_cinder_overrides
             cinder_overrides['DEFAULT']['default_volume_type'] = self.default_volume_type
 
         # Setting default backup driver based on priority list.
@@ -363,6 +363,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         }
 
     def _get_conf_ceph_cinder_overrides(self, cinder_overrides):
+        if app_constants.CEPH_BACKEND_NAME not in self.VOLUME_PRIORITY_LIST:
+            LOG.warning("Skipping ceph Cinder overrides. The backend is available"
+                        " but not included in the volume priority list")
+            return cinder_overrides
         # Ensure 'DEFAULT' key exists in cinder_overrides
         cinder_overrides.setdefault('DEFAULT', {})
 
@@ -398,13 +402,21 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         cinder_overrides.setdefault('DEFAULT', {})
 
         # Add NetApp backends to Cinder enabled_backends list, ensuring no duplicates
+        filtered_netapp_backends = [
+            be for be in self.available_netapp_backends
+            if be in self.VOLUME_PRIORITY_LIST
+        ]
         existing_backends = cinder_overrides['DEFAULT'].get('enabled_backends', '').split(',')
-        backends_list = list(filter(None, set(existing_backends + self.available_netapp_backends)))
+        backends_list = list(filter(None, set(existing_backends + filtered_netapp_backends)))
         cinder_overrides['DEFAULT']['enabled_backends'] = ','.join(backends_list)
 
         return cinder_overrides
 
     def _get_conf_ceph_backends_overrides(self, backend_overrides):
+        if app_constants.CEPH_BACKEND_NAME not in self.VOLUME_PRIORITY_LIST:
+            LOG.warning("Skipping ceph backend config. The backend is available"
+                        " but not included in the volume priority list")
+            return backend_overrides
         # Get tier info.
         tiers = self.dbapi.storage_tier_get_list()
         primary_tier_name =\
@@ -418,6 +430,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         if not backends:
             return {}
 
+        ceph_uuid = get_ceph_fsid()
         for bk in backends:
             bk_name = bk.name.encode('utf8', 'strict')
             tier = next((t for t in tiers if t.forbackendid == bk.id), None)
@@ -440,8 +453,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                     (constants.CEPH_CONF_PATH +
                      constants.SB_TYPE_CEPH_CONF_FILENAME),
             }
-
-            ceph_uuid = get_ceph_fsid()
             if ceph_uuid:
                 backend_overrides[bk_name]['rbd_secret_uuid'] = ceph_uuid
 
@@ -453,6 +464,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             'nfs_mount_options': app_constants.NFS_MOUNT_OPTIONS,
         }
         for backend in self.available_netapp_backends:
+            if backend not in self.VOLUME_PRIORITY_LIST:
+                LOG.warning(f"Skipping {backend} config. The backend is available"
+                            " but not included in the volume priority list")
+                continue
             netaapp_credentials = discover_netapp_credentials(backend)
             if not netaapp_credentials:
                 LOG.warning(f"No NetApp credentials found for backend {backend}. "
@@ -595,6 +610,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         return dict()
 
     def _get_conf_rook_ceph_cinder_overrides(self, cinder_overrides):
+        if app_constants.CEPH_BACKEND_NAME not in self.VOLUME_PRIORITY_LIST:
+            LOG.warning("Skipping Rook ceph Cinder overrides. The backend is available"
+                        " but not included in the volume priority list")
+            return cinder_overrides
         # Ensure 'DEFAULT' key exists in cinder_overrides and update it
         cinder_overrides.setdefault('DEFAULT', {})
 
@@ -648,6 +667,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         return ceph_override
 
     def _get_conf_rook_ceph_backends_overrides(self, backend_overrides):
+        if app_constants.CEPH_BACKEND_NAME not in self.VOLUME_PRIORITY_LIST:
+            LOG.warning("Skipping Rook ceph backend config. The backend is available"
+                        " but removed from volume priority list")
+            return backend_overrides
         backend_overrides[app_constants.CEPH_ROOK_BACKEND_NAME] = {
             'image_volume_cache_enabled': 'True',
             'volume_backend_name': app_constants.CEPH_ROOK_BACKEND_NAME,

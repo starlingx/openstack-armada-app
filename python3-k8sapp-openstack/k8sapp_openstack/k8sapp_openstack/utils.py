@@ -2601,6 +2601,48 @@ def get_external_service_url(dbapi, service_name, https_ready):
     return ""
 
 
+def auto_config_dex_federation():
+    """Evaluate conditions to enable dex_idp automatically.
+
+    Returns:
+        bool: False if any of the following conditions are met:
+            - User has explicitly disabled DEX federation via helm overrides
+            (when conf.federation.dex_idp.enabled is set to False in keystone chart overrides)
+            - Required OIDC parameters are missing from the system configuration
+            (when any mandatory OIDC service parameters are not configured in the database)
+            - DEX service is not responding to health checks
+            (when the DEX /healthz endpoint is unreachable or returning error responses)
+            - Endpoint domain is not configured in the system
+            (when the endpoint_domain service parameter is missing or empty)
+    """
+    db = dbapi.get_instance()
+
+    if is_user_overrides_available(
+        app_constants.HELM_CHART_KEYSTONE,
+        app_constants.DEX_IDP_OVERRIDE
+    ):
+        check_user_override = _get_value_from_application(
+            default_value=app_constants.DEX_DEFAULT_IDP_OVERRIDE,
+            chart_name=app_constants.HELM_CHART_KEYSTONE,
+            override_name=app_constants.DEX_IDP_OVERRIDE)
+        if check_user_override is False:
+            return False
+
+    if not oidc_parameters_exist(db):
+        LOG.info("Skipping DEX federation auto config due to missing OIDC parameters")
+        return False
+
+    if not check_dex_healthy(db, dex_enabled=True):
+        LOG.info("Skipping DEX federation auto config due to DEX health condition: not healthy")
+        return False
+
+    if not get_endpoint_domain(db):
+        LOG.info("Skipping DEX federation auto config due to missing endpoint domain configuration")
+        return False
+
+    return True
+
+
 def pre_apply_create_dex_resources_secret(kube):
     """
     Create the Kubernetes secret containing DEX credentials used for
@@ -2619,7 +2661,7 @@ def pre_apply_create_dex_resources_secret(kube):
         SysinvException: If an error occurs while attempting to create the
                         DEX credentials secret.
     """
-    if not is_dex_enabled():
+    if not auto_config_dex_federation():
         LOG.info("DEX integration is not enabled, skipping secret creation")
         return
 

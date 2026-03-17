@@ -33,7 +33,7 @@ class HorizonWebSSOTestCase(HorizonHelmTestCase,
             'horizon', {}).get('local_settings', {}).get('config', {})
 
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
-    @mock.patch('k8sapp_openstack.helm.horizon.is_dex_enabled', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.horizon.auto_config_dex_federation', return_value=False)
     def test_websso_disabled_when_dex_disabled(self, *_):
         """Test WebSSO config is absent when DEX is disabled."""
         overrides = self.operator.get_helm_chart_overrides(
@@ -43,7 +43,7 @@ class HorizonWebSSOTestCase(HorizonHelmTestCase,
         self.assertNotIn('auth', config)
 
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
-    @mock.patch('k8sapp_openstack.helm.horizon.is_dex_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.helm.horizon.auto_config_dex_federation', return_value=True)
     @mock.patch(
         'k8sapp_openstack.helm.horizon.HorizonHelm._get_websso_auth_config_overrides',
         return_value={

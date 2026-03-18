@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from oslo_log import log as logging
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import utils
@@ -15,6 +16,8 @@ from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import is_ceph_backend_available
+
+LOG = logging.getLogger(__name__)
 
 
 class LibvirtHelm(openstack.OpenstackBaseHelm):
@@ -111,10 +114,21 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
     def _get_conf_overrides(self):
         cinder_overrides = {}
 
+        LOG.info(f"Libvirt Ceph enabled: {self._ceph_enabled} ")
         admin_keyring = 'null'
         if self._ceph_enabled:
             if self._rook_ceph:
                 admin_keyring = self._get_rook_ceph_admin_keyring()
+
+                if admin_keyring == 'null':
+                    LOG.error(
+                        f"Libvirt: Rook Ceph admin keyring not available. "
+                        f"The Kubernetes secret "
+                        f"'{constants.K8S_RBD_PROV_ADMIN_SECRET_NAME}' in "
+                        f"namespace '{app_constants.HELM_NS_ROOK_CEPH}' could "
+                        f"not be read. Ceph will not be properly configured "
+                        f"on compute nodes.")
+
         else:
             cinder_overrides = {
                 'external_ceph': {

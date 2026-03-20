@@ -1,0 +1,168 @@
+From e5625ddd722afde254b54a6077b1f33c686a2567 Mon Sep 17 00:00:00 2001
+From: Luis Henrique Silva Cazuriaga
+ <LuisHenrique.SilvaCazuriaga@windriver.com>
+Date: Thu, 12 Mar 2026 17:22:34 -0300
+Subject: [PATCH] Fix cold migration on IPv6 deployments
+
+VM cold migration fails on IPv6 deployments because the nova
+compute init and SSH start scripts use hardcoded IPv4 commands
+(ip -4) to determine the migration interface and SSH listen
+address. On pure IPv6 deployments, these commands fail to find
+any interface, causing the SSH daemon to fall back to listening
+on 127.0.0.1, making it unreachable from other compute nodes.
+
+Fix by detecting whether the configured subnet is IPv4 or IPv6
+based on the presence of ":" in the address, then using the
+appropriate ip -4/ip -6 command and inet/inet6 grep keyword
+accordingly. When no subnet is configured, try IPv4 first and
+fall back to IPv6. Also add scope global filter to avoid
+selecting link-local addresses on IPv6 deployments.
+
+Also avoid overwriting IPv6 addresses derived from
+address_search_enabled with the IPv4 CLUSTER_HOST_IP value in
+/tmp/pod-shared/nova.conf. This preserves the existing
+CLUSTER_HOST_IP-based behavior for deployments that do not
+enable address_search while allowing the explicit IPv6
+address-search configs to take precedence when enabled.
+
+Change-Id: Ia515c6b4c08147f510cec0df6348881a51210e9a
+Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
+---
+ nova/templates/bin/_nova-compute.sh.tpl      |  8 +++-
+ nova/templates/bin/_nova-compute-init.sh.tpl | 44 +++++++++++++++++---
+ nova/templates/bin/_ssh-start.sh.tpl         | 27 ++++++++++--
+ 3 files changed, 74 insertions(+), 11 deletions(-)
+
+diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
+index 48764d734..7a0e1fd96 100644
+--- a/nova/templates/bin/_nova-compute.sh.tpl
++++ b/nova/templates/bin/_nova-compute.sh.tpl
+@@ -36,10 +36,16 @@ function start () {
+ 
+     # Set fields to replace with cluster host ip
+     declare -A CONFIG_CHANGES
++{{- if not .Values.conf.hypervisor.address_search_enabled }}
+     CONFIG_CHANGES["DEFAULT.my_ip"]="$CLUSTER_HOST_IP"
++{{- end }}
++{{- if not .Values.console.address_search_enabled }}
+     CONFIG_CHANGES["vnc.server_listen"]="$CLUSTER_HOST_IP"
+     CONFIG_CHANGES["vnc.server_proxyclient_address"]="$CLUSTER_HOST_IP"
++{{- end }}
++{{- if not .Values.conf.libvirt.address_search_enabled }}
+     CONFIG_CHANGES["libvirt.live_migration_inbound_addr"]="$CLUSTER_HOST_IP"
++{{- end }}
+ 
+     # Loop through the lines of the input file
+     while IFS="=" read -r line; do
+
+diff --git a/nova/templates/bin/_nova-compute-init.sh.tpl b/nova/templates/bin/_nova-compute-init.sh.tpl
+index df9f4dc81..9e689e73a 100644
+--- a/nova/templates/bin/_nova-compute-init.sh.tpl
++++ b/nova/templates/bin/_nova-compute-init.sh.tpl
+@@ -42,13 +42,29 @@ if [[ -z $migration_interface ]]; then
+     # search for interface with default routing
+     # If there is not default gateway, exit
+     migration_network_cidr="{{- .Values.conf.libvirt.live_migration_network_cidr -}}"
++
+     if [ -z "${migration_network_cidr}" ] ; then
+-        migration_network_cidr="0/0"
++        migration_interface=$(ip -4 route list 0.0.0.0/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++        if [ -n "${migration_interface}" ]; then
++            migration_network_cidr="0/0"
++            inet_keyword="inet "
++        else
++            migration_interface=$(ip -6 route list ::/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            migration_network_cidr="::/0"
++            inet_keyword="inet6 "
++        fi
++    else
++        if [[ "${migration_network_cidr}" == *":"* ]]; then
++            migration_interface=$(ip -6 route list ${migration_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            inet_keyword="inet6 "
++        else
++            migration_interface=$(ip -4 route list ${migration_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            inet_keyword="inet "
++        fi
+     fi
+-    migration_interface=$(ip -4 route list ${migration_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }') || exit 1
+ fi
+ 
+-migration_address=$(ip a s $migration_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
++migration_address=$(ip a s $migration_interface | grep "${inet_keyword}" | grep 'scope global' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
+ 
+ if [ -z "${migration_address}" ] ; then
+   echo "Var live_migration_interface is empty"
+@@ -65,13 +81,29 @@ if [[ -z $hypervisor_interface ]]; then
+     # search for interface with default routing
+     # If there is not default gateway, exit
+     hypervisor_network_cidr="{{- .Values.conf.hypervisor.host_network_cidr -}}"
++
+     if [ -z "${hypervisor_network_cidr}" ] ; then
+-        hypervisor_network_cidr="0/0"
++        hypervisor_interface=$(ip -4 route list 0.0.0.0/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++        if [ -n "${hypervisor_interface}" ]; then
++            hypervisor_network_cidr="0/0"
++            inet_keyword="inet "
++        else
++            hypervisor_interface=$(ip -6 route list ::/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            hypervisor_network_cidr="::/0"
++            inet_keyword="inet6 "
++        fi
++    else
++        if [[ "${hypervisor_network_cidr}" == *":"* ]]; then
++            hypervisor_interface=$(ip -6 route list ${hypervisor_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            inet_keyword="inet6 "
++        else
++            hypervisor_interface=$(ip -4 route list ${hypervisor_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            inet_keyword="inet "
++        fi
+     fi
+-    hypervisor_interface=$(ip -4 route list ${hypervisor_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }') || exit 1
+ fi
+ 
+-hypervisor_address=$(ip a s $hypervisor_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
++hypervisor_address=$(ip a s $hypervisor_interface | grep "${inet_keyword}" | grep 'scope global' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
+ 
+ if [ -z "${hypervisor_address}" ] ; then
+   echo "Var my_ip is empty"
+diff --git a/nova/templates/bin/_ssh-start.sh.tpl b/nova/templates/bin/_ssh-start.sh.tpl
+index feca575bc..a0e3a587b 100644
+--- a/nova/templates/bin/_ssh-start.sh.tpl
++++ b/nova/templates/bin/_ssh-start.sh.tpl
+@@ -28,10 +28,31 @@ IFS=''
+ subnet_address="{{- .Values.network.ssh.from_subnet -}}"
+ 
+ if [ -z "${subnet_address}" ] ; then
+-    subnet_address="0.0.0.0/0"
++    listen_interface=$(ip -4 route list 0.0.0.0/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++    if [ -n "${listen_interface}" ]; then
++        subnet_address="0.0.0.0/0"
++        inet_keyword="inet "
++    else
++        listen_interface=$(ip -6 route list ::/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++        subnet_address="::/0"
++        inet_keyword="inet6 "
++    fi
++else
++    if [[ "${subnet_address}" == *":"* ]]; then
++        listen_interface=$(ip -6 route list ${subnet_address} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++        inet_keyword="inet6 "
++    else
++        listen_interface=$(ip -4 route list ${subnet_address} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++        inet_keyword="inet "
++    fi
+ fi
+-listen_interface=$(ip -4 route list ${subnet_address} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }') || exit 1
+-listen_address=$(ip a s $listen_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
++
++if [ -z "${listen_interface}" ] ; then
++    echo "Could not determine listen interface"
++    exit 1
++fi
++
++listen_address=$(ip a s ${listen_interface} | grep "${inet_keyword}" | grep 'scope global' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
+ 
+ cat > /tmp/sshd_config_extend <<EOF
+ ListenAddress $listen_address
+-- 
+2.43.0

@@ -493,6 +493,19 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
                 'hook_info': mock.Mock(
                     lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK,
                     operation=constants.APP_APPLY_OP,
+                    mode=LifecycleConstants.APP_LIFECYCLE_MODE_AUTO,
+                    relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
+                ),
+                'assertions': [
+                    self.lifecycle._semantic_check_evaluate_app_reapply.assert_not_called,
+                    self.lifecycle._pre_apply_check.assert_called_once,
+                    self.lifecycle._pre_remove_check.assert_not_called,
+                ]
+            },
+            {
+                'hook_info': mock.Mock(
+                    lifecycle_type=LifecycleConstants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK,
+                    operation=constants.APP_APPLY_OP,
                     mode=LifecycleConstants.APP_LIFECYCLE_MODE_MANUAL,
                     relative_timing=LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
                 ),

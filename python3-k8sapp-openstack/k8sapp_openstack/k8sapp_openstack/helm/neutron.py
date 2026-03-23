@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,6 +13,7 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import get_current_vswitch_label
+from k8sapp_openstack.utils import get_vlan_os_interface_name
 
 LOG = logging.getLogger(__name__)
 
@@ -158,11 +159,16 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                        [constants.DATANETWORK_TYPE_FLAT,
                         constants.DATANETWORK_TYPE_VLAN] for dn in
                        self.ifdatanets_by_ifaceid.get(iface.id, [])):
-                    # obtain the assigned bridge for interface
-                    brname = 'br-phy%d' % index
                     port_name = self._get_interface_port_name(host, iface)
-                    bridges[brname] = port_name.encode('utf8', 'strict')
-                    index += 1
+                    # Skip bridge creation if port name could not be resolved
+                    if port_name:
+                        brname = 'br-phy%d' % index
+                        bridges[brname] = port_name.encode('utf8', 'strict')
+                        index += 1
+                        LOG.debug("_get_host_bridges: host=%s iface=%s "
+                                  "-> bridge %s for port %s",
+                                  host.hostname, iface['ifname'], brname, port_name)
+        LOG.debug("_get_host_bridges: host=%s RESULT bridges=%s", host.hostname, bridges)
         return bridges
 
     def _get_dynamic_ovs_agent_config(self, host):
@@ -186,9 +192,15 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                     elif (datanet.datanetwork_network_type in
                           [constants.DATANETWORK_TYPE_FLAT,
                            constants.DATANETWORK_TYPE_VLAN]):
-                        brname = 'br-phy%d' % index
-                        bridge_mappings += ('%s:%s,' % (dn_name, brname))
-                        index += 1
+                        port_name = self._get_interface_port_name(host, iface)
+                        # Skip bridge mapping if port name could not be resolved
+                        if port_name:
+                            brname = 'br-phy%d' % index
+                            index += 1
+                            bridge_mappings += ('%s:%s,' % (dn_name, brname))
+                            LOG.debug("_get_dynamic_ovs_agent_config: host=%s iface=%s dn=%s "
+                                      "-> bridge %s for port %s",
+                                      host.hostname, iface['ifname'], dn_name, brname, port_name)
 
         agent = {}
         ovs = {
@@ -209,6 +221,9 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         # networking_guide/bridge-mappings
         # required for vlan, not flat, vxlan:
         #     ovs['network_vlan_ranges'] = physnet1:10:20,physnet2:21:25
+
+        LOG.debug("_get_dynamic_ovs_agent_config: host=%s RESULT bridge_mappings=%s",
+                  host.hostname, bridge_mappings)
 
         return {
             'agent': agent,
@@ -299,6 +314,16 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                     lower_iface = i
             if lower_iface:
                 return self._get_interface_port_name(host, lower_iface)
+        if iface['iftype'] == constants.INTERFACE_TYPE_VLAN:
+            # For VLAN interfaces with flat datanetworks, OVS must use the
+            # OS VLAN interface (e.g. vlan#100) as the bridge port,
+            # not the underlying physical interface. This allows multiple
+            # VLAN interfaces sharing the same physical port to each get
+            # their own OVS bridge, avoiding duplicate port conflicts.
+            vlan_ifname = get_vlan_os_interface_name(iface['ifname'])
+            LOG.debug("_get_interface_port_name: VLAN %s -> OS iface %s",
+                      iface['ifname'], vlan_ifname)
+            return vlan_ifname
         if iface['iftype'] == constants.INTERFACE_TYPE_AE:
             return iface['ifname']
         assert iface['iftype'] == constants.INTERFACE_TYPE_ETHERNET

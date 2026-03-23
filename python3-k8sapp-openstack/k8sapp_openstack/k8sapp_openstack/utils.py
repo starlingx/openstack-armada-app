@@ -1341,6 +1341,30 @@ def get_interface_datanets(db=None) -> dict:
     return db.interface_datanetwork_get_all()
 
 
+def get_vlan_os_interface_name(ifname):
+    """
+    Derive the OS VLAN interface name from a platform interface name.
+
+    Based on the naming logic from sysinv/puppet/interface.py
+    get_vlan_os_ifname() method:
+        vlan100     -> vlan#100     (vlan + digits)
+        eth0.100    -> eth0#100     (name.digits)
+        custom-vlan -> custom-vlan  (anything else, kept as-is)
+
+    Args:
+        ifname: The platform interface name (e.g. "vlan100", "eth0.100")
+
+    Returns:
+        str: The OS VLAN interface name (e.g. "vlan#100", "eth0#100")
+    """
+    if re.search(r"^vlan[0-9]+$", ifname):
+        return "vlan#%s" % ifname[4:]
+    match = re.search(r"\.[0-9]+$", ifname)
+    if match:
+        return ifname[:match.start()] + '#' + ifname[match.start() + 1:]
+    return ifname
+
+
 def get_labels_by_host(labels) -> dict:
     """
     Given a set of labels, build a dict in the format 'host_id':'label=value' for

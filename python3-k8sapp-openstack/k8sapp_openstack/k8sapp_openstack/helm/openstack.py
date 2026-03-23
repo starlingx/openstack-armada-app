@@ -529,60 +529,45 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
 
         return passwords[service][user]
 
-    def _get_or_generate_ssh_keys(self, chart, namespace):
-        try:
-            app = utils.find_openstack_app(self.dbapi)
-            override = self.dbapi.helm_override_get(app_id=app.id,
-                                                    name=chart,
-                                                    namespace=namespace)
-        except exception.HelmOverrideNotFound:
-            # Override for this chart not found, so create one
-            values = {
-                'name': chart,
-                'namespace': namespace,
-                'app_id': app.id
-            }
-            override = self.dbapi.helm_override_create(values=values)
+    def _get_or_generate_ssh_keys(self, namespace, secret_name=None):
+        """Retrieve existing SSH keys from a Kubernetes secret or generate a new RSA key pair.
 
-        privatekey = override.system_overrides.get('privatekey', None)
-        publickey = override.system_overrides.get('publickey', None)
+        Args:
+            namespace (str): Kubernetes namespace where the secret resides.
+            secret_name (str, optional): Name of the Kubernetes secret storing the keys.
 
-        if privatekey and publickey:
-            return str(privatekey), str(publickey)
+        Returns:
+            tuple: A (private_key, public_key) pair as PEM/OpenSSH encoded strings.
+        """
+        if secret_name:
+            try:
+                kube = kubernetes.KubeOperator()
+                secret = kube.kube_get_secret(name=secret_name,
+                                              namespace=namespace)
+                if secret and hasattr(secret, 'data') and secret.data:
+                    priv = secret.data.get('private-key')
+                    pub = secret.data.get('public-key')
+                    if priv and pub:
+                        return (
+                            base64.b64decode(priv).decode('utf-8'),
+                            base64.b64decode(pub).decode('utf-8'),
+                        )
+            except Exception as e:
+                LOG.debug("Could not retrieve SSH keys from secret "
+                          "'%s': %s", secret_name, e)
 
-        # ssh keys are not set, dump from inactive app if available,
-        # otherwise generate them and store in overrides
-        newprivatekey = None
-        newpublickey = None
-        try:
-            openstack_app = utils.find_openstack_app(self.dbapi)
-            inactive_apps = self.dbapi.kube_app_get_inactive(openstack_app.name)
-            app_override = self.dbapi.helm_override_get(app_id=inactive_apps[0].id,
-                                                        name=chart,
-                                                        namespace=namespace)
-            newprivatekey = str(app_override.system_overrides.get('privatekey', None))
-            newpublickey = str(app_override.system_overrides.get('publickey', None))
-        except (IndexError, exception.HelmOverrideNotFound):
-            # No inactive app or no overrides for the inactive app
-            pass
-
-        if not newprivatekey or not newpublickey:
-            private_key = rsa.generate_private_key(public_exponent=65537,
-                                                   key_size=2048,
-                                                   backend=default_backend())
-            public_key = private_key.public_key()
-            newprivatekey = str(private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.TraditionalOpenSSL,
-                encryption_algorithm=serialization.NoEncryption()).decode('utf-8'))
-            newpublickey = str(public_key.public_bytes(
-                serialization.Encoding.OpenSSH,
-                serialization.PublicFormat.OpenSSH).decode('utf-8'))
-        values = {'system_overrides': override.system_overrides}
-        values['system_overrides'].update({'privatekey': newprivatekey,
-                                           'publickey': newpublickey})
-        self.dbapi.helm_override_update(
-            app_id=app.id, name=chart, namespace=namespace, values=values)
+        # Secret not found or missing keys, generate new ones.
+        private_key = rsa.generate_private_key(public_exponent=65537,
+                                               key_size=2048,
+                                               backend=default_backend())
+        public_key = private_key.public_key()
+        newprivatekey = str(private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption()).decode('utf-8'))
+        newpublickey = str(public_key.public_bytes(
+            serialization.Encoding.OpenSSH,
+            serialization.PublicFormat.OpenSSH).decode('utf-8'))
 
         return newprivatekey, newpublickey
 

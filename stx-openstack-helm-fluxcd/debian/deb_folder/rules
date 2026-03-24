@@ -11,6 +11,16 @@ export TOOLKIT_VERSION = 2025.1.0
 	dh $@
 
 override_dh_auto_build:
+	# Substitute image tag tokens in chart values and manifests
+	find helm-charts manifests -name "*.yaml" -exec sed -i \
+	    -e 's|@IMAGE_PREFIX@|$(IMAGE_PREFIX)|g' \
+	    -e 's|@IMAGE_SUFFIX@|$(IMAGE_SUFFIX)|g' \
+	    -e 's|@BUILD_STREAM@|$(BUILD_STREAM)|g' \
+	    -e 's|@OS@|$(OS)|g' \
+	    -e 's|@OS_CODENAME@|$(OS_CODENAME)|g' \
+	    -e 's|@OS_ARCH@|$(OS_ARCH)|g' \
+	    -e 's|@PLATFORM_REGISTRY@|$(PLATFORM_REGISTRY)|g' \
+	    {} +
 	# Stage helm-toolkit in the local repo.
 	cp $(HELM_FOLDER)/helm-toolkit-$(TOOLKIT_VERSION).tgz helm-charts/
 	# Host a server for the helm charts.

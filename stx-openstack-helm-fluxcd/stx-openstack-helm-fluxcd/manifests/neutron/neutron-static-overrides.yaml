@@ -8,36 +8,36 @@
 release_group: osh-openstack-neutron
 images:
   tags:
-    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    bootstrap: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     test: null
     purge_test: null
-    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    neutron_db_sync: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_db_sync: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    db_drop: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     rabbit_init: docker.io/rabbitmq:3.10.25-management
-    ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ks_service: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ks_endpoints: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     netoffload: null
-    neutron_server: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_rpc_server: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_dhcp: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_metadata: docker.io/starlingx/stx-neutron:master-debian-stable-latest
+    neutron_server: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_rpc_server: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_dhcp: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_metadata: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_ovn_metadata: null
     neutron_ovn_vpn: null
-    neutron_l3: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_l2gw: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_openvswitch_agent: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_linuxbridge_agent: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_sriov_agent: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_sriov_agent_init: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_bagpipe_bgp: docker.io/starlingx/stx-neutron:master-debian-stable-latest
+    neutron_l3: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_l2gw: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_openvswitch_agent: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_linuxbridge_agent: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_sriov_agent: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_sriov_agent_init: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_bagpipe_bgp: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_bgp_dragent: null
-    neutron_ironic_agent: docker.io/starlingx/stx-neutron:master-debian-stable-latest
-    neutron_netns_cleanup_cron: docker.io/starlingx/stx-neutron:master-debian-stable-latest
+    neutron_ironic_agent: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    neutron_netns_cleanup_cron: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
-    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   pull_policy: "IfNotPresent"
   local_registry:
     active: false

@@ -116,7 +116,7 @@ images:
     memcached: docker.io/library/memcached:1.5.5
     prometheus_memcached_exporter: null
     image_repo_sync: null
-    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   local_registry:
     active: false
     exclude:

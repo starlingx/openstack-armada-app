@@ -25,12 +25,12 @@ images:
   tags:
     prometheus_rabbitmq_exporter: null
     prometheus_rabbitmq_exporter_helm_tests: null
-    rabbitmq_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    rabbitmq_init: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     rabbitmq: docker.io/rabbitmq:3.10.25
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     scripted_test: docker.io/rabbitmq:3.10.25-management
     image_repo_sync: null
-    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   pull_policy: "IfNotPresent"
   local_registry:
     active: false

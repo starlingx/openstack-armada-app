@@ -22,9 +22,9 @@ labels:
 images:
   tags:
     ks_endpoints: docker.io/openstackhelm/heat:pike
-    keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:master-debian-stable-latest
+    keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
-    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   pullPolicy: IfNotPresent
   local_registry:
     active: false

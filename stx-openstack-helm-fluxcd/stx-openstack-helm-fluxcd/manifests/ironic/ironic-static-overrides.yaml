@@ -51,24 +51,24 @@ labels:
     node_selector_value: enabled
 images:
   tags:
-    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    bootstrap: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    db_drop: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    db_init: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
-    ironic_api: docker.io/starlingx/stx-ironic:master-debian-stable-latest
-    ironic_conductor: docker.io/starlingx/stx-ironic:master-debian-stable-latest
-    ironic_db_sync: docker.io/starlingx/stx-ironic:master-debian-stable-latest
-    ironic_manage_cleaning_network: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ironic_pxe: docker.io/starlingx/stx-ironic:master-debian-stable-latest
+    ironic_api: docker.io/starlingx/stx-ironic:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ironic_conductor: docker.io/starlingx/stx-ironic:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ironic_db_sync: docker.io/starlingx/stx-ironic:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ironic_manage_cleaning_network: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ironic_pxe: docker.io/starlingx/stx-ironic:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ironic_pxe_http: docker.io/nginx:1.13.3
-    ironic_pxe_init: docker.io/starlingx/stx-ironic:master-debian-stable-latest
-    ironic_retrive_cleaning_network: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ironic_retrive_swift_config: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
-    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    ironic_pxe_init: docker.io/starlingx/stx-ironic:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ironic_retrive_cleaning_network: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ironic_retrive_swift_config: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ks_endpoints: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ks_service: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     rabbit_init: docker.io/rabbitmq:3.10.25-management
 conf:
   ironic:

@@ -31,24 +31,24 @@ labels:
 images:
   tags:
     test: null
-    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    cinder_db_sync: docker.io/starlingx/stx-cinder:master-debian-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    db_init: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    cinder_db_sync: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    db_drop: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     rabbit_init: docker.io/rabbitmq:3.10.25-management
-    ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    cinder_api: docker.io/starlingx/stx-cinder:master-debian-stable-latest
-    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    cinder_scheduler: docker.io/starlingx/stx-cinder:master-debian-stable-latest
-    cinder_volume: docker.io/starlingx/stx-cinder:master-debian-stable-latest
-    cinder_volume_usage_audit: docker.io/starlingx/stx-cinder:master-debian-stable-latest
+    ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ks_service: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ks_endpoints: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    cinder_api: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    bootstrap: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    cinder_scheduler: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    cinder_volume: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    cinder_volume_usage_audit: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     cinder_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
-    cinder_backup: docker.io/starlingx/stx-cinder:master-debian-stable-latest
+    cinder_backup: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
-    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   pull_policy: "IfNotPresent"
   local_registry:
     active: false

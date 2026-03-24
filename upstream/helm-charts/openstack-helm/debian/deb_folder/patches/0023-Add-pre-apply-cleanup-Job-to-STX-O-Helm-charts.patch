@@ -118,7 +118,7 @@ index 56882dcc9..10608103f 100644
      aodh_alarms_cleaner: docker.io/kolla/ubuntu-source-aodh-base:ocata
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -163,7 +163,7 @@ index 4264341bb..0f7a1c96f 100644
      barbican_api: quay.io/airshipit/barbican:2024.1-ubuntu_jammy
      rabbit_init: docker.io/rabbitmq:3.13-management
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -208,7 +208,7 @@ index 54d449d93..4235ede04 100644
      ceilometer_notification: docker.io/kolla/ubuntu-source-ceilometer-notification:wallaby
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -253,7 +253,7 @@ index abf9d618c..02f69e092 100644
      ks_endpoints: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
      ks_service: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
      ks_user: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
-+    pre_apply_cleanup: 'docker.io/starlingx/stx-vault-manager:master-debian-stable-latest'
++    pre_apply_cleanup: 'docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@'
    local_registry:
      active: false
      exclude:
@@ -298,7 +298,7 @@ index 5246c20f8..8179fc8f6 100644
      cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -343,7 +343,7 @@ index 31a0cafe7..9318db0eb 100644
      bootstrap: quay.io/airshipit/heat:2024.1-ubuntu_jammy
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -388,7 +388,7 @@ index 4454e7d8c..7fd8ce5e3 100644
      gnocchi_metricd: quay.io/attcomdev/ubuntu-source-gnocchi-metricd:3.0.3
      gnocchi_resources_cleaner: quay.io/attcomdev/ubuntu-source-gnocchi-base:3.0.3
      image_repo_sync: docker.io/library/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -433,7 +433,7 @@ index 814f62aa6..356fa084a 100644
      heat_purge_deleted: quay.io/airshipit/heat:2024.1-ubuntu_jammy
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -578,7 +578,7 @@ index 1146acfac..cb55a480c 100644
      test: docker.io/openstackhelm/osh-selenium:latest-ubuntu_jammy
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -623,7 +623,7 @@ index fb3e01f39..d35b3bed5 100644
      ironic_pxe_http: docker.io/nginx:1.13.3
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -668,7 +668,7 @@ index e642d1cb4..7e43fd64c 100644
      keystone_domain_manage: quay.io/airshipit/keystone:2024.1-ubuntu_jammy
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -713,7 +713,7 @@ index 6fa3619c2..47511663a 100644
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/library/docker:17.07.0
      kubectl: docker.io/bitnami/kubectl:latest
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -758,7 +758,7 @@ index c0e30a040..581e358a3 100644
      ks_user: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
      scripted_test: docker.io/openstackhelm/mariadb:ubuntu_focal-20210415
      mariadb_controller: docker.io/openstackhelm/mariadb:latest-ubuntu_jammy
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -803,7 +803,7 @@ index b56313100..38cba6d14 100644
      memcached: 'docker.io/library/memcached:1.5.5'
      prometheus_memcached_exporter: docker.io/prom/memcached-exporter:v0.4.1
      image_repo_sync: docker.io/library/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    local_registry:
      active: false
      exclude:
@@ -848,7 +848,7 @@ index 688613ce7..6a1a3d243 100644
      neutron_netns_cleanup_cron: quay.io/airshipit/neutron:2024.1-ubuntu_jammy
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -893,7 +893,7 @@ index ba5f5bb74..0551266ea 100644
      test: docker.io/xrally/xrally-openstack:2.0.0
      image_repo_sync: docker.io/docker:17.07.0
      nova_wait_for_computes_init: gcr.io/google_containers/hyperkube-amd64:v1.11.6
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    local_registry:
      active: false
      exclude:
@@ -938,7 +938,7 @@ index 5f9ee7d57..351b351af 100644
      openvswitch_vswitchd: docker.io/openstackhelm/openvswitch:latest-ubuntu_focal
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/library/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
@@ -983,7 +983,7 @@ index 66df39ed3..dd0ee4e07 100644
      placement_db_sync: quay.io/airshipit/placement:2024.1-ubuntu_jammy
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      image_repo_sync: docker.io/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    local_registry:
      active: false
      exclude:
@@ -1028,7 +1028,7 @@ index 1f8f44174..bfd996325 100644
      dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
      scripted_test: docker.io/library/rabbitmq:3.13.0-management
      image_repo_sync: docker.io/library/docker:17.07.0
-+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false

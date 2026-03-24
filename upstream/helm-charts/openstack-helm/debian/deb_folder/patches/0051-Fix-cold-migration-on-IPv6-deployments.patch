@@ -25,13 +25,24 @@ CLUSTER_HOST_IP-based behavior for deployments that do not
 enable address_search while allowing the explicit IPv6
 address-search configs to take precedence when enabled.
 
+When an explicit subnet is configured but no matching route is
+present, fall back to locating an interface that already owns a
+global address in that subnet. This keeps simplex labs working
+when the subnet is locally attached but not returned by
+`ip route list <cidr>`.
+
+If the subnet still cannot be resolved inside the container,
+fall back to the first global address of the selected IP family.
+This preserves the legacy simplex behavior instead of failing
+the SSH sidecar startup.
+
 Change-Id: Ia515c6b4c08147f510cec0df6348881a51210e9a
 Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
 ---
  nova/templates/bin/_nova-compute.sh.tpl      |  8 +++-
  nova/templates/bin/_nova-compute-init.sh.tpl | 44 +++++++++++++++++---
  nova/templates/bin/_ssh-start.sh.tpl         | 27 ++++++++++--
- 3 files changed, 74 insertions(+), 11 deletions(-)
+ 3 files changed, 110 insertions(+), 11 deletions(-)
 
 diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
 index 48764d734..7a0e1fd96 100644
@@ -59,7 +70,7 @@ diff --git a/nova/templates/bin/_nova-compute-init.sh.tpl b/nova/templates/bin/_
 index df9f4dc81..9e689e73a 100644
 --- a/nova/templates/bin/_nova-compute-init.sh.tpl
 +++ b/nova/templates/bin/_nova-compute-init.sh.tpl
-@@ -42,13 +42,29 @@ if [[ -z $migration_interface ]]; then
+@@ -42,13 +42,41 @@ if [[ -z $migration_interface ]]; then
      # search for interface with default routing
      # If there is not default gateway, exit
      migration_network_cidr="{{- .Values.conf.libvirt.live_migration_network_cidr -}}"
@@ -78,9 +89,21 @@ index df9f4dc81..9e689e73a 100644
 +    else
 +        if [[ "${migration_network_cidr}" == *":"* ]]; then
 +            migration_interface=$(ip -6 route list ${migration_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            if [ -z "${migration_interface}" ] ; then
++                migration_interface=$(ip -6 -o addr show to ${migration_network_cidr} scope global | awk '{ print $2; exit }')
++            fi
++            if [ -z "${migration_interface}" ] ; then
++                migration_interface=$(ip -6 -o addr show scope global | awk '{ print $2; exit }')
++            fi
 +            inet_keyword="inet6 "
 +        else
 +            migration_interface=$(ip -4 route list ${migration_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            if [ -z "${migration_interface}" ] ; then
++                migration_interface=$(ip -4 -o addr show to ${migration_network_cidr} scope global | awk '{ print $2; exit }')
++            fi
++            if [ -z "${migration_interface}" ] ; then
++                migration_interface=$(ip -4 -o addr show scope global | awk '{ print $2; exit }')
++            fi
 +            inet_keyword="inet "
 +        fi
      fi
@@ -92,7 +115,7 @@ index df9f4dc81..9e689e73a 100644
  
  if [ -z "${migration_address}" ] ; then
    echo "Var live_migration_interface is empty"
-@@ -65,13 +81,29 @@ if [[ -z $hypervisor_interface ]]; then
+@@ -65,13 +81,41 @@ if [[ -z $hypervisor_interface ]]; then
      # search for interface with default routing
      # If there is not default gateway, exit
      hypervisor_network_cidr="{{- .Values.conf.hypervisor.host_network_cidr -}}"
@@ -111,9 +134,21 @@ index df9f4dc81..9e689e73a 100644
 +    else
 +        if [[ "${hypervisor_network_cidr}" == *":"* ]]; then
 +            hypervisor_interface=$(ip -6 route list ${hypervisor_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            if [ -z "${hypervisor_interface}" ] ; then
++                hypervisor_interface=$(ip -6 -o addr show to ${hypervisor_network_cidr} scope global | awk '{ print $2; exit }')
++            fi
++            if [ -z "${hypervisor_interface}" ] ; then
++                hypervisor_interface=$(ip -6 -o addr show scope global | awk '{ print $2; exit }')
++            fi
 +            inet_keyword="inet6 "
 +        else
 +            hypervisor_interface=$(ip -4 route list ${hypervisor_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++            if [ -z "${hypervisor_interface}" ] ; then
++                hypervisor_interface=$(ip -4 -o addr show to ${hypervisor_network_cidr} scope global | awk '{ print $2; exit }')
++            fi
++            if [ -z "${hypervisor_interface}" ] ; then
++                hypervisor_interface=$(ip -4 -o addr show scope global | awk '{ print $2; exit }')
++            fi
 +            inet_keyword="inet "
 +        fi
      fi
@@ -129,7 +164,7 @@ diff --git a/nova/templates/bin/_ssh-start.sh.tpl b/nova/templates/bin/_ssh-star
 index feca575bc..a0e3a587b 100644
 --- a/nova/templates/bin/_ssh-start.sh.tpl
 +++ b/nova/templates/bin/_ssh-start.sh.tpl
-@@ -28,10 +28,31 @@ IFS=''
+@@ -28,10 +28,43 @@ IFS=''
  subnet_address="{{- .Values.network.ssh.from_subnet -}}"
  
  if [ -z "${subnet_address}" ] ; then
@@ -146,9 +181,21 @@ index feca575bc..a0e3a587b 100644
 +else
 +    if [[ "${subnet_address}" == *":"* ]]; then
 +        listen_interface=$(ip -6 route list ${subnet_address} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++        if [ -z "${listen_interface}" ] ; then
++            listen_interface=$(ip -6 -o addr show to ${subnet_address} scope global | awk '{ print $2; exit }')
++        fi
++        if [ -z "${listen_interface}" ] ; then
++            listen_interface=$(ip -6 -o addr show scope global | awk '{ print $2; exit }')
++        fi
 +        inet_keyword="inet6 "
 +    else
 +        listen_interface=$(ip -4 route list ${subnet_address} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
++        if [ -z "${listen_interface}" ] ; then
++            listen_interface=$(ip -4 -o addr show to ${subnet_address} scope global | awk '{ print $2; exit }')
++        fi
++        if [ -z "${listen_interface}" ] ; then
++            listen_interface=$(ip -4 -o addr show scope global | awk '{ print $2; exit }')
++        fi
 +        inet_keyword="inet "
 +    fi
  fi

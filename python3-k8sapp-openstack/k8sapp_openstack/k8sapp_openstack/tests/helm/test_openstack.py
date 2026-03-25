@@ -426,45 +426,45 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         self.assertEqual(pw, b"pw")
         self.assertEqual(self.helm.context['_ceph_passwords'][app_constants.HELM_CHART_KEYSTONE]["user"], b"pw")
 
-    @mock.patch("sysinv.common.utils.find_openstack_app", return_value=mock.Mock(id=1))
-    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.helm_override_get',
-                return_value=mock.Mock(system_overrides={"privatekey": "priv", "publickey": "pub"}))
-    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
-    def test_get_or_generate_ssh_keys(self, *_):
-        """Asserts on the contents of generated SSH keys."""
-        priv, pub = self.helm._get_or_generate_ssh_keys("chart", "ns")
-        self.assertEqual(priv, "priv")
-        self.assertEqual(pub, "pub")
+    @mock.patch('sysinv.common.kubernetes.KubeOperator.kube_get_secret')
+    def test_get_or_generate_ssh_keys_from_secret(self, mock_get_secret, *_):
+        """Asserts keys are retrieved from an existing K8s secret."""
+        mock_get_secret.return_value = mock.Mock(
+            data={
+                'private-key': base64.b64encode(b'priv_from_secret'),
+                'public-key': base64.b64encode(b'pub_from_secret'),
+            }
+        )
+        priv, pub = self.helm._get_or_generate_ssh_keys(
+            "openstack", secret_name="nova-ssh")
+        self.assertEqual(priv, "priv_from_secret")
+        self.assertEqual(pub, "pub_from_secret")
+        mock_get_secret.assert_called_once_with(
+            name="nova-ssh", namespace="openstack")
 
-    @mock.patch("sysinv.common.utils.find_openstack_app", return_value=mock.Mock(id=1))
-    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.helm_override_get',
-                side_effect=[
-                    mock.Mock(system_overrides={"key_dummy": "value_dummy"}),
-                    mock.Mock(system_overrides={"privatekey": "priv", "publickey": "pub"})])
-    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
-    def test_get_or_generate_ssh_keys_from_inactive_app(self, *_):
-        """Asserts on the contents of retrieved SSH keys from inactive apps."""
-        with mock.patch.object(self.helm.dbapi,
-                               'helm_override_update'
-                               ) as mock_helm_override_update, \
-            mock.patch.object(self.helm.dbapi,
-                              'kube_app_get_inactive',
-                              return_value=[mock.Mock(id=1)]
-                              ):
-            priv, pub = self.helm._get_or_generate_ssh_keys("chart", "ns")
-            mock_helm_override_update.assert_called_once_with(
-                app_id=1,
-                name='chart',
-                namespace='ns',
-                values={
-                    'system_overrides': {
-                        'key_dummy': 'value_dummy',
-                        'privatekey': 'priv', 'publickey': 'pub'
-                    }
-                }
-            )
-            self.assertEqual(priv, "priv")
-            self.assertEqual(pub, "pub")
+    @mock.patch('sysinv.common.kubernetes.KubeOperator.kube_get_secret',
+                return_value=None)
+    def test_get_or_generate_ssh_keys_secret_not_found(self, mock_get_secret, *_):
+        """Asserts new keys are generated when the K8s secret does not exist."""
+        priv, pub = self.helm._get_or_generate_ssh_keys(
+            "openstack", secret_name="nova-ssh")
+        self.assertIn("BEGIN", priv)
+        self.assertTrue(pub.startswith("ssh-rsa"))
+
+    def test_get_or_generate_ssh_keys_no_secret_name(self, *_):
+        """Asserts new keys are generated when no secret_name is provided."""
+        priv, pub = self.helm._get_or_generate_ssh_keys("openstack")
+        self.assertIn("BEGIN", priv)
+        self.assertTrue(pub.startswith("ssh-rsa"))
+
+    @mock.patch('sysinv.common.kubernetes.KubeOperator.kube_get_secret',
+                side_effect=Exception("k8s unavailable"))
+    def test_get_or_generate_ssh_keys_secret_exception(self, *_):
+        """Asserts new keys are generated when the K8s API raises an exception."""
+        priv, pub = self.helm._get_or_generate_ssh_keys(
+            "openstack", secret_name="nova-ssh")
+        self.assertIn("BEGIN", priv)
+        self.assertTrue(pub.startswith("ssh-rsa"))
 
     def test_get_service_default_dns_name(self):
         """Tests the formatting of services' DNS names."""

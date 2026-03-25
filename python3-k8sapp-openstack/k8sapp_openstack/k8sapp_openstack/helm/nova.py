@@ -108,7 +108,9 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.rbd_config = self._get_storage_ceph_config()
         nfs_shares = self._get_instances_nfs_shares_config()
         ssh_privatekey, ssh_publickey = \
-            self._get_or_generate_ssh_keys(self.SERVICE_NAME, common.HELM_NS_OPENSTACK)
+            self._get_or_generate_ssh_keys(
+                namespace=common.HELM_NS_OPENSTACK,
+                secret_name="nova-ssh")
 
         overrides = {
             common.HELM_NS_OPENSTACK: {

@@ -855,7 +855,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
                  app_constants.HELM_NS_ROOK_CEPH)
             return base64.b64decode(keyring.data['key']).decode('utf-8')
         except Exception:
-            pass
+            LOG.exception("Failed to get Rook Ceph admin keyring")
 
         return 'null'
 

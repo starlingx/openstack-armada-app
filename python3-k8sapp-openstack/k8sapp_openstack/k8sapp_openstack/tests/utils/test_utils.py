@@ -1729,20 +1729,42 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         )
 
     @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
-                return_value="netapp-nas-backend other-nas")
+                return_value="netapp-nas-backend\t\nother-nas\t")
     def test_get_netapp_storage_class_name_nfs(self, *_):
         """Test NetApp NFS backend returns the first storageclass name."""
         result = app_utils.get_netapp_storage_class_name(
-            app_constants.BACKEND_TYPE_NETAPP_NFS
+            app_constants.NETAPP_NFS_BACKEND_NAME
         )
         self.assertEqual(result, "netapp-nas-backend")
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                return_value="netapp-iscsi\tiscsi")
+    def test_get_netapp_storage_class_name_with_san_type(self, mock_send, *_):
+        """Test SAN backend resolves via sanType precise match."""
+        result = app_utils.get_netapp_storage_class_name(
+            app_constants.NETAPP_ISCSI_BACKEND_NAME
+        )
+        self.assertEqual(result, "netapp-iscsi")
+        mock_send.assert_called_once()
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                return_value="netapp-san-backend\t")
+    def test_get_netapp_storage_class_name_san_backend_type_fallback(self,
+                                                                mock_send,
+                                                                *_):
+        """Test SAN falls back to backendType-only when no sanType in StorageClass."""
+        result = app_utils.get_netapp_storage_class_name(
+            app_constants.NETAPP_ISCSI_BACKEND_NAME
+        )
+        self.assertEqual(result, "netapp-san-backend")
+        mock_send.assert_called_once()
 
     @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
                 return_value="")
     def test_get_netapp_storage_class_name_empty(self, *_):
         """Test when no storageclass is found (empty output)."""
         result = app_utils.get_netapp_storage_class_name(
-            app_constants.BACKEND_TYPE_NETAPP_FC
+            app_constants.NETAPP_NFS_BACKEND_NAME
         )
         self.assertEqual(result, "")
 
@@ -1751,7 +1773,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
     def test_get_netapp_storage_class_name_cmd_exception(self, *_):
         """Test when command execution raises an exception."""
         result = app_utils.get_netapp_storage_class_name(
-            app_constants.BACKEND_TYPE_NETAPP_NFS
+            app_constants.NETAPP_NFS_BACKEND_NAME
         )
         self.assertEqual(result, "")
 
@@ -1807,9 +1829,9 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             constants.SB_TYPE_CEPH: (False, ""),
         }
         netapp_sc_map = {
-            app_constants.BACKEND_TYPE_NETAPP_NFS: "netapp-nas-backend",
-            app_constants.BACKEND_TYPE_NETAPP_ISCSI: "netapp-iscsi-backend",
-            app_constants.BACKEND_TYPE_NETAPP_FC: "netapp-iscsi-backend",
+            app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+            app_constants.NETAPP_ISCSI_BACKEND_NAME: "netapp-iscsi-backend",
+            app_constants.NETAPP_FC_BACKEND_NAME: "netapp-iscsi-backend",
         }
 
         def ceph_side_effect(*, ceph_type):
@@ -1854,9 +1876,9 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             constants.SB_TYPE_CEPH: (False, ""),
         }
         netapp_sc_map = {
-            app_constants.BACKEND_TYPE_NETAPP_NFS: "netapp-nas-backend",
-            app_constants.BACKEND_TYPE_NETAPP_ISCSI: "",
-            app_constants.BACKEND_TYPE_NETAPP_FC: "netapp-fc-backend",
+            app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+            app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
+            app_constants.NETAPP_FC_BACKEND_NAME: "netapp-fc-backend",
         }
 
         def ceph_side_effect(*, ceph_type):
@@ -1901,9 +1923,9 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             constants.SB_TYPE_CEPH: (False, ""),
         }
         netapp_sc_map = {
-            app_constants.BACKEND_TYPE_NETAPP_NFS: "",
-            app_constants.BACKEND_TYPE_NETAPP_ISCSI: "",
-            app_constants.BACKEND_TYPE_NETAPP_FC: "",
+            app_constants.NETAPP_NFS_BACKEND_NAME: "",
+            app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
+            app_constants.NETAPP_FC_BACKEND_NAME: "",
         }
 
         def ceph_side_effect(*, ceph_type):
@@ -2044,7 +2066,55 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         )
 
     @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
-                return_value="10.0.0.10:::svm_iscsi")
+                return_value="iscsi\t10.0.0.10:::svm_iscsi\nfcp\t10.0.0.11:::svm_fc")
+    def test_discover_netapp_configs_iscsi_and_fc(self, *_):
+        """Test iSCSI discovery when both iSCSI and FC TBCs are present."""
+        result = app_utils.discover_netapp_configs(
+            app_constants.NETAPP_ISCSI_BACKEND_NAME
+        )
+        self.assertEqual(
+            result,
+            {
+                "volume_driver": app_constants.NETAPP_CINDER_VOLUME_DRIVER,
+                "netapp_storage_family": app_constants.NETAPP_STORAGE_FAMILY,
+                "netapp_storage_protocol": app_constants.NETAPP_BACKEND_TO_OPENSTACK_PROTOCOL[
+                    app_constants.NETAPP_ISCSI_BACKEND_NAME
+                ],
+                "netapp_vserver": "svm_iscsi",
+                "netapp_server_hostname": "10.0.0.10",
+                "netapp_server_port": app_constants.NETAPP_DEFAULT_SERVER_PORT,
+                "netapp_transport_type": (
+                    app_constants.NETAPP_DEFAULT_SERVER_TRANSPORT_TYPE
+                ),
+            }
+        )
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                return_value="iscsi\t10.0.0.10:::svm_iscsi\nfcp\t10.0.0.11:::svm_fc")
+    def test_discover_netapp_configs_fc_and_iscsi(self, *_):
+        """Test FC discovery when both iSCSI and FC TBCs are present."""
+        result = app_utils.discover_netapp_configs(
+            app_constants.NETAPP_FC_BACKEND_NAME
+        )
+        self.assertEqual(
+            result,
+            {
+                "volume_driver": app_constants.NETAPP_CINDER_VOLUME_DRIVER,
+                "netapp_storage_family": app_constants.NETAPP_STORAGE_FAMILY,
+                "netapp_storage_protocol": app_constants.NETAPP_BACKEND_TO_OPENSTACK_PROTOCOL[
+                    app_constants.NETAPP_FC_BACKEND_NAME
+                ],
+                "netapp_vserver": "svm_fc",
+                "netapp_server_hostname": "10.0.0.11",
+                "netapp_server_port": app_constants.NETAPP_DEFAULT_SERVER_PORT,
+                "netapp_transport_type": (
+                    app_constants.NETAPP_DEFAULT_SERVER_TRANSPORT_TYPE
+                ),
+            }
+        )
+
+    @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
+                return_value="iscsi\t10.0.0.10:::svm_iscsi")
     def test_discover_netapp_configs_iscsi(self, *_):
         """Test discovery for netapp-iscsi (ontap-san)."""
         result = app_utils.discover_netapp_configs(
@@ -2068,7 +2138,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         )
 
     @mock.patch("k8sapp_openstack.utils.send_cmd_read_response",
-                return_value="10.0.0.20:::svm_nfs")
+                return_value="\t10.0.0.20:::svm_nfs")
     def test_discover_netapp_configs_nfs(self, *_):
         """Test discovery for netapp-nfs (ontap-nas)."""
         result = app_utils.discover_netapp_configs(

@@ -1091,7 +1091,7 @@ def netapp_backends_auto_discovery() -> dict:
         pods = kube.kube_get_pods_by_selector(namespace,
                                               f"app={app_constants.NETAPP_CONTROLLER_LABEL}", "")
         if not pods:
-            LOG.error(f"No pods were found in '{namespace}' namespace"
+            LOG.info(f"No pods were found in '{namespace}' namespace"
                       f" with 'app={app_constants.NETAPP_CONTROLLER_LABEL}' label")
             return backends_map
 

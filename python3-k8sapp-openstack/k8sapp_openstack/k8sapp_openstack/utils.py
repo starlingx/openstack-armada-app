@@ -928,7 +928,15 @@ def discover_netapp_credentials(backend_type: str) -> dict:
         )
         return credentials
     driver = app_constants.NETAPP_BACKEND_TO_TYPE[bt]
-    jsonpath = f"{{.items[?(@.spec.storageDriverName==\"{driver}\")].spec.credentials.name}}"
+    san_type = app_constants.NETAPP_BACKEND_TO_SAN_TYPE.get(bt)
+    jsonpath = (
+        f'{{range .items[?(@.spec.storageDriverName=="{driver}")]}}'
+        + r'{.spec.sanType}'
+        + r'{"\t"}'
+        + r'{.spec.credentials.name}'
+        + r'{"\n"}'
+        + r'{end}'
+    )
     cmd = [
         "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
         "get", "tridentbackendconfigs",
@@ -937,13 +945,25 @@ def discover_netapp_credentials(backend_type: str) -> dict:
     ]
     try:
         # Discover credentials secret name via tridentbackendconfigs filtered by
-        # storageDriverName
-        secret_name = send_cmd_read_response(cmd, log=False)
-        if not secret_name:
+        # storageDriverName, with sanType discrimination for SAN backends
+        output = send_cmd_read_response(cmd, log=False)
+        if not output:
             LOG.error(f"No tridentbackendconfigs with storageDriverName='{driver}'"
                       "found or missing '.spec.credentials.name' definition.")
             return credentials
-        secret_name = secret_name.splitlines()[0].split()[0]  # First match
+        secret_name = ""
+        for line in output.splitlines():
+            if not san_type:
+                secret_name = line.strip()
+                break
+            line_san_type, _, line_secret = line.partition("\t")
+            if line_san_type.strip() == san_type:
+                secret_name = line_secret.strip()
+                break
+        if not secret_name:
+            LOG.error(f"No tridentbackendconfigs with storageDriverName='{driver}'"
+                      f" and sanType='{san_type}' found.")
+            return credentials
         # Read base64(username::password) from the Secret via jsonpath
         cmd = [
             "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
@@ -1026,11 +1046,19 @@ def discover_netapp_configs(backend_type: str) -> dict:
         return openstack_config
     driver = app_constants.NETAPP_BACKEND_TO_TYPE[bt]
     netapp_protocol = app_constants.NETAPP_BACKEND_TO_OPENSTACK_PROTOCOL[bt]
-    # Read managementLIF:::svm from tridentbackendconfigs via jsonpath
+    san_type = app_constants.NETAPP_BACKEND_TO_SAN_TYPE.get(bt)
+    # Emit one line per TBC: sanType\tmanagementLIF:::svm
+    # For NAS, sanType is absent so kubectl omits it; the line is just managementLIF:::svm
+    # For SAN, sanType discriminates between iSCSI and FC when both TBCs are present
     jsonpath = (
-        f"{{.items[?(@.spec.storageDriverName==\"{driver}\")].spec.managementLIF}}"
-        f"{{\":::\"}}"
-        f"{{.items[?(@.spec.storageDriverName==\"{driver}\")].spec.svm}}"
+        f'{{range .items[?(@.spec.storageDriverName=="{driver}")]}}'
+        + r'{.spec.sanType}'
+        + r'{"\t"}'
+        + r'{.spec.managementLIF}'
+        + r'{":::"}'
+        + r'{.spec.svm}'
+        + r'{"\n"}'
+        + r'{end}'
     )
     cmd = [
         "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
@@ -1039,12 +1067,24 @@ def discover_netapp_configs(backend_type: str) -> dict:
         "-o", f"jsonpath={jsonpath}"
     ]
     try:
-        mgmt_lif_svm = send_cmd_read_response(cmd, log=False).strip()
-        if not mgmt_lif_svm or ":::" not in mgmt_lif_svm:
+        output = send_cmd_read_response(cmd, log=False).strip()
+        if not output:
             LOG.error("Could not retrieve managementLIF and svm for "
                       f"driver='{driver}'.")
             return openstack_config
-        mgmt_lif_svm = mgmt_lif_svm.splitlines()[0].split()[0]  # First match
+        mgmt_lif_svm = ""
+        for line in output.splitlines():
+            if not san_type:
+                mgmt_lif_svm = line.strip()
+                break
+            line_san_type, _, rest = line.partition("\t")
+            if line_san_type.strip() == san_type:
+                mgmt_lif_svm = rest.strip()
+                break
+        if not mgmt_lif_svm or ":::" not in mgmt_lif_svm:
+            LOG.error(f"No tridentbackendconfigs with storageDriverName='{driver}'"
+                      f" and sanType='{san_type}' found.")
+            return openstack_config
         mgmt_lif, svm = mgmt_lif_svm.split(":::", 1)
         if not mgmt_lif or not svm:
             LOG.error(f"Missing managementLIF or svm for driver='{driver}'.")
@@ -2292,17 +2332,17 @@ def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CIN
     available_volume_backends = {
         app_constants.CEPH_BACKEND_NAME: ceph_storage_class,
         app_constants.NETAPP_NFS_BACKEND_NAME: (
-            get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_NFS)
+            get_netapp_storage_class_name(app_constants.NETAPP_NFS_BACKEND_NAME)
             if netapp_backend.get(app_constants.NETAPP_NFS_BACKEND_NAME, False)
             else ""
         ),
         app_constants.NETAPP_ISCSI_BACKEND_NAME: (
-            get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_ISCSI)
+            get_netapp_storage_class_name(app_constants.NETAPP_ISCSI_BACKEND_NAME)
             if netapp_backend.get(app_constants.NETAPP_ISCSI_BACKEND_NAME, False)
             else ""
         ),
         app_constants.NETAPP_FC_BACKEND_NAME: (
-            get_netapp_storage_class_name(app_constants.BACKEND_TYPE_NETAPP_FC)
+            get_netapp_storage_class_name(app_constants.NETAPP_FC_BACKEND_NAME)
             if netapp_backend.get(app_constants.NETAPP_FC_BACKEND_NAME, False)
             else ""
         ),
@@ -2344,34 +2384,48 @@ def get_netapp_storage_class_name(backend_type) -> str:
     """
     Check the storage class name for the given NetApp backend type.
 
+    For SAN backends (netapp-iscsi, netapp-fc), fetches all StorageClasses
+    matching ``parameters.backendType`` and filters by ``parameters.sanType``
+    to differentiate iSCSI from FC when both are deployed simultaneously.
+    Falls back to the first ``backendType`` match when no StorageClass defines
+    ``parameters.sanType`` (single-SAN backward compatibility).
+
     Args:
-        backend_type (str): The NetApp backend type selector. It must be one of:
-            - "netapp-nas" - NetApp NFS backend
-            - "netapp-san" - NetApp iSCSI or FC backend
+        backend_type (str): The logical NetApp backend name. Must be one of:
+            - ``app_constants.NETAPP_NFS_BACKEND_NAME`` ("netapp-nfs")
+            - ``app_constants.NETAPP_ISCSI_BACKEND_NAME`` ("netapp-iscsi")
+            - ``app_constants.NETAPP_FC_BACKEND_NAME`` ("netapp-fc")
 
     Returns:
-        str: The name of the first matching NetApp StorageClass as a string, or
-             an empty string if none are found.
+        str: The name of the first matching NetApp StorageClass, or an empty
+             string if none are found.
 
     Examples:
-        >>> get_netapp_storage_class_name("netapp-nas")
+        >>> get_netapp_storage_class_name(app_constants.NETAPP_NFS_BACKEND_NAME)
         'netapp-nas-backend'
-        >>> get_netapp_storage_class_name("netapp-san")
-        'netapp-san-backend'
+        >>> get_netapp_storage_class_name(app_constants.NETAPP_ISCSI_BACKEND_NAME)
+        'netapp-iscsi'
+        >>> get_netapp_storage_class_name(app_constants.NETAPP_FC_BACKEND_NAME)
+        'netapp-fc'
         >>> get_netapp_storage_class_name("invalid-backend")
         ''
     """
-    if backend_type not in [
-        app_constants.BACKEND_TYPE_NETAPP_NFS,
-        app_constants.BACKEND_TYPE_NETAPP_ISCSI,
-        app_constants.BACKEND_TYPE_NETAPP_FC
-    ]:
+    if backend_type not in app_constants.NETAPP_SUPPORTED_BACKENDS:
         LOG.error(f"Invalid backend_type '{backend_type}' provided for"
                   " NetApp storage class retrieval.")
         return ""
+
+    driver = app_constants.NETAPP_BACKEND_TO_TYPE[backend_type]
+    san_type = app_constants.NETAPP_BACKEND_TO_SAN_TYPE.get(backend_type)
+
+    # Fetch all StorageClasses matching backendType, emitting name and sanType
+    # per line. For SAN backends, sanType filtering is done in Python because
+    # kubectl jsonpath does not support && compound filter expressions.
     jsonpath = (
-        f"{{range .items[?(@.parameters.backendType==\"{backend_type}\")]}}"
+        f"{{range .items[?(@.parameters.backendType==\"{driver}\")]}}"
         r"{.metadata.name}"
+        "{\"\t\"}"
+        r"{.parameters.sanType}"
         "{\"\\n\"}"
         r"{end}"
     )
@@ -2382,15 +2436,35 @@ def get_netapp_storage_class_name(backend_type) -> str:
     ]
     try:
         output = send_cmd_read_response(cmd, log=False)
-        if not output:
-            LOG.warning(f"Unable to find storageclass for NetApp backend type"
-                        f" '{backend_type}'.")
-            return ""
-        return output.split()[0]
     except Exception as e:
         LOG.error("Unexpected error while fetching storageclasses for"
                   f" NetApp backend type '{backend_type}': {e}")
         return ""
+
+    if not output:
+        LOG.warning(f"Unable to find storageclass for NetApp backend type"
+                    f" '{backend_type}'.")
+        return ""
+    if not san_type:
+        # No sanType filtering needed, return first match for NAS backend
+        return output.splitlines()[0].split("\t")[0]
+    # SAN: prefer the StorageClass that explicitly declares the matching sanType.
+    # Falls back to the first backendType match for single-SAN environments
+    # where StorageClasses do not define parameters.sanType.
+    fallback = ""
+    for line in output.splitlines():
+        name, _, sc_san_type = line.partition("\t")
+        if sc_san_type == san_type:
+            return name
+        if not fallback:
+            fallback = name
+
+    LOG.warning(
+        f"No storageclass found with backendType='{driver}' and "
+        f"sanType='{san_type}'. Falling back to backendType-only match. "
+        f"storageclass='{fallback}'"
+    )
+    return fallback
 
 
 def is_dex_enabled() -> bool:

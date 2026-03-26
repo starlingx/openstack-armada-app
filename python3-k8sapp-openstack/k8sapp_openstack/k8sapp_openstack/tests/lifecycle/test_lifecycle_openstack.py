@@ -1721,6 +1721,48 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_log.info.assert_called_once()
         self.assertIn("no PVCs", msg)
 
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_storage_backends_priority_list")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_pvc_exists_in_a_namespace", return_value=True)
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists", return_value=True)
+    def test_semantic_check_backend_storageclass_uses_chart_specific_backends(
+        self,
+        mock_check_if_namespace_exists,
+        mock_check_if_pvc_exists_in_a_namespace,
+        mock_get_available_volume_backends,
+        mock_get_storage_backends_priority_list,
+        mock_get_pvc_storageclass,
+    ):
+        """Test chart-specific backend lookup for StatefulSet PVC semantic check."""
+        mock_get_available_volume_backends.side_effect = [
+            {
+                app_constants.CEPH_BACKEND_NAME: "general",
+                app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+            },
+            {
+                app_constants.CEPH_BACKEND_NAME: "general",
+                app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+            },
+        ]
+        mock_get_storage_backends_priority_list.side_effect = [
+            [app_constants.CEPH_BACKEND_NAME, app_constants.NETAPP_NFS_BACKEND_NAME],
+            [app_constants.CEPH_BACKEND_NAME, app_constants.NETAPP_NFS_BACKEND_NAME],
+        ]
+        mock_get_pvc_storageclass.side_effect = [
+            "general",
+            "general",
+        ]
+
+        self.assertIsNone(self.lifecycle._semantic_check_backend_storageclass())
+        self.assertEqual(
+            [
+                mock.call(chart_name=app_constants.HELM_CHART_MARIADB),
+                mock.call(chart_name=app_constants.HELM_CHART_RABBITMQ),
+            ],
+            mock_get_available_volume_backends.call_args_list,
+        )
+
     @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_storageclass_change")
     @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass")
     @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_storage_backends_priority_list")

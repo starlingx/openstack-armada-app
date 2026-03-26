@@ -369,8 +369,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                         "Unable to reset clients' working directory "
                         f"`{str(working_directory)}` permissions."
                     )
-        # Check if StorageClass match with the backend priority list
-        self._semantic_check_backend_storageclass()
 
     def _pre_apply_check(self, conductor_obj, app, hook_info):
         """Semantic check for evaluating app manual apply
@@ -863,19 +861,24 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                         "skipping StorageClasses semantic check")
             return
 
-        available_backends = get_available_volume_backends()
         mariadb_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_MARIADB)
+        mariadb_available_backends = get_available_volume_backends(
+            chart_name=app_constants.HELM_CHART_MARIADB
+        )
         mariadb_current_storageclass = get_pvc_storageclass(app_constants.MARIADB_PVC_NAME)
         mariadb_storageclass_change_validation, mariadb_new_storageclass = check_storageclass_change(
             mariadb_priority_list,
-            available_backends,
+            mariadb_available_backends,
             mariadb_current_storageclass
              )
         rabbitmq_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_RABBITMQ)
+        rabbitmq_available_backends = get_available_volume_backends(
+            chart_name=app_constants.HELM_CHART_RABBITMQ
+        )
         rabbitmq_current_storageclass = get_pvc_storageclass(app_constants.RABBITMQ_PVC_NAME)
         rabbitmq_storageclass_change_validation, rabbitmq_new_storageclass = check_storageclass_change(
             rabbitmq_priority_list,
-            available_backends,
+            rabbitmq_available_backends,
             rabbitmq_current_storageclass
              )
 

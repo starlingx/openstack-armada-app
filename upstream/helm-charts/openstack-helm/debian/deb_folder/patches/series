@@ -49,3 +49,4 @@
 0049-Initialize-Ceph-when-Cinder-is-using-it-as-a-backend.patch
 0050-Add-PVC-support-for-nova-ephemeral-storage.patch
 0051-Fix-cold-migration-on-IPv6-deployments.patch
+0052-cinder-unhardcode-readiness-liveness-probe-params.patch

@@ -1,0 +1,162 @@
+From b38b7fbdd3804359a492660dcce542bd275d0b1f Mon Sep 17 00:00:00 2001
+From: Amir Aslan Aslan <amiraslanaslani6@gmail.com>
+Date: Sun, 25 May 2025 15:13:08 +0330
+Subject: [PATCH] cinder: unhardcode readiness/liveness probe params
+
+This patch adds ability to set readiness and liveness probes parameters
+of cinder-api via chart values instead of having them hardcoded in the
+deployment manifest.
+
+[Cherry-pick from OSH master to stx-openstack Epoxy]
+Cinder API liveness probe is failing, causing the pod to restart
+repeatedly due to very agressive timeouts. It is also creating a
+redirect warning due to a versions difference.
+
+This cherry-picked commit enables the oslo middleware healthcheck
+and redirectes the liveness probe to /healtcheck avoinding the redirect
+warning. It also exposes the timeout values so we can configure them using
+helm overrides.
+
+Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
+
+Change-Id: I7b9abda6424096484fe23f7240c3777b5e82d86a
+---
+ cinder/templates/deployment-api.yaml          | 32 +++++++++----------
+ cinder/values.yaml                            | 23 +++++++++++++
+ .../notes/cinder-a530fe90112c74d1.yaml        |  5 +++
+ 3 files changed, 44 insertions(+), 16 deletions(-)
+ create mode 100644 releasenotes/notes/cinder-a530fe90112c74d1.yaml
+
+diff --git a/cinder/templates/deployment-api.yaml b/cinder/templates/deployment-api.yaml
+index 2fc6e7910..39ff2e8c3 100644
+--- a/cinder/templates/deployment-api.yaml
++++ b/cinder/templates/deployment-api.yaml
+@@ -12,6 +12,20 @@ See the License for the specific language governing permissions and
+ limitations under the License.
+ */}}
+ 
++{{- define "cinderApiLivenessProbeTemplate" }}
++httpGet:
++  scheme: {{ tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
++  path: {{ tuple "volume" "healthcheck" "internal" . | include "helm-toolkit.endpoints.keystone_endpoint_path_lookup" }}
++  port: {{ tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++{{- end }}
++
++{{- define "cinderApiReadinessProbeTemplate" }}
++httpGet:
++  scheme: {{ tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
++  path: {{ tuple "volume" "healthcheck" "internal" . | include "helm-toolkit.endpoints.keystone_endpoint_path_lookup" }}
++  port: {{ tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++{{- end }}
++
+ {{- if .Values.manifests.deployment_api }}
+ {{- $envAll := . }}
+ 
+@@ -105,22 +119,8 @@ spec:
+           ports:
+             - name: c-api
+               containerPort: {{ tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-          readinessProbe:
+-            httpGet:
+-              scheme: {{ tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
+-              path: /
+-              port: {{ tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-            initialDelaySeconds: 30
+-          livenessProbe:
+-            httpGet:
+-              scheme: {{ tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
+-              path: /
+-              port: {{ tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-            initialDelaySeconds: 5
+-            failureThreshold: 3
+-            periodSeconds: 10
+-            successThreshold: 1
+-            timeoutSeconds: 1
++{{ dict "envAll" $envAll "component" "api" "container" "cinder-api" "type" "readiness" "probeTemplate" (include "cinderApiReadinessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
++{{ dict "envAll" $envAll "component" "api" "container" "cinder-api" "type" "liveness" "probeTemplate" (include "cinderApiLivenessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+           volumeMounts:
+             - name: pod-tmp
+               mountPath: /tmp
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 47153bdd4..023babf84 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -78,6 +78,21 @@ jobs:
+       failed: 1
+ 
+ pod:
++  probes:
++    api:
++      cinder-api:
++        liveness:
++          enabled: True
++          params:
++            initialDelaySeconds: 5
++            periodSeconds: 10
++            timeoutSeconds: 1
++            failureThreshold: 3
++            successThreshold: 1
++        readiness:
++          enabled: True
++          params:
++            initialDelaySeconds: 30
+   security_context:
+     volume_usage_audit:
+       pod:
+@@ -439,6 +454,7 @@ conf:
+     composite:osapi_volume:
+       use: call:cinder.api:root_app_factory
+       /: apiversions
++      /healthcheck: healthcheck
+       /v1: openstack_volume_api_v1
+       /v2: openstack_volume_api_v2
+       /v3: openstack_volume_api_v3
+@@ -478,6 +494,10 @@ conf:
+       paste.app_factory: cinder.api.v2.router:APIRouter.factory
+     app:apiv3:
+       paste.app_factory: cinder.api.v3.router:APIRouter.factory
++    app:healthcheck:
++      paste.app_factory: oslo_middleware:Healthcheck.app_factory
++      backends: disable_by_file
++      disable_by_file_path: /etc/cinder/healthcheck_disable
+     pipeline:apiversions:
+       pipeline: cors http_proxy_to_wsgi faultwrap osvolumeversionapp
+     app:osvolumeversionapp:
+@@ -1290,6 +1310,7 @@ endpoints:
+       #     key: null
+     path:
+       default: '/v1/%(tenant_id)s'
++      healthcheck: /healthcheck
+     scheme:
+       default: 'http'
+     port:
+@@ -1312,6 +1333,7 @@ endpoints:
+       #     key: null
+     path:
+       default: '/v2/%(tenant_id)s'
++      healthcheck: /healthcheck
+     scheme:
+       default: 'http'
+     port:
+@@ -1334,6 +1356,7 @@ endpoints:
+       #     key: null
+     path:
+       default: '/v3/%(tenant_id)s'
++      healthcheck: /healthcheck
+     scheme:
+       default: 'http'
+     port:
+diff --git a/releasenotes/notes/cinder-a530fe90112c74d1.yaml b/releasenotes/notes/cinder-a530fe90112c74d1.yaml
+new file mode 100644
+index 000000000..81e887d25
+--- /dev/null
++++ b/releasenotes/notes/cinder-a530fe90112c74d1.yaml
+@@ -0,0 +1,5 @@
++---
++cinder:
++  - |
++    Unhardcode readiness/liveness probe parameters for cinder-api
++...
+-- 
+2.43.0
+

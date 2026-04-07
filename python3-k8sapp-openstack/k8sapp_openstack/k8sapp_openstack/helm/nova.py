@@ -106,6 +106,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.ifdatanets_by_ifaceid = self._get_interface_datanets()
         self.datanets_by_netuuid = self._get_datanetworks()
         self.rbd_config = self._get_storage_ceph_config()
+        cluster_host_subnet = self._get_cluster_host_subnet()
         nfs_shares = self._get_instances_nfs_shares_config()
         ssh_privatekey, ssh_publickey = \
             self._get_or_generate_ssh_keys(
@@ -131,14 +132,14 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                         'novncproxy': self._num_provisioned_controllers()
                     }
                 },
-                'conf': self._get_conf_overrides(),
+                'conf': self._get_conf_overrides(cluster_host_subnet),
                 'endpoints': self._get_endpoints_overrides(),
                 'network': {
                     'ssh': {
                         'enabled': 'true',
                         'private_key': ssh_privatekey,
                         'public_key': ssh_publickey,
-                        'from_subnet': self._get_ssh_subnet(),
+                        'from_subnet': cluster_host_subnet,
                     },
                     'novncproxy': {
                         'node_port': {
@@ -534,7 +535,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         else:
             libvirt_config.update({'images_type': 'default'})
 
-    def _get_ssh_subnet(self):
+    def _get_cluster_host_subnet(self):
         address_pool = self.dbapi.address_pool_get(self.cluster_host_network.pool_uuid)
         return '%s/%s' % (str(address_pool.network), str(address_pool.prefix))
 
@@ -835,7 +836,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         else:
             return True
 
-    def _get_conf_overrides(self):
+    def _get_conf_overrides(self, cluster_host_subnet):
         cinder_overrides = {}
 
         admin_keyring = 'null'
@@ -879,6 +880,21 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 }
             },
         }
+
+        if cluster_host_subnet:
+            overrides.update({
+                'libvirt': {
+                    'live_migration_network_cidr': cluster_host_subnet,
+                },
+                'hypervisor': {
+                    'host_network_cidr': cluster_host_subnet,
+                },
+            })
+        else:
+            LOG.warning(
+                "Could not determine the cluster-host subnet. Leaving Nova "
+                "network CIDRs at chart defaults."
+            )
 
         ceph_uuid = get_ceph_fsid()
         if ceph_uuid:

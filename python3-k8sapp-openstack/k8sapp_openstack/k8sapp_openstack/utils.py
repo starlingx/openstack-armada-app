@@ -2143,14 +2143,22 @@ def delete_kubernetes_resource(resource_type, resource_name):
 def get_image_rook_ceph():
     """Get client image to be used for rook ceph deployments
 
-    :returns: str -- The image in the formart <repository>:tag
+    The returned image includes the local registry prefix to ensure
+    that the image is pulled from the local registry instead of
+    attempting to reach external registries.
+
+    :returns: str -- The image in the format
+        registry.local:9001/<repository>:<tag>
     """
-    return _get_value_from_application(
+    image = _get_value_from_application(
         default_value=f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_REPO}:'
                       f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_TAG}',
         chart_name=app_constants.HELM_CHART_CLIENTS,
         override_name=f'images.tags.{app_constants.CEPH_ROOK_IMAGE_OVERRIDE}'
     )
+    if not image.startswith(constants.DOCKER_REGISTRY_SERVER):
+        image = f'{constants.DOCKER_REGISTRY_SERVER}/{image}'
+    return image
 
 
 def force_app_reconciliation(app_op: kube_app.AppOperator,

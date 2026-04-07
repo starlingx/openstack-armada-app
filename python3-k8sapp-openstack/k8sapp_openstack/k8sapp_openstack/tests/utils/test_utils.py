@@ -114,9 +114,27 @@ class UtilsTest(dbbase.ControllerHostTestCase):
                 return_value=f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_REPO}:'
                              f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_TAG}')
     def test_get_image_rook_ceph(self, mock_get_value_from_application):
-        """Test test_get_image_rook_ceph for valid image override
+        """Test get_image_rook_ceph returns image with local registry prefix
         """
-        expected = f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_REPO}:'\
+        expected = f'{constants.DOCKER_REGISTRY_SERVER}/'\
+                   f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_REPO}:'\
+                   f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_TAG}'
+
+        result = app_utils.get_image_rook_ceph()
+        self.assertEqual(result, expected)
+        mock_get_value_from_application.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=f'{constants.DOCKER_REGISTRY_SERVER}/'
+                             f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_REPO}:'
+                             f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_TAG}')
+    def test_get_image_rook_ceph_with_registry_prefix(self,
+                                                      mock_get_value_from_application):
+        """Test get_image_rook_ceph does not duplicate local registry prefix
+        when user override already includes it
+        """
+        expected = f'{constants.DOCKER_REGISTRY_SERVER}/'\
+                   f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_REPO}:'\
                    f'{app_constants.CEPH_ROOK_IMAGE_DEFAULT_TAG}'
 
         result = app_utils.get_image_rook_ceph()

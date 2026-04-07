@@ -2221,12 +2221,13 @@ def get_hosts_uuids() -> list[dict]:
 
 def get_ip_families() -> set:
     """
-    Checks the current ip families supported by the cluster service network.
+    Checks the current IP families supported by the cluster service network.
 
     Returns:
-        set of int: ip families supported (4 or 6). The sysninv contants
-        IPV4_FAMILY and IPV6_FAMILY can be used to check the ip families.
-        returns an empty set if ip families are invalid or cannot be checked.
+        set of int: IP families supported by the deployment. The set may
+        contain IPV4_FAMILY, IPV6_FAMILY, or both for dual-stack
+        deployments. Returns an empty set if the IP families are invalid or
+        cannot be checked.
     """
     db = dbapi.get_instance()
     try:

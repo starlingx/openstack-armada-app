@@ -76,6 +76,49 @@ class NovaGetOverrideTest(NovaHelmTestCase,
 
     @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_overrides_use_cluster_host_subnet_for_host_and_migration(
+            self, *_):
+        cluster_host_network = self.dbapi.network_get_by_type(
+            constants.NETWORK_TYPE_CLUSTER_HOST
+        )
+        cluster_host_pool = self.dbapi.address_pool_get(cluster_host_network.pool_uuid)
+        expected_subnet = '%s/%s' % (
+            str(cluster_host_pool.network), str(cluster_host_pool.prefix)
+        )
+
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK
+        )
+
+        self.assertEqual(
+            overrides['conf']['libvirt']['live_migration_network_cidr'],
+            expected_subnet
+        )
+        self.assertEqual(
+            overrides['conf']['hypervisor']['host_network_cidr'],
+            expected_subnet
+        )
+        self.assertEqual(
+            overrides['network']['ssh']['from_subnet'],
+            expected_subnet
+        )
+
+    @mock.patch('k8sapp_openstack.helm.nova.NovaHelm._get_cluster_host_subnet',
+                return_value=None)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_overrides_skip_family_defaults_when_cluster_host_cidr_is_unavailable(self, *_):
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK
+        )
+
+        self.assertNotIn('libvirt', overrides['conf'])
+        self.assertNotIn('hypervisor', overrides['conf'])
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     @mock.patch('k8sapp_openstack.utils._get_value_from_application',
                 return_value=app_constants.VSWITCH_LABEL_NONE)
     def test_nova_overrides_reuses_neutron_ironic_placement_users(self, *_):

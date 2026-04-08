@@ -106,6 +106,14 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             }
         }
 
+        if (self._backend == app_constants.GLANCE_BACKEND_PVC
+                and self._storage_class ==
+                    self._available_backends.get(app_constants.NETAPP_NFS_BACKEND_NAME)):
+            # NetApp NFS PVCs support ReadWriteMany access mode. This allows
+            # multiple glance-api replicas to access the same PVC, which is
+            # required for high availability.
+            overrides[common.HELM_NS_OPENSTACK]["volume"]["accessModes"] = ["ReadWriteMany"]
+
         if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = \
                 self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
@@ -129,9 +137,13 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             return overrides
 
     def _get_pod_overrides(self):
-        replicas_count = 1
-        ceph_backend = self._get_primary_ceph_backend()
-        if ceph_backend:
+        if (self._backend == app_constants.GLANCE_BACKEND_PVC and
+            (self._storage_class ==
+             self._available_backends.get(app_constants.NETAPP_ISCSI_BACKEND_NAME) or
+                self._storage_class ==
+                    self._available_backends.get(app_constants.NETAPP_FC_BACKEND_NAME))):
+            replicas_count = 1
+        else:
             replicas_count = self._num_provisioned_controllers()
 
         overrides = {

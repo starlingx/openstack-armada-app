@@ -164,10 +164,11 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     },
                 },
             }
-            # Enable hostNetwork when Cinder uses iSCSI backend
-            # to allow glance-api pod to access host's iscsid service
+            # Enable hostNetwork when Cinder uses a SAN (iSCSI or FC) backend
+            # to allow glance-api pod to access host's iSCSI/FC stack via os_brick
             cinder_default = self._get_cinder_default_backend()
-            if cinder_default == app_constants.NETAPP_ISCSI_BACKEND_NAME:
+            if cinder_default in (app_constants.NETAPP_ISCSI_BACKEND_NAME,
+                                  app_constants.NETAPP_FC_BACKEND_NAME):
                 overrides['useHostNetwork'] = {
                     'api': True
                 }
@@ -277,7 +278,6 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     'cinder_store_project_name': self._get_admin_project_name(),
                     'cinder_store_user_domain_name': self._get_admin_user_domain(),
                     'cinder_store_project_domain_name': self._get_admin_project_domain(),
-                    'cinder_volume_type': '__DEFAULT__'
                 },
                 'file': {
                     'filesystem_store_datadir': constants.GLANCE_IMAGE_PATH,

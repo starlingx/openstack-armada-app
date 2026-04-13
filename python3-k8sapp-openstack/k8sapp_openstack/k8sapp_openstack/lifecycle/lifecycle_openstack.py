@@ -68,6 +68,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     return self.pre_remove(context, conductor_obj, hook_info)
                 elif hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
                     return self.post_remove(context, conductor_obj, hook_info)
+            elif hook_info.operation == constants.APP_UPLOAD_OP:
+                if hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
+                    return self.post_upload(context, conductor_obj, app, hook_info)
 
         # Resource
         elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_RESOURCE:
@@ -105,6 +108,17 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # Default behavior
         super(OpenstackAppLifecycleOperator, self).app_lifecycle_actions(context, conductor_obj, app_op, app,
                                                                          hook_info)
+
+    def post_upload(self, context, conductor_obj, app, hook_info):
+        """Post upload actions
+
+        :param context: request context
+        :param conductor_obj: conductor object
+        :param app: AppOperator.Application object
+        :param hook_info: LifecycleHookInfo object
+
+        """
+        self._post_upload_ldap_actions(app)
 
     def pre_apply(self, context, conductor_obj, app, hook_info):
         """Pre apply actions
@@ -608,6 +622,33 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             raise exception.LifecycleSemanticCheckException(
                 "The following hosts have no data networks associated with interfaces: "
                 f"{', '.join([hosts_by_id[id].hostname for id in sorted_hosts])}")
+
+    def _post_upload_ldap_actions(self, app):
+        """Perform post upload LDAP-related actions.
+
+        On a central cloud (system controller), create the LDAP group
+        'openstack' so that it gets synced to subclouds. On non-central
+        systems, this is a no-op since the pre-apply flow handles
+        LDAP group creation.
+
+        :param app: AppOperator.Application object
+        """
+        if not app_utils.is_central_cloud():
+            return
+
+        group_exists = ldap.check_group(
+            app_constants.CLIENTS_WORKING_DIR_GROUP
+        )
+        if not group_exists:
+            status = ldap.add_group(app_constants.CLIENTS_WORKING_DIR_GROUP)
+            if not status:
+                LOG.error(
+                    "Failed to create LDAP group '%s' on central cloud "
+                    "during app upload. Subclouds will not be able to "
+                    "apply %s until this group is created.",
+                    app_constants.CLIENTS_WORKING_DIR_GROUP,
+                    app.name
+                )
 
     def _pre_apply_ldap_actions(self, app):
         """Perform pre apply LDAP-related actions.

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -204,6 +204,9 @@ manifests:
   job_image_repo_sync: true
   network_policy: false
   secret_registry: true
+
+openvswitch:
+  extraContainers: []
 
 conf:
   poststart:

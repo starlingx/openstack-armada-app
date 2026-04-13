@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -24,6 +24,7 @@ images:
     neutron_dhcp: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_metadata: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_ovn_metadata: null
+    neutron_ovn_db_sync: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_ovn_vpn: null
     neutron_l3: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_l2gw: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
@@ -33,6 +34,7 @@ images:
     neutron_sriov_agent_init: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_bagpipe_bgp: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_bgp_dragent: null
+    neutron_ironic_agent_init: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_ironic_agent: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     neutron_netns_cleanup_cron: docker.io/starlingx/stx-neutron:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
@@ -134,6 +136,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+        haproxy.org/path-rewrite: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -283,7 +286,7 @@ dependencies:
           service: network
         - endpoint: internal
           service: compute
-        - endpoint: public
+        - endpoint: internal
           service: compute_metadata
     ovn_metadata:
       pod:
@@ -519,6 +522,7 @@ pod:
             timeoutSeconds: 10
         liveness:
           enabled: true
+          port: 1717
           params:
             initialDelaySeconds: 60
             periodSeconds: 15
@@ -665,6 +669,9 @@ pod:
       pod:
         runAsUser: 42424
       container:
+        neutron_ironic_agent_init:
+          runAsUser: 0
+          readOnlyRootFilesystem: true
         neutron_ironic_agent:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -696,6 +703,26 @@ pod:
         - key: openstack-compute-node
           operator: Exists
           effect: NoSchedule
+  etcSources:
+    neutron_server: []
+    neutron_rpc_server: []
+    neutron_dhcp_agent: []
+    neutron_l3_agent: []
+    neutron_lb_agent: []
+    neutron_metadata_agent: []
+    neutron_ovn_db_sync: []
+    neutron_ovn_metadata_agent: []
+    ovn_vpn_agent: []
+    neutron_ovs_agent: []
+    neutron_sriov_agent: []
+    neutron_l2gw_agent: []
+    bagpipe_bgp: []
+    bgp_dragent: []
+    neutron_ironic_agent: []
+    neutron_netns_cleanup_cron: []
+    neutron_tests: []
+    neutron_bootstrap: []
+    neutron_db_sync: []
   mounts:
     neutron_server:
       init_container: null
@@ -725,6 +752,11 @@ pod:
     neutron_metadata_agent:
       init_container: null
       neutron_metadata_agent:
+        volumeMounts:
+        volumes:
+    neutron_ovn_db_sync:
+      init_container: null
+      neutron_ovn_db_sync:
         volumeMounts:
         volumes:
     neutron_ovn_metadata_agent:
@@ -1022,10 +1054,16 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      ovn_db_sync:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
 
 conf:
   rally_tests:
-    force_project_purge: false
     run_tempest: false
     clean_up: |
       # NOTE: We will make the best effort to clean up rally generated networks and routers,
@@ -1362,9 +1400,12 @@ conf:
       master: true
       procname-prefix-spaced: "neutron-api:"
       route-user-agent: '^kube-probe.* donotlog:'
+      start-time: "%t"
       thunder-lock: true
       worker-reload-mercy: 80
-      wsgi-file: /var/lib/openstack/bin/neutron-api
+      module: neutron.wsgi.api:application
+      stats: 0.0.0.0:1717
+      stats-http: true
   policy: {}
   api_audit_map:
     DEFAULT:
@@ -1957,9 +1998,10 @@ conf:
       agent_down_time: 180
       bind_host: "::"
     oslo_concurrency:
-      lock_path: /var/run/neutron/lock
+      lock_path: /var/lock
     database:
       max_retries: -1
+      connection: ""
     agent:
       root_helper: sudo /var/lib/openstack/bin/neutron-rootwrap /etc/neutron/rootwrap.conf
       root_helper_daemon: sudo /var/lib/openstack/bin/neutron-rootwrap-daemon /etc/neutron/rootwrap.conf
@@ -2079,6 +2121,7 @@ conf:
         mechanism_drivers: openvswitch,sriovnicswitch,l2population
         type_drivers: flat,vlan,vxlan
         tenant_network_types: vlan,vxlan
+        project_network_types: vlan,vxlan
         path_mtu: 0
       ml2_type_vxlan:
         vni_ranges: ''
@@ -2095,6 +2138,7 @@ conf:
         max_header_size: 38
       agent:
         extensions: ""
+      ovn: {}
       ovs_driver:
         vhost_user_enabled: true
       securitygroup:
@@ -2143,6 +2187,7 @@ conf:
       enable_isolated_metadata: true
       enable_metadata_network: false
       resync_interval: 30
+    ovs: {}
   dnsmasq: |
       #no-hosts
       #port=5353
@@ -2333,7 +2378,11 @@ secrets:
   identity:
     admin: neutron-keystone-admin
     neutron: neutron-keystone-user
-    test: neutron-keystone-test
+    nova: neutron-keystone-nova
+    placement: neutron-keystone-placement
+    designate: neutron-keystone-designate
+    ironic: neutron-keystone-ironic
+    stx_admin: neutron-keystone-stx-admin
   oslo_db:
     admin: neutron-db-admin
     neutron: neutron-db-user
@@ -2495,6 +2544,7 @@ endpoints:
         user_domain_name: service
         project_domain_name: service
       nova:
+        role: admin,service
         region_name: RegionOne
         project_name: service
         username: nova
@@ -2502,6 +2552,7 @@ endpoints:
         user_domain_name: service
         project_domain_name: service
       placement:
+        role: admin,service
         region_name: RegionOne
         project_name: service
         username: placement
@@ -2509,6 +2560,7 @@ endpoints:
         user_domain_name: service
         project_domain_name: service
       designate:
+        role: admin,service
         region_name: RegionOne
         project_name: service
         username: designate
@@ -2516,6 +2568,7 @@ endpoints:
         user_domain_name: service
         project_domain_name: service
       ironic:
+        role: admin,service
         region_name: RegionOne
         project_name: service
         username: ironic
@@ -2673,6 +2726,14 @@ health_probe:
   logging:
     level: ERROR
 
+jobs:
+  ovn_db_sync:
+    cron: "*/5 * * * *"
+    sync_mode: log
+    history:
+      success: 3
+      failed: 1
+
 tls:
   identity: false
   oslo_messaging: false
@@ -2680,6 +2741,7 @@ tls:
 
 manifests:
   certificates: false
+  cron_job_ovn_db_sync: false
   configmap_bin: true
   configmap_etc: true
   daemonset_dhcp_agent: true
@@ -2714,6 +2776,7 @@ manifests:
   secret_db: true
   secret_ingress_tls: true
   secret_keystone: true
+  secret_ks_etc: true
   secret_rabbitmq: true
   secret_registry: true
   service_ingress_server: true

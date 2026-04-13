@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,23 +10,16 @@ labels:
   isApplication: false
 images:
   tags:
-    ceilometer_api: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_central: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
-    ceilometer_collector: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_compute: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_db_sync: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_ipmi: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_notification: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
-    db_init: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
-    db_init_mongodb: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
-    ks_endpoints: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
-    ks_service: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     rabbit_init: docker.io/rabbitmq:3.10.25-management
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
-    test: null
 dependencies:
   static:
     central:
@@ -54,21 +47,11 @@ dependencies:
     db_sync:
       jobs:
         - ceilometer-ks-user
-        - ceilometer-ks-service
       services:
         - endpoint: internal
           service: identity
         - endpoint: internal
           service: metric
-manifests:
-  deployment_api: false
-  deployment_collector: false
-  service_api: false
-  job_db_init: false
-  job_db_init_mongodb: false
-  job_ks_endpoints: false
-  secret_db: false
-  secret_mongodb: false
 endpoints:
   identity:
     force_public_endpoint: true
@@ -80,6 +63,8 @@ endpoints:
       default: memcached
 conf:
   ceilometer:
+    oslo_concurrency:
+      lock_path: /var/lock
     keystone_authtoken:
       auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
@@ -87,8 +72,6 @@ conf:
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     dispatcher_gnocchi:
       url: http://gnocchi.openstack.svc.cluster.local:80/
-    api:
-      aodh_url: http://aodh.openstack.svc.cluster.local:80/
     cache:
       expiration_time: 86400
     compute:
@@ -497,40 +480,6 @@ conf:
         attributes:
           controller: resource_metadata.controller
           switch: resource_metadata.switch
-wsgi_ceilometer: |
-  Listen :::{{ tuple "metering" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
-
-  LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
-  WSGISocketPrefix /var/run/httpd/wsgi
-
-  <VirtualHost *:{{ tuple "metering" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
-      LogLevel info
-      WSGIDaemonProcess ceilometer-api processes=2 threads=1 user=ceilometer group=ceilometer display-name=%{GROUP} python-home=/var/lib/openstack socket-user=apache
-      WSGIProcessGroup ceilometer-api
-
-      WSGIScriptReloading On
-      WSGIScriptAlias / /var/lib/kolla/venv/lib/python2.7/site-packages/ceilometer/api/app.wsgi
-
-      WSGIApplicationGroup %{GLOBAL}
-
-      <Directory "/var/lib/kolla/venv/lib/python2.7/site-packages/ceilometer/api">
-          <IfVersion >= 2.4>
-              Require all granted
-          </IfVersion>
-          <IfVersion < 2.4>
-              Order allow,deny
-              Allow from all
-          </IfVersion>
-      </Directory>
-      ErrorLog /dev/stdout
-      CustomLog /dev/stdout combined
-  </VirtualHost>
-network:
-  api:
-    ingress:
-      classes:
-        namespace: "nginx-openstack"
-        cluster: "nginx"
 pod:
   labels:
     include_app_kubernetes_io: false

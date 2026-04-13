@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -44,6 +44,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+        haproxy.org/path-rewrite: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -57,7 +58,11 @@ conf:
       use_syslog: false
       log_config_append: /etc/placement/logging.conf
     placement_database:
-      connection: null
+      # -- Database connection URI. When empty the URI is auto-generated
+      ## from endpoints.oslo_db. Set to null to disable auto-generation,
+      ## e.g. when using an operator such as mariadb-operator that supplies
+      ## the connection string via a mounted configuration snippet.
+      connection: ""
     keystone_authtoken:
       service_token_roles: service
       service_token_roles_required: true
@@ -67,6 +72,8 @@ conf:
       service_type: placement
       auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+    oslo_concurrency:
+      lock_path: /var/lock
   logging:
     loggers:
       keys:
@@ -143,7 +150,9 @@ conf:
       route-user-agent: '^kube-probe.* donotlog:'
       thunder-lock: true
       worker-reload-mercy: 80
-      wsgi-file: /var/lib/openstack/bin/placement-api
+      module: placement.wsgi.api:application
+      stats: 0.0.0.0:1717
+      stats-http: true
   wsgi_placement: |
     Listen :::{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
     LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
@@ -158,9 +167,7 @@ conf:
         WSGIScriptAlias / /var/www/cgi-bin/placement/placement-api
         WSGIApplicationGroup %{GLOBAL}
         WSGIPassAuthorization On
-        <IfVersion >= 2.4>
-          ErrorLogFormat "%{cu}t %M"
-        </IfVersion>
+        ErrorLogFormat "%{cu}t %M"
         ErrorLog /dev/stdout
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
         CustomLog /dev/stdout combined env=!forwarded
@@ -327,10 +334,18 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+  etcSources:
+    placement: []
+    placement_db_sync: []
   mounts:
     placement:
       init_container: null
       placement:
+        volumeMounts:
+        volumes:
+    placement_db_sync:
+      init_container: null
+      placement_db_sync:
         volumeMounts:
         volumes:
   replicas:
@@ -359,6 +374,11 @@ pod:
       limits:
         memory: "1024Mi"
         cpu: "2000m"
+  probes:
+    placement:
+      api:
+        liveness:
+          port: 1717
     jobs:
       db_init:
         requests:
@@ -493,6 +513,7 @@ manifests:
   pdb: true
   ingress: true
   secret_keystone: true
+  secret_ks_etc: true
   service_ingress: true
   service: true
 ...

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -64,6 +64,12 @@ jobs:
     cron: "35 */24 * * *"
 conf:
   aodh:
+    oslo_concurrency:
+      lock_path: /var/lock
+    database:
+      alarm_history_time_to_live: 86400
+      max_retries: -1
+      connection: ""
     keystone_authtoken:
       auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
@@ -85,9 +91,7 @@ conf:
         WSGIProcessGroup aodh
         WSGIScriptAlias / /var/www/cgi-bin/aodh/aodh-api
         WSGIApplicationGroup %{GLOBAL}
-        <IfVersion >= 2.4>
-          ErrorLogFormat "%{cu}t %M"
-        </IfVersion>
+        ErrorLogFormat "%{cu}t %M"
 
         ErrorLog /dev/stdout
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded

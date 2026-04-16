@@ -50,3 +50,4 @@
 0050-Add-PVC-support-for-nova-ephemeral-storage.patch
 0051-Fix-cold-migration-on-IPv6-deployments.patch
 0052-cinder-unhardcode-readiness-liveness-probe-params.patch
+0053-Switch-prometheus-openstack-exporter-to-Go-exporter.patch

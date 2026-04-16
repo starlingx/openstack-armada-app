@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025 Wind River Systems, Inc.
+# Copyright (c) 2025-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,13 +17,34 @@ class PrometheusOpenstackExporterHelm(openstack.OpenstackBaseHelm):
     CHART = app_constants.HELM_CHART_PROMETHEUS_OPENSTACK_EXPORTER
     HELM_RELEASE = app_constants.FLUXCD_HELMRELEASE_PROMETHEUS_OPENSTACK_EXPORTER
 
-    def get_overrides(self, namespace=None):
+    SERVICE_NAME = app_constants.HELM_CHART_PROMETHEUS_OPENSTACK_EXPORTER
+    AUTH_USERS = ['user']
 
+    def get_overrides(self, namespace=None):
         overrides = {
             common.HELM_NS_OPENSTACK: {
-                # TODO: add helm overrides
+                'pod': self._get_pod_overrides(),
+                'endpoints': self._get_endpoints_overrides(),
             }
         }
+
+        if self._is_openstack_https_ready():
+            self._enable_certificates(
+                overrides[common.HELM_NS_OPENSTACK])
+            overrides[common.HELM_NS_OPENSTACK] = \
+                self._update_overrides(
+                    overrides[common.HELM_NS_OPENSTACK], {
+                        'secrets': {
+                            'tls': {
+                                'identity': {
+                                    'api': {
+                                        'internal':
+                                            'keystone-tls-public',
+                                    }
+                                }
+                            }
+                        }
+                    })
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]
@@ -32,3 +53,19 @@ class PrometheusOpenstackExporterHelm(openstack.OpenstackBaseHelm):
                                                  namespace=namespace)
         else:
             return overrides
+
+    def _get_pod_overrides(self):
+        return {
+            'replicas': {
+                'prometheus_openstack_exporter':
+                    self._num_provisioned_controllers()
+            }
+        }
+
+    def _get_endpoints_overrides(self):
+        return {
+            'identity': {
+                'auth': self._get_endpoints_identity_overrides(
+                    self.SERVICE_NAME, self.AUTH_USERS)
+            }
+        }

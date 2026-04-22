@@ -109,7 +109,7 @@ conf:
   dynamic_options:
     libvirt:
       listen_interface: null
-      listen_address: 127.0.0.1
+      listen_address: null
     script: |
       #!/bin/bash
       set -ex
@@ -120,8 +120,12 @@ conf:
 
       LISTEN_INTERFACE="{{ .Values.conf.dynamic_options.libvirt.listen_interface }}"
       LISTEN_IP_ADDRESS=$(ip address show $LISTEN_INTERFACE | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}')
+
       {{- else if .Values.conf.dynamic_options.libvirt.listen_address }}
       LISTEN_IP_ADDRESS={{ .Values.conf.dynamic_options.libvirt.listen_address }}
+
+      {{- else }}
+      LISTEN_IP_ADDRESS=${CLUSTER_HOST_IP}
       {{- end }}
 
       if [[ -z $LISTEN_IP_ADDRESS ]]; then

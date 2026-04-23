@@ -12,11 +12,16 @@ from pwd import getpwnam
 import re
 import secrets
 import shutil
+import threading
+import time
 from typing import Generator
 
 from cephclient import wrapper as ceph
 from eventlet.green import subprocess
+from keystoneauth1 import session as ks_session
+from keystoneauth1.identity import v3 as ks_v3
 from kubernetes.client.rest import ApiException as KubeApiException
+from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import base64
 import requests
@@ -3280,3 +3285,179 @@ def get_nova_pvc_name() -> str:
         chart_name=app_constants.HELM_CHART_NOVA,
         override_name=app_constants.OVERRIDE_NOVA_PVC_NAME
     )
+
+
+def _recover_server(session, nova_url, server_id) -> bool:
+    """Recover a single server via reset-state/stop/shelve/unshelve.
+
+    Args:
+        session: keystoneauth1 Session.
+        nova_url: Nova compute endpoint URL.
+        server_id: The server UUID.
+
+    Returns:
+        bool: True if all recovery steps succeeded.
+    """
+    action_url = f"{nova_url}/servers/{server_id}/action"
+    retries = (app_constants.NOVA_SERVER_STATUS_TIMEOUT //
+               app_constants.NOVA_SERVER_STATUS_INTERVAL)
+    steps = [
+        ({"os-resetState": {"state": "active"}},
+         app_constants.NOVA_SERVER_ACTIVE),
+        ({"os-stop": None},
+         app_constants.NOVA_SERVER_SHUTOFF),
+        ({"shelve": None},
+         app_constants.NOVA_SERVER_SHELVED_OFFLOADED),
+        ({"unshelve": None},
+         app_constants.NOVA_SERVER_ACTIVE),
+    ]
+    for body, expected in steps:
+        action = next(iter(body))
+        LOG.info(f"VM recovery [{server_id}]: {action}")
+        try:
+            session.post(action_url, json=body)
+        except Exception as e:
+            LOG.error(f"VM recovery [{server_id}]: "
+                      f"{action} failed: {e}")
+            return False
+        status = ""
+        for _ in range(retries):
+            try:
+                resp = session.get(
+                    f"{nova_url}/servers/{server_id}")
+                status = resp.json().get(
+                    'server', {}).get('status', '')
+                if status == expected:
+                    break
+                if (expected == app_constants.NOVA_SERVER_SHUTOFF
+                        and status == app_constants.NOVA_SERVER_ACTIVE):
+                    LOG.info(f"VM recovery [{server_id}]: "
+                             f"recovered (compute auto-resumed)")
+                    return True
+            except Exception:
+                pass
+            time.sleep(app_constants.NOVA_SERVER_STATUS_INTERVAL)
+        else:
+            LOG.error(f"VM recovery [{server_id}]: did not reach "
+                      f"{expected} (last: {status})")
+            return False
+    return True
+
+
+def is_vm_recovery_enabled() -> bool:
+    """Check if automatic VM recovery is enabled via helm override.
+
+    Returns:
+        bool: True if vm_recovery.enabled is set to true in nova overrides.
+    """
+    return _get_value_from_application(
+        default_value=False,
+        chart_name=app_constants.HELM_CHART_NOVA,
+        override_name=app_constants.NOVA_RECOVERY_ENABLED_OVERRIDE)
+
+
+def recover_error_servers(conductor_obj):
+    """Recover all servers in ERROR state via reset-state/stop/shelve/unshelve.
+
+    Spawns a background thread to avoid blocking the post_apply hook.
+    Only runs if vm_recovery.enabled is set to true in nova helm overrides.
+
+    Args:
+        conductor_obj: sysinv ConductorManager instance.
+    """
+    if not is_vm_recovery_enabled():
+        return
+    thread = threading.Thread(
+        target=_recover_error_servers_worker,
+        args=(conductor_obj,),
+        daemon=True)
+    thread.start()
+
+
+def _recover_error_servers_worker(conductor_obj):
+    """Background worker that detects and recovers VMs in ERROR state."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    # Build internal K8s service URLs (same pattern as
+    # OpenstackBaseHelm._get_service_default_dns_name).
+    keystone_host = "{}.{}.svc.{}".format(
+        app_constants.KEYSTONE_API_K8S_SERVICE,
+        app_constants.HELM_NS_OPENSTACK,
+        constants.DEFAULT_DNS_SERVICE_DOMAIN)
+    nova_host = "{}.{}.svc.{}".format(
+        app_constants.NOVA_API_K8S_SERVICE,
+        app_constants.HELM_NS_OPENSTACK,
+        constants.DEFAULT_DNS_SERVICE_DOMAIN)
+    keystone_url = "http://{}:{}/v3".format(
+        keystone_host, app_constants.KEYSTONE_API_K8S_PORT)
+    nova_url = "http://{}:{}/v2.1".format(
+        nova_host, app_constants.NOVA_API_K8S_PORT)
+
+    # Create session authenticated directly against the OpenStack Keystone
+    # K8s service, bypassing the platform haproxy.
+    service_config = 'OPENSTACK_KEYSTONE_AUTHTOKEN'
+    try:
+        auth = ks_v3.Password(
+            auth_url=keystone_url,
+            username=cfg.CONF[service_config].username,
+            password=conductor_obj._openstack._get_keystone_password(
+                service_config),
+            user_domain_name=cfg.CONF[service_config].user_domain_name,
+            project_name=cfg.CONF[service_config].project_name,
+            project_domain_name=cfg.CONF[service_config].
+            project_domain_name)
+        session = ks_session.Session(auth=auth,
+                                     timeout=app_constants.NOVA_SESSION_TIMEOUT)
+    except Exception as e:
+        LOG.error(f"VM recovery: failed to create session: {e}")
+        return
+
+    # Wait for Nova API to become responsive.
+    retries = (app_constants.NOVA_SERVER_STATUS_TIMEOUT //
+               app_constants.NOVA_SERVER_STATUS_INTERVAL)
+    for attempt in range(retries):
+        try:
+            session.get(f"{nova_url}/servers?limit=1")
+            break
+        except Exception:
+            if attempt < retries - 1:
+                time.sleep(app_constants.NOVA_SERVER_STATUS_INTERVAL)
+    else:
+        LOG.error("VM recovery: Nova endpoint not available, skipping")
+        return
+
+    try:
+        resp = session.get(
+            f"{nova_url}/servers/detail?all_tenants=1"
+            f"&status={app_constants.NOVA_SERVER_ERROR}")
+        error_servers = resp.json().get('servers', [])
+    except Exception as e:
+        LOG.error(f"VM recovery: failed to list error servers: {e}")
+        return
+
+    if not error_servers:
+        LOG.info("No servers in ERROR state, skipping VM recovery")
+        return
+
+    LOG.warning(f"Found {len(error_servers)} server(s) in ERROR state")
+
+    def _do_recover(server):
+        server_id = server['id']
+        try:
+            LOG.info(f"Recovering server {server_id}")
+            if _recover_server(session, nova_url, server_id):
+                LOG.info(f"Server {server_id} recovered successfully")
+            else:
+                LOG.error(f"Server {server_id} recovery failed")
+        except Exception as e:
+            LOG.error(f"Unexpected error recovering server "
+                      f"{server_id}: {e}")
+
+    max_workers = min(
+        _get_value_from_application(
+            default_value=app_constants.NOVA_RECOVERY_MAX_WORKERS,
+            chart_name=app_constants.HELM_CHART_NOVA,
+            override_name=app_constants.NOVA_RECOVERY_MAX_WORKERS_OVERRIDE),
+        len(error_servers))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        executor.map(_do_recover, error_servers)

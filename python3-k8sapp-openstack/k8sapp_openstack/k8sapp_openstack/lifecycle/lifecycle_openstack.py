@@ -161,6 +161,14 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 # Log error but don't fail the openstack apply
                 LOG.error(f"Failed to update DEX redirect URI: {e}")
 
+        # Attempt to recover VMs found in ERROR state (e.g. expired
+        # iSCSI/FC sessions after a backup & restore operation).
+        if hook_info[LifecycleConstants.EXTRA][LifecycleConstants.APP_APPLIED]:
+            try:
+                app_utils.recover_error_servers(conductor_obj)
+            except Exception as e:
+                LOG.error(f"Failed to recover error servers: {e}")
+
     def pre_remove(self, context, conductor_obj, hook_info):
         """Pre remove actions
 

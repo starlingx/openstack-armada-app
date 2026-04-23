@@ -65,8 +65,8 @@ conf:
     DEFAULT:
       osapi_proxy_listen: "::"
       nfvi_compute_listen: "::"
-      osapi_compute_listen: nova-api-internal.openstack.svc.cluster.local
-      osapi_compute_listen_port: 80
+      osapi_compute_listen: nova-api.openstack.svc.cluster.local
+      osapi_compute_listen_port: 8774
     keystone_authtoken:
       interface: internal
       auth_uri: http://keystone.openstack.svc.cluster.local:80/v3

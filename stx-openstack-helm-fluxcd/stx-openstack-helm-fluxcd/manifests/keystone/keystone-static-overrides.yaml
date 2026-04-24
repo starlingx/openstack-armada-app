@@ -19,7 +19,7 @@ labels:
     node_selector_value: enabled
 # NOTE(gagehugo): the pre-install hook breaks upgrade for helm2
 # Set to false to upgrade using helm2
-helm3_hook: true
+helm3_hook: false
 
 images:
   tags:

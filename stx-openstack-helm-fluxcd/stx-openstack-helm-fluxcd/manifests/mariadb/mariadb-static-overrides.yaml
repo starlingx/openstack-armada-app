@@ -700,7 +700,7 @@ network_policy:
 
 # Helm hook breaks for helm2.
 # Set helm3_hook: false in case helm2 is used.
-helm3_hook: true
+helm3_hook: false
 
 manifests:
   certificates: false

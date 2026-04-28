@@ -1,4 +1,4 @@
-From ce9fb17d56cef7761cca339d7b45ed43b42119a6 Mon Sep 17 00:00:00 2001
+From 99bdbec5a9d28e8fe47803e637001aa2ab920079 Mon Sep 17 00:00:00 2001
 From: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Date: Thu, 10 Feb 2022 16:23:26 -0300
 Subject: [PATCH] Remove TLS from openstack services
@@ -28,12 +28,14 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 [ Merged similar patches under new OSH package]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Remove duplicate env keys in Cinder ]
+Signed-off-by: Raghu Sarangapani <raghu.sarangapani@windriver.com>
 ---
  cinder/templates/bin/_cinder-api.sh.tpl       | 40 ----------
  cinder/templates/certificates.yaml            | 17 -----
  cinder/templates/configmap-etc.yaml           |  8 --
  .../cron-job-cinder-volume-usage-audit.yaml   |  8 +-
- cinder/templates/deployment-api.yaml          | 32 ++------
+ cinder/templates/deployment-api.yaml          | 37 ++--------
  cinder/templates/deployment-backup.yaml       |  4 -
  cinder/templates/deployment-scheduler.yaml    |  8 +-
  cinder/templates/deployment-volume.yaml       | 10 +--
@@ -191,7 +193,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  placement/templates/job-ks-service.yaml       |  2 +-
  placement/templates/job-ks-user.yaml          |  2 +-
  placement/templates/secret-db.yaml            |  4 -
- 162 files changed, 138 insertions(+), 1094 deletions(-)
+ 162 files changed, 140 insertions(+), 1097 deletions(-)
  delete mode 100644 cinder/templates/certificates.yaml
  delete mode 100644 glance/templates/certificates.yaml
  delete mode 100644 heat/templates/certificates.yaml
@@ -334,21 +336,31 @@ index 1d935f125..e66286e44 100644
  {{ if $mounts_cinder_volume_usage_audit.volumes }}{{ toYaml $mounts_cinder_volume_usage_audit.volumes | indent 12 }}{{ end }}
  {{- end }}
 diff --git a/cinder/templates/deployment-api.yaml b/cinder/templates/deployment-api.yaml
-index f29d103f6..571d71029 100644
+index f29d103f6..4d20cc52f 100644
 --- a/cinder/templates/deployment-api.yaml
 +++ b/cinder/templates/deployment-api.yaml
-@@ -78,6 +78,10 @@ spec:
+@@ -78,14 +78,17 @@ spec:
  {{ tuple $envAll "cinder_api" | include "helm-toolkit.snippets.image" | indent 10 }}
  {{ tuple $envAll $envAll.Values.pod.resources.api | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
  {{ dict "envAll" $envAll "application" "cinder_api" "container" "cinder_api" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
-+          env:
+-          command:
+-            - /tmp/cinder-api.sh
+-            - start
+           env:
 +{{- with $env := dict "ksUserSecret" .Values.secrets.identity.admin "useCA" .Values.manifests.certificates }}
 +{{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 12 }}
 +{{- end }}
-           command:
-             - /tmp/cinder-api.sh
-             - start
-@@ -114,8 +118,6 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+             - name: REQUESTS_CA_BUNDLE
+               value: "/etc/cinder/certs/ca.crt"
+ {{- end }}
++          command:
++            - /tmp/cinder-api.sh
++            - start
+           lifecycle:
+             preStop:
+               exec:
+@@ -114,8 +117,6 @@ spec:
            volumeMounts:
              - name: pod-tmp
                mountPath: /tmp
@@ -357,7 +369,7 @@ index f29d103f6..571d71029 100644
              - name: cinder-bin
                mountPath: /tmp/cinder-api.sh
                subPath: cinder-api.sh
-@@ -150,35 +152,15 @@ spec:
+@@ -150,35 +151,15 @@ spec:
                mountPath: {{ .Values.conf.cinder.DEFAULT.resource_query_filters_file }}
                subPath: resource_filters.json
                readOnly: true
@@ -394,7 +406,7 @@ index f29d103f6..571d71029 100644
          - name: cinder-bin
            configMap:
              name: cinder-bin
-@@ -193,8 +175,6 @@ spec:
+@@ -193,8 +174,6 @@ spec:
          - name: cinder-coordination
            emptyDir: {}
          {{- end }}
@@ -3891,5 +3903,5 @@ index 0e9214c45..44797b854 100644
  {{- end }}
 -{{- end }}
 -- 
-2.34.1
+2.43.0
 

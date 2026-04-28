@@ -16,19 +16,19 @@ labels:
     node_selector_value: enabled
 images:
   tags:
-    barbican_api: docker.io/starlingx/stx-barbican:master-debian-stable-latest
-    barbican_db_sync: docker.io/starlingx/stx-barbican:master-debian-stable-latest
-    bootstrap: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    db_drop: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    db_init: docker.io/starlingx/stx-heat:master-debian-stable-latest
+    barbican_api: docker.io/starlingx/stx-barbican:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    barbican_db_sync: docker.io/starlingx/stx-barbican:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    bootstrap: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    db_drop: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    db_init: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
-    ks_endpoints: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ks_service: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    ks_user: docker.io/starlingx/stx-openstackclients:master-debian-stable-latest
+    ks_endpoints: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ks_service: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     rabbit_init: docker.io/rabbitmq:3.10.25-management
-    scripted_test: docker.io/starlingx/stx-heat:master-debian-stable-latest
-    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    scripted_test: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
 pod:
   labels:
     include_app_kubernetes_io: false

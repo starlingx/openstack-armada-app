@@ -15,13 +15,13 @@ labels:
 
 images:
   tags:
-    libvirt: docker.io/starlingx/stx-libvirt:master-debian-stable-latest
+    libvirt: docker.io/starlingx/stx-libvirt:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     libvirt_exporter: null
     ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     kubectl: null
-    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:master-debian-stable-latest
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   pull_policy: "IfNotPresent"
   local_registry:
     active: false

@@ -770,14 +770,19 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         """
         Builds a dictionary of addresses indexed by host id
         """
+        if '_host_addresses' in self.context:
+            return self.context['_host_addresses']
+
         addresses = {}
         db_addresses = self.dbapi.addresses_get_all()
         db_interfaces = self.dbapi.iinterface_get_list()
+        iface_by_id = {iface.id: iface for iface in db_interfaces}
         for addr in db_addresses:
-            for iface in db_interfaces:
-                if iface.id == addr.interface_id:
-                    addresses.setdefault(iface.forihostid, []).append(addr)
-                    break
+            iface = iface_by_id.get(addr.interface_id)
+            if iface:
+                addresses.setdefault(iface.forihostid, []).append(addr)
+
+        self.context['_host_addresses'] = addresses
         return addresses
 
     def execute_kustomize_updates(self, operator):

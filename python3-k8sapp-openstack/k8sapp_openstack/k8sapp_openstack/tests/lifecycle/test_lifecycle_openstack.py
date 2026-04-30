@@ -1834,3 +1834,72 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             self.lifecycle._semantic_check_backend_storageclass()
         except exception.LifecycleSemanticCheckException as e:
             self.assertIn("rabbitmq", str(e).lower())
+
+    @mock.patch('k8sapp_openstack.helpers.ldap.add_group', return_value=True)
+    @mock.patch('k8sapp_openstack.helpers.ldap.check_group', return_value=False)
+    @mock.patch('k8sapp_openstack.utils.is_central_cloud', return_value=True)
+    def test_post_upload_creates_ldap_group_on_central_cloud(
+        self,
+        mock_is_central_cloud,
+        mock_check_group,
+        mock_add_group
+    ):
+        """Test that LDAP group is created on central cloud during post upload."""
+        app = mock.Mock()
+        self.lifecycle._post_upload_ldap_actions(app)
+        mock_is_central_cloud.assert_called_once()
+        mock_check_group.assert_called_once_with(
+            app_constants.CLIENTS_WORKING_DIR_GROUP
+        )
+        mock_add_group.assert_called_once_with(
+            app_constants.CLIENTS_WORKING_DIR_GROUP
+        )
+
+    @mock.patch('k8sapp_openstack.helpers.ldap.add_group')
+    @mock.patch('k8sapp_openstack.helpers.ldap.check_group')
+    @mock.patch('k8sapp_openstack.utils.is_central_cloud', return_value=False)
+    def test_post_upload_skips_on_non_central_cloud(
+        self,
+        mock_is_central_cloud,
+        mock_check_group,
+        mock_add_group
+    ):
+        """Test that LDAP actions are skipped on non-central cloud."""
+        app = mock.Mock()
+        self.lifecycle._post_upload_ldap_actions(app)
+        mock_is_central_cloud.assert_called_once()
+        mock_check_group.assert_not_called()
+        mock_add_group.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.helpers.ldap.add_group')
+    @mock.patch('k8sapp_openstack.helpers.ldap.check_group', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_central_cloud', return_value=True)
+    def test_post_upload_skips_if_group_exists(
+        self,
+        mock_is_central_cloud,
+        mock_check_group,
+        mock_add_group
+    ):
+        """Test that LDAP group creation is skipped if group already exists."""
+        app = mock.Mock()
+        self.lifecycle._post_upload_ldap_actions(app)
+        mock_check_group.assert_called_once_with(
+            app_constants.CLIENTS_WORKING_DIR_GROUP
+        )
+        mock_add_group.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.helpers.ldap.add_group', return_value=False)
+    @mock.patch('k8sapp_openstack.helpers.ldap.check_group', return_value=False)
+    @mock.patch('k8sapp_openstack.utils.is_central_cloud', return_value=True)
+    def test_post_upload_logs_error_on_failure(
+        self,
+        mock_is_central_cloud,
+        mock_check_group,
+        mock_add_group
+    ):
+        """Test that LDAP group creation failure logs error but does not raise."""
+        app = mock.Mock()
+        self.lifecycle._post_upload_ldap_actions(app)
+        mock_add_group.assert_called_once_with(
+            app_constants.CLIENTS_WORKING_DIR_GROUP
+        )

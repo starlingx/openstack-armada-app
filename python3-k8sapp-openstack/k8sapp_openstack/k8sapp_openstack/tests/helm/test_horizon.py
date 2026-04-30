@@ -109,6 +109,19 @@ class HorizonGetOverrideTest(HorizonHelmTestCase,
             cnamespace=common.HELM_NS_OPENSTACK)
 
         self.assertOverridesParameters(overrides, {
+            'conf': {
+                'horizon': {
+                    'local_settings': {
+                        'config': {
+                            'https_enabled': 'True',
+                            'raw': {
+                                'SECURE_PROXY_SSL_HEADER': [
+                                    'HTTP_X_FORWARDED_PROTO', 'https'],
+                            },
+                        },
+                    },
+                },
+            },
             'endpoints': {
                 'identity': {
                     'auth': {
@@ -129,6 +142,14 @@ class HorizonGetOverrideTest(HorizonHelmTestCase,
                                 'key': 'fake',
                             },
                         },
+                    },
+                    'port': {
+                        'web': {
+                            'public': 443,
+                        },
+                    },
+                    'scheme': {
+                        'public': 'https',
                     },
                 },
             },

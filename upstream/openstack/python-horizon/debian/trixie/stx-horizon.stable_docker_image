@@ -1,0 +1,26 @@
+BUILDER=loci
+LABEL=stx-horizon
+PROJECT=horizon
+PROJECT_REPO=https://opendev.org/openstack/horizon.git
+PROJECT_REF=30af7039087e10d77ddbb54347c59d83146a727d
+UPGRADE_PIP_PACKAGES=pip
+DIST_REPOS="OS"
+PROJECT_UID=42425
+PROJECT_GID=42425
+UPDATE_SYSTEM_ACCOUNT="yes"
+PIP_PACKAGES="\
+  coverage \
+  ldap \
+  pycryptodomex \
+  pyudev \
+  pymemcache
+"
+PROFILES="fluent horizon apache"
+CUSTOMIZATION="\
+    ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \
+    ln -s /etc/apache2/mods-available/wsgi.conf /etc/apache2/mods-enabled/wsgi.conf && \
+    ln -s /bin/true /usr/bin/a2enmod && \
+    sed -i -e 's/raise ImproperlyConfigured..mysqlclient 1.3.13 or newer is required.*/pass/' /var/lib/openstack/lib/python3.13/site-packages/django/db/backends/mysql/base.py && \
+    sed -i -e '/query.decode.errors=.replace../s/decode/encode/' /var/lib/openstack/lib/python3.13/site-packages/django/db/backends/mysql/operations.py && \
+    sed -i 's/Listen 80/# Listen 80/' /etc/apache2/ports.conf
+"

@@ -1,4 +1,4 @@
-From a2661450cece8f36916d9dae4a9585a38cc9158e Mon Sep 17 00:00:00 2001
+From 0189b515586f2af95e51fa60fcae4364b631ee90 Mon Sep 17 00:00:00 2001
 From: dbarbosa <david.barbosabastos@windriver.com>
 Date: Tue, 19 Dec 2023 10:01:29 -0300
 Subject: [PATCH] Add app.starlingx.io/component label to pods
@@ -17,6 +17,7 @@ different from true or false, the label will not change.
 
 By default, all pods start with the value platform.
 
+Change-Id: I493f21b6ff3bfb6dd83ac3fe4f1f3641a3733798
 Signed-off-by: David Bastos <david.barbosabastos@windriver.com>
 [ Updated "isApplication" labels values to "true" ]
 Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
@@ -26,6 +27,8 @@ Signed-off-by: Giulia Melao <giulia.depaulamelao@windriver.com>
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 [ Merged similar patches under new OSH package]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Added labels to the new prometheus-openstack-exporter chart ]
+Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
 ---
  aodh/templates/cron-job-alarms-cleaner.yaml                | 3 +++
  aodh/templates/deployment-api.yaml                         | 2 ++
@@ -162,11 +165,14 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  openvswitch/values.yaml                                    | 1 +
  placement/templates/deployment.yaml                        | 2 ++
  placement/values.yaml                                      | 1 +
+ prometheus-openstack-exporter/templates/deployment.yaml    | 2 ++
+ prometheus-openstack-exporter/templates/job-ks-user.yaml   | 2 ++
+ prometheus-openstack-exporter/values.yaml                  | 1 +
  rabbitmq/templates/job-cluster-wait.yaml                   | 2 ++
  rabbitmq/templates/pod-test.yaml                           | 2 ++
  rabbitmq/templates/statefulset.yaml                        | 2 ++
  rabbitmq/values.yaml                                       | 1 +
- 139 files changed, 303 insertions(+)
+ 142 files changed, 308 insertions(+)
 
 diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
 index ec0b58f7a..6a9848403 100644
@@ -614,7 +620,7 @@ index e66286e44..d2b5db503 100644
          spec:
  {{ dict "envAll" $envAll "application" "volume_usage_audit" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
 diff --git a/cinder/templates/deployment-api.yaml b/cinder/templates/deployment-api.yaml
-index 8d1a753d4..2fc6e7910 100644
+index 895495239..8b3773cf1 100644
 --- a/cinder/templates/deployment-api.yaml
 +++ b/cinder/templates/deployment-api.yaml
 @@ -42,11 +42,13 @@ spec:
@@ -2358,6 +2364,51 @@ index 3541b95ed..66df39ed3 100644
    api:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
+diff --git a/prometheus-openstack-exporter/templates/deployment.yaml b/prometheus-openstack-exporter/templates/deployment.yaml
+index a9b0391f1..35ece2474 100644
+--- a/prometheus-openstack-exporter/templates/deployment.yaml
++++ b/prometheus-openstack-exporter/templates/deployment.yaml
+@@ -36,11 +36,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "prometheus-openstack-exporter" "exporter" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         secret-keystone-hash: {{ tuple "secret-keystone.yaml" . | include "helm-toolkit.utils.hash" }}
+         secret-registry-hash: {{ tuple "secret-registry.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "prometheus-openstack-exporter" "containerNames" (list "openstack-metrics-exporter" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+     spec:
+diff --git a/prometheus-openstack-exporter/templates/job-ks-user.yaml b/prometheus-openstack-exporter/templates/job-ks-user.yaml
+index 04d126a3f..f232e660f 100644
+--- a/prometheus-openstack-exporter/templates/job-ks-user.yaml
++++ b/prometheus-openstack-exporter/templates/job-ks-user.yaml
+@@ -28,8 +28,10 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "prometheus-openstack-exporter" "ks-user" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+ {{ dict "envAll" $envAll "podName" "prometheus-openstack-exporter-ks-user" "containerNames" (list "prometheus-openstack-exporter-ks-user" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
+     spec:
+ {{ dict "envAll" $envAll "application" "ks_user" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+diff --git a/prometheus-openstack-exporter/values.yaml b/prometheus-openstack-exporter/values.yaml
+index 82dde78a6..c520b2831 100644
+--- a/prometheus-openstack-exporter/values.yaml
++++ b/prometheus-openstack-exporter/values.yaml
+@@ -29,6 +29,7 @@ images:
+       - image_repo_sync
+ 
+ labels:
++  isApplication: false
+   openstack_exporter:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
 diff --git a/rabbitmq/templates/job-cluster-wait.yaml b/rabbitmq/templates/job-cluster-wait.yaml
 index 1c4378c70..223291e48 100644
 --- a/rabbitmq/templates/job-cluster-wait.yaml
@@ -2426,5 +2477,5 @@ index 015d3d259..1f8f44174 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 -- 
-2.34.1
+2.43.0
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -7,10 +7,11 @@
 ---
 images:
   tags:
-    prometheus_openstack_exporter: docker.io/openstackhelm/prometheus-openstack-exporter:ubuntu_jammy-20250816
+    prometheus_openstack_exporter: ghcr.io/openstack-exporter/openstack-exporter:1.7.0
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   pull_policy: IfNotPresent
   local_registry:
     active: false
@@ -41,6 +42,11 @@ pod:
     ks_user:
       pod:
         runAsUser: 65534
+      container:
+        prometheus_openstack_exporter_ks_user:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+    clouds_yaml_gen:
       container:
         prometheus_openstack_exporter_ks_user:
           readOnlyRootFilesystem: true
@@ -179,7 +185,7 @@ endpoints:
       default: 'http'
     port:
       exporter:
-        default: 9103
+        default: 9180
   identity:
     name: keystone
     auth:
@@ -220,7 +226,7 @@ monitoring:
 
 network:
   openstack_metrics_exporter:
-    port: 9103
+    port: 9180
 
 network_policy:
   prometheus-openstack-exporter:
@@ -233,6 +239,7 @@ manifests:
   certificates: false
   configmap_bin: true
   deployment: true
+  job_pre_apply_cleanup: true
   job_image_repo_sync: true
   job_ks_user: true
   network_policy: false

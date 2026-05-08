@@ -1,6 +1,6 @@
-From a378cbea96985e35c3b8d6bc6df1551e0cf9435b Mon Sep 17 00:00:00 2001
+From 995eaa14d8769bc59f1a21757b7981a3e84032f2 Mon Sep 17 00:00:00 2001
 From: Daniel Caires <DanielMarques.Caires@windriver.com>
-Date: Tue, 19 Aug 2024 14:28:05 -0300
+Date: Mon, 19 Aug 2024 14:28:05 -0300
 Subject: [PATCH] Add pre-apply cleanup Job to STX-O Helm charts
 
 After verification, it was noted that it is not possible
@@ -18,11 +18,14 @@ chart is installed ou updated. This Job deletes all jobs that have
 its status as completed.
 
 [ Upversioned openstack-helm-infra base commit to Caracal ]
+Change-Id: I5459bed8fb46ebe2a7f96c50068a9a4efefd2270
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ Adapt openstack-helm-infra patches to Epoxy release ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ Merged similar patches under new OSH package]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Added job_pre_apply_cleanup to the new prometheus-openstack-exporter chart ]
+Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
 ---
  aodh/templates/job-pre-apply-cleanup.yaml     | 18 ++++
  aodh/values.yaml                              |  2 +
@@ -61,9 +64,11 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  openvswitch/values.yaml                       |  2 +
  .../templates/job-pre-apply-cleanup.yaml      | 18 ++++
  placement/values.yaml                         |  2 +
+ .../templates/job-pre-apply-cleanup.yaml      | 18 ++++
+ prometheus-openstack-exporter/values.yaml     |  2 +
  rabbitmq/templates/job-pre-apply-cleanup.yaml | 18 ++++
  rabbitmq/values.yaml                          |  2 +
- 39 files changed, 473 insertions(+)
+ 41 files changed, 493 insertions(+)
  create mode 100644 aodh/templates/job-pre-apply-cleanup.yaml
  create mode 100644 barbican/templates/job-pre-apply-cleanup.yaml
  create mode 100644 ceilometer/templates/job-pre-apply-cleanup.yaml
@@ -83,6 +88,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  create mode 100644 nova/templates/job-pre-apply-cleanup.yaml
  create mode 100644 openvswitch/templates/job-pre-apply-cleanup.yaml
  create mode 100644 placement/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 prometheus-openstack-exporter/templates/job-pre-apply-cleanup.yaml
  create mode 100644 rabbitmq/templates/job-pre-apply-cleanup.yaml
 
 diff --git a/aodh/templates/job-pre-apply-cleanup.yaml b/aodh/templates/job-pre-apply-cleanup.yaml
@@ -111,7 +117,7 @@ index 000000000..ba0f0df36
 +{{- end }}
 \ No newline at end of file
 diff --git a/aodh/values.yaml b/aodh/values.yaml
-index 56882dcc9..10608103f 100644
+index 56882dcc9..b7db07eb0 100644
 --- a/aodh/values.yaml
 +++ b/aodh/values.yaml
 @@ -59,6 +59,7 @@ images:
@@ -156,7 +162,7 @@ index 000000000..5755d4ec4
 +{{- end }}
 \ No newline at end of file
 diff --git a/barbican/values.yaml b/barbican/values.yaml
-index 4264341bb..0f7a1c96f 100644
+index 4264341bb..0c9455bd2 100644
 --- a/barbican/values.yaml
 +++ b/barbican/values.yaml
 @@ -48,6 +48,7 @@ images:
@@ -201,7 +207,7 @@ index 000000000..1900b9d8e
 +{{- end }}
 \ No newline at end of file
 diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
-index 54d449d93..4235ede04 100644
+index 54d449d93..e5fc73d9b 100644
 --- a/ceilometer/values.yaml
 +++ b/ceilometer/values.yaml
 @@ -63,6 +63,7 @@ images:
@@ -246,14 +252,14 @@ index 000000000..2a1d6d91e
 +{{- end }}
 \ No newline at end of file
 diff --git a/ceph-rgw/values.yaml b/ceph-rgw/values.yaml
-index abf9d618c..02f69e092 100644
+index abf9d618c..a1083265f 100644
 --- a/ceph-rgw/values.yaml
 +++ b/ceph-rgw/values.yaml
 @@ -35,6 +35,7 @@ images:
      ks_endpoints: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
      ks_service: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
      ks_user: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
-+    pre_apply_cleanup: 'docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@'
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    local_registry:
      active: false
      exclude:
@@ -291,7 +297,7 @@ index 000000000..db570af64
 +{{- end }}
 \ No newline at end of file
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index 5246c20f8..8179fc8f6 100644
+index 5246c20f8..4c7d5b4c4 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
 @@ -61,6 +61,7 @@ images:
@@ -336,7 +342,7 @@ index 000000000..2e4f2e11f
 +{{- end }}
 \ No newline at end of file
 diff --git a/glance/values.yaml b/glance/values.yaml
-index 31a0cafe7..9318db0eb 100644
+index 31a0cafe7..5e784d733 100644
 --- a/glance/values.yaml
 +++ b/glance/values.yaml
 @@ -50,6 +50,7 @@ images:
@@ -381,7 +387,7 @@ index 000000000..0e4424dae
 +{{- end }}
 \ No newline at end of file
 diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
-index 4454e7d8c..7fd8ce5e3 100644
+index 4454e7d8c..30e90cc91 100644
 --- a/gnocchi/values.yaml
 +++ b/gnocchi/values.yaml
 @@ -52,6 +52,7 @@ images:
@@ -426,7 +432,7 @@ index 000000000..be97d27d5
 +{{- end }}
 \ No newline at end of file
 diff --git a/heat/values.yaml b/heat/values.yaml
-index 814f62aa6..356fa084a 100644
+index 814f62aa6..5692177cc 100644
 --- a/heat/values.yaml
 +++ b/heat/values.yaml
 @@ -58,6 +58,7 @@ images:
@@ -571,7 +577,7 @@ index 000000000..258ad6f39
 +{{- end }}
 \ No newline at end of file
 diff --git a/horizon/values.yaml b/horizon/values.yaml
-index 1146acfac..cb55a480c 100644
+index 1146acfac..81ca1bb5c 100644
 --- a/horizon/values.yaml
 +++ b/horizon/values.yaml
 @@ -25,6 +25,7 @@ images:
@@ -616,7 +622,7 @@ index 000000000..34c6af542
 +{{- end }}
 \ No newline at end of file
 diff --git a/ironic/values.yaml b/ironic/values.yaml
-index fb3e01f39..d35b3bed5 100644
+index fb3e01f39..e1a877948 100644
 --- a/ironic/values.yaml
 +++ b/ironic/values.yaml
 @@ -53,6 +53,7 @@ images:
@@ -661,7 +667,7 @@ index 000000000..259ef91f7
 +{{- end }}
 \ No newline at end of file
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index e642d1cb4..7e43fd64c 100644
+index e642d1cb4..ee2039197 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
 @@ -52,6 +52,7 @@ images:
@@ -706,7 +712,7 @@ index 000000000..7c44fd2b2
 +{{- end }}
 \ No newline at end of file
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index 6fa3619c2..47511663a 100644
+index 6fa3619c2..49c6f8d88 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
 @@ -33,6 +33,7 @@ images:
@@ -751,7 +757,7 @@ index 000000000..4c2cef3bb
 +{{- end }}
 \ No newline at end of file
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index c0e30a040..581e358a3 100644
+index c0e30a040..37e0fa75d 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
 @@ -30,6 +30,7 @@ images:
@@ -796,7 +802,7 @@ index 000000000..f2d125787
 +{{- end }}
 \ No newline at end of file
 diff --git a/memcached/values.yaml b/memcached/values.yaml
-index b56313100..38cba6d14 100644
+index b56313100..fe0705b74 100644
 --- a/memcached/values.yaml
 +++ b/memcached/values.yaml
 @@ -126,6 +126,7 @@ images:
@@ -841,7 +847,7 @@ index 000000000..6fd7c757b
 +{{- end }}
 \ No newline at end of file
 diff --git a/neutron/values.yaml b/neutron/values.yaml
-index 688613ce7..6a1a3d243 100644
+index 688613ce7..62275fb87 100644
 --- a/neutron/values.yaml
 +++ b/neutron/values.yaml
 @@ -49,6 +49,7 @@ images:
@@ -886,7 +892,7 @@ index 000000000..0eb2fbaa2
 +{{- end }}
 \ No newline at end of file
 diff --git a/nova/values.yaml b/nova/values.yaml
-index ba5f5bb74..0551266ea 100644
+index ba5f5bb74..e92547c59 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
 @@ -88,6 +88,7 @@ images:
@@ -931,7 +937,7 @@ index 000000000..3a29b2391
 +{{- end }}
 \ No newline at end of file
 diff --git a/openvswitch/values.yaml b/openvswitch/values.yaml
-index 5f9ee7d57..351b351af 100644
+index 5f9ee7d57..19a0780c5 100644
 --- a/openvswitch/values.yaml
 +++ b/openvswitch/values.yaml
 @@ -24,6 +24,7 @@ images:
@@ -976,7 +982,7 @@ index 000000000..6cbf5c847
 +{{- end }}
 \ No newline at end of file
 diff --git a/placement/values.yaml b/placement/values.yaml
-index 66df39ed3..dd0ee4e07 100644
+index 66df39ed3..09a377718 100644
 --- a/placement/values.yaml
 +++ b/placement/values.yaml
 @@ -40,6 +40,7 @@ images:
@@ -995,6 +1001,51 @@ index 66df39ed3..dd0ee4e07 100644
    job_image_repo_sync: true
    job_db_init: true
    job_db_sync: true
+diff --git a/prometheus-openstack-exporter/templates/job-pre-apply-cleanup.yaml b/prometheus-openstack-exporter/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..1ac2ad766
+--- /dev/null
++++ b/prometheus-openstack-exporter/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "prometheus-openstack-exporter" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+\ No newline at end of file
+diff --git a/prometheus-openstack-exporter/values.yaml b/prometheus-openstack-exporter/values.yaml
+index c520b2831..3708f5464 100644
+--- a/prometheus-openstack-exporter/values.yaml
++++ b/prometheus-openstack-exporter/values.yaml
+@@ -21,6 +21,7 @@ images:
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     image_repo_sync: docker.io/library/docker:17.07.0
+     ks_user: docker.io/openstackhelm/heat:2024.1-ubuntu_jammy
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+   pull_policy: IfNotPresent
+   local_registry:
+     active: false
+@@ -241,6 +242,7 @@ manifests:
+   certificates: false
+   configmap_bin: true
+   deployment: true
++  job_pre_apply_cleanup: true
+   job_image_repo_sync: true
+   job_ks_user: true
+   network_policy: false
 diff --git a/rabbitmq/templates/job-pre-apply-cleanup.yaml b/rabbitmq/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
 index 000000000..428d7c01e
@@ -1021,7 +1072,7 @@ index 000000000..428d7c01e
 +{{- end }}
 \ No newline at end of file
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index 1f8f44174..bfd996325 100644
+index 1f8f44174..322b7dae6 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
 @@ -40,6 +40,7 @@ images:
@@ -1041,5 +1092,5 @@ index 1f8f44174..bfd996325 100644
    job_image_repo_sync: true
    monitoring:
 -- 
-2.34.1
+2.43.0
 

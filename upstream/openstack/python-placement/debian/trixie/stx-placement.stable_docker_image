@@ -1,0 +1,14 @@
+BUILDER=loci
+LABEL=stx-placement
+PROJECT=placement
+PROJECT_REPO=https://opendev.org/openstack/placement.git
+PROJECT_REF=7ebf35f049a3ab5bd7be5a2e4ffbd0d82ed4f00f
+PROJECT_UID=42425
+PROJECT_GID=42425
+PIP_PACKAGES="pycryptodomex httplib2"
+DIST_REPOS="OS"
+PROFILES="apache"
+CUSTOMIZATION="\
+    ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \
+    ln -s /etc/apache2/mods-available/wsgi.conf /etc/apache2/mods-enabled/wsgi.conf
+"

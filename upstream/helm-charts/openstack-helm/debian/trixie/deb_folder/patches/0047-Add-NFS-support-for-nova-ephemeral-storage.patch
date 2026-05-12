@@ -1,0 +1,166 @@
+From 24fb12339f4883fd2ff9a1d1beaf2b1bd5f7ca3b Mon Sep 17 00:00:00 2001
+From: jchialun <johnny.chialung@windriver.com>
+Date: Fri, 6 Feb 2026 08:33:10 -0500
+Subject: Add NFS support for nova ephemeral storage.
+
+Currently, we are using a logical volume for that and default routes
+but in order to support nova ephemeral storage on NFS, nova requires
+to update the instances_path and mount the remote NFS volumes.
+
+We are still using logical volumes for the state_path.
+
+Addionallty libvirt requires access to the NFS volumes.
+
+Change-Id: I48ab7fe0652eef167c49f7f9efbf43742c29c95a
+Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
+---
+ libvirt/templates/daemonset-libvirt.yaml | 10 ++++++++++
+ libvirt/values.yaml                      |  7 +++++++
+ nova/templates/daemonset-compute.yaml    | 22 ++++++++++++++++++++++
+ nova/values.yaml                         | 16 ++++++++++++++++
+ 4 files changed, 55 insertions(+)
+
+diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
+index ab55cb64c..4a3c8e099 100644
+--- a/libvirt/templates/daemonset-libvirt.yaml
++++ b/libvirt/templates/daemonset-libvirt.yaml
+@@ -273,6 +273,10 @@ spec:
+               {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+               mountPropagation: Bidirectional
+               {{- end }}
++            {{- if .Values.storage_conf.nfs_shares.enabled }}
++            - name: nfsnovainstances
++              mountPath: {{ .Values.storage_conf.nfs_shares.instances_path }}
++            {{- end }}
+             - name: run
+               mountPath: /run
+             - name: dev
+@@ -373,6 +377,12 @@ spec:
+         - name: var-lib-nova
+           hostPath:
+             path: /var/lib/nova
++        {{- if .Values.storage_conf.nfs_shares.enabled }}
++        - name: nfsnovainstances
++          nfs:
++            server: {{ .Values.storage_conf.nfs_shares.server }}
++            path: {{ .Values.storage_conf.nfs_shares.path }}
++        {{- end }}
+         - name: run
+           hostPath:
+             path: /run
+diff --git a/libvirt/values.yaml b/libvirt/values.yaml
+index 47511663a..078729140 100644
+--- a/libvirt/values.yaml
++++ b/libvirt/values.yaml
+@@ -397,6 +397,13 @@ dependencies:
+         - endpoint: internal
+           service: local_image_registry
+ 
++storage_conf:
++  nfs_shares:
++    enabled: false
++    server: 127.0.0.1
++    path: /openstack_instances
++    instances_path: /var/lib/instances
++
+ manifests:
+   configmap_bin: true
+   configmap_etc: true
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 2f0266cf6..f5641d283 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -123,6 +123,10 @@ spec:
+               readOnly: true
+             - name: varlibnova
+               mountPath: /var/lib/nova
++            {{- if .Values.storage_conf.nfs_shares.enabled }}
++            - name: nfsnovainstances
++              mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
++            {{- end }}
+             - name: pod-shared
+               mountPath: /tmp/pod-shared
+ {{ if $mounts_nova_compute.volumeMounts }}{{ toYaml $mounts_nova_compute.volumeMounts | indent 12 }}{{ end }}
+@@ -281,6 +285,10 @@ spec:
+           volumeMounts:
+             - name: varlibnova
+               mountPath: /var/lib/nova
++            {{- if .Values.storage_conf.nfs_shares.enabled }}
++            - name: nfsnovainstances
++              mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
++            {{- end }}
+             - name: nova-ssh
+               mountPath: /tmp/nova-ssh/authorized_keys
+               subPath: public-key
+@@ -406,6 +414,10 @@ spec:
+               {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+               mountPropagation: Bidirectional
+               {{- end }}
++            {{- if .Values.storage_conf.nfs_shares.enabled }}
++            - name: nfsnovainstances
++              mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
++            {{- end }}
+             - name: varliblibvirt
+               mountPath: /var/lib/libvirt
+               {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+@@ -503,6 +515,10 @@ spec:
+           volumeMounts:
+             - name: varlibnova
+               mountPath: /var/lib/nova
++            {{- if .Values.storage_conf.nfs_shares.enabled }}
++            - name: nfsnovainstances
++              mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
++            {{- end }}
+             - name: nova-bin
+               mountPath: /tmp/ssh-start.sh
+               subPath: ssh-start.sh
+@@ -547,6 +563,12 @@ spec:
+         - name: libmodules
+           hostPath:
+             path: /lib/modules
++        {{- if .Values.storage_conf.nfs_shares.enabled }}
++        - name: nfsnovainstances
++          nfs:
++            server: {{ .Values.storage_conf.nfs_shares.server }}
++            path: {{ .Values.storage_conf.nfs_shares.path }}
++        {{- end }}
+         - name: varlibnova
+           hostPath:
+             path: /var/lib/nova
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 61435f807..f6675de7e 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -1423,6 +1423,7 @@ conf:
+       disk_allocation_ratio: 1.0
+       cpu_allocation_ratio: 3.0
+       state_path: /var/lib/nova
++      instances_path: /var/lib/nova/instances
+       osapi_compute_listen: 0.0.0.0
+       # NOTE(portdirect): the bind port should not be defined, and is manipulated
+       # via the endpoints section.
+@@ -2646,6 +2647,21 @@ tls:
+   oslo_messaging: false
+   oslo_db: false
+ 
++storage_conf:
++  # This list is for compatibility with other charts.
++  storage_backends:
++    - name: host-path
++      enabled: true
++    - name: nfs
++      enabled: true
++  volume_storage_class_priority:
++    - host-path
++    - nfs
++  nfs_shares:
++    enabled: false
++    server: 127.0.0.1
++    path: /openstack_instances
++
+ manifests:
+   certificates: false
+   compute_uuid_self_provisioning: true
+-- 
+2.43.0
+

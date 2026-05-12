@@ -1,0 +1,25 @@
+From b894128b1014390591a7646c7af34be9fd32a22a Mon Sep 17 00:00:00 2001
+Author: João Pedro Alexandroni <JoaoPedroAlexandroni.CordovadeSouza@windriver.com>
+Date: Tue, 12 Apr 2022 11:41:11 -0300
+Subject: [PATCH] Descritpion: Add ipv6 support for keystone
+
+---
+ init-template/init-script-template | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/init-template/init-script-template b/init-template/init-script-template
+index d7149f5..b2e23b6 100644
+--- a/init-template/init-script-template
++++ b/init-template/init-script-template
+@@ -70,7 +70,7 @@ if [ -n "${UWSGI_PORT}" ] && [ -n "${UWSGI_INI_PATH}" ] && [ -n "${UWSGI_INI_APP
+ 			fi
+ 		fi
+ 	else
+-		UWSGI_BIND_IP=""
++		UWSGI_BIND_IP="[::]"
+ 	fi
+ 
+ 	if [ -n "${BIND_PARAMS}" ] ; then
+-- 
+2.34.1
+

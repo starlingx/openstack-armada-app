@@ -1,0 +1,13 @@
+---
+debname: python-aodhclient
+debver: 3.7.1-2
+dl_path:
+  name: python-aodhclient-debian-3.7.1-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-aodhclient/-/archive/debian/3.7.1-2/python-aodhclient-debian-3.7.1-2.tar.gz
+  md5sum: 89d13bdf6c0659c789a89112851766cb
+  sha256sum: 37f428feb68fc778100cf11e71324b0ea49dbca092451753818b6c6e3c886335
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 27acda9a6b4885a50064cebc0858892e71aa37ce
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-aodhclient

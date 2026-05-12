@@ -1,0 +1,214 @@
+From 815e7a1b4abec4073f730dd1c7eb2f63cdea82f7 Mon Sep 17 00:00:00 2001
+From: Luis Henrique Silva Cazuriaga
+ <LuisHenrique.SilvaCazuriaga@windriver.com>
+Date: Tue, 10 Mar 2026 15:19:43 -0300
+Subject: [PATCH] Add PVC support for nova ephemeral storage.
+
+Add a Nova PersistentVolumeClaim template for ephemeral instances storage.
+
+When storage_conf.pvc.enabled=true, create the claim and mount it in nova-compute and libvirt daemonsets.
+
+The mount target follows `storage_conf.pvc.instances_path` for nova and libvirt.
+
+NFS and PVC mounts are mutually exclusive in all ephemeral storage mount points.
+
+PVC name, size, access modes, and storage class are read from storage_conf.pvc.*.
+
+Change-Id: I3311e53ee2a97e87c40af7b79b1d230efe34a5af
+---
+ libvirt/templates/daemonset-libvirt.yaml | 10 ++++++++++
+ libvirt/values.yaml                      |  3 +++
+ nova/templates/daemonset-compute.yaml    | 19 +++++++++++++++++++
+ nova/templates/pvc-nova-ephemeral.yaml   | 23 +++++++++++++++++++++++
+ nova/values.yaml                         | 17 ++++++++++++++++-
+ 5 files changed, 71 insertions(+), 1 deletion(-)
+ create mode 100644 nova/templates/pvc-nova-ephemeral.yaml
+
+diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
+index 4a3c8e099..8f535301e 100644
+--- a/libvirt/templates/daemonset-libvirt.yaml
++++ b/libvirt/templates/daemonset-libvirt.yaml
+@@ -33,6 +33,9 @@ exec:
+ 
+ {{- $mounts_libvirt := .Values.pod.mounts.libvirt.libvirt }}
+ {{- $mounts_libvirt_init := .Values.pod.mounts.libvirt.init_container }}
++{{- $storageConf := (.Values.storage_conf | default dict) }}
++{{- $pvc := ($storageConf.pvc | default dict) }}
++{{- $pvcEnabled := ($pvc.enabled | default false) }}
+ 
+ ---
+ apiVersion: apps/v1
+@@ -276,6 +279,9 @@ spec:
+             {{- if .Values.storage_conf.nfs_shares.enabled }}
+             - name: nfsnovainstances
+               mountPath: {{ .Values.storage_conf.nfs_shares.instances_path }}
++            {{- else if $pvcEnabled }}
++            - name: pvcnovainstances
++              mountPath: {{ $pvc.instances_path }}
+             {{- end }}
+             - name: run
+               mountPath: /run
+@@ -382,6 +388,10 @@ spec:
+           nfs:
+             server: {{ .Values.storage_conf.nfs_shares.server }}
+             path: {{ .Values.storage_conf.nfs_shares.path }}
++        {{- else if $pvcEnabled }}
++        - name: pvcnovainstances
++          persistentVolumeClaim:
++            claimName: {{ $pvc.name }}
+         {{- end }}
+         - name: run
+           hostPath:
+diff --git a/libvirt/values.yaml b/libvirt/values.yaml
+index 3ff9d35b9..8c1af4170 100644
+--- a/libvirt/values.yaml
++++ b/libvirt/values.yaml
+@@ -403,6 +403,10 @@ storage_conf:
+     server: 127.0.0.1
+     path: /openstack_instances
+     instances_path: /var/lib/instances
++  pvc:
++    enabled: false
++    name: nova-instances
++    instances_path: /var/lib/instances
+ 
+ manifests:
+   configmap_bin: true
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index c3bfb3f13..00928f35a 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -67,6 +67,9 @@ exec:
+ 
+ {{- $mounts_nova_compute := .Values.pod.mounts.nova_compute.nova_compute }}
+ {{- $mounts_nova_compute_init := .Values.pod.mounts.nova_compute.init_container }}
++{{- $storageConf := (.Values.storage_conf | default dict) }}
++{{- $pvc := ($storageConf.pvc | default dict) }}
++{{- $pvcEnabled := ($pvc.enabled | default false) }}
+ 
+ ---
+ apiVersion: apps/v1
+@@ -128,6 +131,9 @@ spec:
+             {{- if .Values.storage_conf.nfs_shares.enabled }}
+             - name: nfsnovainstances
+               mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
++            {{- else if $pvcEnabled }}
++            - name: pvcnovainstances
++              mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
+             {{- end }}
+             - name: pod-shared
+               mountPath: /tmp/pod-shared
+@@ -290,6 +296,9 @@ spec:
+             {{- if .Values.storage_conf.nfs_shares.enabled }}
+             - name: nfsnovainstances
+               mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
++            {{- else if $pvcEnabled }}
++            - name: pvcnovainstances
++              mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
+             {{- end }}
+             - name: nova-ssh
+               mountPath: /tmp/nova-ssh/authorized_keys
+@@ -419,6 +428,9 @@ spec:
+             {{- if .Values.storage_conf.nfs_shares.enabled }}
+             - name: nfsnovainstances
+               mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
++            {{- else if $pvcEnabled }}
++            - name: pvcnovainstances
++              mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
+             {{- end }}
+             - name: varliblibvirt
+               mountPath: /var/lib/libvirt
+@@ -520,6 +532,9 @@ spec:
+             {{- if .Values.storage_conf.nfs_shares.enabled }}
+             - name: nfsnovainstances
+               mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
++            {{- else if $pvcEnabled }}
++            - name: pvcnovainstances
++              mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
+             {{- end }}
+             - name: nova-bin
+               mountPath: /tmp/ssh-start.sh
+@@ -570,6 +585,10 @@ spec:
+           nfs:
+             server: {{ .Values.storage_conf.nfs_shares.server }}
+             path: {{ .Values.storage_conf.nfs_shares.path }}
++        {{- else if $pvcEnabled }}
++        - name: pvcnovainstances
++          persistentVolumeClaim:
++            claimName: {{ $pvc.name }}
+         {{- end }}
+         - name: varlibnova
+           hostPath:
+diff --git a/nova/templates/pvc-nova-ephemeral.yaml b/nova/templates/pvc-nova-ephemeral.yaml
+new file mode 100644
+index 000000000..bfc7924b2
+--- /dev/null
++++ b/nova/templates/pvc-nova-ephemeral.yaml
+@@ -0,0 +1,23 @@
++{{/*
++Copyright (c) 2026 Wind River Systems, Inc.
++
++SPDX-License-Identifier: Apache-2.0
++
++*/}}
++{{- $storageConf := (.Values.storage_conf | default dict) -}}
++{{- $pvc := ($storageConf.pvc | default dict) -}}
++{{- $pvcVolume := ($pvc.volume | default dict) -}}
++{{- $pvcEnabled := ($pvc.enabled | default false) -}}
++{{- if $pvcEnabled }}
++apiVersion: v1
++kind: PersistentVolumeClaim
++metadata:
++  name: {{ $pvc.name }}
++spec:
++  accessModes:
++{{- toYaml $pvcVolume.access_modes | nindent 4 }}
++  resources:
++    requests:
++      storage: {{ $pvcVolume.size }}
++  storageClassName: {{ $pvcVolume.class_name | quote }}
++{{- end }}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index f4a3805e6..ac1c0832f 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -2648,19 +2648,35 @@ tls:
+   oslo_db: false
+ 
+ storage_conf:
+-  # This list is for compatibility with other charts.
+   storage_backends:
+     - name: host-path
+       enabled: true
+     - name: nfs
+       enabled: true
++    - name: pvc
++      enabled: true
+   volume_storage_class_priority:
+     - host-path
+     - nfs
++    - pvc
+   nfs_shares:
+     enabled: false
+     server: 127.0.0.1
+     path: /openstack_instances
++  pvc:
++    name: "nova-instances"
++    enabled: false
++    instances_path: /var/lib/instances
++    volume:
++      class_name: general
++      size: 10Gi
++      access_modes:
++        - ReadWriteMany
++    storage_backends:
++      - name: netapp-nfs
++        enabled: true
++    storage_class_priority:
++      - netapp-nfs
+ 
+ manifests:
+   certificates: false
+-- 
+2.43.0
+

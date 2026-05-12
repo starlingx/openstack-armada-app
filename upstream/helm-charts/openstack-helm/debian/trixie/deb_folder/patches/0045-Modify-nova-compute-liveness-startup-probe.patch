@@ -1,0 +1,109 @@
+From c0220d04617a865b0ee4c3e041a54937fb6ca999 Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Mon, 26 Jan 2026 16:08:47 -0300
+Subject: [PATCH] Modify nova-compute startup probe
+
+During Kubernetes cluster upgrades, the nova-compute pod could
+end up in CrashLoopBackOff after the upgrade completed, caused
+by repeated startup and liveness probe failures while RabbitMQ
+or RPC connectivity was still stabilizing.
+
+The existing health-probe script tied liveness and startup
+checks to RabbitMQ RPC calls, causing the container to be
+restarted even when the nova-compute process itself was running.
+
+This patch introduces a new --ignore-rpc-call flag to the
+health-probe script. When enabled, the probe skips RPC/RabbitMQ
+checks and instead validates that the process is alive and that
+a libvirt connection can be established.
+
+With this change:
+- Liveness and startup probes validate PID existence, TCP
+  visibility, and libvirt connectivity.
+- Readiness probes continue to validate RPC/RabbitMQ
+  connectivity.
+
+---
+ nova/templates/bin/_health-probe.py.tpl | 25 ++++++++++++++++++++++++-
+ nova/templates/daemonset-compute.yaml   |  2 ++
+ 2 files changed, 26 insertions(+), 1 deletion(-)
+
+diff --git a/nova/templates/bin/_health-probe.py.tpl b/nova/templates/bin/_health-probe.py.tpl
+index 04e95d01a..221feef7b 100644
+--- a/nova/templates/bin/_health-probe.py.tpl
++++ b/nova/templates/bin/_health-probe.py.tpl
+@@ -32,6 +32,7 @@ Usage example for Nova Compute:
+ """
+ 
+ import json
++import libvirt
+ import os
+ import psutil
+ import re
+@@ -191,6 +192,21 @@ def test_tcp_socket(service):
+                     sys.exit(1)
+ 
+ 
++def check_libvirt_connection():
++    try:
++        conn = libvirt.openReadOnly(None)
++        if conn is None:
++            sys.stderr.write("Libvirt connection could not be established\n")
++            return False
++
++        conn.getLibVersion()
++        conn.close()
++        return True
++    except libvirt.libvirtError as e:
++        sys.stderr.write(f"Libvirt connection failed: {e}\n")
++        return False
++
++
+ def test_rpc_liveness():
+     """Test if service can consume message from queue"""
+     oslo_messaging.set_transport_defaults(control_exchange='nova')
+@@ -203,6 +219,8 @@ def test_rpc_liveness():
+                                           required=False))
+     cfg.CONF.register_cli_opt(cfg.BoolOpt('use-fqdn', default=False,
+                                           required=False))
++    cfg.CONF.register_cli_opt(cfg.BoolOpt('ignore-rpc-call',
++                                          default=False, required=False))
+ 
+     cfg.CONF(sys.argv[1:])
+ 
+@@ -231,7 +249,12 @@ def test_rpc_liveness():
+     service = cfg.CONF.service_queue_name
+     test_tcp_socket(service)
+ 
+-    check_service_status(transport)
++    if cfg.CONF.ignore_rpc_call:
++        if not check_libvirt_connection():
++            sys.stderr.write("Libvirt connection check failed")
++            sys.exit(1)
++    else:
++        check_service_status(transport)
+ 
+ def check_pid_running(pid):
+     if psutil.pid_exists(int(pid)):
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 2f0266cf6..d0230bb92 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -22,6 +22,7 @@ exec:
+     - --service-queue-name
+     - compute
+     - --liveness-probe
++    - --ignore-rpc-call
+     {{- if .Values.pod.use_fqdn.compute }}
+     - --use-fqdn
+     {{- end }}
+@@ -51,6 +52,7 @@ exec:
+     - --service-queue-name
+     - compute
+     - --liveness-probe
++    - --ignore-rpc-call
+     {{- if .Values.pod.use_fqdn.compute }}
+     - --use-fqdn
+     {{- end }}
+-- 
+2.34.1

@@ -1,0 +1,59 @@
+From ca8aa728a757b79de0f7443c99348669792c1a64 Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Tue, 26 Oct 2021 16:59:10 +0000
+Subject: [PATCH] Add wheel support
+
+Add python3-novaclient-wheel package.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+[Fix merge conflicts from Antelope to Caracal]
+Signed-off-by: vrochalo <vinicius.rochalobo@windriver.com>
+[Ported this patch to python-novaclient v18.9.0-2 @ Epoxy]
+Signed-off-by: Murillo Arantes <murillo.arantes@windriver.com>
+---
+ debian/control | 18 ++++++++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index 6237672b..b0a58f00 100644
+--- a/debian/control
++++ b/debian/control
+@@ -90,3 +90,21 @@ Description: client library for OpenStack Compute API - 3.x
+  Compute (Nova) through the OpenStack Compute API.
+  .
+  This package provides the Python 3.x module.
++
++Package: python3-novaclient-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: client library for OpenStack Compute API - 3.x
++ OpenStack Compute, codenamed Nova, is a cloud computing fabric controller
++ designed to be modular and easy to extend and adapt. In addition to its
++ "native" OpenStack API, it also supports the Amazon EC2 API, and it supports
++ many different database backends (including SQLite, MySQL, and PostgreSQL),
++ hypervisors (KVM, Xen), and user directory systems (LDAP, SQL).
++ .
++ Python novaclient library and nova CLI tool for interacting with OpenStack
++ Compute (Nova) through the OpenStack Compute API.
++ .
++ This package contains the Python3 Wheel.
+diff --git a/debian/rules b/debian/rules
+index 4dd77a13..ff895a13 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -14,7 +14,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2
++	pkgos-dh_auto_install --no-py2 --wheel
+ 	install -D -m 0644 tools/nova.bash_completion $(CURDIR)/debian/python3-novaclient/usr/share/bash-completion/completions/nova
+ 	rm -rf $(CURDIR)/debian/python-novaclient/usr/novaclient
+ 
+-- 
+2.34.1
+

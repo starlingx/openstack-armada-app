@@ -1,0 +1,182 @@
+From 1763175cf892c75634ae463bb9cc08c95bc9dec3 Mon Sep 17 00:00:00 2001
+From: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+Date: Fri, 21 Nov 2025 16:38:01 -0300
+Subject: [PATCH] Volume backup location metadata with default ceph (v3)
+
+Add location handling to volume backup create/show in v3, propagating
+via --property and metadata when microversion >= 3.43.
+Set default location "ceph" for STX/vanilla compatibility when
+--location is absent and inject it into metadata when supported.
+Update v3 fakes and tests to cover location, metadata, and defaults.
+v2 no longer exposes location or related columns; the feature is
+now restricted to v3.
+
+Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+---
+ openstackclient/tests/unit/volume/v3/fakes.py |  1 +
+ .../unit/volume/v3/test_volume_backup.py      | 14 +++++++++++-
+ openstackclient/volume/v3/volume_backup.py    | 22 +++++++++++++++++++
+ 3 files changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/openstackclient/tests/unit/volume/v3/fakes.py b/openstackclient/tests/unit/volume/v3/fakes.py
+index 208cd762..7dc9e9e7 100644
+--- a/openstackclient/tests/unit/volume/v3/fakes.py
++++ b/openstackclient/tests/unit/volume/v3/fakes.py
+@@ -300,6 +300,7 @@ def create_one_backup(attrs=None):
+         "updated_at": 'time-' + uuid.uuid4().hex,
+         "user_id": uuid.uuid4().hex,
+         "volume_id": 'volume-id-' + uuid.uuid4().hex,
++        "location": 'location-' + uuid.uuid4().hex,
+     }
+ 
+     # Overwrite default attributes.
+diff --git a/openstackclient/tests/unit/volume/v3/test_volume_backup.py b/openstackclient/tests/unit/volume/v3/test_volume_backup.py
+index fb0a4650..c2747cd4 100644
+--- a/openstackclient/tests/unit/volume/v3/test_volume_backup.py
++++ b/openstackclient/tests/unit/volume/v3/test_volume_backup.py
+@@ -42,11 +42,13 @@ class TestBackupCreate(volume_fakes.TestVolume):
+ 
+     columns = (
+         'id',
++        'location',
+         'name',
+         'volume_id',
+     )
+     data = (
+         new_backup.id,
++        new_backup.location,
+         new_backup.name,
+         new_backup.volume_id,
+     )
+@@ -73,6 +75,8 @@ class TestBackupCreate(volume_fakes.TestVolume):
+             "--incremental",
+             "--snapshot",
+             self.new_backup.snapshot_id,
++            "--location",
++            self.new_backup.location,
+             self.new_backup.volume_id,
+         ]
+         verifylist = [
+@@ -82,6 +86,7 @@ class TestBackupCreate(volume_fakes.TestVolume):
+             ("force", True),
+             ("incremental", True),
+             ("snapshot", self.new_backup.snapshot_id),
++            ("location", self.new_backup.location),
+             ("volume", self.new_backup.volume_id),
+         ]
+         parsed_args = self.check_parser(self.cmd, arglist, verifylist)
+@@ -96,6 +101,7 @@ class TestBackupCreate(volume_fakes.TestVolume):
+             force=True,
+             is_incremental=True,
+             snapshot_id=self.new_backup.snapshot_id,
++            location=self.new_backup.location,
+         )
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
+@@ -125,7 +131,8 @@ class TestBackupCreate(volume_fakes.TestVolume):
+             description=None,
+             force=False,
+             is_incremental=False,
+-            metadata={"foo": "bar", "wow": "much-cool"},
++            location="ceph",
++            metadata={"foo": "bar", "wow": "much-cool", "location": "ceph"},
+         )
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
+@@ -174,6 +181,8 @@ class TestBackupCreate(volume_fakes.TestVolume):
+             description=None,
+             force=False,
+             is_incremental=False,
++            location="ceph",
++            metadata={"location": "ceph"},
+             availability_zone="my-az",
+         )
+         self.assertEqual(self.columns, columns)
+@@ -222,6 +231,7 @@ class TestBackupCreate(volume_fakes.TestVolume):
+             description=self.new_backup.description,
+             force=False,
+             is_incremental=False,
++            location="ceph",
+         )
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
+@@ -859,6 +869,7 @@ class TestBackupShow(volume_fakes.TestVolume):
+         "fail_reason",
+         "has_dependent_backups",
+         "id",
++        "location",
+         "is_incremental",
+         "metadata",
+         "name",
+@@ -881,6 +892,7 @@ class TestBackupShow(volume_fakes.TestVolume):
+         backup.fail_reason,
+         backup.has_dependent_backups,
+         backup.id,
++        backup.location,
+         backup.is_incremental,
+         backup.metadata,
+         backup.name,
+diff --git a/openstackclient/volume/v3/volume_backup.py b/openstackclient/volume/v3/volume_backup.py
+index dce5646a..fae8b505 100644
+--- a/openstackclient/volume/v3/volume_backup.py
++++ b/openstackclient/volume/v3/volume_backup.py
+@@ -87,6 +87,11 @@ class CreateVolumeBackup(command.ShowOne):
+             metavar="<snapshot>",
+             help=_("Snapshot to backup (name or ID)"),
+         )
++        parser.add_argument(
++            "--location",
++            metavar="<location>",
++            help=_("Optional backup location")
++        )
+         parser.add_argument(
+             '--force',
+             action='store_true',
+@@ -152,6 +157,20 @@ class CreateVolumeBackup(command.ShowOne):
+ 
+             kwargs['metadata'] = parsed_args.properties
+ 
++        if not parsed_args.location:
++            if parsed_args.properties:
++                parsed_args.location = parsed_args.properties.get(
++                    "location", "ceph"
++                )
++            else:
++                parsed_args.location = "ceph"
++
++        if sdk_utils.supports_microversion(volume_client, '3.43'):
++            if kwargs.get('metadata', None):
++                kwargs['metadata']['location'] = parsed_args.location
++            else:
++                kwargs['metadata'] = {'location': parsed_args.location}
++
+         if parsed_args.availability_zone:
+             if not sdk_utils.supports_microversion(volume_client, '3.51'):
+                 msg = _(
+@@ -164,6 +183,7 @@ class CreateVolumeBackup(command.ShowOne):
+ 
+         columns = (
+             "id",
++            "location",
+             "name",
+             "volume_id",
+         )
+@@ -174,6 +194,7 @@ class CreateVolumeBackup(command.ShowOne):
+             description=parsed_args.description,
+             force=parsed_args.force,
+             is_incremental=parsed_args.incremental,
++            location=parsed_args.location,
+             **kwargs,
+         )
+         data = utils.get_dict_properties(backup, columns)
+@@ -665,6 +686,7 @@ class ShowVolumeBackup(command.ShowOne):
+             "fail_reason",
+             "has_dependent_backups",
+             "id",
++            "location",
+             "is_incremental",
+             "metadata",
+             "name",
+-- 
+2.34.1
+

@@ -1,0 +1,286 @@
+From f03e863f673d08f9981d2520deb4914253b61a55 Mon Sep 17 00:00:00 2001
+From: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
+Date: Wed, 26 Nov 2025 11:36:33 -0300
+Subject: [PATCH] Add Netapp backend support to Cinder
+
+This patch modifies Cinder's helm chart and shell templates
+to add support for NetApp backends. This includes:
+
+- Add logic to check if a given backend is enabled when
+creating it's specific resources and mounts
+- Add new utils templates to improve the templates readability
+and to help implementing the conditional rendering
+
+Change-Id: Id10aa9f85cabd622b62b1dc851fa50cb863987bd
+Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
+
+[Mount cinder volumes to support NetApp iSCSI]
+This change updates the patch by mounting a new volume
+required by cinder/ssh_utils.py to enable the creation and updating of
+the /var/lib/cinder/ssh_known_hosts file [3] during iSCSI session
+initializations.
+
+[1]https://review.opendev.org/c/openstack/openstack-helm/+/704429
+[2]https://review.opendev.org/c/starlingx/openstack-armada-app/+/968753
+[3]https://opendev.org/openstack/cinder/src/commit/b87d45b3c87ad836d94c7bcbde1dbaeff5f1caae/cinder/ssh_utils.py#L82
+
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+
+[Removes Cinder state path mounts]
+Cinder state path can be mounted dynamically by overriding the
+`pod.mounts.cinder_volume` and `pod.mounts.cinder_backup` when required
+per cinder storage backend.
+
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+
+[Ported from Caracal to Epoxy]
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+
+[Fix missing multipath mounts in cinder-backup pod]
+os-brick 6.11.0 (Epoxy) changed the iSCSI disconnect path to
+invoke multipathd commands whenever multipath devices are detected
+in sysfs, regardless of use_multipath_for_image_xfer. This was
+not the case in os-brick 6.7.1 (Caracal).
+
+This path update adds the missing multipath and multipathd wrapper
+script mounts and the etcmultipath hostPath volume to the cinder-backup
+deployment template, matching what is already present in the
+cinder-volume template.
+
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+---
+ cinder/templates/bin/_storage-init.sh.tpl     |  5 ++++
+ cinder/templates/deployment-backup.yaml       | 14 +++++++++
+ cinder/templates/deployment-volume.yaml       |  4 ++-
+ cinder/templates/job-storage-init.yaml        | 18 +++++++----
+ cinder/templates/utils/_has_ceph_backend.tpl  |  4 ++-
+ .../templates/utils/_has_netapp_backend.tpl   | 25 ++++++++++++++++
+ .../templates/utils/_is_backend_enabled.tpl   | 30 +++++++++++++++++++
+ 7 files changed, 92 insertions(+), 8 deletions(-)
+ create mode 100644 cinder/templates/utils/_has_netapp_backend.tpl
+ create mode 100644 cinder/templates/utils/_is_backend_enabled.tpl
+
+diff --git a/cinder/templates/bin/_storage-init.sh.tpl b/cinder/templates/bin/_storage-init.sh.tpl
+index 53b0b071c..a04cc0856 100644
+--- a/cinder/templates/bin/_storage-init.sh.tpl
++++ b/cinder/templates/bin/_storage-init.sh.tpl
+@@ -14,6 +14,11 @@ See the License for the specific language governing permissions and
+ limitations under the License.
+ */}}
+ 
++set -x
++if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.netapp.common.NetAppDriver" ]; then
++  echo "INFO: no action required to use ${STORAGE_BACKEND}"
++fi
++
+ set -x
+ if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
+   SECRET=$(mktemp --suffix .yaml)
+diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
+index 6de1ae0a8..5c217c862 100644
+--- a/cinder/templates/deployment-backup.yaml
++++ b/cinder/templates/deployment-backup.yaml
+@@ -286,6 +286,17 @@ spec:
+             - name: cinder-bin
+               mountPath: /usr/local/sbin/iscsiadm
+               subPath: iscsiadm
++            - name: cinder-bin
++              mountPath: /usr/local/sbin/multipath
++              subPath: multipath
++            - name: cinder-bin
++              mountPath: /usr/local/sbin/multipathd
++              subPath: multipathd
++            - name: etcmultipath
++              mountPath: /etc/multipath
++              {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
++              mountPropagation: Bidirectional
++              {{- end }}
+             {{- end }}
+ {{ if $mounts_cinder_backup.volumeMounts }}{{ toYaml $mounts_cinder_backup.volumeMounts | indent 12 }}{{ end }}
+       volumes:
+@@ -365,6 +376,9 @@ spec:
+             path: /etc/iscsi
+         - name: usrlocalsbin
+           emptyDir: {}
++        - name: etcmultipath
++          hostPath:
++            path: /etc/multipath
+         {{- end }}
+ {{ if $mounts_cinder_backup.volumes }}{{ toYaml $mounts_cinder_backup.volumes | indent 8 }}{{ end }}
+ {{- end }}
+diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
+index 9ecf7f122..35692473f 100644
+--- a/cinder/templates/deployment-volume.yaml
++++ b/cinder/templates/deployment-volume.yaml
+@@ -74,6 +74,7 @@ spec:
+ {{ tuple $envAll "volume" $mounts_cinder_volume_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+         {{- range $name := rest (splitList "," (include "cinder.utils.ceph_backend_list" $envAll)) }}
+           {{- $backend := index $envAll.Values.conf.backends $name }}
++          {{- if eq "true" (tuple $envAll $name | include "cinder.utils.is_backend_enabled") -}}
+             {{- if eq $internal_ceph_backend $name }}
+         - name: ceph-keyring-placement-{{ $name | lower }}
+ {{ tuple $envAll "cinder_volume" | include "helm-toolkit.snippets.image" | indent 10 }}
+@@ -107,6 +108,7 @@ spec:
+               readOnly: true
+             {{- end }}
+             {{- end }}
++            {{- end }}
+         {{- end }}
+         {{- if eq ( split "://" .Values.conf.cinder.coordination.backend_url )._0 "file" }}
+         - name: ceph-coordination-volume-perms
+@@ -188,7 +190,7 @@ spec:
+               mountPath: /etc/cinder/conf/backends.conf
+               subPath: backends.conf
+               readOnly: true
+-            {{- if hasKey .Values.conf "nfs_shares" }}
++            {{- if and (eq "true" (include "cinder.utils.has_netapp_backend" $envAll)) (hasKey .Values.conf "nfs_shares") }}
+             - name: cinder-etc
+               mountPath: /etc/cinder/nfs.shares
+               subPath: nfs.shares
+diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
+index 6a63ce4a0..b1dca36bf 100755
+--- a/cinder/templates/job-storage-init.yaml
++++ b/cinder/templates/job-storage-init.yaml
+@@ -103,8 +103,7 @@ spec:
+         {{ end }}
+       containers:
+         {{- range $name, $backend := .Values.conf.backends }}
+-          {{- if (eq "true" ( dict "backend" $backend | include "cinder.utils.is_ceph_backend" )) }}
+-            {{- if eq $internal_ceph_backend $name }}
++          {{- if eq "true" (tuple $envAll $name | include "cinder.utils.is_backend_enabled") }}
+         - name: cinder-storage-init-{{ $name | lower }}
+ {{ tuple $envAll "cinder_storage_init" | include "helm-toolkit.snippets.image" | indent 10 }}
+ {{ tuple $envAll $envAll.Values.pod.resources.jobs.storage_init | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+@@ -115,6 +114,8 @@ spec:
+                   fieldPath: metadata.namespace
+             - name: STORAGE_BACKEND
+               value: {{ $backend.volume_driver | quote }}
++              {{- if (eq "true" ( dict "backend" $backend | include "cinder.utils.is_ceph_backend" )) }}
++              {{- if eq $internal_ceph_backend $name }}
+             - name: RBD_POOL_NAME
+               value: {{ $backend.rbd_pool | quote }}
+             - name: RBD_POOL_APP_NAME
+@@ -129,6 +130,8 @@ spec:
+               value: {{ (index $envAll.Values.conf.ceph.pools $backend.rbd_pool).chunk_size | quote }}
+             - name: RBD_POOL_SECRET
+               value: {{ $envAll.Values.secrets.rbd.volume | quote }}
++              {{- end }}
++              {{- end }}
+           command:
+             - /tmp/storage-init.sh
+           volumeMounts:
+@@ -138,21 +141,24 @@ spec:
+               mountPath: /tmp/storage-init.sh
+               subPath: storage-init.sh
+               readOnly: true
++              {{- if (eq "true" ( dict "backend" $backend | include "cinder.utils.is_ceph_backend" )) }}
++              {{- if eq $internal_ceph_backend $name }}
+             - name: etcceph
+               mountPath: /etc/ceph
+             - name: ceph-etc
+               mountPath: /etc/ceph/ceph.conf
+               subPath: ceph.conf
+               readOnly: true
+-            {{- if empty $envAll.Values.conf.ceph.admin_keyring }}
++              {{- if empty $envAll.Values.conf.ceph.admin_keyring }}
+             - name: ceph-keyring
+               mountPath: /tmp/client-keyring
+               subPath: key
+               readOnly: true
+-            {{- end }}
+-            {{- end }}
++              {{- end }}
++              {{- end }}
++              {{- end }}
++          {{- end }}
+         {{- end }}
+-      {{- end }}
+       volumes:
+         - name: pod-tmp
+           emptyDir: {}
+diff --git a/cinder/templates/utils/_has_ceph_backend.tpl b/cinder/templates/utils/_has_ceph_backend.tpl
+index bf975bb37..4e4f21e97 100644
+--- a/cinder/templates/utils/_has_ceph_backend.tpl
++++ b/cinder/templates/utils/_has_ceph_backend.tpl
+@@ -16,7 +16,9 @@ limitations under the License.
+   {{- $has_ceph := false -}}
+   {{- range $_, $backend := .Values.conf.backends -}}
+     {{- if kindIs "map" $backend -}}
+-      {{- $has_ceph = or $has_ceph (eq $backend.volume_driver "cinder.volume.drivers.rbd.RBDDriver") -}}
++      {{- if eq "true" (tuple $ $backend.volume_backend_name | include "cinder.utils.is_backend_enabled") -}}
++        {{- $has_ceph = or $has_ceph (eq $backend.volume_driver "cinder.volume.drivers.rbd.RBDDriver") -}}
++      {{- end -}}
+     {{- end -}}
+   {{- end -}}
+   {{- $has_ceph -}}
+diff --git a/cinder/templates/utils/_has_netapp_backend.tpl b/cinder/templates/utils/_has_netapp_backend.tpl
+new file mode 100644
+index 000000000..f791b804c
+--- /dev/null
++++ b/cinder/templates/utils/_has_netapp_backend.tpl
+@@ -0,0 +1,25 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- define "cinder.utils.has_netapp_backend" -}}
++  {{- $has_netapp := false -}}
++  {{- range $_, $backend := .Values.conf.backends -}}
++    {{- if kindIs "map" $backend -}}
++      {{- if eq "true" (tuple $ $backend.volume_backend_name | include "cinder.utils.is_backend_enabled") -}}
++        {{- $has_netapp = or $has_netapp (eq $backend.volume_driver "cinder.volume.drivers.netapp.common.NetAppDriver") -}}
++      {{- end -}}
++    {{- end -}}
++  {{- end -}}
++  {{- $has_netapp -}}
++{{- end -}}
+diff --git a/cinder/templates/utils/_is_backend_enabled.tpl b/cinder/templates/utils/_is_backend_enabled.tpl
+new file mode 100644
+index 000000000..514187f6f
+--- /dev/null
++++ b/cinder/templates/utils/_is_backend_enabled.tpl
+@@ -0,0 +1,30 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- /*
++    Returns true if a given backend is enabled by checking the
++    Values.conf.cinder.DEFAULT.enabled_backends configuration
++
++    Usage:
++    $is_enabled := (tuple $ctx $backend | include "cinder.utils.is_backend_enabled")
++*/ -}}
++
++{{- define "cinder.utils.is_backend_enabled" -}}
++    {{- $args := . -}}
++    {{- $ctx := index $args 0 -}}
++    {{- $backend := index $args 1 -}}
++    {{- $enabled_backends := $ctx.Values.conf.cinder.DEFAULT.enabled_backends -}}
++    {{- $backend_list := splitList "," $enabled_backends -}}
++    {{- printf "%v" (has $backend $backend_list) -}}
++{{- end -}}
+\ No newline at end of file
+-- 
+2.34.1
+

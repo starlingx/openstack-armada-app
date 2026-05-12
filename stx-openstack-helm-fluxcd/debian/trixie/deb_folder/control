@@ -1,0 +1,24 @@
+Source: stx-openstack-helm-fluxcd
+Section: libs
+Priority: optional
+Maintainer: StarlingX Developers <starlingx-discuss@lists.starlingx.io>
+Build-Depends: debhelper-compat (= 13),
+ chartmuseum,
+ helm,
+ openstack-helm,
+ procps,
+ python3-k8sapp-openstack-wheels,
+ ingress-nginx-helm
+Standards-Version: 4.5.1
+Homepage: https://www.starlingx.io
+
+Package: stx-openstack-helm-fluxcd
+Section: libs
+Architecture: all
+Depends: ${misc:Depends},
+ openstack-helm,
+ python3-k8sapp-openstack-wheels,
+ ingress-nginx-helm
+Description: StarlingX Openstack FluxCD application
+ This package contains the components needed for the Openstack FluxCD
+ application.

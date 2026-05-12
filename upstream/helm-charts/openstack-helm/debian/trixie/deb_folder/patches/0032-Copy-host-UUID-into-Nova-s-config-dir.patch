@@ -1,0 +1,234 @@
+From 4536456576d9e9ee3e1ef0a4189f70ab902244a5 Mon Sep 17 00:00:00 2001
+From: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
+Date: Fri, 11 Jul 2025 14:45:55 -0300
+Subject: [PATCH] Copy host UUID into Nova's config dir
+
+This patch adds some new fields in Nova's chart. The first one, 'hosts_uuids',
+contains a list of hosts and its respectives UUIDs. By default, this list
+is empty and is populated through system overrides.
+The second one is 'manifests.compute_uuid_self_provisioning',which is used
+to set self provisioning on or off. The default is 'true'.
+It also adds a code in nova-compute-init.sh script to copy the current
+host's UUID obtained via helm chart into the Nova's state_path
+directory, in order to ensure that Nova will always use the same
+UUID of the node it's running in. By doing this, we are provisioning
+the UUID, accordingly to [1].
+
+[1] https://docs.openstack.org/nova/latest/admin/compute-node-identification.html
+
+Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
+[ Add remove and check if exists logic related do compute_id file ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+---
+ nova/templates/bin/_nova-compute-init.sh.tpl |  15 +++
+ nova/templates/bin/_nova-compute.sh.tpl      | 119 ++++++++++---------
+ nova/templates/daemonset-compute.yaml        |   6 +
+ nova/values.yaml                             |   4 +
+ 4 files changed, 90 insertions(+), 54 deletions(-)
+
+diff --git a/nova/templates/bin/_nova-compute-init.sh.tpl b/nova/templates/bin/_nova-compute-init.sh.tpl
+index 4bc71a393..df9f4dc81 100644
+--- a/nova/templates/bin/_nova-compute-init.sh.tpl
++++ b/nova/templates/bin/_nova-compute-init.sh.tpl
+@@ -16,6 +16,21 @@ limitations under the License.
+ 
+ set -ex
+ 
++{{- if and .Values.hosts_uuids (not .Values.manifests.compute_uuid_self_provisioning) }}
++
++# Extract Host's uuid from helm chart and save it to the compute_id file
++  {{- range $host := .Values.hosts_uuids }}
++hostname="{{- $host.name}}"
++compute_id_file="{{ $.Values.conf.nova.DEFAULT.state_path }}/compute_id"
++
++if [ "$hostname" == $HOSTNAME ]; then
++  if [ ! -f "$compute_id_file" ]; then
++    echo "{{ $host.uuid }}" > "$compute_id_file"
++  fi
++fi
++  {{- end }}
++{{- end }}
++
+ # Make the Nova Instances Dir as this is not autocreated.
+ mkdir -p /var/lib/nova/instances
+ 
+diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
+index 116f41a61..48764d734 100644
+--- a/nova/templates/bin/_nova-compute.sh.tpl
++++ b/nova/templates/bin/_nova-compute.sh.tpl
+@@ -15,67 +15,78 @@ limitations under the License.
+ */}}
+ 
+ set -ex
++COMMAND="${@:-start}"
+ 
+-# Check if environment variable exists
+-if [ -z "$CLUSTER_HOST_IP" ]; then
+-    echo "Error: CLUSTER_HOST_IP environment variable is not set."
+-    exit 1
+-fi
++function start () {
++    # Check if environment variable exists
++    if [ -z "$CLUSTER_HOST_IP" ]; then
++        echo "Error: CLUSTER_HOST_IP environment variable is not set."
++        exit 1
++    fi
+ 
+-# Set input and output files
+-INPUT_FILE="/etc/nova/nova.conf"
+-OUTPUT_FILE="/tmp/pod-shared/nova.conf"
++    # Set input and output files
++    INPUT_FILE="/etc/nova/nova.conf"
++    OUTPUT_FILE="/tmp/pod-shared/nova.conf"
+ 
+-# Check if the output directory exists
+-if [ ! -d "$(dirname "$OUTPUT_FILE")" ]; then
+-    echo "Error: Output directory does not exist."
+-    exit 1
+-fi
++    # Check if the output directory exists
++    if [ ! -d "$(dirname "$OUTPUT_FILE")" ]; then
++        echo "Error: Output directory does not exist."
++        exit 1
++    fi
+ 
+-# Set fields to replace with cluster host ip
+-declare -A CONFIG_CHANGES
+-CONFIG_CHANGES["DEFAULT.my_ip"]="$CLUSTER_HOST_IP"
+-CONFIG_CHANGES["vnc.server_listen"]="$CLUSTER_HOST_IP"
+-CONFIG_CHANGES["vnc.server_proxyclient_address"]="$CLUSTER_HOST_IP"
+-CONFIG_CHANGES["libvirt.live_migration_inbound_addr"]="$CLUSTER_HOST_IP"
++    # Set fields to replace with cluster host ip
++    declare -A CONFIG_CHANGES
++    CONFIG_CHANGES["DEFAULT.my_ip"]="$CLUSTER_HOST_IP"
++    CONFIG_CHANGES["vnc.server_listen"]="$CLUSTER_HOST_IP"
++    CONFIG_CHANGES["vnc.server_proxyclient_address"]="$CLUSTER_HOST_IP"
++    CONFIG_CHANGES["libvirt.live_migration_inbound_addr"]="$CLUSTER_HOST_IP"
+ 
+-# Loop through the lines of the input file
+-while IFS="=" read -r line; do
+-    # Check if the line is a section
+-    if [[ "$line" =~ ^\[.*\]$ ]]; then
+-        section="${line//[\[\]]/}"  # Get section name by stripping brackets
+-    fi
++    # Loop through the lines of the input file
++    while IFS="=" read -r line; do
++        # Check if the line is a section
++        if [[ "$line" =~ ^\[.*\]$ ]]; then
++            section="${line//[\[\]]/}"  # Get section name by stripping brackets
++        fi
++
++        # Loop through the dictionary of field.section and update the values
++        for field_section in "${!CONFIG_CHANGES[@]}"; do
++            section_name="${field_section%%.*}"   # Extract section (before the dot)
++            field_name="${field_section#*.}"     # Extract field (after the dot)
++            new_value="${CONFIG_CHANGES[$field_section]}"
+ 
+-    # Loop through the dictionary of field.section and update the values
+-    for field_section in "${!CONFIG_CHANGES[@]}"; do
+-        section_name="${field_section%%.*}"   # Extract section (before the dot)
+-        field_name="${field_section#*.}"     # Extract field (after the dot)
+-        new_value="${CONFIG_CHANGES[$field_section]}"
++            # If we are in the correct section, update the field value
++            if [[ "$section" == "$section_name" && "$line" =~ ^$field_name\ = ]]; then
++                line="$field_name = $new_value"
++            fi
++        done
+ 
+-        # If we are in the correct section, update the field value
+-        if [[ "$section" == "$section_name" && "$line" =~ ^$field_name\ = ]]; then
+-            line="$field_name = $new_value"
++        # Write the line (modified or unmodified) to the output file
++        if ! echo "$line" >> "$OUTPUT_FILE"; then
++            echo "Error: Failed to write to output file."
++            exit 1
+         fi
+-    done
++    done < "$INPUT_FILE"
+ 
+-    # Write the line (modified or unmodified) to the output file
+-    if ! echo "$line" >> "$OUTPUT_FILE"; then
+-        echo "Error: Failed to write to output file."
+-        exit 1
+-    fi
+-done < "$INPUT_FILE"
++    exec nova-compute \
++    {{- if .Values.console.address_search_enabled }}
++        --config-file /tmp/pod-shared/nova-console.conf \
++    {{- end }}
++    {{- if .Values.conf.libvirt.address_search_enabled }}
++        --config-file /tmp/pod-shared/nova-libvirt.conf \
++    {{- end }}
++    {{- if and ( empty .Values.conf.nova.DEFAULT.host ) ( .Values.pod.use_fqdn.compute ) }}
++        --config-file /tmp/pod-shared/nova-compute-fqdn.conf \
++    {{- end }}
++    {{- if .Values.conf.hypervisor.address_search_enabled }}
++        --config-file /tmp/pod-shared/nova-hypervisor.conf \
++    {{- end }}
++        --config-file /tmp/pod-shared/nova.conf
++}
++
++function stop () {
++  if [ -f /var/lib/nova/compute_id ]; then
++    rm -f /var/lib/nova/compute_id
++  fi
++}
+ 
+-exec nova-compute \
+-      --config-file /tmp/pod-shared/nova.conf \
+-{{- if .Values.console.address_search_enabled }}
+-      --config-file /tmp/pod-shared/nova-console.conf \
+-{{- end }}
+-{{- if .Values.conf.libvirt.address_search_enabled }}
+-      --config-file /tmp/pod-shared/nova-libvirt.conf \
+-{{- end }}
+-{{- if and ( empty .Values.conf.nova.DEFAULT.host ) ( .Values.pod.use_fqdn.compute ) }}
+-      --config-file /tmp/pod-shared/nova-compute-fqdn.conf \
+-{{- end }}
+-{{- if .Values.conf.hypervisor.address_search_enabled }}
+-      --config-file /tmp/pod-shared/nova-hypervisor.conf
+-{{- end }}
++$COMMAND
+\ No newline at end of file
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 9daf936c8..2f0266cf6 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -324,6 +324,12 @@ spec:
+ {{ dict "envAll" $envAll "component" "compute" "container" "default" "type" "liveness" "probeTemplate" (include "novaComputeLivenessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+ {{ dict "envAll" $envAll "component" "compute" "container" "default" "type" "readiness" "probeTemplate" (include "novaComputeReadinessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+ {{ dict "envAll" $envAll "component" "compute" "container" "default" "type" "startup" "probeTemplate" (include "novaComputeStartupProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
++          lifecycle:
++            preStop:
++              exec:
++                command:
++                  - /tmp/nova-compute.sh
++                  - stop
+           command:
+             - /tmp/nova-compute.sh
+           terminationMessagePath: /var/log/termination-log
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 0551266ea..61435f807 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -2648,6 +2648,7 @@ tls:
+ 
+ manifests:
+   certificates: false
++  compute_uuid_self_provisioning: true
+   configmap_bin: true
+   configmap_etc: true
+   cron_job_cell_setup: true
+@@ -2700,4 +2701,7 @@ manifests:
+   service_spiceproxy: true
+   service_osapi: true
+   statefulset_compute_ironic: false
++
++# List of hosts and uuids
++hosts_uuids: []
+ ...
+-- 
+2.43.0
+

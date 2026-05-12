@@ -2,14 +2,12 @@ BUILDER=loci
 LABEL=stx-ceilometer
 PROJECT=ceilometer
 PROJECT_REPO=https://opendev.org/openstack/ceilometer.git
-PROJECT_REF=a0385d3c52f85b9cecdc43f30eb72e99177fe691
+PROJECT_REF=f1d638faa195647f12d0e48baa39182e821838cc
 NON_UNIQUE_SYSTEM_ACCOUNT="yes"
 UPDATE_SYSTEM_ACCOUNT="yes"
 DIST_REPOS="OS"
 PIP_PACKAGES="\
-  gnocchiclient \
-  libvirt-python \
-  panko==5.0.0
+  libvirt-python
 "
 DIST_PACKAGES="\
   libvirt0 \
@@ -18,6 +16,5 @@ DIST_PACKAGES="\
   libvirt-daemon-driver-lxc \
   libvirt-daemon-driver-qemu \
   libvirt-daemon-driver-storage-gluster \
-  libvirt-login-shell \
-  ipmitool 
+  libvirt-login-shell
 "

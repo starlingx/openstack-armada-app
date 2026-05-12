@@ -1,11 +1,10 @@
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 from sysinv.common import exception
-from sysinv.common import utils
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
@@ -48,9 +47,8 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
         }
 
     def _get_manifests_overrides(self):
-        manifests_overrides = {}
-        if utils.is_virtual():
-            manifests_overrides.update({'daemonset_ipmi': False})
+        # IPMI agent is not included in the image; keep its daemonset disabled.
+        manifests_overrides = {'daemonset_ipmi': False}
 
         if self._is_openstack_https_ready(self.SERVICE_NAME):
             manifests_overrides.update({'certificates': True})

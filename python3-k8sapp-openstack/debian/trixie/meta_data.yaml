@@ -1,0 +1,9 @@
+---
+debname: python3-k8sapp-openstack
+debver: 1.0-1
+src_path: k8sapp_openstack
+revision:
+  dist: $STX_DIST
+  PKG_GITREVCOUNT: true
+  SRC_GITREVCOUNT:
+    SRC_BASE_SRCREV: dceba419435f9d377bf28b96bf7981d0bf809870

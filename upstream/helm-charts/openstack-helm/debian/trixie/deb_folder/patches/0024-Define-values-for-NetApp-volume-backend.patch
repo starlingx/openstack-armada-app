@@ -1,0 +1,102 @@
+From b49423694a25abfea683162bef337c2423b3b4c4 Mon Sep 17 00:00:00 2001
+From: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+Date: Tue, 12 Nov 2024 10:17:18 -0300
+Subject: [PATCH] Define values for NetApp volume backend
+
+This patch creates the required values, updates the configmap and the
+volume deployment to allow the usage of the NetApp as a volume backend
+using either NFS or iSCSI
+
+This patch defines some values by default, but it does not add the
+netapp backend to the conf.cinder.DEFAULT.enabled_backends, so, by
+default, it won't be used. If an user wants to enable it, he can set
+some overrides to the conf.cinder.backends.netapp-nfs and
+conf.nfs_shares or the conf.cinder.backends.netapp-iscsi values, and
+add the netapp drivers to the enabled_backends list.
+
+Change-Id: I94ed1e232b1d64ca98744a1eccf7363d5fc666a8
+Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
+
+[Added FC support, default backend selector and priorities]
+
+Added some new fields regarding the Fiber Channel Protocol in
+addition to NFS and iSCSI. Also, added a list that allows the
+user to manually select the default backend via overrides and
+to set the backends' priorities if there are multiple enabled.
+
+[Removed dummy values for NetApp backends]
+
+Removed the default values regarding the NetApp backends from
+values.yaml. They'll be defined dinamically via system overrides.
+
+Change-Id: I00919573fed352c2df568e59f8d8d940b05d9c73
+Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+---
+ cinder/templates/configmap-etc.yaml     |  3 +++
+ cinder/templates/deployment-volume.yaml |  6 ++++++
+ cinder/values.yaml                      | 16 ++++++++++++++++
+ 3 files changed, 25 insertions(+)
+
+diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
+index 2e83f3740..f7ba5dd96 100644
+--- a/cinder/templates/configmap-etc.yaml
++++ b/cinder/templates/configmap-etc.yaml
+@@ -179,6 +179,9 @@ data:
+   cinder_sudoers: {{ $envAll.Values.conf.cinder_sudoers | b64enc }}
+   rootwrap.conf: {{ $envAll.Values.conf.rootwrap | b64enc }}
+   resource_filters.json: {{ toJson .Values.conf.resource_filters | b64enc }}
++  {{- if hasKey .Values.conf "nfs_shares" }}
++  nfs.shares: {{ $envAll.Values.conf.nfs_shares | b64enc }}
++  {{- end }}
+ {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
+ {{- $filePrefix := replace "_" "-"  $key }}
+   {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
+diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
+index 20dcb4f41..9ecf7f122 100644
+--- a/cinder/templates/deployment-volume.yaml
++++ b/cinder/templates/deployment-volume.yaml
+@@ -188,6 +188,12 @@ spec:
+               mountPath: /etc/cinder/conf/backends.conf
+               subPath: backends.conf
+               readOnly: true
++            {{- if hasKey .Values.conf "nfs_shares" }}
++            - name: cinder-etc
++              mountPath: /etc/cinder/nfs.shares
++              subPath: nfs.shares
++              readOnly: true
++            {{- end }}
+             {{- if eq "true" (include "cinder.utils.has_ceph_backend" $envAll) }}
+             - name: etcceph
+               mountPath: /etc/ceph
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 8179fc8f6..14a24f879 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -1470,6 +1470,22 @@ tls:
+   oslo_messaging: false
+   oslo_db: false
+ 
++storage_conf:
++  storage_backends:
++    - name: ceph
++      enabled: true
++    - name: netapp-nfs
++      enabled: false
++    - name: netapp-iscsi
++      enabled: false
++    - name: netapp-fc
++      enabled: false
++  volume_storage_class_priority:
++    - ceph
++    - netapp-nfs
++    - netapp-iscsi
++    - netapp-fc
++
+ manifests:
+   certificates: false
+   configmap_bin: true
+-- 
+2.43.0
+

@@ -1,0 +1,13 @@
+---
+debname: openstack-pkg-tools
+debver: 124
+dl_path:
+  name: openstack-pkg-tools-debian-124.tar.gz
+  url: https://salsa.debian.org/openstack-team/debian/openstack-pkg-tools/-/archive/debian/caracal/openstack-pkg-tools-debian-caracal.tar.gz
+  md5sum: f288c1071d8e0e2c939a876c260af818
+  sha256sum: 55afe08934b2ab5f4487ab07b26439d2136e224e5cbfa02b25666ac25b61ca7b
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 27acda9a6b4885a50064cebc0858892e71aa37ce
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/openstack-pkg-tools

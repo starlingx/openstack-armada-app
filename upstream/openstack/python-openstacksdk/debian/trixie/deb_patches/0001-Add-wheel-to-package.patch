@@ -1,0 +1,58 @@
+From 49799e462175ea2a7221c94c9d10adfefc074d26 Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Thu, 28 Oct 2021 12:40:43 +0000
+Subject: [PATCH] Add wheel to package
+
+Add python-openstacksdk-wheel package.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+
+[Ported to python-openstacksdk v4.4.0-5 @ Epoxy]
+Signed-off-by: jbarboza <joaopedro.barbozalioneza@windriver.com>
+---
+ debian/control | 18 ++++++++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index 2f9ec7794..10b8229dd 100644
+--- a/debian/control
++++ b/debian/control
+@@ -104,3 +104,21 @@ Description: SDK for building applications to work with OpenStack - Python 3.x
+  those provided in future release.
+  .
+  This package contains the Python 3.x module.
++
++Package: python3-openstacksdk-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: SDK for building applications to work with OpenStack - Python 3.x
++ The python-openstacksdk is a collection of libraries for building applications
++ to work with OpenStack clouds. The project aims to provide a consistent and
++ complete set of interactions with OpenStack's many services, along with
++ complete documentation, examples, and tools.
++ .
++ This SDK is under active development, and in the interests of providing a
++ high-quality interface, the APIs provided in this release may differ from
++ those provided in future release.
++ .
++ This package contains the Python wheel.
+diff --git a/debian/rules b/debian/rules
+index e23ac48d3..3d5379511 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -14,7 +14,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2 --in-tmp
++	pkgos-dh_auto_install --no-py2 --in-tmp --wheel
+ ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+ 	# Non-deterministic. See https://bugs.debian.org/1084147
+ 	# openstack.tests.unit.identity.v3.test_proxy.TestIdentityProxyRegion.test_region_update
+-- 
+2.34.1
+

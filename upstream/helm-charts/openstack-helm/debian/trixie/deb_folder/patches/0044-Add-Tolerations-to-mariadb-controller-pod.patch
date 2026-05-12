@@ -1,0 +1,37 @@
+From de90bf1affd538bb794e50d943ef575a42a982de Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Mon, 7 Apr 2025 07:57:06 -0300
+Subject: [PATCH] Add Tolerations to mariadb-controller pod
+
+This commit adds the same tolerations that is in mariadb-server,
+to the mariadb-controller pod definition.
+
+Change-Id: Ida700bbb90bcbb06ac8de8a56899102494aa4c4d
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+
+This patch brings the above commit to the epoxy release
+of Openstack-Helm. The original commit was merged right
+after the 2025.1 release and fixes an issue where the
+controller node has a taint that the mariadb-server tolerates,
+but not mariadb-controller.
+---
+ mariadb/templates/deployment-controller.yaml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/mariadb/templates/deployment-controller.yaml b/mariadb/templates/deployment-controller.yaml
+index a0fe46b2d..8fd663057 100644
+--- a/mariadb/templates/deployment-controller.yaml
++++ b/mariadb/templates/deployment-controller.yaml
+@@ -82,6 +82,9 @@ spec:
+ {{ dict "envAll" $envAll "application" "controller" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+       affinity:
+ {{ tuple $envAll "mariadb" "controller" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
++{{ if $envAll.Values.pod.tolerations.mariadb.enabled }}
++{{ tuple $envAll "mariadb" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       nodeSelector:
+         {{ .Values.labels.controller.node_selector_key }}: {{ .Values.labels.controller.node_selector_value }}
+       initContainers:
+-- 
+2.34.1
+

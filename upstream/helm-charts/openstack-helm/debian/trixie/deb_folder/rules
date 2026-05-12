@@ -1,0 +1,51 @@
+#!/usr/bin/make -f
+export DH_VERBOSE = 1
+
+export ROOT = debian/tmp
+export HELM_FOLDER = $(ROOT)/usr/lib/helm
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Substitute image tag tokens in chart values
+	find . -name "values.yaml" -exec sed -i \
+	    -e 's|@IMAGE_PREFIX@|$(IMAGE_PREFIX)|g' \
+	    -e 's|@IMAGE_SUFFIX@|$(IMAGE_SUFFIX)|g' \
+	    -e 's|@BUILD_STREAM@|$(BUILD_STREAM)|g' \
+	    -e 's|@OS@|$(OS)|g' \
+	    -e 's|@OS_CODENAME@|$(OS_CODENAME)|g' \
+	    -e 's|@OS_ARCH@|$(OS_ARCH)|g' \
+	    -e 's|@PLATFORM_REGISTRY@|$(PLATFORM_REGISTRY)|g' \
+	    {} +
+	# Create the chart TGZ files.
+	make SKIP_CHANGELOG=1 helm-toolkit
+	make SKIP_CHANGELOG=1 gnocchi
+	make SKIP_CHANGELOG=1 libvirt
+	make SKIP_CHANGELOG=1 mariadb
+	make SKIP_CHANGELOG=1 memcached
+	make SKIP_CHANGELOG=1 openvswitch
+	make SKIP_CHANGELOG=1 rabbitmq
+	make SKIP_CHANGELOG=1 ceph-rgw
+	make SKIP_CHANGELOG=1 prometheus-openstack-exporter
+	make SKIP_CHANGELOG=1 aodh
+	make SKIP_CHANGELOG=1 barbican
+	make SKIP_CHANGELOG=1 ceilometer
+	make SKIP_CHANGELOG=1 cinder
+	make SKIP_CHANGELOG=1 glance
+	make SKIP_CHANGELOG=1 heat
+	make SKIP_CHANGELOG=1 horizon
+	make SKIP_CHANGELOG=1 ironic
+	make SKIP_CHANGELOG=1 keystone
+	make SKIP_CHANGELOG=1 neutron
+	make SKIP_CHANGELOG=1 nova
+	make SKIP_CHANGELOG=1 placement
+
+override_dh_auto_install:
+	# Install the chart tar files.
+	install -d -m 755 $(HELM_FOLDER)
+	install -p -D -m 755 *.tgz $(HELM_FOLDER)
+
+override_dh_auto_test:
+
+override_dh_usrlocal:

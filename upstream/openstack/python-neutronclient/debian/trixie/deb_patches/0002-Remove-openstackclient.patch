@@ -1,0 +1,32 @@
+From 0698471b944de5a41e09a68d476c9abed58a8bab Mon Sep 17 00:00:00 2001
+From: Charles Short <charles.short@windriver.com>
+Date: Mon, 29 Nov 2021 20:54:00 +0000
+Subject: [PATCH] Remove openstackclient
+
+Remove build-Depends-Indep for python-openstackclient as it is
+not being used and it is causing problems with the build-pkgs
+tool.
+
+Signed-off-by: Charles Short <charles.short@windriver.com>
+
+[Ported to python-neutronclient v11.4.0-2 @ Epoxy]
+Signed-off-by: jbarboza <joaopedro.barbozalioneza@windriver.com>
+---
+ debian/control | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index 1f05efe..09b30e5 100644
+--- a/debian/control
++++ b/debian/control
+@@ -22,7 +22,6 @@ Build-Depends-Indep:
+  python3-keystoneauth1,
+  python3-keystoneclient,
+  python3-netaddr,
+- python3-openstackclient (>= 1.0.2),
+  python3-openstackdocstheme,
+  python3-openstacksdk (>= 1.5.0),
+  python3-os-client-config,
+-- 
+2.34.1
+

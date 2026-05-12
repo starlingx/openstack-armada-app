@@ -1,0 +1,73 @@
+From 9ef7f5c8312902f7b70d49b2f7fc1da7097b0847 Mon Sep 17 00:00:00 2001
+From: Luis Henrique Silva Cazuriaga
+ <LuisHenrique.SilvaCazuriaga@windriver.com>
+Date: Tue, 12 May 2026 14:18:09 -0300
+Subject: [PATCH] Add tolerations to prometheus-openstack-exporter pods
+
+Standard systems schedule OpenStack control-plane pods on controller
+nodes, which carry control-plane taints. The prometheus-openstack-exporter
+deployment and ks-user job already select openstack-control-plane nodes,
+but the chart does not render tolerations for those pods.
+
+Add chart-level toleration support for the exporter deployment and ks-user
+job, following the same pod.tolerations pattern used by other
+OpenStack-Helm charts.
+
+Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
+---
+ .../templates/deployment.yaml                          |  3 +++
+ .../templates/job-ks-user.yaml                         |  3 +++
+ prometheus-openstack-exporter/values.yaml              | 10 ++++++++++
+ 3 files changed, 16 insertions(+)
+
+diff --git a/prometheus-openstack-exporter/templates/deployment.yaml b/prometheus-openstack-exporter/templates/deployment.yaml
+index eca8c32fe..f47bd74f4 100644
+--- a/prometheus-openstack-exporter/templates/deployment.yaml
++++ b/prometheus-openstack-exporter/templates/deployment.yaml
+@@ -50,6 +50,9 @@ spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       affinity:
+ {{ tuple $envAll "prometheus-openstack-exporter" "exporter" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
++{{ if $envAll.Values.pod.tolerations.prometheus_openstack_exporter.enabled }}
++{{ tuple $envAll "prometheus_openstack_exporter" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       nodeSelector:
+         {{ .Values.labels.openstack_exporter.node_selector_key }}: {{ .Values.labels.openstack_exporter.node_selector_value | quote }}
+       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.prometheus_openstack_exporter.timeout | default "30" }}
+diff --git a/prometheus-openstack-exporter/templates/job-ks-user.yaml b/prometheus-openstack-exporter/templates/job-ks-user.yaml
+index f232e660f..170b42a4a 100644
+--- a/prometheus-openstack-exporter/templates/job-ks-user.yaml
++++ b/prometheus-openstack-exporter/templates/job-ks-user.yaml
+@@ -37,6 +37,9 @@ spec:
+ {{ dict "envAll" $envAll "application" "ks_user" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
+       serviceAccountName: {{ $serviceAccountName }}
+       restartPolicy: OnFailure
++{{ if $envAll.Values.pod.tolerations.prometheus_openstack_exporter.enabled }}
++{{ tuple $envAll "prometheus_openstack_exporter" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       nodeSelector:
+         {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value | quote }}
+       initContainers:
+diff --git a/prometheus-openstack-exporter/values.yaml b/prometheus-openstack-exporter/values.yaml
+index 91f6000a2..cd2d84216 100644
+--- a/prometheus-openstack-exporter/values.yaml
++++ b/prometheus-openstack-exporter/values.yaml
+@@ -65,6 +65,16 @@ pod:
+         default: preferredDuringSchedulingIgnoredDuringExecution
+       topologyKey:
+         default: kubernetes.io/hostname
++  tolerations:
++    prometheus_openstack_exporter:
++      enabled: false
++      tolerations:
++        - key: node-role.kubernetes.io/master
++          operator: Exists
++          effect: NoSchedule
++        - key: node-role.kubernetes.io/control-plane
++          operator: Exists
++          effect: NoSchedule
+   mounts:
+     prometheus_openstack_exporter:
+       prometheus_openstack_exporter:
+-- 
+2.43.0

@@ -1,0 +1,13 @@
+---
+debname: python-openstackclient
+debver: 7.4.0-3
+dl_path:
+  name: python-openstackclient-debian-7.4.0-3.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-openstackclient/-/archive/debian/7.4.0-3/python-openstackclient-debian-7.4.0-3.tar.gz
+  md5sum: 5a1c206baaa7203fee1ec916b73508ee
+  sha256sum: 3fb7814cdc164762fb31e610481250521cd846814b95b708afcfe57b7fed04f4
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 27acda9a6b4885a50064cebc0858892e71aa37ce
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-openstackclient

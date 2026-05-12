@@ -1,0 +1,31 @@
+From 90e34925e8c5ccf8347951c0c3c13c88f243f57f Mon Sep 17 00:00:00 2001
+From: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+Date: Wed, 2 Apr 2025 11:20:52 -0300
+Subject: [PATCH] Enable ceph pool creation for AIO systems
+
+The ceph admin tool/CLI requires the option "--yes-i-really-mean-it" to enable
+the storage init job to set the pool size to 1 for AIO-SX deployments.
+
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+[ upversioned of changes to openstack-helm for epoxy release ]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+---
+ nova/templates/bin/_storage-init.sh.tpl | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/nova/templates/bin/_storage-init.sh.tpl b/nova/templates/bin/_storage-init.sh.tpl
+index cb3505d48..70c71a9f4 100644
+--- a/nova/templates/bin/_storage-init.sh.tpl
++++ b/nova/templates/bin/_storage-init.sh.tpl
+@@ -34,7 +34,7 @@ if [ "x$STORAGE_BACKEND" == "xrbd" ]; then
+     fi
+     size_protection=$(ceph osd pool get $1 nosizechange | cut -f2 -d: | tr -d '[:space:]')
+     ceph osd pool set $1 nosizechange 0
+-    ceph osd pool set $1 size ${RBD_POOL_REPLICATION}
++    ceph osd pool set $1 size ${RBD_POOL_REPLICATION} --yes-i-really-mean-it
+     ceph osd pool set $1 nosizechange ${size_protection}
+     ceph osd pool set $1 crush_rule "${RBD_POOL_CRUSH_RULE}"
+   }
+-- 
+2.43.0
+

@@ -158,14 +158,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # the prior apply state, update the ceph config
             conductor_obj._update_radosgw_config(context)
 
-        # Delete PVC snapshots if existent
-        nc = app_utils.get_number_of_controllers()
-
-        for i in range(0, nc):
-            pvc_name = f"mysql-data-mariadb-server-{i}"
-            snapshot_name = f"snapshot-of-{pvc_name}"
-            LOG.info(f"Trying to delete snapshot '{snapshot_name}'")
-            app_utils.delete_snapshot(snapshot_name)
+        self._delete_maridb_pvc_snapshots_if_exists()
 
         # Update DEX redirect URI for Keystone WebSSO integration
         if hook_info[LifecycleConstants.EXTRA][LifecycleConstants.APP_APPLIED]:
@@ -206,6 +199,22 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # Update the VIM configuration.
             conductor_obj._update_vim_config(context)
             conductor_obj._update_radosgw_config(context)
+
+    def _delete_maridb_pvc_snapshots_if_exists(self) -> None:
+        """
+        Delete PVC snapshots if they exist.
+        :return: None
+        """
+        nc = app_utils.get_number_of_controllers()
+
+        for i in range(0, nc):
+            pvc_name = f"mysql-data-mariadb-server-{i}"
+            snapshot_name = f"snapshot-of-{pvc_name}"
+            LOG.info(f"Trying to delete snapshot (if exists) '{snapshot_name}'")
+            # We can ignore not found images. This is to avoid logging an error when the
+            # apply hook is executed for the first time (not after an update) and the
+            # snapshot doesn't exist yet.
+            app_utils.delete_snapshot(snapshot_name, ignore_not_found=True)
 
     def _delete_app_specific_resources_post_remove(self, app_op, app, hook_info):
         """Delete application specific resources.

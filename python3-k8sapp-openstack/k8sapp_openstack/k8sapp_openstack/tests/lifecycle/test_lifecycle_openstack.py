@@ -225,7 +225,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         for i in range(0, number_of_controllers):
             pvc_name = f"{PVC_PREFIX}-{i}"
             snapshot_name = f"{SNAPSHOT_NAME_PREFIX}-{pvc_name}"
-            calls.append(mock.call(snapshot_name))
+            calls.append(mock.call(snapshot_name, ignore_not_found=True))
 
         mock_app_utils.get_number_of_controllers.return_value = number_of_controllers
 

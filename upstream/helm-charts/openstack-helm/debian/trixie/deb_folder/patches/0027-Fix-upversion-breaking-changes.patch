@@ -16,13 +16,15 @@ The second change modified the pathtype of the Helm charts' ingress.
 This patch reverts this two modification to the upstream.
 
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  .../templates/endpoints/_authenticated_endpoint_uri_lookup.tpl  | 2 +-
  helm-toolkit/templates/manifests/_ingress.tpl                   | 2 +-
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/helm-toolkit/templates/endpoints/_authenticated_endpoint_uri_lookup.tpl b/helm-toolkit/templates/endpoints/_authenticated_endpoint_uri_lookup.tpl
-index d7390d8b..12b84dec 100644
+index d7390d8be..12b84dec1 100644
 --- a/helm-toolkit/templates/endpoints/_authenticated_endpoint_uri_lookup.tpl
 +++ b/helm-toolkit/templates/endpoints/_authenticated_endpoint_uri_lookup.tpl
 @@ -50,7 +50,7 @@ return: |
@@ -35,18 +37,18 @@ index d7390d8b..12b84dec 100644
  {{- $endpointPort := tuple $type $endpoint $port $context | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
  {{- $endpointPath := tuple $type $endpoint $port $context | include "helm-toolkit.endpoints.keystone_endpoint_path_lookup" }}
 diff --git a/helm-toolkit/templates/manifests/_ingress.tpl b/helm-toolkit/templates/manifests/_ingress.tpl
-index cacb4b81..4ea88966 100644
+index 47107b415..179b625e0 100644
 --- a/helm-toolkit/templates/manifests/_ingress.tpl
 +++ b/helm-toolkit/templates/manifests/_ingress.tpl
-@@ -625,7 +625,7 @@ examples:
+@@ -873,7 +873,7 @@ examples:
  {{- $backendServiceType := index . "backendServiceType" -}}
  {{- $backendPort := index . "backendPort" -}}
  {{- $endpoint := index . "endpoint" | default "public" -}}
 -{{- $pathType := index . "pathType" | default "Prefix" -}}
 +{{- $pathType := index . "pathType" | default "ImplementationSpecific" -}}
  {{- $certIssuer := index . "certIssuer" | default "" -}}
- {{- $ingressName := tuple $backendServiceType $endpoint $envAll | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
- {{- $backendName := tuple $backendServiceType "internal" $envAll | include "helm-toolkit.endpoints.hostname_short_endpoint_lookup" }}
+ {{- $ingressPaths := index . "ingressPaths" | default "/" -}}
+ {{- $additionalBackendsInput := index . "additionalBackends" | default list -}}
 -- 
 2.34.1
 

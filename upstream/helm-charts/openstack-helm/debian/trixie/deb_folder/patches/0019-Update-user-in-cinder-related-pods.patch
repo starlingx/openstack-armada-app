@@ -15,16 +15,27 @@ Signed-off-by: Rafael Falcao <rafael.vieirafalcao@windriver.com>
 Change-Id: I9bffd45208ab2992e380b2226c8e99639bc3f514
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Added db_purge security context user change to cinder values.
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
- cinder/values.yaml | 16 ++++++++--------
- 1 file changed, 8 insertions(+), 8 deletions(-)
+ cinder/values.yaml | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
 
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index 6b335be17..a30e61f7d 100644
+index 3aba5be11..fb34a2126 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
-@@ -79,14 +79,14 @@ pod:
+@@ -101,21 +101,21 @@ pod:
    security_context:
+     db_purge:
+       pod:
+-        runAsUser: 42424
++        runAsUser: 42425
+       container:
+         cinder_db_purge:
+           readOnlyRootFilesystem: true
+           allowPrivilegeEscalation: false
      volume_usage_audit:
        pod:
 -        runAsUser: 42424
@@ -40,7 +51,7 @@ index 6b335be17..a30e61f7d 100644
        container:
          ceph_coordination_volume_perms:
            runAsUser: 0
-@@ -96,7 +96,7 @@ pod:
+@@ -125,7 +125,7 @@ pod:
            allowPrivilegeEscalation: false
      cinder_backup:
        pod:
@@ -49,7 +60,7 @@ index 6b335be17..a30e61f7d 100644
        container:
          ceph_backup_keyring_placement:
            runAsUser: 0
-@@ -118,7 +118,7 @@ pod:
+@@ -147,7 +147,7 @@ pod:
            runAsUser: 0
      cinder_scheduler:
        pod:
@@ -58,7 +69,7 @@ index 6b335be17..a30e61f7d 100644
        container:
          ceph_coordination_volume_perms:
            runAsUser: 0
-@@ -128,7 +128,7 @@ pod:
+@@ -157,7 +157,7 @@ pod:
            allowPrivilegeEscalation: false
      cinder_volume:
        pod:
@@ -67,7 +78,7 @@ index 6b335be17..a30e61f7d 100644
        container:
          ceph_keyring_placement:
            runAsUser: 0
-@@ -146,7 +146,7 @@ pod:
+@@ -173,7 +173,7 @@ pod:
            readOnlyRootFilesystem: true
      storage_init:
        pod:
@@ -76,7 +87,7 @@ index 6b335be17..a30e61f7d 100644
        container:
          ceph_keyring_placement:
            runAsUser: 0
-@@ -156,14 +156,14 @@ pod:
+@@ -183,14 +183,14 @@ pod:
            allowPrivilegeEscalation: false
      clean:
        pod:
@@ -94,5 +105,5 @@ index 6b335be17..a30e61f7d 100644
          create_internal_tenant:
            readOnlyRootFilesystem: true
 -- 
-2.43.0
+2.34.1
 

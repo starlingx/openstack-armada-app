@@ -18,7 +18,7 @@ Signed-off-by: Daniel Bolgheroni <Daniel.Bolgheroni@windriver.com>
  1 file changed, 44 insertions(+), 6 deletions(-)
 
 diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-index 40359f0f..7bf0dd23 100644
+index 332b766ea..5f7697532 100644
 --- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 +++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 @@ -35,9 +35,23 @@ limitations under the License.

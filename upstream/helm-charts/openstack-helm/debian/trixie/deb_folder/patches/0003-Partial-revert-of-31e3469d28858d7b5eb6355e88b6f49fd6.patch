@@ -8,12 +8,14 @@ Suspect that new use of mergeOverwrite vs. merge is breaking the
 per-host DaemonSet overrides.
 
 Signed-off-by: Robert Church <robert.church@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  .../templates/utils/_daemonset_overrides.tpl         | 12 ++++++------
  1 file changed, 6 insertions(+), 6 deletions(-)
 
 diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-index 40359f0f..69dcd800 100644
+index 40359f0f4..69dcd800a 100644
 --- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 +++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 @@ -47,10 +47,10 @@ limitations under the License.
@@ -61,5 +63,4 @@ index 40359f0f..69dcd800 100644
      {{/* Deep copy original daemonset_yaml */}}
      {{- $_ := set $context.Values "__daemonset_yaml" ($daemonset_yaml | toYaml | fromYaml) }}
 -- 
-2.25.1
-
+2.34.1

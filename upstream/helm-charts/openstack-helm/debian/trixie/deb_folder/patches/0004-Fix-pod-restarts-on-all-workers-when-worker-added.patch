@@ -9,7 +9,7 @@ Subject: [PATCH] Fix pod restarts on all workers when worker added/removed
  2 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-index 69dcd800..332b766e 100644
+index 69dcd800a..332b766ea 100644
 --- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 +++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 @@ -213,7 +213,7 @@ limitations under the License.
@@ -31,7 +31,7 @@ index 69dcd800..332b766e 100644
  
      {{/* generate configmap */}}
 diff --git a/helm-toolkit/templates/utils/_hash.tpl b/helm-toolkit/templates/utils/_hash.tpl
-index d871b626..550fda4a 100644
+index d871b6267..550fda4a7 100644
 --- a/helm-toolkit/templates/utils/_hash.tpl
 +++ b/helm-toolkit/templates/utils/_hash.tpl
 @@ -17,5 +17,5 @@ limitations under the License.
@@ -42,5 +42,4 @@ index d871b626..550fda4a 100644
 +{{- include $wtf $context | toJson | sha256sum | quote -}}
  {{- end -}}
 -- 
-2.25.1
-
+2.34.1

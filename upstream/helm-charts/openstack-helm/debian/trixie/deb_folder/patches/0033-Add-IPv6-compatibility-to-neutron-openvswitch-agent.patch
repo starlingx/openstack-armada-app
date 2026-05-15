@@ -30,12 +30,14 @@ procedure, keeping it based only on IPv6 interface check (ip -6 addr show ).
 Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  .../_neutron-openvswitch-agent-init.sh.tpl    | 60 ++++++++++++++++++-
  1 file changed, 57 insertions(+), 3 deletions(-)
 
 diff --git a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
-index bd0a64ac8..8e2c25e7c 100644
+index efe360cda..97f6e8b5d 100644
 --- a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
 +++ b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
 @@ -24,6 +24,49 @@ OVS_PID=$(cat /run/openvswitch/ovs-vswitchd.pid)
@@ -88,7 +90,7 @@ index bd0a64ac8..8e2c25e7c 100644
  function get_dpdk_config_value {
    values=${@:1:$#-1}
    filter=${!#}
-@@ -452,8 +495,11 @@ if [[ -n "${tunnel_types}" ]] ; then
+@@ -473,8 +516,11 @@ if [[ -n "${tunnel_types}" ]] ; then
              tunnel_network_cidr="0/0"
          fi
          # If there is not tunnel network gateway, exit
@@ -102,7 +104,7 @@ index bd0a64ac8..8e2c25e7c 100644
      fi
  fi
  
-@@ -466,7 +512,15 @@ fi
+@@ -487,7 +533,15 @@ fi
  
  # determine local-ip dynamically based on interface provided but only if tunnel_types is not null
  if [[ -n "${tunnel_types}" ]] ; then
@@ -120,5 +122,4 @@ index bd0a64ac8..8e2c25e7c 100644
      echo "Var LOCAL_IP is empty"
      exit 1
 -- 
-2.43.0
-
+2.34.1

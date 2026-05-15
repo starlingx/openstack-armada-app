@@ -10,19 +10,21 @@ MariaDB and RabbitMQ. The highest available storage class will be
 selected as the k8s volume storageClass
 
 Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  mariadb/values.yaml  | 8 ++++++++
  rabbitmq/values.yaml | 7 +++++++
  2 files changed, 15 insertions(+)
 
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 9eb81231..66740a2c 100644
+index b17fc4d47..d3b649cc0 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -740,6 +740,14 @@ network_policy:
- # Set helm3_hook: false in case helm2 is used.
- helm3_hook: true
-
+@@ -703,6 +703,14 @@ network_policy:
+     egress:
+       - {}
+ 
 +storage_conf:
 +  volume_storage_class_priority:
 +    - "ceph"
@@ -35,13 +37,13 @@ index 9eb81231..66740a2c 100644
    certificates: false
    configmap_bin: true
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index fbb98414..99b2833c 100644
+index ba70cacc0..d638c2f44 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
-@@ -441,6 +441,13 @@ io_thread_pool:
+@@ -397,6 +397,13 @@ io_thread_pool:
    enabled: false
    size: 64
-
+ 
 +storage_conf:
 +  volume_storage_class_priority:
 +    - "ceph"
@@ -53,5 +55,5 @@ index fbb98414..99b2833c 100644
    certificates: false
    configmap_bin: true
 -- 
-2.43.0
+2.34.1
 

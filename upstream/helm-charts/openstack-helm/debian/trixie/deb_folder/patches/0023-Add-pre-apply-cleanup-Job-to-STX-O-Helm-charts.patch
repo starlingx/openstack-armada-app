@@ -1,6 +1,6 @@
-From 995eaa14d8769bc59f1a21757b7981a3e84032f2 Mon Sep 17 00:00:00 2001
+From a378cbea96985e35c3b8d6bc6df1551e0cf9435b Mon Sep 17 00:00:00 2001
 From: Daniel Caires <DanielMarques.Caires@windriver.com>
-Date: Mon, 19 Aug 2024 14:28:05 -0300
+Date: Tue, 19 Aug 2024 14:28:05 -0300
 Subject: [PATCH] Add pre-apply cleanup Job to STX-O Helm charts
 
 After verification, it was noted that it is not possible
@@ -18,7 +18,6 @@ chart is installed ou updated. This Job deletes all jobs that have
 its status as completed.
 
 [ Upversioned openstack-helm-infra base commit to Caracal ]
-Change-Id: I5459bed8fb46ebe2a7f96c50068a9a4efefd2270
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ Adapt openstack-helm-infra patches to Epoxy release ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
@@ -26,6 +25,9 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ Added job_pre_apply_cleanup to the new prometheus-openstack-exporter chart ]
 Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Updated docker image references from all charts.
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  aodh/templates/job-pre-apply-cleanup.yaml     | 18 ++++
  aodh/values.yaml                              |  2 +
@@ -117,18 +119,18 @@ index 000000000..ba0f0df36
 +{{- end }}
 \ No newline at end of file
 diff --git a/aodh/values.yaml b/aodh/values.yaml
-index 56882dcc9..b7db07eb0 100644
+index af97d86e2..12489bb0a 100644
 --- a/aodh/values.yaml
 +++ b/aodh/values.yaml
 @@ -59,6 +59,7 @@ images:
-     aodh_alarms_cleaner: docker.io/kolla/ubuntu-source-aodh-base:ocata
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     aodh_alarms_cleaner: quay.io/airshipit/aodh:2025.1-ubuntu_noble
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -727,6 +728,7 @@ manifests:
+@@ -742,6 +743,7 @@ manifests:
    deployment_listener: true
    deployment_notifier: true
    ingress_api: true
@@ -162,18 +164,18 @@ index 000000000..5755d4ec4
 +{{- end }}
 \ No newline at end of file
 diff --git a/barbican/values.yaml b/barbican/values.yaml
-index 4264341bb..0c9455bd2 100644
+index 6e53d00cc..8884e3555 100644
 --- a/barbican/values.yaml
 +++ b/barbican/values.yaml
-@@ -48,6 +48,7 @@ images:
-     barbican_api: quay.io/airshipit/barbican:2024.1-ubuntu_jammy
+@@ -44,6 +44,7 @@ images:
+     barbican_api: quay.io/airshipit/barbican:2025.1-ubuntu_noble
      rabbit_init: docker.io/rabbitmq:3.13-management
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -730,6 +731,7 @@ manifests:
+@@ -742,6 +743,7 @@ manifests:
    configmap_etc: true
    deployment_api: true
    ingress_api: true
@@ -207,25 +209,25 @@ index 000000000..1900b9d8e
 +{{- end }}
 \ No newline at end of file
 diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
-index 54d449d93..e5fc73d9b 100644
+index 984cddc8f..1ebd7d21b 100644
 --- a/ceilometer/values.yaml
 +++ b/ceilometer/values.yaml
-@@ -63,6 +63,7 @@ images:
-     ceilometer_notification: docker.io/kolla/ubuntu-source-ceilometer-notification:wallaby
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+@@ -49,6 +49,7 @@ images:
+     ceilometer_notification: quay.io/airshipit/ceilometer:2025.1-ubuntu_noble
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -2128,6 +2129,7 @@ manifests:
+@@ -1636,6 +1637,7 @@ manifests:
+   daemonset_compute: true
    daemonset_ipmi: false
    deployment_notification: true
-   ingress_api: true
 +  job_pre_apply_cleanup: true
    job_bootstrap: true
-   job_db_drop: false
-   job_db_init: true
+   job_db_sync: true
+   job_image_repo_sync: true
 diff --git a/ceph-rgw/templates/job-pre-apply-cleanup.yaml b/ceph-rgw/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
 index 000000000..2a1d6d91e
@@ -252,13 +254,13 @@ index 000000000..2a1d6d91e
 +{{- end }}
 \ No newline at end of file
 diff --git a/ceph-rgw/values.yaml b/ceph-rgw/values.yaml
-index abf9d618c..a1083265f 100644
+index 440d848bb..0d03501c7 100644
 --- a/ceph-rgw/values.yaml
 +++ b/ceph-rgw/values.yaml
 @@ -35,6 +35,7 @@ images:
-     ks_endpoints: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
-     ks_service: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
-     ks_user: 'docker.io/openstackhelm/heat:2024.1-ubuntu_jammy'
+     ks_endpoints: 'quay.io/airshipit/openstack-client:2025.1-ubuntu_noble'
+     ks_service: 'quay.io/airshipit/openstack-client:2025.1-ubuntu_noble'
+     ks_user: 'quay.io/airshipit/openstack-client:2025.1-ubuntu_noble'
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    local_registry:
      active: false
@@ -297,18 +299,18 @@ index 000000000..db570af64
 +{{- end }}
 \ No newline at end of file
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index 5246c20f8..4c7d5b4c4 100644
+index e84433e4e..1c12e025a 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
-@@ -61,6 +61,7 @@ images:
-     cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+@@ -62,6 +62,7 @@ images:
+     cinder_backup_storage_init: quay.io/airshipit/ceph-config-helper:latest-ubuntu_jammy
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -1479,6 +1480,7 @@ manifests:
+@@ -1527,6 +1528,7 @@ manifests:
    deployment_scheduler: true
    deployment_volume: true
    ingress_api: true
@@ -342,18 +344,18 @@ index 000000000..2e4f2e11f
 +{{- end }}
 \ No newline at end of file
 diff --git a/glance/values.yaml b/glance/values.yaml
-index 31a0cafe7..5e784d733 100644
+index 10cec9f84..4a9bd4ec9 100644
 --- a/glance/values.yaml
 +++ b/glance/values.yaml
 @@ -50,6 +50,7 @@ images:
-     bootstrap: quay.io/airshipit/heat:2024.1-ubuntu_jammy
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     bootstrap: quay.io/airshipit/openstack-client:2025.1-ubuntu_noble
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -1047,6 +1048,7 @@ manifests:
+@@ -1066,6 +1067,7 @@ manifests:
    configmap_etc: true
    deployment_api: true
    ingress_api: true
@@ -387,18 +389,18 @@ index 000000000..0e4424dae
 +{{- end }}
 \ No newline at end of file
 diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
-index 4454e7d8c..30e90cc91 100644
+index 5744739f9..d527281d4 100644
 --- a/gnocchi/values.yaml
 +++ b/gnocchi/values.yaml
 @@ -52,6 +52,7 @@ images:
      gnocchi_metricd: quay.io/attcomdev/ubuntu-source-gnocchi-metricd:3.0.3
      gnocchi_resources_cleaner: quay.io/attcomdev/ubuntu-source-gnocchi-base:3.0.3
-     image_repo_sync: docker.io/library/docker:17.07.0
+     image_repo_sync: quay.io/airshipit/docker:27.5.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -639,6 +640,7 @@ manifests:
+@@ -651,6 +652,7 @@ manifests:
    daemonset_statsd: true
    deployment_api: true
    ingress_api: true
@@ -432,21 +434,21 @@ index 000000000..be97d27d5
 +{{- end }}
 \ No newline at end of file
 diff --git a/heat/values.yaml b/heat/values.yaml
-index 814f62aa6..5692177cc 100644
+index 3a89b35a4..32491dbc5 100644
 --- a/heat/values.yaml
 +++ b/heat/values.yaml
-@@ -58,6 +58,7 @@ images:
-     heat_purge_deleted: quay.io/airshipit/heat:2024.1-ubuntu_jammy
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+@@ -54,6 +54,7 @@ images:
+     heat_purge_deleted: quay.io/airshipit/heat:2025.1-ubuntu_noble
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -1293,6 +1294,7 @@ manifests:
+@@ -1228,6 +1229,7 @@ manifests:
+   deployment_engine: true
    ingress_api: true
    ingress_cfn: true
-   ingress_cloudwatch: false
 +  job_pre_apply_cleanup: true
    job_bootstrap: true
    job_db_init: true
@@ -577,18 +579,18 @@ index 000000000..258ad6f39
 +{{- end }}
 \ No newline at end of file
 diff --git a/horizon/values.yaml b/horizon/values.yaml
-index 1146acfac..81ca1bb5c 100644
+index c1c86a860..f5176f6ff 100644
 --- a/horizon/values.yaml
 +++ b/horizon/values.yaml
 @@ -25,6 +25,7 @@ images:
-     test: docker.io/openstackhelm/osh-selenium:latest-ubuntu_jammy
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     test: quay.io/airshipit/osh-selenium:latest-ubuntu_noble
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -1394,6 +1395,7 @@ manifests:
+@@ -1384,6 +1385,7 @@ manifests:
    configmap_logo: false
    deployment: true
    ingress_api: true
@@ -622,18 +624,18 @@ index 000000000..34c6af542
 +{{- end }}
 \ No newline at end of file
 diff --git a/ironic/values.yaml b/ironic/values.yaml
-index fb3e01f39..e1a877948 100644
+index c9ca1ce3b..76d129ab3 100644
 --- a/ironic/values.yaml
 +++ b/ironic/values.yaml
-@@ -53,6 +53,7 @@ images:
-     ironic_pxe_http: docker.io/nginx:1.13.3
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+@@ -50,6 +50,7 @@ images:
+     ironic_pxe_http: docker.io/nginx:1.29.8
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -808,6 +809,7 @@ manifests:
+@@ -874,6 +875,7 @@ manifests:
    configmap_etc: true
    deployment_api: true
    ingress_api: true
@@ -667,18 +669,18 @@ index 000000000..259ef91f7
 +{{- end }}
 \ No newline at end of file
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index e642d1cb4..ee2039197 100644
+index 2349d4d78..c210ba7f9 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
-@@ -52,6 +52,7 @@ images:
-     keystone_domain_manage: quay.io/airshipit/keystone:2024.1-ubuntu_jammy
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+@@ -48,6 +48,7 @@ images:
+     keystone_domain_manage: quay.io/airshipit/keystone:2025.1-ubuntu_noble
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -1125,6 +1126,7 @@ manifests:
+@@ -1151,6 +1152,7 @@ manifests:
    cron_fernet_rotate: true
    deployment_api: true
    ingress_api: true
@@ -712,18 +714,18 @@ index 000000000..7c44fd2b2
 +{{- end }}
 \ No newline at end of file
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index 6fa3619c2..49c6f8d88 100644
+index cd587fa4a..d0e0567e4 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
-@@ -33,6 +33,7 @@ images:
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
-     image_repo_sync: docker.io/library/docker:17.07.0
+@@ -32,6 +32,7 @@ images:
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
+     image_repo_sync: quay.io/airshipit/docker:27.5.0
      kubectl: docker.io/bitnami/kubectl:latest
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -400,6 +401,7 @@ manifests:
+@@ -398,6 +399,7 @@ manifests:
    configmap_bin: true
    configmap_etc: true
    daemonset_libvirt: true
@@ -757,18 +759,18 @@ index 000000000..4c2cef3bb
 +{{- end }}
 \ No newline at end of file
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index c0e30a040..37e0fa75d 100644
+index c59f25078..44bd2e6d9 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
 @@ -30,6 +30,7 @@ images:
-     ks_user: docker.io/openstackhelm/heat:wallaby-ubuntu_focal
-     scripted_test: docker.io/openstackhelm/mariadb:ubuntu_focal-20210415
-     mariadb_controller: docker.io/openstackhelm/mariadb:latest-ubuntu_jammy
+     ks_user: quay.io/airshipit/openstack-client:2025.1-ubuntu_noble
+     scripted_test: quay.io/airshipit/mariadb:latest-ubuntu_noble
+     mariadb_controller: quay.io/airshipit/mariadb:latest-ubuntu_noble
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -708,6 +709,7 @@ manifests:
+@@ -706,6 +707,7 @@ manifests:
    configmap_bin: true
    configmap_etc: true
    configmap_services_tcp: true
@@ -802,18 +804,18 @@ index 000000000..f2d125787
 +{{- end }}
 \ No newline at end of file
 diff --git a/memcached/values.yaml b/memcached/values.yaml
-index b56313100..fe0705b74 100644
+index 21ea2fbc2..a4367fc56 100644
 --- a/memcached/values.yaml
 +++ b/memcached/values.yaml
-@@ -126,6 +126,7 @@ images:
-     memcached: 'docker.io/library/memcached:1.5.5'
-     prometheus_memcached_exporter: docker.io/prom/memcached-exporter:v0.4.1
-     image_repo_sync: docker.io/library/docker:17.07.0
+@@ -117,6 +117,7 @@ images:
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
+     memcached: 'quay.io/airshipit/memcached:1.6.32'
+     image_repo_sync: quay.io/airshipit/docker:27.5.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    local_registry:
      active: false
      exclude:
-@@ -141,6 +142,7 @@ labels:
+@@ -132,6 +133,7 @@ labels:
  manifests:
    configmap_bin: true
    statefulset: true
@@ -847,18 +849,18 @@ index 000000000..6fd7c757b
 +{{- end }}
 \ No newline at end of file
 diff --git a/neutron/values.yaml b/neutron/values.yaml
-index 688613ce7..62275fb87 100644
+index eca9e25d5..0242ada19 100644
 --- a/neutron/values.yaml
 +++ b/neutron/values.yaml
-@@ -49,6 +49,7 @@ images:
-     neutron_netns_cleanup_cron: quay.io/airshipit/neutron:2024.1-ubuntu_jammy
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+@@ -50,6 +50,7 @@ images:
+     neutron_netns_cleanup_cron: quay.io/airshipit/neutron:2025.1-ubuntu_noble
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -2656,6 +2657,7 @@ manifests:
+@@ -2725,6 +2726,7 @@ manifests:
    deployment_server: true
    deployment_rpc_server: true
    ingress_server: true
@@ -892,18 +894,18 @@ index 000000000..0eb2fbaa2
 +{{- end }}
 \ No newline at end of file
 diff --git a/nova/values.yaml b/nova/values.yaml
-index ba5f5bb74..e92547c59 100644
+index 8f3a81972..3d62917f5 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
 @@ -88,6 +88,7 @@ images:
      test: docker.io/xrally/xrally-openstack:2.0.0
      image_repo_sync: docker.io/docker:17.07.0
-     nova_wait_for_computes_init: gcr.io/google_containers/hyperkube-amd64:v1.11.6
+     nova_wait_for_computes_init: quay.io/airshipit/ceph-config-helper:latest-ubuntu_jammy
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    local_registry:
      active: false
      exclude:
-@@ -2665,6 +2666,7 @@ manifests:
+@@ -2742,6 +2743,7 @@ manifests:
    ingress_serialproxy: true
    ingress_spiceproxy: true
    ingress_osapi: true
@@ -937,18 +939,18 @@ index 000000000..3a29b2391
 +{{- end }}
 \ No newline at end of file
 diff --git a/openvswitch/values.yaml b/openvswitch/values.yaml
-index 5f9ee7d57..19a0780c5 100644
+index a0ae7be1f..c1725cda8 100644
 --- a/openvswitch/values.yaml
 +++ b/openvswitch/values.yaml
 @@ -24,6 +24,7 @@ images:
-     openvswitch_vswitchd: docker.io/openstackhelm/openvswitch:latest-ubuntu_focal
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
-     image_repo_sync: docker.io/library/docker:17.07.0
+     openvswitch_vswitchd: quay.io/airshipit/openvswitch:latest-ubuntu_noble
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
+     image_repo_sync: quay.io/airshipit/docker:27.5.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -206,6 +207,7 @@ manifests:
+@@ -207,6 +208,7 @@ manifests:
    configmap_bin: true
    daemonset: true
    daemonset_ovs_vswitchd: true
@@ -982,18 +984,18 @@ index 000000000..6cbf5c847
 +{{- end }}
 \ No newline at end of file
 diff --git a/placement/values.yaml b/placement/values.yaml
-index 66df39ed3..09a377718 100644
+index 1f030605e..366f9604f 100644
 --- a/placement/values.yaml
 +++ b/placement/values.yaml
 @@ -40,6 +40,7 @@ images:
-     placement_db_sync: quay.io/airshipit/placement:2024.1-ubuntu_jammy
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
+     placement_db_sync: quay.io/airshipit/placement:2025.1-ubuntu_noble
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
      image_repo_sync: docker.io/docker:17.07.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    local_registry:
      active: false
      exclude:
-@@ -451,6 +452,7 @@ manifests:
+@@ -472,6 +473,7 @@ manifests:
    configmap_bin: true
    configmap_etc: true
    deployment: true
@@ -1027,18 +1029,18 @@ index 000000000..1ac2ad766
 +{{- end }}
 \ No newline at end of file
 diff --git a/prometheus-openstack-exporter/values.yaml b/prometheus-openstack-exporter/values.yaml
-index c520b2831..3708f5464 100644
+index 63a909ddd..e1df444b2 100644
 --- a/prometheus-openstack-exporter/values.yaml
 +++ b/prometheus-openstack-exporter/values.yaml
 @@ -21,6 +21,7 @@ images:
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
-     image_repo_sync: docker.io/library/docker:17.07.0
-     ks_user: docker.io/openstackhelm/heat:2024.1-ubuntu_jammy
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
+     image_repo_sync: quay.io/airshipit/docker:27.5.0
+     ks_user: quay.io/airshipit/openstack-client:2025.1-ubuntu_noble
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: IfNotPresent
    local_registry:
      active: false
-@@ -241,6 +242,7 @@ manifests:
+@@ -253,6 +254,7 @@ manifests:
    certificates: false
    configmap_bin: true
    deployment: true
@@ -1072,18 +1074,18 @@ index 000000000..428d7c01e
 +{{- end }}
 \ No newline at end of file
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index 1f8f44174..322b7dae6 100644
+index ffa48c66d..d327a39df 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
-@@ -40,6 +40,7 @@ images:
-     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_focal
-     scripted_test: docker.io/library/rabbitmq:3.13.0-management
-     image_repo_sync: docker.io/library/docker:17.07.0
+@@ -35,6 +35,7 @@ images:
+     dep_check: quay.io/airshipit/kubernetes-entrypoint:latest-ubuntu_noble
+     scripted_test: quay.io/airshipit/rabbitmq:3.10.18-management
+     image_repo_sync: quay.io/airshipit/docker:27.5.0
 +    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
    pull_policy: "IfNotPresent"
    local_registry:
      active: false
-@@ -480,6 +481,7 @@ manifests:
+@@ -402,6 +403,7 @@ manifests:
    configmap_etc: true
    config_ipv6: false
    ingress_management: true
@@ -1092,5 +1094,5 @@ index 1f8f44174..322b7dae6 100644
    job_image_repo_sync: true
    monitoring:
 -- 
-2.43.0
+2.34.1
 

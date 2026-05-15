@@ -10,15 +10,17 @@ dummy/example config and even on Ceph deployments it
 is not really used.
 
 Signed-off-by: vrochalo <Vinicius.RochaLobo@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  cinder/values.yaml | 18 +-----------------
  1 file changed, 1 insertion(+), 17 deletions(-)
 
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index 46c5fce38..2fb2064a8 100644
+index b382f9848..af9297917 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
-@@ -928,23 +928,7 @@ conf:
+@@ -970,23 +970,7 @@ conf:
          apply-to: all
          pattern: '^(?!(amq\.|reply_)).*'
  

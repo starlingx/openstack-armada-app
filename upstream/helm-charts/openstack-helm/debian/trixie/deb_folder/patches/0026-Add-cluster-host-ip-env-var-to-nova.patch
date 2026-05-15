@@ -31,6 +31,8 @@ consistent with what was previously implemented for Nova, with the
 addition of retrieving the pod IP from Kubernetes itself instead of
 passing it via an override.
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  libvirt/templates/daemonset-libvirt.yaml |  5 +++
  libvirt/values.yaml                      |  6 ++-
@@ -39,7 +41,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  4 files changed, 66 insertions(+), 4 deletions(-)
 
 diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
-index 6acbb2709..7f1ad15ea 100644
+index ceb22ca57..26b0b842e 100644
 --- a/libvirt/templates/daemonset-libvirt.yaml
 +++ b/libvirt/templates/daemonset-libvirt.yaml
 @@ -101,6 +101,11 @@ spec:
@@ -55,10 +57,10 @@ index 6acbb2709..7f1ad15ea 100644
              - name: pod-tmp
                mountPath: /tmp
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index 47511663a..186336252 100644
+index d0e0567e4..055ef6c41 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
-@@ -122,7 +122,7 @@ conf:
+@@ -117,7 +117,7 @@ conf:
    dynamic_options:
      libvirt:
        listen_interface: null
@@ -67,7 +69,7 @@ index 47511663a..186336252 100644
      script: |
        #!/bin/bash
        set -ex
-@@ -133,8 +133,12 @@ conf:
+@@ -128,8 +128,12 @@ conf:
  
        LISTEN_INTERFACE="{{ .Values.conf.dynamic_options.libvirt.listen_interface }}"
        LISTEN_IP_ADDRESS=$(ip address show $LISTEN_INTERFACE | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}')
@@ -81,7 +83,7 @@ index 47511663a..186336252 100644
  
        if [[ -z $LISTEN_IP_ADDRESS ]]; then
 diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
-index 702e3b921..116f41a61 100644
+index a1a91015e..6b6385c9d 100644
 --- a/nova/templates/bin/_nova-compute.sh.tpl
 +++ b/nova/templates/bin/_nova-compute.sh.tpl
 @@ -16,8 +16,57 @@ limitations under the License.
@@ -144,7 +146,7 @@ index 702e3b921..116f41a61 100644
        --config-file /tmp/pod-shared/nova-console.conf \
  {{- end }}
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 0e73eed71..9daf936c8 100644
+index 905986ee7..f1b08da12 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
 @@ -18,7 +18,7 @@ exec:
@@ -153,19 +155,19 @@ index 0e73eed71..9daf936c8 100644
      - --config-file
 -    - /etc/nova/nova.conf
 +    - /tmp/pod-shared/nova.conf
+     - --config-dir
+     - /etc/nova/nova.conf.d
      - --service-queue-name
-     - compute
-     - --liveness-probe
-@@ -33,7 +33,7 @@ exec:
+@@ -35,7 +35,7 @@ exec:
      - python
      - /tmp/health-probe.py
      - --config-file
 -    - /etc/nova/nova.conf
 +    - /tmp/pod-shared/nova.conf
+     - --config-dir
+     - /etc/nova/nova.conf.d
      - --service-queue-name
-     - compute
-     {{- if .Values.pod.use_fqdn.compute }}
-@@ -313,6 +313,10 @@ spec:
+@@ -312,6 +312,10 @@ spec:
                value: "{{ .Values.pod.probes.rpc_timeout }}"
              - name: RPC_PROBE_RETRIES
                value: "{{ .Values.pod.probes.rpc_retries }}"

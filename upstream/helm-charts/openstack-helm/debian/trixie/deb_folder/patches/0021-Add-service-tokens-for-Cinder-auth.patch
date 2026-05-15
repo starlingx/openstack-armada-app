@@ -21,23 +21,25 @@ Signed-off-by: Lucas de Ataides <lucas.deataidesbarreto@windriver.com>
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Reduced to a single addition (auth_url) since
+auth_type is already present in Gazpacho base.
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
- nova/values.yaml | 2 ++
- 1 file changed, 2 insertions(+)
+ nova/values.yaml | 1 +
+ 1 file changed, 1 insertion(+)
 
 diff --git a/nova/values.yaml b/nova/values.yaml
-index 45613eb42..f330471d8 100644
+index fae1484cb..11eb1c99d 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -1471,6 +1471,8 @@ conf:
-       auth_version: v3
+@@ -1480,6 +1480,7 @@ conf:
      cinder:
+       auth_type: password
        catalog_info: volumev3::internalURL
 +      auth_url: null
-+      auth_type: password
      database:
        max_retries: -1
-     api_database:
+       # -- Database connection URI. When empty the URI is auto-generated
 -- 
-2.43.0
-
+2.34.1

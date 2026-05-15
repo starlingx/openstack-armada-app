@@ -16,11 +16,12 @@ the corresponding HelmRelease installations to fail.
 
 Change-Id: Ie64bf9b2f61cad05a281262a422fdae9162a742e
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
- cinder/templates/ingress-api.yaml        | 2 +-
- cinder/templates/secret-ingress-tls.yaml | 2 +-
- placement/values.yaml                    | 6 ++++++
- 3 files changed, 8 insertions(+), 2 deletions(-)
+ cinder/templates/ingress-api.yaml | 2 +-
+ placement/values.yaml             | 6 ++++++
+ 2 files changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/cinder/templates/ingress-api.yaml b/cinder/templates/ingress-api.yaml
 index a514adfde..be8c04d06 100644
@@ -34,22 +35,11 @@ index a514adfde..be8c04d06 100644
 +{{- $ingressOpts := dict "envAll" . "backendServiceType" "volumev3" "backendPort" "c-api" -}}
  {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
  {{- end }}
-diff --git a/cinder/templates/secret-ingress-tls.yaml b/cinder/templates/secret-ingress-tls.yaml
-index 6a185b29c..f298d67bf 100644
---- a/cinder/templates/secret-ingress-tls.yaml
-+++ b/cinder/templates/secret-ingress-tls.yaml
-@@ -13,5 +13,5 @@ limitations under the License.
- */}}
- 
- {{- if .Values.manifests.secret_ingress_tls }}
--{{- include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendServiceType" "volume" ) }}
-+{{- include "helm-toolkit.manifests.secret_ingress_tls" ( dict "envAll" . "backendServiceType" "volumev3" ) }}
- {{- end }}
 diff --git a/placement/values.yaml b/placement/values.yaml
-index dd0ee4e07..a34161e5c 100644
+index 63b70ddd5..c6fcad0b0 100644
 --- a/placement/values.yaml
 +++ b/placement/values.yaml
-@@ -63,6 +63,12 @@ network:
+@@ -64,6 +64,12 @@ network:
        port: 30778
  
  conf:

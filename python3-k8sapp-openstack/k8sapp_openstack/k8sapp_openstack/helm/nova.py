@@ -67,7 +67,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     SERVICE_FQDN = 'nova-api-internal'
     SERVICE_NAME = app_constants.HELM_CHART_NOVA
     AUTH_USERS = ['nova']
-    SERVICE_USERS = ['neutron', 'ironic', 'placement', 'cinder']
+    SERVICE_USERS = ['neutron', 'ironic', 'placement', 'cinder', 'service']
     NOVNCPROXY_SERVICE_NAME = 'novncproxy'
     NOVNCPROXY_TLS_NAME = 'nova-novncproxy'
     NOVNCPROXY_NODE_PORT = '30680'

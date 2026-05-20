@@ -1,6 +1,6 @@
 {{/*
 #
-# Copyright (c) 2018 Wind River Systems, Inc.
+# Copyright (c) 2018-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -16,4 +16,6 @@ metadata:
 data:
   nova-api-proxy.sh: |
 {{ tuple "bin/_nova-api-proxy.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+  ks-endpoints.sh: |
+{{ include "helm-toolkit.scripts.keystone_endpoints" . | indent 4 }}
 {{- end }}

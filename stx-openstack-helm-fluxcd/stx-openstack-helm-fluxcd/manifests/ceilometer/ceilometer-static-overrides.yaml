@@ -86,7 +86,7 @@ conf:
       expiration_time: 86400
     polling:
       enable_prometheus_exporter: true
-      prometheus_listen_addresses: 0.0.0.0:9101
+      prometheus_listen_addresses: "[::]:9101"
     compute:
       resource_update_interval: 60
       instance_discovery_method: workload_partitioning

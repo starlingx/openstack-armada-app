@@ -49,3 +49,4 @@
 0049-Fix-cold-migration-on-IPv6-deployments.patch
 0050-Add-tolerations-to-prometheus-openstack-exporter-pods.patch
 0051-Fix-keystone-openrc-secret-encoding.patch
+0052-ceilometer-Wire-tlsSecret-to-ks-bootstrap-Jobs.patch

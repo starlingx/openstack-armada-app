@@ -1,11 +1,11 @@
 ---
 debname: python-glanceclient
-debver: 4.8.0-2
+debver: 4.11.0-2
 dl_path:
-  name: python-glanceclient-debian-4.8.0-2.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-glanceclient/-/archive/debian/4.8.0-2/python-glanceclient-debian-4.8.0-2.tar.gz
-  md5sum: 983fd7a7a3ec2cd988fcec084f81c125
-  sha256sum: 05c8033ca1bb1efcdadf3f2bba9c94006b595ffda2f552754e84a109e1fefa91
+  name: python-glanceclient-debian-4.11.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-glanceclient/-/archive/debian/4.11.0-2/python-glanceclient-debian-4.11.0-2.tar.gz
+  md5sum: 8e1580102fe99f1a44762d7f8c1f0d64
+  sha256sum: fe7e73e4e501f58396152c8b91a4108c5131f819baa3014fcd84fd8d6b235683
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

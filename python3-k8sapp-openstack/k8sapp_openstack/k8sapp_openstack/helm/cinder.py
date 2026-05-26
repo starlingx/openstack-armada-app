@@ -38,6 +38,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
     SERVICE_NAME = app_constants.HELM_CHART_CINDER
     SERVICE_TYPE = 'volume'
     AUTH_USERS = ['cinder']
+    SERVICE_USERS = ['glance', 'nova', 'swift', 'service']
 
     def _get_backup_driver_name(self, backend_name=app_constants.BACKEND_DEFAULT_BACKEND_NAME):
         return app_constants.BACKUP_BACKEND_DRIVER_MAP.get(
@@ -515,7 +516,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             'identity': {
                 'auth':
                 self._get_endpoints_identity_overrides(
-                    self.SERVICE_NAME, self.AUTH_USERS),
+                    self.SERVICE_NAME, self.AUTH_USERS, self.SERVICE_USERS),
             },
             'oslo_db': {
                 'auth': self._get_endpoints_oslo_db_overrides(

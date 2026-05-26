@@ -29,7 +29,11 @@ spec:
   upgrade:
     disableHooks: false
   dependsOn:
-    - name: horizon
+    - name: nova
+      namespace: openstack
+    - name: neutron
+      namespace: openstack
+    - name: heat
       namespace: openstack
   valuesFrom:
     - kind: Secret

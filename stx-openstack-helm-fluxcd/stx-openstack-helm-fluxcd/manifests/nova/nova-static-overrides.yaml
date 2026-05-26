@@ -173,6 +173,7 @@ bootstrap:
         WAIT_AFTER_READY=0
         SLEEP=5
         while [[ $HYPERVISOR_WAIT == true ]]; do
+          date '+%Y-%m-%d %H:%M:%S.%3N'
           # Its possible that openstack command may fail due to not being able to
           # reach the compute service
           set +e
@@ -185,7 +186,7 @@ bootstrap:
             if [[ $PERCENT_READY == 100 ]]; then
               HYPERVISOR_WAIT=false
               echo "All hypervisors are ready."
-            elif [[ WAIT_AFTER_READY -ge $REMAINING_WAIT ]]; then
+            elif [[ $WAIT_AFTER_READY -ge $REMAINING_WAIT ]]; then
               HYPERVISOR_WAIT=false
               echo "Waited the configured time -- $HYPERVISORS out of $COMPUTE_HOSTS hypervisor(s) ready -- proceeding with the bootstrap."
             else
@@ -212,6 +213,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+        haproxy.org/path-rewrite: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -225,6 +227,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+        haproxy.org/path-rewrite: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -237,6 +240,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+        haproxy.org/path-rewrite: /
     node_port:
       enabled: false
       port: 30680
@@ -248,6 +252,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+        haproxy.org/path-rewrite: /
     node_port:
       enabled: false
       port: 30683
@@ -259,6 +264,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+        haproxy.org/path-rewrite: /
     node_port:
       enabled: false
       port: 30682
@@ -340,6 +346,8 @@ dependencies:
         - endpoint: internal
           service: identity
     bootstrap:
+      jobs:
+        - nova-cell-setup
       services:
         - endpoint: internal
           service: identity
@@ -1411,6 +1419,12 @@ conf:
       ram_allocation_ratio: 1.0
       disk_allocation_ratio: 1.0
       cpu_allocation_ratio: 16.0
+      # Pin concurrency options to Epoxy defaults to avoid behavioral
+      # changes introduced in Gazpacho.
+      max_concurrent_live_migrations: 1
+      sync_power_state_pool_size: 5
+      max_concurrent_builds: 10
+      max_concurrent_snapshots: 5
       state_path: /var/lib/nova
       instances_path: /var/lib/nova/instances
       osapi_compute_listen: "::"
@@ -1470,7 +1484,7 @@ conf:
     oslo_policy:
       policy_file: /etc/nova/policy.yaml
     oslo_concurrency:
-      lock_path: /var/lib/nova/tmp
+      lock_path: /var/lock
     oslo_middleware:
       enable_proxy_headers_parsing: true
     glance:
@@ -1488,25 +1502,28 @@ conf:
       url: http://neutron.openstack.svc.cluster.local:80/
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     cinder:
+      auth_type: password
       catalog_info: volumev3::internalURL
       endpoint_template: http://cinder.openstack.svc.cluster.local:80/v3/%(project_id)s
       auth_url: null
-      auth_type: password
     database:
       max_retries: -1
       idle_timeout: 60
       max_overflow: 64
       max_pool_size: 1
+      connection: ""
     api_database:
       max_retries: -1
       idle_timeout: 60
       max_overflow: 64
       max_pool_size: 1
+      connection: ""
     cell0_database:
       max_retries: -1
       idle_timeout: 60
       max_overflow: 64
       max_pool_size: 1
+      connection: ""
     keystone_authtoken:
       service_token_roles: service
       service_token_roles_required: true
@@ -1689,7 +1706,9 @@ conf:
       route-user-agent: '^kube-probe.* donotlog:'
       thunder-lock: true
       worker-reload-mercy: 80
-      wsgi-file: /var/lib/openstack/bin/nova-api-wsgi
+      module: nova.wsgi.osapi_compute:application
+      stats: 0.0.0.0:1717
+      stats-http: true
   nova_metadata_uwsgi:
     uwsgi:
       add-header: "Connection: close"
@@ -1705,7 +1724,9 @@ conf:
       route-user-agent: '^kube-probe.* donotlog:'
       thunder-lock: true
       worker-reload-mercy: 80
-      wsgi-file: /var/lib/openstack/bin/nova-metadata-wsgi
+      module: nova.wsgi.metadata:application
+      stats: 0.0.0.0:1717
+      stats-http: true
   ssh: |
     Host *
       StrictHostKeyChecking no
@@ -1716,7 +1737,13 @@ secrets:
   identity:
     admin: nova-keystone-admin
     nova: nova-keystone-user
+    neutron: nova-keystone-neutron
+    placement: nova-keystone-placement
+    cinder: nova-keystone-cinder
+    ironic: nova-keystone-ironic
+    service: nova-keystone-service
     test: nova-keystone-test
+    stx_admin: nova-keystone-stx-admin
   oslo_db:
     admin: nova-db-admin
     nova: nova-db-user
@@ -1899,9 +1926,18 @@ endpoints:
         project_name: service
         user_domain_name: service
         project_domain_name: service
+      service:
+        role: admin,service
+        region_name: RegionOne
+        username: nova_service_user
+        password: password
+        project_name: service
+        user_domain_name: service
+        project_domain_name: service
       # NOTE(portdirect): the neutron user is not managed by the nova chart
       # these values should match those set in the neutron chart.
       neutron:
+        role: admin,service
         region_name: RegionOne
         project_name: service
         user_domain_name: service
@@ -1911,6 +1947,7 @@ endpoints:
       # NOTE(portdirect): the ironic user is not managed by the nova chart
       # these values should match those set in the ironic chart.
       ironic:
+        role: admin,service
         auth_type: password
         auth_version: v3
         region_name: RegionOne
@@ -1920,7 +1957,7 @@ endpoints:
         username: ironic
         password: password
       placement:
-        role: admin
+        role: admin,service
         region_name: RegionOne
         username: placement
         password: password
@@ -1971,6 +2008,22 @@ endpoints:
       api:
         default: 9292
         public: 80
+  volumev3:
+    name: cinderv3
+    hosts:
+      default: cinder-api
+      public: cinder
+    host_fqdn_override:
+      default: null
+    path:
+      default: '/v3'
+      healthcheck: /healthcheck
+    scheme:
+      default: http
+    port:
+      api:
+        default: 8776
+        public: 80
   compute:
     name: nova
     hosts:
@@ -1986,7 +2039,7 @@ endpoints:
       #     crt: null
       #     key: null
     path:
-      default: "/v2.1/%(tenant_id)s"
+      default: "/v2.1/"
     scheme:
       default: 'http'
       service: 'http'
@@ -2299,9 +2352,6 @@ pod:
         nova_compute_init:
           readOnlyRootFilesystem: true
           runAsUser: 0
-        tungstenfabric_compute_init:
-          readOnlyRootFilesystem: true
-          allowPrivilegeEscalation: false
         ceph_perms:
           readOnlyRootFilesystem: true
           runAsUser: 0
@@ -2437,6 +2487,22 @@ pod:
         - key: openstack-compute-node
           operator: Exists
           effect: NoSchedule
+  etcSources:
+    nova_compute: []
+    nova_compute_ironic: []
+    nova_api_metadata: []
+    nova_api_osapi: []
+    nova_conductor: []
+    nova_scheduler: []
+    nova_bootstrap: []
+    nova_tests: []
+    nova_novncproxy: []
+    nova_serialproxy: []
+    nova_spiceproxy: []
+    nova_db_sync: []
+    nova_archive_deleted_rows: []
+    nova_service_cleaner: []
+    nova_cell_setup: []
   mounts:
     nova_compute:
       init_container: null
@@ -2529,9 +2595,9 @@ pod:
         min_available: 0
     termination_grace_period:
       metadata:
-        timeout: 30
+        timeout: 180
       osapi:
-        timeout: 30
+        timeout: 180
   resources:
     enabled: true
     compute:
@@ -2773,6 +2839,8 @@ manifests:
   deployment_serialproxy: true
   deployment_spiceproxy: true
   deployment_scheduler: true
+  statefulset_conductor: false
+  statefulset_scheduler: false
   ingress_metadata: true
   ingress_novncproxy: true
   ingress_serialproxy: true
@@ -2799,8 +2867,10 @@ manifests:
   secret_db: true
   secret_ingress_tls: true
   secret_keystone: true
+  secret_ks_etc: true
   secret_rabbitmq: true
   secret_registry: true
+  secret_ssh: true
   service_ingress_metadata: true
   service_ingress_novncproxy: true
   service_ingress_serialproxy: true

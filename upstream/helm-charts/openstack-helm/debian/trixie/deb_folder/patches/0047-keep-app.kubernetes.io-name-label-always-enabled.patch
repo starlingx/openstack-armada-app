@@ -25,6 +25,8 @@ per Helm Chart by setting `pod.labels.include_app_kubernetes_io: false`.
 [3]https://review.opendev.org/c/openstack/openstack-helm/+/946090
 
 Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  helm-toolkit/templates/snippets/_kubernetes_metadata_labels.tpl | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)

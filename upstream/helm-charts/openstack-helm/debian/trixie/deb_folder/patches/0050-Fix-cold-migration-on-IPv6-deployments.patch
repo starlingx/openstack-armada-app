@@ -38,39 +38,19 @@ the SSH sidecar startup.
 
 Change-Id: Ia515c6b4c08147f510cec0df6348881a51210e9a
 Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
- nova/templates/bin/_nova-compute.sh.tpl      |  8 +++-
- nova/templates/bin/_nova-compute-init.sh.tpl | 44 +++++++++++++++++---
- nova/templates/bin/_ssh-start.sh.tpl         | 27 ++++++++++--
- 3 files changed, 110 insertions(+), 11 deletions(-)
-
-diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
-index 48764d734..7a0e1fd96 100644
---- a/nova/templates/bin/_nova-compute.sh.tpl
-+++ b/nova/templates/bin/_nova-compute.sh.tpl
-@@ -36,10 +36,16 @@ function start () {
- 
-     # Set fields to replace with cluster host ip
-     declare -A CONFIG_CHANGES
-+{{- if not .Values.conf.hypervisor.address_search_enabled }}
-     CONFIG_CHANGES["DEFAULT.my_ip"]="$CLUSTER_HOST_IP"
-+{{- end }}
-+{{- if not .Values.console.address_search_enabled }}
-     CONFIG_CHANGES["vnc.server_listen"]="$CLUSTER_HOST_IP"
-     CONFIG_CHANGES["vnc.server_proxyclient_address"]="$CLUSTER_HOST_IP"
-+{{- end }}
-+{{- if not .Values.conf.libvirt.address_search_enabled }}
-     CONFIG_CHANGES["libvirt.live_migration_inbound_addr"]="$CLUSTER_HOST_IP"
-+{{- end }}
- 
-     # Loop through the lines of the input file
-     while IFS="=" read -r line; do
+ nova/templates/bin/_nova-compute-init.sh.tpl | 68 ++++++++++++++++++--
+ nova/templates/bin/_nova-compute.sh.tpl      |  6 ++
+ nova/templates/bin/_ssh-start.sh.tpl         | 39 ++++++++++-
+ 3 files changed, 104 insertions(+), 9 deletions(-)
 
 diff --git a/nova/templates/bin/_nova-compute-init.sh.tpl b/nova/templates/bin/_nova-compute-init.sh.tpl
-index df9f4dc81..9e689e73a 100644
+index 5218d3707..1371a25cc 100644
 --- a/nova/templates/bin/_nova-compute-init.sh.tpl
 +++ b/nova/templates/bin/_nova-compute-init.sh.tpl
-@@ -42,13 +42,41 @@ if [[ -z $migration_interface ]]; then
+@@ -37,13 +37,41 @@ if [[ -z $migration_interface ]]; then
      # search for interface with default routing
      # If there is not default gateway, exit
      migration_network_cidr="{{- .Values.conf.libvirt.live_migration_network_cidr -}}"
@@ -115,7 +95,7 @@ index df9f4dc81..9e689e73a 100644
  
  if [ -z "${migration_address}" ] ; then
    echo "Var live_migration_interface is empty"
-@@ -65,13 +81,41 @@ if [[ -z $hypervisor_interface ]]; then
+@@ -60,13 +88,41 @@ if [[ -z $hypervisor_interface ]]; then
      # search for interface with default routing
      # If there is not default gateway, exit
      hypervisor_network_cidr="{{- .Values.conf.hypervisor.host_network_cidr -}}"
@@ -160,8 +140,29 @@ index df9f4dc81..9e689e73a 100644
  
  if [ -z "${hypervisor_address}" ] ; then
    echo "Var my_ip is empty"
+diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
+index ae6a16e57..7b4535bc9 100644
+--- a/nova/templates/bin/_nova-compute.sh.tpl
++++ b/nova/templates/bin/_nova-compute.sh.tpl
+@@ -36,10 +36,16 @@ function start () {
+ 
+     # Set fields to replace with cluster host ip
+     declare -A CONFIG_CHANGES
++{{- if not .Values.conf.hypervisor.address_search_enabled }}
+     CONFIG_CHANGES["DEFAULT.my_ip"]="$CLUSTER_HOST_IP"
++{{- end }}
++{{- if not .Values.console.address_search_enabled }}
+     CONFIG_CHANGES["vnc.server_listen"]="$CLUSTER_HOST_IP"
+     CONFIG_CHANGES["vnc.server_proxyclient_address"]="$CLUSTER_HOST_IP"
++{{- end }}
++{{- if not .Values.conf.libvirt.address_search_enabled }}
+     CONFIG_CHANGES["libvirt.live_migration_inbound_addr"]="$CLUSTER_HOST_IP"
++{{- end }}
+ 
+     # Loop through the lines of the input file
+     while IFS="=" read -r line; do
 diff --git a/nova/templates/bin/_ssh-start.sh.tpl b/nova/templates/bin/_ssh-start.sh.tpl
-index feca575bc..a0e3a587b 100644
+index feca575bc..d447685b0 100644
 --- a/nova/templates/bin/_ssh-start.sh.tpl
 +++ b/nova/templates/bin/_ssh-start.sh.tpl
 @@ -28,10 +28,43 @@ IFS=''
@@ -212,4 +213,5 @@ index feca575bc..a0e3a587b 100644
  cat > /tmp/sshd_config_extend <<EOF
  ListenAddress $listen_address
 -- 
-2.43.0
+2.34.1
+

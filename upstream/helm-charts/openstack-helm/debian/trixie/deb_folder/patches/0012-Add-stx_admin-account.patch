@@ -13,6 +13,8 @@ Signed-off-by: Rafael Falcao <rafael.vieirafalcao@windriver.com>
 Change-Id: Iedcd131578f4e33efd3c3d7c47cbef83331b143a
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  keystone/templates/job-ks-user.yaml     | 29 +++++++++++++++++++++++++
  keystone/templates/secret-keystone.yaml |  2 +-
@@ -69,10 +71,10 @@ index 093a4b058..32e186fa1 100644
  ---
  apiVersion: v1
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index b7937a7ab..7d17cc425 100644
+index 5084c03f5..9f8fa727a 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
-@@ -140,6 +140,10 @@ dependencies:
+@@ -137,6 +137,10 @@ dependencies:
        services:
          - endpoint: internal
            service: oslo_db
@@ -83,7 +85,7 @@ index b7937a7ab..7d17cc425 100644
      domain_manage:
        services:
          - endpoint: internal
-@@ -892,6 +896,7 @@ secrets:
+@@ -918,6 +922,7 @@ secrets:
    identity:
      admin: keystone-keystone-admin
      test: keystone-keystone-test
@@ -91,7 +93,7 @@ index b7937a7ab..7d17cc425 100644
    oslo_db:
      admin: keystone-db-admin
      keystone: keystone-db-user
-@@ -952,6 +957,17 @@ endpoints:
+@@ -978,6 +983,17 @@ endpoints:
          user_domain_name: default
          project_domain_name: default
          default_domain_id: default
@@ -109,7 +111,7 @@ index b7937a7ab..7d17cc425 100644
        test:
          role: admin
          region_name: RegionOne
-@@ -1117,6 +1133,7 @@ manifests:
+@@ -1143,6 +1159,7 @@ manifests:
    job_domain_manage: true
    job_fernet_setup: true
    job_image_repo_sync: true
@@ -118,5 +120,5 @@ index b7937a7ab..7d17cc425 100644
    pdb_api: true
    pod_rally_test: true
 -- 
-2.43.0
+2.34.1
 

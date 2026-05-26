@@ -11,6 +11,8 @@ condition causes neutron agents pods to fail to get the host name.
 Signed-off-by: Romulo Leite <romulo.leite@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  .../bin/_neutron-dhcp-agent-init.sh.tpl       | 23 ++++++++++++++++++-
  .../bin/_neutron-l3-agent-init.sh.tpl         | 23 ++++++++++++++++++-
@@ -166,10 +168,10 @@ index 1cb25e30e..9f21dfc29 100644
  EOF
  {{- end }}
 diff --git a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
-index 8e2c25e7c..2329042a7 100644
+index 97f6e8b5d..72c14d882 100644
 --- a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
 +++ b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
-@@ -567,9 +567,30 @@ EOF
+@@ -588,9 +588,30 @@ EOF
  fi
  
  {{- if and ( empty .Values.conf.neutron.DEFAULT.host ) ( .Values.pod.use_fqdn.neutron_agent ) }}
@@ -275,5 +277,5 @@ index d98cfe8f2..0ea7f513d 100644
  {{- end }}
  
 -- 
-2.43.0
+2.34.1
 

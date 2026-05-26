@@ -5,12 +5,14 @@ Subject: [PATCH] Fix Support for TLS in openstack-helm-infra
 
 Signed-off-by: Lucas Cavalcante <lucasmedeiros.cavalcante@windriver.com>
 Change-Id: I382e0fc68c9a92c6a9570097db2c6a959525059d
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  .../templates/manifests/_secret-tls.yaml.tpl  | 100 ++++++------------
  1 file changed, 31 insertions(+), 69 deletions(-)
 
 diff --git a/helm-toolkit/templates/manifests/_secret-tls.yaml.tpl b/helm-toolkit/templates/manifests/_secret-tls.yaml.tpl
-index c8003403..ae7ee795 100644
+index c80034030..ae7ee795b 100644
 --- a/helm-toolkit/templates/manifests/_secret-tls.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_secret-tls.yaml.tpl
 @@ -15,73 +15,36 @@ limitations under the License.

@@ -6,13 +6,15 @@ Subject: [PATCH] add io_thread_pool for rabbitmq
 Signed-off-by: Bin Yang <bin.yang@intel.com>
 [ Adapt openstack-helm-infra patches to Epoxy release ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  rabbitmq/templates/statefulset.yaml | 8 ++++++++
  rabbitmq/values.yaml                | 4 ++++
  2 files changed, 12 insertions(+)
 
 diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
-index 771c5ff3c..827a83827 100644
+index 4fceca0ce..383226d41 100644
 --- a/rabbitmq/templates/statefulset.yaml
 +++ b/rabbitmq/templates/statefulset.yaml
 @@ -161,6 +161,10 @@ spec:
@@ -38,12 +40,12 @@ index 771c5ff3c..827a83827 100644
  {{ dict "envAll" $envAll "component" "rabbitmq" "container" "rabbitmq" "type" "liveness" "probeTemplate" (include "rabbitmqLivenessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | trim | indent 10 }}
            lifecycle:
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index bc2342fda..015d3d259 100644
+index 22790e508..f17a3d267 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
-@@ -469,6 +469,10 @@ volume:
- # Set helm3_hook to false while using helm2
- helm3_hook: true
+@@ -391,6 +391,10 @@ volume:
+   class_name: general
+   size: 768Mi
  
 +io_thread_pool:
 +  enabled: false

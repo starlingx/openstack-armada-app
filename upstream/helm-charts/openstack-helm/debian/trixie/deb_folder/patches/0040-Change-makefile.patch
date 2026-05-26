@@ -9,7 +9,7 @@ Change-Id: I73244001de9d50ce83de3653bef3ec297fe9c81f
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/Makefile b/Makefile
-index 5823ba349..7c5cbfec4 100644
+index 76568a44b..315ddf5c0 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -76,7 +76,7 @@ lint-%: init-%

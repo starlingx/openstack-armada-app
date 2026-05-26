@@ -16,30 +16,19 @@ https://review.openstack.org/#/c/619747
 Signed-off-by: Robert Church <robert.church@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Removed ceilometer-api.sh.tpl hunk (no longer
+present in Gazpacho); only keystone-api.sh.tpl changes remain.
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
- ceilometer/templates/bin/_ceilometer-api.sh.tpl | 3 +++
- keystone/templates/bin/_keystone-api.sh.tpl     | 6 ++----
- 2 files changed, 5 insertions(+), 4 deletions(-)
+ keystone/templates/bin/_keystone-api.sh.tpl | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
 
-diff --git a/ceilometer/templates/bin/_ceilometer-api.sh.tpl b/ceilometer/templates/bin/_ceilometer-api.sh.tpl
-index 3ba90d998..4b7745294 100644
---- a/ceilometer/templates/bin/_ceilometer-api.sh.tpl
-+++ b/ceilometer/templates/bin/_ceilometer-api.sh.tpl
-@@ -40,6 +40,9 @@ function start () {
-     fi
-   fi
- 
-+  # Get rid of stale pid file if present.
-+  rm -f /var/run/apache2/*.pid
-+
-   # Start Apache2
-   exec {{ .Values.conf.software.apache2.binary }} {{ .Values.conf.software.apache2.start_parameters }}
- }
 diff --git a/keystone/templates/bin/_keystone-api.sh.tpl b/keystone/templates/bin/_keystone-api.sh.tpl
-index d7350674e..f6216df17 100644
+index e01760fbb..8fe9f2f36 100644
 --- a/keystone/templates/bin/_keystone-api.sh.tpl
 +++ b/keystone/templates/bin/_keystone-api.sh.tpl
-@@ -41,10 +41,8 @@ function start () {
+@@ -36,10 +36,8 @@ function start () {
       source /etc/apache2/envvars
    fi
  
@@ -53,5 +42,6 @@ index d7350674e..f6216df17 100644
    # Start Apache2
    exec {{ .Values.conf.software.apache2.binary }} {{ .Values.conf.software.apache2.start_parameters }}
 -- 
-2.43.0
+2.34.1
+
 

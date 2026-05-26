@@ -32,6 +32,8 @@ to consider the proper port identification.
 [2] https://mariadb.com/docs/galera-cluster/reference/wsrep-variable-details/
     wsrep_provider_options#ist.recv_addr
 Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  mariadb/templates/bin/_start.py.tpl  | 24 ++++++++++++++++++++++--
  mariadb/templates/configmap-etc.yaml |  5 +++++
@@ -40,7 +42,7 @@ Signed-off-by: Thales Elero Cervi <thaleselero.cervi@windriver.com>
  4 files changed, 43 insertions(+), 2 deletions(-)
 
 diff --git a/mariadb/templates/bin/_start.py.tpl b/mariadb/templates/bin/_start.py.tpl
-index 90fea03f9..41213356b 100644
+index ae4dde29f..f25e29348 100644
 --- a/mariadb/templates/bin/_start.py.tpl
 +++ b/mariadb/templates/bin/_start.py.tpl
 @@ -15,6 +15,7 @@ limitations under the License.
@@ -72,7 +74,7 @@ index 90fea03f9..41213356b 100644
  logger.info("This instance IP address: {0}".format(local_ip))
  
  # Get the instance number
-@@ -274,7 +287,14 @@ def mysqld_write_cluster_conf(mode='run'):
+@@ -273,7 +286,14 @@ def mysqld_write_cluster_conf(mode='run'):
      for node in range(int(mariadb_replicas)):
          node_hostname = "{0}-{1}".format(pod_name_prefix, node)
          if local_hostname == node_hostname:
@@ -104,10 +106,10 @@ index 5367f18d9..e7bdba355 100644
  {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" ( index $envAll.Values.conf.database "99_force" ) "key" "99-force.cnf" ) | indent 2 }}
  {{- end }}
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 7a58b7165..316dc9539 100644
+index 014d393d3..b08f4f4a9 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -256,6 +256,12 @@ spec:
+@@ -258,6 +258,12 @@ spec:
                subPath: 20-override.cnf
                readOnly: true
              {{- end }}
@@ -121,10 +123,10 @@ index 7a58b7165..316dc9539 100644
                mountPath: /etc/mysql/conf.d/99-force.cnf
                subPath: 99-force.cnf
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 909afd8dc..405a1a6b4 100644
+index d52523b86..38694e284 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -493,6 +493,15 @@ conf:
+@@ -495,6 +495,15 @@ conf:
      # config_override: |-
      #   [mysqld]
      #   wsrep_slave_threads=1
@@ -140,12 +142,14 @@ index 909afd8dc..405a1a6b4 100644
      99_force: |
        [mysqld]
        datadir=/var/lib/mysql
-@@ -717,4 +726,5 @@ manifests:
+@@ -715,6 +724,7 @@ manifests:
    deployment_controller: true
    service_master: true
    job_cluster_wait: false
 +  config_ipv6: false
- ...
+ 
+ # -- Array of extra K8s manifests to deploy
+ ## Note: Supports use of custom Helm templates
 -- 
 2.34.1
 

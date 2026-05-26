@@ -8,7 +8,7 @@ Subject: [PATCH] removed section to add default daemonset to global list
  1 file changed, 4 deletions(-)
 
 diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
-index 5f769753..cce14dd6 100644
+index 5f7697532..cce14dd6e 100644
 --- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 +++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
 @@ -227,10 +227,6 @@ limitations under the License.

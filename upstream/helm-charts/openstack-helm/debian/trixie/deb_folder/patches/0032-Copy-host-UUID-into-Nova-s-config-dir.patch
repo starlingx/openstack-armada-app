@@ -21,44 +21,22 @@ Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Removed nova-compute-init.sh.tpl hunk (merged upstream).
+Reworked nova-compute.sh.tpl to use new start/stop
+function structure with --config-dir /etc/nova/nova.conf.d.
+Removed values.yaml hunk (merged upstream).
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
- nova/templates/bin/_nova-compute-init.sh.tpl |  15 +++
- nova/templates/bin/_nova-compute.sh.tpl      | 119 ++++++++++---------
- nova/templates/daemonset-compute.yaml        |   6 +
- nova/values.yaml                             |   4 +
- 4 files changed, 90 insertions(+), 54 deletions(-)
+ nova/templates/bin/_nova-compute.sh.tpl | 121 +++++++++++++-----------
+ nova/templates/daemonset-compute.yaml   |   6 ++
+ 2 files changed, 72 insertions(+), 55 deletions(-)
 
-diff --git a/nova/templates/bin/_nova-compute-init.sh.tpl b/nova/templates/bin/_nova-compute-init.sh.tpl
-index 4bc71a393..df9f4dc81 100644
---- a/nova/templates/bin/_nova-compute-init.sh.tpl
-+++ b/nova/templates/bin/_nova-compute-init.sh.tpl
-@@ -16,6 +16,21 @@ limitations under the License.
- 
- set -ex
- 
-+{{- if and .Values.hosts_uuids (not .Values.manifests.compute_uuid_self_provisioning) }}
-+
-+# Extract Host's uuid from helm chart and save it to the compute_id file
-+  {{- range $host := .Values.hosts_uuids }}
-+hostname="{{- $host.name}}"
-+compute_id_file="{{ $.Values.conf.nova.DEFAULT.state_path }}/compute_id"
-+
-+if [ "$hostname" == $HOSTNAME ]; then
-+  if [ ! -f "$compute_id_file" ]; then
-+    echo "{{ $host.uuid }}" > "$compute_id_file"
-+  fi
-+fi
-+  {{- end }}
-+{{- end }}
-+
- # Make the Nova Instances Dir as this is not autocreated.
- mkdir -p /var/lib/nova/instances
- 
 diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
-index 116f41a61..48764d734 100644
+index 6b6385c9d..ae6a16e57 100644
 --- a/nova/templates/bin/_nova-compute.sh.tpl
 +++ b/nova/templates/bin/_nova-compute.sh.tpl
-@@ -15,67 +15,78 @@ limitations under the License.
+@@ -15,68 +15,79 @@ limitations under the License.
  */}}
  
  set -ex
@@ -155,6 +133,7 @@ index 116f41a61..48764d734 100644
 -    fi
 -done < "$INPUT_FILE"
 +    exec nova-compute \
++        --config-file /tmp/pod-shared/nova.conf \
 +    {{- if .Values.console.address_search_enabled }}
 +        --config-file /tmp/pod-shared/nova-console.conf \
 +    {{- end }}
@@ -167,7 +146,7 @@ index 116f41a61..48764d734 100644
 +    {{- if .Values.conf.hypervisor.address_search_enabled }}
 +        --config-file /tmp/pod-shared/nova-hypervisor.conf \
 +    {{- end }}
-+        --config-file /tmp/pod-shared/nova.conf
++        --config-dir /etc/nova/nova.conf.d
 +}
 +
 +function stop () {
@@ -188,15 +167,15 @@ index 116f41a61..48764d734 100644
 -      --config-file /tmp/pod-shared/nova-compute-fqdn.conf \
 -{{- end }}
 -{{- if .Values.conf.hypervisor.address_search_enabled }}
--      --config-file /tmp/pod-shared/nova-hypervisor.conf
+-      --config-file /tmp/pod-shared/nova-hypervisor.conf \
 -{{- end }}
+-      --config-dir /etc/nova/nova.conf.d
 +$COMMAND
-\ No newline at end of file
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 9daf936c8..2f0266cf6 100644
+index f1b08da12..24cc59de2 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
-@@ -324,6 +324,12 @@ spec:
+@@ -323,6 +323,12 @@ spec:
  {{ dict "envAll" $envAll "component" "compute" "container" "default" "type" "liveness" "probeTemplate" (include "novaComputeLivenessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
  {{ dict "envAll" $envAll "component" "compute" "container" "default" "type" "readiness" "probeTemplate" (include "novaComputeReadinessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
  {{ dict "envAll" $envAll "component" "compute" "container" "default" "type" "startup" "probeTemplate" (include "novaComputeStartupProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
@@ -209,26 +188,6 @@ index 9daf936c8..2f0266cf6 100644
            command:
              - /tmp/nova-compute.sh
            terminationMessagePath: /var/log/termination-log
-diff --git a/nova/values.yaml b/nova/values.yaml
-index 0551266ea..61435f807 100644
---- a/nova/values.yaml
-+++ b/nova/values.yaml
-@@ -2648,6 +2648,7 @@ tls:
- 
- manifests:
-   certificates: false
-+  compute_uuid_self_provisioning: true
-   configmap_bin: true
-   configmap_etc: true
-   cron_job_cell_setup: true
-@@ -2700,4 +2701,7 @@ manifests:
-   service_spiceproxy: true
-   service_osapi: true
-   statefulset_compute_ironic: false
-+
-+# List of hosts and uuids
-+hosts_uuids: []
- ...
 -- 
-2.43.0
+2.34.1
 

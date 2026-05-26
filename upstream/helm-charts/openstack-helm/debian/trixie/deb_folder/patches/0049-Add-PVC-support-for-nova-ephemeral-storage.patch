@@ -15,17 +15,19 @@ NFS and PVC mounts are mutually exclusive in all ephemeral storage mount points.
 PVC name, size, access modes, and storage class are read from storage_conf.pvc.*.
 
 Change-Id: I3311e53ee2a97e87c40af7b79b1d230efe34a5af
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  libvirt/templates/daemonset-libvirt.yaml | 10 ++++++++++
- libvirt/values.yaml                      |  3 +++
+ libvirt/values.yaml                      |  4 ++++
  nova/templates/daemonset-compute.yaml    | 19 +++++++++++++++++++
  nova/templates/pvc-nova-ephemeral.yaml   | 23 +++++++++++++++++++++++
- nova/values.yaml                         | 17 ++++++++++++++++-
- 5 files changed, 71 insertions(+), 1 deletion(-)
+ nova/values.yaml                         | 18 +++++++++++++++++-
+ 5 files changed, 73 insertions(+), 1 deletion(-)
  create mode 100644 nova/templates/pvc-nova-ephemeral.yaml
 
 diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
-index 4a3c8e099..8f535301e 100644
+index 6e8be3557..8a65c141e 100644
 --- a/libvirt/templates/daemonset-libvirt.yaml
 +++ b/libvirt/templates/daemonset-libvirt.yaml
 @@ -33,6 +33,9 @@ exec:
@@ -48,7 +50,7 @@ index 4a3c8e099..8f535301e 100644
              {{- end }}
              - name: run
                mountPath: /run
-@@ -382,6 +388,10 @@ spec:
+@@ -367,6 +373,10 @@ spec:
            nfs:
              server: {{ .Values.storage_conf.nfs_shares.server }}
              path: {{ .Values.storage_conf.nfs_shares.path }}
@@ -60,10 +62,10 @@ index 4a3c8e099..8f535301e 100644
          - name: run
            hostPath:
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index 3ff9d35b9..8c1af4170 100644
+index 709fb23c7..a8641e513 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
-@@ -403,6 +403,10 @@ storage_conf:
+@@ -401,6 +401,10 @@ storage_conf:
      server: 127.0.0.1
      path: /openstack_instances
      instances_path: /var/lib/instances
@@ -75,20 +77,20 @@ index 3ff9d35b9..8c1af4170 100644
  manifests:
    configmap_bin: true
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index c3bfb3f13..00928f35a 100644
+index 4655a2615..156509a40 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
-@@ -67,6 +67,9 @@ exec:
+@@ -73,6 +73,9 @@ exec:
  
  {{- $mounts_nova_compute := .Values.pod.mounts.nova_compute.nova_compute }}
  {{- $mounts_nova_compute_init := .Values.pod.mounts.nova_compute.init_container }}
 +{{- $storageConf := (.Values.storage_conf | default dict) }}
 +{{- $pvc := ($storageConf.pvc | default dict) }}
 +{{- $pvcEnabled := ($pvc.enabled | default false) }}
- 
- ---
- apiVersion: apps/v1
-@@ -128,6 +131,9 @@ spec:
+ {{- $etcSources := .Values.pod.etcSources.nova_compute }}
+ {{- if eq .Values.manifests.secret_ks_etc true }}
+ {{- $etcSources = append $etcSources (dict "secret" (dict "name" "nova-ks-etc")) }}
+@@ -140,6 +143,9 @@ spec:
              {{- if .Values.storage_conf.nfs_shares.enabled }}
              - name: nfsnovainstances
                mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
@@ -98,7 +100,7 @@ index c3bfb3f13..00928f35a 100644
              {{- end }}
              - name: pod-shared
                mountPath: /tmp/pod-shared
-@@ -290,6 +296,9 @@ spec:
+@@ -289,6 +295,9 @@ spec:
              {{- if .Values.storage_conf.nfs_shares.enabled }}
              - name: nfsnovainstances
                mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
@@ -108,7 +110,7 @@ index c3bfb3f13..00928f35a 100644
              {{- end }}
              - name: nova-ssh
                mountPath: /tmp/nova-ssh/authorized_keys
-@@ -419,6 +428,9 @@ spec:
+@@ -423,6 +432,9 @@ spec:
              {{- if .Values.storage_conf.nfs_shares.enabled }}
              - name: nfsnovainstances
                mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
@@ -118,7 +120,7 @@ index c3bfb3f13..00928f35a 100644
              {{- end }}
              - name: varliblibvirt
                mountPath: /var/lib/libvirt
-@@ -520,6 +532,9 @@ spec:
+@@ -504,6 +516,9 @@ spec:
              {{- if .Values.storage_conf.nfs_shares.enabled }}
              - name: nfsnovainstances
                mountPath: {{ .Values.conf.nova.DEFAULT.instances_path }}
@@ -128,7 +130,7 @@ index c3bfb3f13..00928f35a 100644
              {{- end }}
              - name: nova-bin
                mountPath: /tmp/ssh-start.sh
-@@ -570,6 +585,10 @@ spec:
+@@ -564,6 +579,10 @@ spec:
            nfs:
              server: {{ .Values.storage_conf.nfs_shares.server }}
              path: {{ .Values.storage_conf.nfs_shares.path }}
@@ -169,10 +171,10 @@ index 000000000..bfc7924b2
 +  storageClassName: {{ $pvcVolume.class_name | quote }}
 +{{- end }}
 diff --git a/nova/values.yaml b/nova/values.yaml
-index f4a3805e6..ac1c0832f 100644
+index ed38915a7..fd987c51a 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -2648,19 +2648,35 @@ tls:
+@@ -2719,19 +2719,35 @@ tls:
    oslo_db: false
  
  storage_conf:
@@ -210,5 +212,5 @@ index f4a3805e6..ac1c0832f 100644
  manifests:
    certificates: false
 -- 
-2.43.0
+2.34.1
 

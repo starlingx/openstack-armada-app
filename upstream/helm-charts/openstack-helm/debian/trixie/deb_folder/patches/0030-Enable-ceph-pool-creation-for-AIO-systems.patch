@@ -27,5 +27,5 @@ index cb3505d48..70c71a9f4 100644
      ceph osd pool set $1 crush_rule "${RBD_POOL_CRUSH_RULE}"
    }
 -- 
-2.43.0
+2.34.1
 

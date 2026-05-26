@@ -19,6 +19,8 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
 [ Ported to 2025.1 Epoxy ]
 Signed-off-by: Murillo Arantes <murillo.arantes@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  keystone/templates/bin/_bootstrap.sh.tpl |  4 ++
  keystone/templates/configmap-bin.yaml    | 12 ++++
@@ -39,10 +41,10 @@ index c325824d8..7b268548c 100644
 +   bash /tmp/dex-bootstrap.sh
 +fi
 diff --git a/keystone/templates/configmap-bin.yaml b/keystone/templates/configmap-bin.yaml
-index 45512d3ec..d6e2af523 100644
+index 6791e91e9..f33e4fc0e 100644
 --- a/keystone/templates/configmap-bin.yaml
 +++ b/keystone/templates/configmap-bin.yaml
-@@ -55,4 +55,16 @@ data:
+@@ -54,4 +54,16 @@ data:
  {{ tuple "bin/_domain-manage.py.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
    rabbit-init.sh: |
  {{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
@@ -60,7 +62,7 @@ index 45512d3ec..d6e2af523 100644
 +{{- end }}
  {{- end }}
 diff --git a/keystone/templates/job-bootstrap.yaml b/keystone/templates/job-bootstrap.yaml
-index 37ce4a481..cae003b9b 100644
+index db53c4486..8042cb84b 100644
 --- a/keystone/templates/job-bootstrap.yaml
 +++ b/keystone/templates/job-bootstrap.yaml
 @@ -17,8 +17,14 @@ helm.sh/hook: post-install,post-upgrade
@@ -80,10 +82,10 @@ index 37ce4a481..cae003b9b 100644
  {{- $_ := set $bootstrapJob "tlsSecret" .Values.secrets.tls.identity.api.public -}}
  {{- end -}}
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index 7e43fd64c..be2e18931 100644
+index c8d9126ed..4fd87bf15 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
-@@ -567,6 +567,91 @@ conf:
+@@ -582,6 +582,91 @@ conf:
        # NOTE(vdrok): The following two options have effect only for SQL backend
        lockout_failure_attempts: 5
        lockout_duration: 1800

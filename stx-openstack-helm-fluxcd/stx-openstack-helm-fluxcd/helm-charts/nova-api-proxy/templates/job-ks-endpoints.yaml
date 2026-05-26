@@ -1,17 +1,23 @@
 {{/*
 #
-# Copyright (c) 2018 Wind River Systems, Inc.
+# Copyright (c) 2018-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 */}}
 
+{{- define "metadata.annotations.job.nova_api_proxy_ks_endpoints" }}
+helm.sh/hook: post-install,post-upgrade
+helm.sh/hook-weight: "-2"
+{{- end }}
+
 {{- if .Values.manifests.job_ks_endpoints }}
-{{- $ksServiceJob := dict "envAll" . "serviceName" "nova" "serviceTypes" ( tuple "compute" ) -}}
+{{- $ksServiceJob := dict "envAll" . "serviceName" "nova_api_proxy" "serviceTypes" ( tuple "compute" ) "configMapBin" "nova-api-proxy-bin" -}}
 {{- if .Values.manifests.certificates -}}
 {{- $_ := set $ksServiceJob "tlsSecret" .Values.secrets.tls.compute.api_proxy.public -}}
 {{- end -}}
-{{- if .Values.pod.tolerations.nova.enabled -}}
+{{- $_ := set $ksServiceJob "jobAnnotations" (include "metadata.annotations.job.nova_api_proxy_ks_endpoints" . | fromYaml) }}
+{{- if .Values.pod.tolerations.nova_api_proxy.enabled -}}
 {{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
 {{- end -}}
 {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}

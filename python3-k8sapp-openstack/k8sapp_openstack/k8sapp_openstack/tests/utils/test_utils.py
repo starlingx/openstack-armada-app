@@ -2661,3 +2661,187 @@ class NetAppCACertSecretTest(dbbase.ControllerHostTestCase):
         """Test auto_config_dex_federation returns False when user override disables dex federation."""
         result = app_utils.auto_config_dex_federation()
         self.assertFalse(result)
+
+
+class TestRecoverServer(dbbase.ControllerHostTestCase):
+    """Tests for _recover_server function."""
+
+    def setUp(self):
+        super(TestRecoverServer, self).setUp()
+        self.session = mock.MagicMock()
+        self.nova_url = "http://nova-api.openstack.svc.cluster.local:8774/v2.1"
+        self.server_id = "test-server-uuid"
+
+    def _mock_status_response(self, status):
+        resp = mock.MagicMock()
+        resp.json.return_value = {'server': {'status': status}}
+        return resp
+
+    @mock.patch('k8sapp_openstack.utils.time.sleep')
+    def test_recover_server_success(self, mock_sleep):
+        """Test successful recovery sequence."""
+        self.session.get.side_effect = [
+            self._mock_status_response(app_constants.NOVA_SERVER_ACTIVE),
+            self._mock_status_response(app_constants.NOVA_SERVER_SHUTOFF),
+            self._mock_status_response(app_constants.NOVA_SERVER_SHELVED_OFFLOADED),
+            self._mock_status_response(app_constants.NOVA_SERVER_ACTIVE),
+        ]
+
+        result = app_utils._recover_server(
+            self.session, self.nova_url, self.server_id)
+
+        self.assertTrue(result)
+        self.assertEqual(self.session.post.call_count, 4)
+
+    @mock.patch('k8sapp_openstack.utils.time.sleep')
+    def test_recover_server_post_fails(self, mock_sleep):
+        """Test recovery fails when action POST raises exception."""
+        self.session.post.side_effect = Exception("connection refused")
+
+        result = app_utils._recover_server(
+            self.session, self.nova_url, self.server_id)
+
+        self.assertFalse(result)
+        self.assertEqual(self.session.post.call_count, 1)
+
+    @mock.patch('k8sapp_openstack.utils.time.sleep')
+    def test_recover_server_timeout_waiting_status(self, mock_sleep):
+        """Test recovery fails when VM never reaches expected status."""
+        self.session.get.return_value = \
+            self._mock_status_response(app_constants.NOVA_SERVER_ERROR)
+
+        result = app_utils._recover_server(
+            self.session, self.nova_url, self.server_id)
+
+        self.assertFalse(result)
+
+    @mock.patch('k8sapp_openstack.utils.time.sleep')
+    def test_recover_server_auto_resumed(self, mock_sleep):
+        """Test recovery succeeds when compute auto-resumes after reset-state."""
+        self.session.get.side_effect = [
+            self._mock_status_response(app_constants.NOVA_SERVER_ACTIVE),
+            # After os-stop, VM is ACTIVE (compute reconnected storage)
+            self._mock_status_response(app_constants.NOVA_SERVER_ACTIVE),
+        ]
+
+        result = app_utils._recover_server(
+            self.session, self.nova_url, self.server_id)
+
+        self.assertTrue(result)
+        # Only 2 POSTs: os-resetState and os-stop (no shelve/unshelve needed)
+        self.assertEqual(self.session.post.call_count, 2)
+
+
+class TestRecoverErrorServers(dbbase.ControllerHostTestCase):
+    """Tests for recover_error_servers and _recover_error_servers_worker."""
+
+    def setUp(self):
+        super(TestRecoverErrorServers, self).setUp()
+        self.conductor_obj = mock.MagicMock()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=4)
+    @mock.patch('k8sapp_openstack.utils._recover_server', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.time.sleep')
+    @mock.patch('keystoneauth1.session.Session')
+    @mock.patch('keystoneauth1.identity.v3.Password')
+    @mock.patch('oslo_config.cfg.CONF')
+    def test_recover_error_servers_with_error_vms(
+        self, mock_conf, mock_auth, mock_session_cls,
+        mock_sleep, mock_recover, mock_get_value
+    ):
+        """Test recovery is triggered for VMs in ERROR state."""
+        mock_conf.__getitem__ = mock.MagicMock(return_value=mock.MagicMock(
+            username='admin', user_domain_name='Default',
+            project_name='admin', project_domain_name='Default'))
+
+        mock_session = mock_session_cls.return_value
+        error_response = mock.MagicMock()
+        error_response.json.return_value = {
+            'servers': [{'id': 'vm-1'}, {'id': 'vm-2'}]
+        }
+        mock_session.get.side_effect = [
+            mock.MagicMock(),  # readiness check
+            error_response,    # list error servers
+        ]
+
+        app_utils._recover_error_servers_worker(self.conductor_obj)
+
+        self.assertEqual(mock_recover.call_count, 2)
+        mock_recover.assert_any_call(mock_session, mock.ANY, 'vm-1')
+        mock_recover.assert_any_call(mock_session, mock.ANY, 'vm-2')
+
+    @mock.patch('k8sapp_openstack.utils._recover_server')
+    @mock.patch('k8sapp_openstack.utils.time.sleep')
+    @mock.patch('keystoneauth1.session.Session')
+    @mock.patch('keystoneauth1.identity.v3.Password')
+    @mock.patch('oslo_config.cfg.CONF')
+    def test_recover_error_servers_no_error_vms(
+        self, mock_conf, mock_auth, mock_session_cls,
+        mock_sleep, mock_recover
+    ):
+        """Test no recovery when no VMs in ERROR state."""
+        mock_conf.__getitem__ = mock.MagicMock(return_value=mock.MagicMock(
+            username='admin', user_domain_name='Default',
+            project_name='admin', project_domain_name='Default'))
+
+        mock_session = mock_session_cls.return_value
+        empty_response = mock.MagicMock()
+        empty_response.json.return_value = {'servers': []}
+        mock_session.get.side_effect = [
+            mock.MagicMock(),  # readiness check
+            empty_response,    # list error servers (empty)
+        ]
+
+        app_utils._recover_error_servers_worker(self.conductor_obj)
+
+        mock_recover.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils.time.sleep')
+    @mock.patch('keystoneauth1.session.Session')
+    @mock.patch('keystoneauth1.identity.v3.Password')
+    @mock.patch('oslo_config.cfg.CONF')
+    def test_recover_error_servers_nova_not_available(
+        self, mock_conf, mock_auth, mock_session_cls, mock_sleep
+    ):
+        """Test graceful skip when Nova API is not responsive."""
+        mock_conf.__getitem__ = mock.MagicMock(return_value=mock.MagicMock(
+            username='admin', user_domain_name='Default',
+            project_name='admin', project_domain_name='Default'))
+
+        mock_session = mock_session_cls.return_value
+        mock_session.get.side_effect = Exception("connection refused")
+
+        app_utils._recover_error_servers_worker(self.conductor_obj)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=4)
+    @mock.patch('k8sapp_openstack.utils._recover_server')
+    @mock.patch('k8sapp_openstack.utils.time.sleep')
+    @mock.patch('keystoneauth1.session.Session')
+    @mock.patch('keystoneauth1.identity.v3.Password')
+    @mock.patch('oslo_config.cfg.CONF')
+    def test_recover_error_servers_partial_failure(
+        self, mock_conf, mock_auth, mock_session_cls,
+        mock_sleep, mock_recover, mock_get_value
+    ):
+        """Test that failure to recover one VM does not block others."""
+        mock_conf.__getitem__ = mock.MagicMock(return_value=mock.MagicMock(
+            username='admin', user_domain_name='Default',
+            project_name='admin', project_domain_name='Default'))
+
+        mock_session = mock_session_cls.return_value
+        error_response = mock.MagicMock()
+        error_response.json.return_value = {
+            'servers': [{'id': 'vm-1'}, {'id': 'vm-2'}]
+        }
+        mock_session.get.side_effect = [
+            mock.MagicMock(),  # readiness check
+            error_response,    # list error servers
+        ]
+
+        mock_recover.side_effect = [False, True]
+
+        app_utils._recover_error_servers_worker(self.conductor_obj)
+
+        self.assertEqual(mock_recover.call_count, 2)

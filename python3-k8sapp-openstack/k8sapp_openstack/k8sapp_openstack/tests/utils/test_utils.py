@@ -2526,90 +2526,201 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         mock_log_error.error.assert_called_once()
 
 
-class NetAppCACertSecretTest(dbbase.ControllerHostTestCase):
-    """Tests for NetApp CA certificate secret management functions."""
+class StorageCACertSecretTest(dbbase.ControllerHostTestCase):
+    """Tests for storage CA certificate secret management functions."""
 
     def setUp(self):
-        super(NetAppCACertSecretTest, self).setUp()
+        super(StorageCACertSecretTest, self).setUp()
 
-    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
-                return_value='/var/opt/openstack/certs/netapp.pem')
+    @mock.patch('k8sapp_openstack.utils.get_storage_tls_host_cert',
+                return_value='/var/opt/openstack/certs/storage.pem')
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch('builtins.open', mock.mock_open(read_data='test-certificate-content'))
-    def test_create_netapp_ca_cert_secret(self, *_):
-        """Test creation and update of NetApp CA certificate secret."""
+    def test_create_storage_ca_cert_secret(self, *_):
+        """Test creation and update of storage CA certificate secret."""
         mock_kube = mock.Mock()
 
         # Test create new secret
         mock_kube.kube_get_secret.return_value = None
-        app_utils.create_netapp_ca_cert_secret(mock_kube)
+        app_utils.create_storage_ca_cert_secret(mock_kube)
         mock_kube.kube_create_secret.assert_called_once()
         secret_body = mock_kube.kube_create_secret.call_args[0][1]
-        self.assertEqual(secret_body['metadata']['name'], app_constants.NETAPP_CA_CERT_SECRET_NAME)
+        self.assertEqual(secret_body['metadata']['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
 
         # Test update existing secret
         mock_kube.reset_mock()
         mock_kube.kube_get_secret.return_value = mock.Mock()
-        app_utils.create_netapp_ca_cert_secret(mock_kube)
+        app_utils.create_storage_ca_cert_secret(mock_kube)
         mock_kube.kube_patch_secret.assert_called_once()
         mock_kube.kube_create_secret.assert_not_called()
 
-    def test_create_netapp_ca_cert_secret_skipped(self):
+    @mock.patch('k8sapp_openstack.utils.create_storage_ca_cert_secret')
+    def test_create_netapp_ca_cert_secret_deprecated_wrapper(self, mock_create_storage_secret):
+        """Test deprecated NetApp-named create wrapper uses storage CA implementation."""
+        mock_kube = mock.Mock()
+
+        app_utils.create_netapp_ca_cert_secret(mock_kube)
+
+        mock_create_storage_secret.assert_called_once_with(mock_kube)
+
+    def test_create_storage_ca_cert_secret_skipped(self):
         """Test secret not created when cert file is missing, empty, or not configured."""
         mock_kube = mock.Mock()
 
         # Test: no host cert configured
-        with mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=None):
-            app_utils.create_netapp_ca_cert_secret(mock_kube)
+        with mock.patch('k8sapp_openstack.utils.get_storage_tls_host_cert', return_value=None):
+            app_utils.create_storage_ca_cert_secret(mock_kube)
             mock_kube.kube_create_secret.assert_not_called()
 
         # Test: file not found
-        with mock.patch('k8sapp_openstack.utils._get_value_from_application',
+        with mock.patch('k8sapp_openstack.utils.get_storage_tls_host_cert',
                         return_value='/path/to/cert.pem'):
             with mock.patch('os.path.isfile', return_value=False):
-                app_utils.create_netapp_ca_cert_secret(mock_kube)
+                app_utils.create_storage_ca_cert_secret(mock_kube)
                 mock_kube.kube_create_secret.assert_not_called()
 
         # Test: empty file
-        with mock.patch('k8sapp_openstack.utils._get_value_from_application',
+        with mock.patch('k8sapp_openstack.utils.get_storage_tls_host_cert',
                         return_value='/path/to/cert.pem'):
             with mock.patch('os.path.isfile', return_value=True):
                 with mock.patch('builtins.open', mock.mock_open(read_data='')):
-                    app_utils.create_netapp_ca_cert_secret(mock_kube)
+                    app_utils.create_storage_ca_cert_secret(mock_kube)
                     mock_kube.kube_create_secret.assert_not_called()
 
+    def test_migrate_legacy_netapp_ca_cert_secret(self):
+        """Test migration from legacy netapp-ca-cert to storage-ca-cert."""
+        mock_kube = mock.Mock()
+        old_secret = mock.Mock()
+        old_secret.data = {app_constants.STORAGE_CA_CERT_SECRET_KEY: 'encoded-cert'}
+        old_secret.type = constants.K8S_SECRET_TYPE_OPAQUE
+        mock_kube.kube_get_secret.side_effect = [old_secret, None]
+
+        app_utils.migrate_legacy_netapp_ca_cert_secret(mock_kube)
+
+        mock_kube.kube_create_secret.assert_called_once()
+        secret_body = mock_kube.kube_create_secret.call_args[0][1]
+        self.assertEqual(secret_body['metadata']['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
+        self.assertEqual(secret_body['data'], old_secret.data)
+
+    def test_migrate_legacy_netapp_ca_cert_secret_skipped(self):
+        """Test migration is skipped when old secret is absent or new secret exists."""
+        mock_kube = mock.Mock()
+
+        mock_kube.kube_get_secret.side_effect = [None, None]
+        app_utils.migrate_legacy_netapp_ca_cert_secret(mock_kube)
+        mock_kube.kube_create_secret.assert_not_called()
+
+        mock_kube.reset_mock()
+        mock_kube.kube_get_secret.side_effect = [mock.Mock(), mock.Mock()]
+        app_utils.migrate_legacy_netapp_ca_cert_secret(mock_kube)
+        mock_kube.kube_create_secret.assert_not_called()
+
+        mock_kube.reset_mock()
+        mock_kube.kube_get_secret.side_effect = [mock.Mock(), None]
+        app_utils.migrate_legacy_netapp_ca_cert_secret(mock_kube)
+        mock_kube.kube_create_secret.assert_not_called()
+
     @mock.patch('sysinv.common.kubernetes.KubeOperator')
-    def test_delete_netapp_ca_cert_secret(self, mock_kube_operator):
-        """Test deletion of NetApp CA certificate secret."""
+    def test_delete_storage_ca_cert_secret(self, mock_kube_operator):
+        """Test deletion of storage and deprecated NetApp CA certificate secrets."""
         mock_kube = mock_kube_operator.return_value
 
-        # Test: delete existing secret
-        mock_kube.kube_get_secret.return_value = mock.Mock()
-        app_utils.delete_netapp_ca_cert_secret()
-        mock_kube.kube_delete_secret.assert_called_once()
+        # Test: delete existing secrets
+        mock_kube.kube_get_secret.side_effect = [mock.Mock(), mock.Mock()]
+        app_utils.delete_storage_ca_cert_secret()
+        mock_kube.kube_delete_secret.assert_has_calls([
+            mock.call(app_constants.STORAGE_CA_CERT_SECRET_NAME, app_constants.HELM_NS_OPENSTACK),
+            mock.call(app_constants.NETAPP_CA_CERT_SECRET_NAME, app_constants.HELM_NS_OPENSTACK),
+        ])
 
-        # Test: skip deletion when secret doesn't exist
+        # Test: skip deletion when secrets don't exist
         mock_kube.reset_mock()
-        mock_kube.kube_get_secret.return_value = None
-        app_utils.delete_netapp_ca_cert_secret()
+        mock_kube.kube_get_secret.side_effect = [None, None]
+        app_utils.delete_storage_ca_cert_secret()
         mock_kube.kube_delete_secret.assert_not_called()
 
+    @mock.patch('k8sapp_openstack.utils.delete_storage_ca_cert_secret')
+    def test_delete_netapp_ca_cert_secret_deprecated_wrapper(self, mock_delete_storage_secret):
+        """Test deprecated NetApp-named delete wrapper uses storage CA implementation."""
+        app_utils.delete_netapp_ca_cert_secret()
+
+        mock_delete_storage_secret.assert_called_once_with()
+
     @mock.patch('sysinv.common.kubernetes.KubeOperator')
-    def test_is_netapp_ca_cert_secret_available(self, mock_kube_operator):
-        """Test checking if NetApp CA certificate secret exists."""
+    def test_is_storage_ca_cert_secret_available(self, mock_kube_operator):
+        """Test checking if storage or deprecated NetApp CA certificate secret exists."""
         mock_kube = mock_kube_operator.return_value
 
-        # Test: secret exists
-        mock_kube.kube_get_secret.return_value = mock.Mock()
-        self.assertTrue(app_utils.is_netapp_ca_cert_secret_available())
+        # Test: storage secret exists
+        mock_kube.kube_get_secret.side_effect = [mock.Mock()]
+        self.assertTrue(app_utils.is_storage_ca_cert_secret_available())
 
-        # Test: secret doesn't exist
-        mock_kube.kube_get_secret.return_value = None
-        self.assertFalse(app_utils.is_netapp_ca_cert_secret_available())
+        # Test: deprecated NetApp secret exists
+        mock_kube.kube_get_secret.side_effect = [None, mock.Mock()]
+        self.assertTrue(app_utils.is_storage_ca_cert_secret_available())
+
+        # Test: secrets don't exist
+        mock_kube.kube_get_secret.side_effect = [None, None]
+        self.assertFalse(app_utils.is_storage_ca_cert_secret_available())
 
         # Test: exception handling
         mock_kube.kube_get_secret.side_effect = Exception("Kubernetes error")
-        self.assertFalse(app_utils.is_netapp_ca_cert_secret_available())
+        self.assertFalse(app_utils.is_storage_ca_cert_secret_available())
+
+    @mock.patch('k8sapp_openstack.utils.is_storage_ca_cert_secret_available', return_value=True)
+    def test_is_netapp_ca_cert_secret_available_deprecated_wrapper(self, mock_secret_available):
+        """Test deprecated NetApp-named availability wrapper uses storage CA implementation."""
+        self.assertTrue(app_utils.is_netapp_ca_cert_secret_available())
+
+        mock_secret_available.assert_called_once_with()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_storage_tls_host_cert(self, mock_get_value):
+        """Test storage TLS host cert uses new override before deprecated fallback."""
+        mock_get_value.return_value = '/var/opt/openstack/certs/storage.pem'
+        self.assertEqual('/var/opt/openstack/certs/storage.pem', app_utils.get_storage_tls_host_cert())
+        mock_get_value.assert_called_once_with(
+            default_value=None,
+            chart_name=app_constants.HELM_CHART_CINDER,
+            override_name=app_constants.OVERRIDE_STORAGE_TLS_HOST_CERT
+        )
+
+        mock_get_value.reset_mock()
+        mock_get_value.side_effect = [None, '/var/opt/openstack/certs/netapp.pem']
+        self.assertEqual('/var/opt/openstack/certs/netapp.pem', app_utils.get_storage_tls_host_cert())
+        self.assertEqual(mock_get_value.call_count, 2)
+
+        mock_get_value.reset_mock()
+        mock_get_value.side_effect = [None, None]
+        self.assertEqual(app_constants.STORAGE_TLS_DEFAULT_HOST_CERT, app_utils.get_storage_tls_host_cert())
+        self.assertEqual(mock_get_value.call_count, 2)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_get_storage_tls_container_certs(self, mock_get_value):
+        """Test storage TLS container cert paths normalize new list and deprecated string."""
+        mock_get_value.return_value = ['/usr/lib/ssl/cert.pem', '/etc/ssl/certs/storage.pem']
+        self.assertEqual(
+            ['/usr/lib/ssl/cert.pem', '/etc/ssl/certs/storage.pem'],
+            app_utils.get_storage_tls_container_certs()
+        )
+        mock_get_value.assert_called_once_with(
+            default_value=None,
+            chart_name=app_constants.HELM_CHART_CINDER,
+            override_name=app_constants.OVERRIDE_STORAGE_TLS_CONTAINER_CERT
+        )
+
+        mock_get_value.reset_mock()
+        mock_get_value.side_effect = [None, '/usr/lib/ssl/cert.pem']
+        self.assertEqual(['/usr/lib/ssl/cert.pem'], app_utils.get_storage_tls_container_certs())
+        self.assertEqual(mock_get_value.call_count, 2)
+
+        mock_get_value.reset_mock()
+        mock_get_value.side_effect = [None, None]
+        self.assertEqual(
+            app_constants.STORAGE_TLS_DEFAULT_CONTAINER_CERT,
+            app_utils.get_storage_tls_container_certs()
+        )
+        self.assertEqual(mock_get_value.call_count, 2)
 
     @mock.patch('k8sapp_openstack.utils.get_endpoint_domain', return_value="example.com")
     @mock.patch('k8sapp_openstack.utils.check_dex_healthy', return_value=True)

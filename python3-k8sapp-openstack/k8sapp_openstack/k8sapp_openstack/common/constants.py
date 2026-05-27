@@ -220,15 +220,22 @@ NETAPP_DEFAULT_NFS_SHARES = """127.0.0.1:/nfs_volume\n"""
 NFS_SHARES_CONFIG = "/etc/cinder/nfs.shares"
 NFS_MOUNT_OPTIONS = "nolock"
 
-# NetApp TLS CA Certificate Configuration
-NETAPP_TLS_DEFAULT_HOST_CERT = '/var/opt/openstack/certs/netapp.pem'
-NETAPP_TLS_DEFAULT_CONTAINER_CERT = '/usr/lib/ssl/cert.pem'
+# Storage TLS CA Certificate Configuration
+STORAGE_TLS_DEFAULT_HOST_CERT = '/var/opt/openstack/certs/storage.pem'
+STORAGE_TLS_DEFAULT_CONTAINER_CERT = ['/usr/lib/ssl/cert.pem']
+
+OVERRIDE_STORAGE_TLS_HOST_CERT = 'storage_conf.tls.host_cert'
+OVERRIDE_STORAGE_TLS_CONTAINER_CERT = 'storage_conf.tls.container_cert'
+# Legacy NetApp override names are retained for deprecated storage_conf.netapp_tls fallback.
 OVERRIDE_NETAPP_TLS_HOST_CERT = 'storage_conf.netapp_tls.host_cert'
 OVERRIDE_NETAPP_TLS_CONTAINER_CERT = 'storage_conf.netapp_tls.container_cert'
 
-# NetApp CA Certificate Kubernetes Secret
+# Storage CA Certificate Kubernetes Secret
+STORAGE_CA_CERT_SECRET_NAME = "storage-ca-cert"
+# Legacy NetApp secret names are retained for upgrade migration/removal compatibility.
 NETAPP_CA_CERT_SECRET_NAME = "netapp-ca-cert"
-NETAPP_CA_CERT_SECRET_KEY = "ca.crt"
+STORAGE_CA_CERT_SECRET_KEY = "ca.crt"
+NETAPP_CA_CERT_SECRET_KEY = STORAGE_CA_CERT_SECRET_KEY
 
 # Backup drivers
 CEPH_BACKUP_DRIVER = "cinder.backup.drivers.ceph.CephBackupDriver"

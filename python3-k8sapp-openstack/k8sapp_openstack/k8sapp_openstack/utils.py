@@ -2920,9 +2920,93 @@ def delete_dex_secret():
             in the {app_constants.HELM_NS_OPENSTACK}. Skipping deletion")
 
 
-def create_netapp_ca_cert_secret(kube):
+def get_storage_tls_host_cert():
+    """Get the configured host-side storage TLS CA certificate path."""
+    host_cert = _get_value_from_application(
+        default_value=None,
+        chart_name=app_constants.HELM_CHART_CINDER,
+        override_name=app_constants.OVERRIDE_STORAGE_TLS_HOST_CERT
+    )
+
+    if host_cert is None:
+        # Legacy 26.03 compatibility; remove with storage_conf.netapp_tls support.
+        host_cert = _get_value_from_application(
+            default_value=None,
+            chart_name=app_constants.HELM_CHART_CINDER,
+            override_name=app_constants.OVERRIDE_NETAPP_TLS_HOST_CERT
+        )
+
+    return host_cert or app_constants.STORAGE_TLS_DEFAULT_HOST_CERT
+
+
+def get_storage_tls_container_certs():
+    """Get storage TLS CA certificate mount paths inside Cinder containers."""
+    container_certs = _get_value_from_application(
+        default_value=None,
+        chart_name=app_constants.HELM_CHART_CINDER,
+        override_name=app_constants.OVERRIDE_STORAGE_TLS_CONTAINER_CERT
+    )
+
+    if container_certs is None:
+        # Legacy 26.03 compatibility; remove with storage_conf.netapp_tls support.
+        container_certs = _get_value_from_application(
+            default_value=None,
+            chart_name=app_constants.HELM_CHART_CINDER,
+            override_name=app_constants.OVERRIDE_NETAPP_TLS_CONTAINER_CERT
+        )
+
+    if container_certs is None:
+        container_certs = app_constants.STORAGE_TLS_DEFAULT_CONTAINER_CERT
+
+    if isinstance(container_certs, str):
+        container_certs = [container_certs]
+
+    return [cert for cert in container_certs if cert] if container_certs else []
+
+
+def migrate_legacy_netapp_ca_cert_secret(kube):
+    """Copy the legacy 26.03 netapp-ca-cert into the generalized storage-ca-cert."""
+    namespace = app_constants.HELM_NS_OPENSTACK
+    old_secret_name = app_constants.NETAPP_CA_CERT_SECRET_NAME
+    new_secret_name = app_constants.STORAGE_CA_CERT_SECRET_NAME
+
+    old_secret = kube.kube_get_secret(old_secret_name, namespace)
+    new_secret = kube.kube_get_secret(new_secret_name, namespace)
+
+    if not old_secret or new_secret:
+        return
+
+    secret_data = getattr(old_secret, 'data', None)
+    secret_data = deepcopy(secret_data) if isinstance(secret_data, dict) else {}
+    if not secret_data:
+        LOG.warning(
+            f"Secret {old_secret_name} has no data. "
+            f"Skipping migration to {new_secret_name}."
+        )
+        return
+
+    secret_type = getattr(old_secret, 'type', None)
+    if not isinstance(secret_type, str):
+        secret_type = constants.K8S_SECRET_TYPE_OPAQUE
+
+    secret_body = {
+        'apiVersion': kubernetes.CERT_MANAGER_VERSION,
+        'kind': 'Secret',
+        'metadata': {
+            'name': new_secret_name,
+            'namespace': namespace
+        },
+        'type': secret_type,
+        'data': secret_data
+    }
+
+    kube.kube_create_secret(namespace, secret_body)
+    LOG.info(f"Secret {old_secret_name} migrated to {new_secret_name}")
+
+
+def create_storage_ca_cert_secret(kube):
     """
-    Create or update a Kubernetes secret containing the NetApp CA certificate.
+    Create or update a Kubernetes secret containing the storage CA certificate.
 
     Reads the certificate from the host filesystem and stores it as a K8s secret,
     making it available across all controllers without requiring the file on each.
@@ -2931,15 +3015,11 @@ def create_netapp_ca_cert_secret(kube):
         kube: Kubernetes operator instance.
 
     """
-    host_cert = _get_value_from_application(
-        default_value=app_constants.NETAPP_TLS_DEFAULT_HOST_CERT,
-        chart_name=app_constants.HELM_CHART_CINDER,
-        override_name=app_constants.OVERRIDE_NETAPP_TLS_HOST_CERT
-    )
+    host_cert = get_storage_tls_host_cert()
 
     if not host_cert or not os.path.isfile(host_cert):
         LOG.info(
-            f"NetApp CA certificate not found at '{host_cert}'. "
+            f"Storage CA certificate not found at '{host_cert}'. "
             "Secret will not be created."
         )
         return
@@ -2948,15 +3028,15 @@ def create_netapp_ca_cert_secret(kube):
         with open(host_cert, 'r') as cert_file:
             cert_content = cert_file.read()
     except IOError as e:
-        LOG.warning(f"Failed to read NetApp CA certificate from '{host_cert}': {e}")
+        LOG.warning(f"Failed to read storage CA certificate from '{host_cert}': {e}")
         return
 
     if not cert_content.strip():
-        LOG.warning(f"NetApp CA certificate at '{host_cert}' is empty. Skipping secret creation.")
+        LOG.warning(f"Storage CA certificate at '{host_cert}' is empty. Skipping secret creation.")
         return
 
-    secret_name = app_constants.NETAPP_CA_CERT_SECRET_NAME
-    secret_key = app_constants.NETAPP_CA_CERT_SECRET_KEY
+    secret_name = app_constants.STORAGE_CA_CERT_SECRET_NAME
+    secret_key = app_constants.STORAGE_CA_CERT_SECRET_KEY
     namespace = app_constants.HELM_NS_OPENSTACK
 
     secret_exists = kube.kube_get_secret(secret_name, namespace)
@@ -2977,44 +3057,68 @@ def create_netapp_ca_cert_secret(kube):
     try:
         if secret_exists:
             kube.kube_patch_secret(secret_name, namespace, secret_body)
-            LOG.info(f"Secret {secret_name} updated with NetApp CA certificate")
+            LOG.info(f"Secret {secret_name} updated with storage CA certificate")
         else:
             kube.kube_create_secret(namespace, secret_body)
-            LOG.info(f"Secret {secret_name} created with NetApp CA certificate")
+            LOG.info(f"Secret {secret_name} created with storage CA certificate")
     except Exception as e:
-        LOG.error(f"Failed to create/update NetApp CA certificate secret: {e}")
+        LOG.error(f"Failed to create/update storage CA certificate secret: {e}")
+
+
+def create_netapp_ca_cert_secret(kube):
+    """Deprecated. Use create_storage_ca_cert_secret."""
+    create_storage_ca_cert_secret(kube)
+
+
+def delete_storage_ca_cert_secret():
+    """Delete storage CA certificate secrets from the OpenStack namespace."""
+    kube = kubernetes.KubeOperator()
+    namespace = app_constants.HELM_NS_OPENSTACK
+
+    for secret_name in [
+        app_constants.STORAGE_CA_CERT_SECRET_NAME,
+        app_constants.NETAPP_CA_CERT_SECRET_NAME
+    ]:
+        secret = kube.kube_get_secret(secret_name, namespace)
+
+        if secret:
+            kube.kube_delete_secret(secret_name, namespace)
+            LOG.info(f"Secret {secret_name} deleted from {namespace} namespace")
+        else:
+            LOG.info(
+                f"Secret {secret_name} is not present in the {namespace} namespace. "
+                "Skipping deletion."
+            )
 
 
 def delete_netapp_ca_cert_secret():
-    """Delete the NetApp CA certificate secret from the OpenStack namespace."""
-    kube = kubernetes.KubeOperator()
-    secret_name = app_constants.NETAPP_CA_CERT_SECRET_NAME
-    namespace = app_constants.HELM_NS_OPENSTACK
+    """Deprecated. Use delete_storage_ca_cert_secret."""
+    delete_storage_ca_cert_secret()
 
-    secret = kube.kube_get_secret(secret_name, namespace)
 
-    if secret:
-        kube.kube_delete_secret(secret_name, namespace)
-        LOG.info(f"Secret {secret_name} deleted from {namespace} namespace")
-    else:
-        LOG.info(
-            f"Secret {secret_name} is not present in the {namespace} namespace. "
-            "Skipping deletion."
-        )
+def is_storage_ca_cert_secret_available() -> bool:
+    """Check if a storage CA certificate secret exists in the OpenStack namespace."""
+    try:
+        kube = kubernetes.KubeOperator()
+        for secret_name in [
+            app_constants.STORAGE_CA_CERT_SECRET_NAME,
+            app_constants.NETAPP_CA_CERT_SECRET_NAME
+        ]:
+            secret = kube.kube_get_secret(
+                secret_name,
+                app_constants.HELM_NS_OPENSTACK
+            )
+            if secret is not None:
+                return True
+        return False
+    except Exception as e:
+        LOG.error(f"Error checking storage CA certificate secret: {e}")
+        return False
 
 
 def is_netapp_ca_cert_secret_available() -> bool:
-    """Check if the NetApp CA certificate secret exists in the OpenStack namespace."""
-    try:
-        kube = kubernetes.KubeOperator()
-        secret = kube.kube_get_secret(
-            app_constants.NETAPP_CA_CERT_SECRET_NAME,
-            app_constants.HELM_NS_OPENSTACK
-        )
-        return secret is not None
-    except Exception as e:
-        LOG.error(f"Error checking NetApp CA certificate secret: {e}")
-        return False
+    """Deprecated. Use is_storage_ca_cert_secret_available."""
+    return is_storage_ca_cert_secret_available()
 
 
 def get_endpoint_domain(dbapi) -> str:

@@ -2106,19 +2106,26 @@ def restore_pvc_snapshot(snapshot_name: str,
         LOG.error(f"Unexpected error while restoring PVC snapshot: {e}")
 
 
-def delete_snapshot(snapshot_name: str):
+def delete_snapshot(snapshot_name: str, *, ignore_not_found=False):
     """
     Restore a PVC snapshot, if possible
 
     Params:
         snapshot_name (str): Name of the snapshot to be removed
+        ignore_not_found (bool): Whether to ignore not found. Default: False.
     """
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "-n", app_constants.HELM_NS_OPENSTACK,
+        "delete",
+    ]
+
+    if ignore_not_found:
+        cmd.append("--ignore-not-found")
+
+    cmd.extend(["volumesnapshots.snapshot.storage.k8s.io", snapshot_name])
+
     try:
-        cmd = [
-            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
-            "-n", app_constants.HELM_NS_OPENSTACK,
-            "delete", "volumesnapshots.snapshot.storage.k8s.io", snapshot_name
-        ]
         send_cmd_read_response(cmd)
     except Exception as e:
         LOG.error(f"Unexpected error while deleting PVC snapshot: {e}")

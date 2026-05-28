@@ -940,3 +940,33 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             chart_name=app_constants.HELM_CHART_CINDER,
             override_name=app_constants.OVERRIDE_STORAGE_BACKENDS)
         return [b for b in priority_list if available_backends.get(b)]
+
+    def _get_protocol_pod_config(self, active_protocols: set) -> dict:
+        """Compute merged pod security settings from active storage protocols.
+
+        Centralizes the protocol-to-pod-config logic previously scattered across
+        CinderHelm, GlanceHelm, and NovaHelm. Most permissive setting wins
+        when multiple protocols are active simultaneously.
+
+        The logic matches the code behavior at the time of implementation:
+        - readOnlyRootFilesystem = True UNLESS iscsi/fcp is active WITHOUT nfs
+        - Equivalent formula: not has_san or "nfs" in active_protocols
+
+        Args:
+            active_protocols: set of protocol strings. Valid values:
+                "iscsi", "fcp", "nfs", "local", "rbd"
+
+        Returns:
+            dict with keys:
+                "use_host_network": bool - enable host networking for pods
+                "backup_privileged": bool - run backup container privileged
+                "volume_read_only_root_filesystem": bool - readOnlyRootFilesystem for volume
+                "enable_iscsi": bool - enable iSCSI initiator configuration
+        """
+        has_san = ("iscsi" in active_protocols or "fcp" in active_protocols)
+        return {
+            "use_host_network": has_san,
+            "backup_privileged": has_san,
+            "volume_read_only_root_filesystem": not has_san or ("nfs" in active_protocols),
+            "enable_iscsi": has_san,
+        }

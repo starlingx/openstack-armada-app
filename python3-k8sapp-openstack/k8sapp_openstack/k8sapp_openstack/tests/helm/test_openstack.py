@@ -878,3 +878,184 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         result = self.helm._get_cinder_volumes_backends()
         self.assertEqual(result, [])
         mock_get_backends.assert_not_called()
+
+    def test_get_protocol_pod_config_parametrized(self):
+        """Tests _get_protocol_pod_config for all protocol combinations.
+
+        Verifies that the shared method produces the correct pod security
+        settings for each combination of active storage protocols. The
+        expected values match the current scattered logic in CinderHelm,
+        GlanceHelm, and NovaHelm.
+        """
+        # Each case: (description, active_protocols, expected_result)
+        cases = [
+            (
+                "nfs only",
+                {"nfs"},
+                {
+                    "use_host_network": False,
+                    "backup_privileged": False,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": False,
+                },
+            ),
+            (
+                "iscsi only",
+                {"iscsi"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": False,
+                    "enable_iscsi": True,
+                },
+            ),
+            (
+                "fcp only",
+                {"fcp"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": False,
+                    "enable_iscsi": True,
+                },
+            ),
+            (
+                "nfs + iscsi",
+                {"nfs", "iscsi"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": True,
+                },
+            ),
+            (
+                "nfs + fcp",
+                {"nfs", "fcp"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": True,
+                },
+            ),
+            (
+                "rbd only (Ceph)",
+                {"rbd"},
+                {
+                    "use_host_network": False,
+                    "backup_privileged": False,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": False,
+                },
+            ),
+            (
+                "rbd + nfs",
+                {"rbd", "nfs"},
+                {
+                    "use_host_network": False,
+                    "backup_privileged": False,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": False,
+                },
+            ),
+            (
+                "rbd + iscsi",
+                {"rbd", "iscsi"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": False,
+                    "enable_iscsi": True,
+                },
+            ),
+            (
+                "rbd + fcp",
+                {"rbd", "fcp"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": False,
+                    "enable_iscsi": True,
+                },
+            ),
+            (
+                "rbd + nfs + iscsi",
+                {"rbd", "nfs", "iscsi"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": True,
+                },
+            ),
+            (
+                "local only",
+                {"local"},
+                {
+                    "use_host_network": False,
+                    "backup_privileged": False,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": False,
+                },
+            ),
+            (
+                "local + nfs",
+                {"local", "nfs"},
+                {
+                    "use_host_network": False,
+                    "backup_privileged": False,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": False,
+                },
+            ),
+            (
+                "local + iscsi",
+                {"local", "iscsi"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": False,
+                    "enable_iscsi": True,
+                },
+            ),
+            (
+                "local + fcp",
+                {"local", "fcp"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": False,
+                    "enable_iscsi": True,
+                },
+            ),
+            (
+                "empty (no protocols)",
+                set(),
+                {
+                    "use_host_network": False,
+                    "backup_privileged": False,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": False,
+                },
+            ),
+            (
+                "all protocols",
+                {"iscsi", "fcp", "nfs", "local", "rbd"},
+                {
+                    "use_host_network": True,
+                    "backup_privileged": True,
+                    "volume_read_only_root_filesystem": True,
+                    "enable_iscsi": True,
+                },
+            ),
+        ]
+
+        for description, protocols, expected in cases:
+            with self.subTest(case=description):
+                result = self.helm._get_protocol_pod_config(protocols)
+                self.assertEqual(
+                    result, expected,
+                    f"Failed for {description}: "
+                    f"protocols={protocols}, got={result}"
+                )

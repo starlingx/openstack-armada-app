@@ -177,11 +177,33 @@ NETAPP_SUPPORTED_BACKENDS = [
     NETAPP_ISCSI_BACKEND_NAME,
     NETAPP_FC_BACKEND_NAME
 ]
+
+# Strict (or "native") backend names
+# These are the backends with built-in discovery and configuration logic.
+# Any backend name NOT in this set is considered an Extended Storage Backend (ESB).
+STRICT_BACKEND_NAMES = {
+    CEPH_BACKEND_NAME,
+    NETAPP_NFS_BACKEND_NAME,
+    NETAPP_ISCSI_BACKEND_NAME,
+    NETAPP_FC_BACKEND_NAME,
+}
+
 NETAPP_BACKEND_TO_OPENSTACK_PROTOCOL = {
     NETAPP_NFS_BACKEND_NAME: NETAPP_NFS_OPENSTACK_PROTOCOL,
     NETAPP_ISCSI_BACKEND_NAME: NETAPP_ISCSI_OPENSTACK_PROTOCOL,
     NETAPP_FC_BACKEND_NAME: NETAPP_FC_OPENSTACK_PROTOCOL,
 }
+
+# Strict-backend → storage protocol mapping.
+# Used by _get_protocol_pod_config() to resolve strict backend names
+# to their underlying storage protocol for pod security context decisions.
+STRICT_BACKEND_TO_PROTOCOL = {
+    CEPH_BACKEND_NAME: "rbd",
+    NETAPP_NFS_BACKEND_NAME: "nfs",
+    NETAPP_ISCSI_BACKEND_NAME: "iscsi",
+    NETAPP_FC_BACKEND_NAME: "fcp",
+}
+
 NETAPP_BACKEND_TO_TYPE = {
     NETAPP_NFS_BACKEND_NAME: BACKEND_TYPE_NETAPP_NFS,
     NETAPP_ISCSI_BACKEND_NAME: BACKEND_TYPE_NETAPP_ISCSI,
@@ -285,6 +307,7 @@ KEYSTONE_API_K8S_PORT = 5000
 
 # Storage backends overrides
 OVERRIDE_STORAGE_BACKENDS = "storage_conf.storage_backends"
+OVERRIDE_BACKENDS_CONF = "storage_conf.backends_conf"
 
 # Volume priority
 OVERRIDE_STORAGE_PRIORITY = "storage_conf.volume_storage_class_priority"

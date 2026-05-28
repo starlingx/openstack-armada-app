@@ -141,14 +141,20 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         )
         self._netapp_nfs_enabled = bool(
             self.available_backends.get(app_constants.NETAPP_NFS_BACKEND_NAME, False)
+            and app_constants.NETAPP_NFS_BACKEND_NAME in self.VOLUME_PRIORITY_LIST
         )
         self._netapp_iscsi_enabled = bool(
             self.available_backends.get(app_constants.NETAPP_ISCSI_BACKEND_NAME, False)
+            and app_constants.NETAPP_ISCSI_BACKEND_NAME in self.VOLUME_PRIORITY_LIST
         )
         self._netapp_fc_enabled = bool(
             self.available_backends.get(app_constants.NETAPP_FC_BACKEND_NAME, False)
+            and app_constants.NETAPP_FC_BACKEND_NAME in self.VOLUME_PRIORITY_LIST
         )
-        self.netapp_enabled = any(self.available_netapp_backends)
+        self.netapp_enabled = any(
+            be for be in self.available_netapp_backends
+            if be in self.VOLUME_PRIORITY_LIST
+        )
         LOG.info(f"Cinder available backends: {self.available_backends}")
         LOG.info(f"Cinder available NetApp backends: {self.available_netapp_backends}")
         LOG.info(f"Cinder volume priority list: {self.VOLUME_PRIORITY_LIST}")
@@ -176,7 +182,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # Add NetApp configuration
         cinder_volume_read_only_filesystem = True
         cinder_backup_privileged = False
-        if any(self.available_netapp_backends):
+        if self.netapp_enabled:
             # If NetApp is using NFS, the cinder-volume pod cannot have a readOnly filesystem,
             # as the NFS will be mounted into the pod during initialization
             cinder_volume_read_only_filesystem = self._netapp_nfs_enabled

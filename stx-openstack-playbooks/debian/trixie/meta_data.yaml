@@ -1,0 +1,9 @@
+---
+debname: stx-openstack-playbooks
+debver: 1.0-1
+src_path: ansible
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 0000000000000000000000000000000000000000
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/stx-openstack-playbooks

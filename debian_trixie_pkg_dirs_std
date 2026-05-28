@@ -1,5 +1,6 @@
 python3-k8sapp-openstack
 stx-openstack-helm-fluxcd
+stx-openstack-playbooks
 upstream/helm-charts/openstack-helm
 upstream/helm-charts/ingress-nginx-helm
 upstream/openstack/openstack-pkg-tools

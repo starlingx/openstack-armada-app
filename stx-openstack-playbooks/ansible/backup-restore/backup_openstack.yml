@@ -1,0 +1,62 @@
+---
+#
+# Copyright (c) 2026 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Application-owned OpenStack backup entry point.
+#
+# Bundled in the stx-openstack tarball under
+# ansible/backup-restore/backup_openstack.yml and deployed to
+# /opt/platform/ansible/<release>/<app-name>/<version>/backup-restore/
+# by the application post_upload lifecycle hook.
+#
+# The platform backup playbook delegates here via include_tasks when the
+# delegation check finds this file on disk. It is therefore a task list (not a
+# play): all platform-provided variables (software_version, openstack_app_name,
+# backup_dir, backup_timestamp, compress_program, exclude_targets,
+# remaining_disk_size_estimation, inventory_hostname) are inherited from the
+# calling platform playbook scope.
+#
+# The role is invoked via include_tasks with an absolute path resolved from the
+# deployed bundle because the platform playbook's roles_path does not include
+# /opt/platform/ansible/... .
+
+- name: Resolve the deployed playbook bundle paths
+  ansible.builtin.set_fact:
+    app_playbook_current: >-
+      /opt/platform/ansible/{{ software_version }}/{{ openstack_app_name }}/current
+    app_playbook_dir: >-
+      /opt/platform/ansible/{{ software_version }}/{{ openstack_app_name }}/current/backup-restore
+    backup_openstack_role_base: >-
+      /opt/platform/ansible/{{ software_version }}/{{ openstack_app_name }}/current/backup-restore/roles/backup-openstack
+
+# The platform's delegation check is a plain file-existence test and logs
+# nothing about which branch it took, so a run that fell back to the inline
+# logic looks much like one that delegated. State the decision explicitly, and
+# name the version the 'current' pointer resolved to, so the backup log
+# identifies the playbook that actually ran.
+- name: Resolve the application version selected by the 'current' pointer
+  ansible.builtin.stat:
+    path: "{{ app_playbook_current }}"
+    follow: false
+  register: app_playbook_current_link
+
+- name: Report that the application-owned backup playbook is handling this backup
+  ansible.builtin.debug:
+    msg: >-
+      Application-owned backup playbook ACTIVE for {{ openstack_app_name }};
+      platform inline backup logic is skipped.
+      Source: {{ app_playbook_dir }}/ (resolved version:
+      {{ app_playbook_current_link.stat.lnk_target
+         | default('unresolved') | basename }})
+
+- name: Load backup-openstack role variables
+  ansible.builtin.include_vars:
+    file: "{{ backup_openstack_role_base }}/vars/main.yml"
+
+- name: Run the OpenStack backup tasks
+  ansible.builtin.include_tasks:
+    file: "{{ backup_openstack_role_base }}/tasks/main.yml"
+    apply:
+      become: true

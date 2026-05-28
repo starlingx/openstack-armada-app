@@ -481,3 +481,15 @@ DEX_AUTH_METHODS = ("openid",)
 
 # Prometheus platform app name identifier
 PROMETHEUS_PLATFORM_APP_NAME = 'prometheus'
+
+# Application-owned ansible playbook delivery
+# Source under the extracted tarball (relative to app.inst_path)
+ANSIBLE_TARBALL_SUBDIR = "ansible"
+# DRBD-replicated deploy root managed by the lifecycle hook
+ANSIBLE_DEPLOY_BASE = "/opt/platform/ansible"
+# Stable symlink name within the per-app directory
+ANSIBLE_CURRENT_LINK = "current"
+# Single retained prior generation, kept only as the rollback target for a
+# failed application-update. Retention is capped here: the deploy hook prunes
+# anything older.
+ANSIBLE_PREVIOUS_LINK = "previous"

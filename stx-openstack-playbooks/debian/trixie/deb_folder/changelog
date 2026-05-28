@@ -1,0 +1,6 @@
+stx-openstack-playbooks (1.0-1) unstable; urgency=medium
+
+  * Initial release. Ships application-owned backup/restore playbooks for
+    the StarlingX OpenStack application.
+
+ -- StarlingX Developers <starlingx-discuss@lists.starlingx.io>  Thu, 28 May 2026 00:00:00 +0000

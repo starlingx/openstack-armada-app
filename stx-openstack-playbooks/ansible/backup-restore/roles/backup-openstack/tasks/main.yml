@@ -1,0 +1,206 @@
+---
+#
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# ROLE DESCRIPTION:
+#   This role backs up the StarlingX OpenStack application data: the MariaDB
+#   databases and the Helm overrides stored in the sysinv database, then
+#   assembles the OpenStack backup tarball (FluxCD manifests, Helm charts,
+#   MariaDB dumps and the Helm overrides dump).
+#
+#   The tasks below are extracted, unchanged in behaviour, from the platform
+#   backup-system role so the OpenStack application can own and ship its own
+#   backup logic. The direct psql access (become_user: postgres) is preserved.
+#
+#   This role contains no platform-only role imports. The following values are
+#   provided by the calling platform playbook scope:
+#     backup_dir, backup_timestamp, compress_program, exclude_targets,
+#     remaining_disk_size_estimation, openstack_app_name, software_version,
+#     inventory_hostname
+#
+#   Unlike the platform role, which shares a single staging directory across all
+#   backup archives, this role creates its own staging directory so it is
+#   self-contained.
+
+- name: Create staging directory for OpenStack backup data
+  tempfile:
+    path: "{{ backup_dir }}"
+    state: directory
+  register: openstack_backup_tempdir
+
+# --- MariaDB dump ---
+- name: Create mariadb temp dir
+  file:
+    path: "{{ openstack_backup_tempdir.path }}/mariadb"
+    state: directory
+  register: mariadb_dir
+
+- name: Check if mariadb pod is running
+  shell: >-
+    kubectl --kubeconfig={{ kube_config_dir }} get pods -n openstack | grep {{ mariadb_pod }} | grep -i 'running'
+  failed_when: false
+  register: check_mariadb_pod
+
+- block:
+  - name: Set k8s cmd prefix
+    set_fact:
+      kube_cmd_prefix: "kubectl --kubeconfig={{ kube_config_dir }} exec -i {{ mariadb_pod }} -n openstack -- bash -c "
+
+  - name: Show databases
+    shell: "{{ kube_cmd_prefix }} 'exec mariadb -uroot -p\"$MYSQL_DBADMIN_PASSWORD\" -e\"show databases\"'"
+    register: databases
+
+  - name: Backup mariadb
+    shell: >-
+      {{ kube_cmd_prefix }} 'exec mariadb-dump -uroot -p"$MYSQL_DBADMIN_PASSWORD" {{ item }}' >
+      {{ mariadb_dir.path }}/{{ item }}.mariadb.data
+    loop: "{{ databases.stdout_lines | difference(skip_os_dbs) }}"
+
+  when: check_mariadb_pod.rc == 0
+
+- block:
+
+  - name: Get openstack application status
+    shell: >-
+      source /etc/platform/openrc; system application-show {{ openstack_app_name }} --column status --format value
+    failed_when: false
+    register: openstack_status
+
+  - name: Fail the backup if MariaDB is not running
+    fail:
+      msg: "WARNING: {{ mariadb_pod }} is not running. Cannot backup mariadb data."
+    when: openstack_status.stdout == "applied"
+  when: check_mariadb_pod.rc != 0
+
+# In order to restore only the OpenStack application, the user needs to manually
+# remove, delete and upload the application.
+# This procedure will make the helm overrides data that is
+# present in the sysinv DB and the OpenStack application DB to be inconsistent.
+# A dump file containing the overrides data is used here to solve this inconsistency issue.
+# Note that this file will contain only 'update' sql commands because the
+# overrides are already created when we uploaded the application.
+- name: Create Helm overrides temp dir
+  file:
+    path: "{{ openstack_backup_tempdir.path }}/helm_overrides_sqldump_dir"
+    state: directory
+  register: helm_overrides_sqldump_dir
+
+- name: Get the openstack Helm overrides from the from the database
+  shell: >-
+    psql -c "copy(select row_to_json(t) from (select name, user_overrides, system_overrides
+    from helm_overrides where namespace='openstack') as t) to stdout" sysinv | sed -e 's/\\\\/\\/g'
+  become_user: postgres
+  register: helm_overrides_list
+
+- name: Generate postgres update commands for Helm overrides
+  set_fact:
+    updates_list: >-
+      {{ updates_list | default('') }}update helm_overrides set
+      system_overrides={{ item.system_overrides
+      | ternary("'" ~ (item.system_overrides | replace("'", "''")) ~ "'", "NULL") }},
+      user_overrides={{ item.user_overrides
+      | ternary("'" ~ (item.user_overrides | replace("'", "''")) ~ "'", "NULL") }}
+      where name='{{ item.name }}' and namespace='openstack';
+  loop: "{{ helm_overrides_list.stdout_lines | map('from_json') | list }}"
+
+- name: Backup Helm overrides
+  copy:
+    dest: "{{ helm_overrides_sqldump_dir.path }}/helm_overrides_dump.sql"
+    mode: 0755
+    content: '{{ updates_list | default("") }}'
+
+# --- OpenStack backup archive size estimation ---
+- block:
+  # Estimate the disk size requirement for the OpenStack backup archive.
+  # The platform playbook keeps remaining_disk_size_estimation as a running
+  # tally across the archives it creates, and sets it *after* the point where it
+  # delegates here. When this role runs delegated - or standalone from a wrapper
+  # - that tally may not exist yet. Measuring free space at the point of use is
+  # also more accurate than inheriting an earlier estimate, since the platform
+  # archive may not have been written.
+  - name: Check free space in the archive dir if the caller provided no estimate
+    shell: "df -k {{ backup_dir }} --output=avail | tail -1"
+    register: openstack_backup_dir_avail
+    when: remaining_disk_size_estimation | default('') | string | length == 0
+
+  - name: Establish remaining space estimate when not provided by the caller
+    set_fact:
+      remaining_disk_size_estimation: "{{ openstack_backup_dir_avail.stdout | int }}"
+    when: remaining_disk_size_estimation | default('') | string | length == 0
+
+  - name: Check the size (in KiB) of directories that will be backed up for openstack
+    shell: "du -sh -k  {{ item }} | awk '{print $1}'"
+    loop:
+      - "{{ mariadb_dir.path }}"
+      - "{{ helm_overrides_sqldump_dir.path }}"
+      - "{{ fluxcd_permdir }}/{{ openstack_app_name }}"
+      - "{{ helm_charts_permdir }}/starlingx"
+    register: size_output_openstack
+
+  # Estimate the OpenStack backup size.
+  - name: Estimate the total required disk size for platform openstack archive
+    set_fact:
+      total_openstack_size_estimation: "{{ total_openstack_size_estimation|default(0)|int + item.stdout|int }}"
+    loop: "{{ size_output_openstack.results }}"
+    loop_control:
+      label: "{{ item.item }}"
+
+  - name: Fail if there is not enough free space in the archive dir to create openstack backup
+    fail:
+      msg:
+        Not enough free space in {{ backup_dir }}.
+        Free space available is estimated to {{ remaining_disk_size_estimation }}KiB.
+        It needs at least {{ total_openstack_size_estimation }}KiB.
+    when: remaining_disk_size_estimation|int < total_openstack_size_estimation|int
+
+  - name: Estimate remaining space after reserving space for openstack backup
+    set_fact:
+      remaining_disk_size_estimation: "{{ remaining_disk_size_estimation|int - total_openstack_size_estimation|int }}"
+
+  when: check_mariadb_pod.rc == 0 or openstack_status.stdout == "uploaded"
+
+# --- OpenStack backup archive assembly ---
+- name: Use current timestamp as backups timestamp if not provided by the caller
+  set_fact:
+    backup_timestamp: "{{ backup_timestamp | default(lookup('pipe', 'date +%Y_%m_%d_%H_%M_%S')) }}"
+
+- name: Attach timestamp to OpenStack backup filename
+  set_fact:
+    openstack_backup_file: "{{ openstack_backup_filename_prefix }}_{{ backup_timestamp }}.tgz"
+
+- name: Set OpenStack backup file absolute path
+  set_fact:
+    openstack_backup_file_path: "{{ backup_dir }}/{{ openstack_backup_file }}"
+
+# This is nasty to understand, but check the -vvv output to see what is going on
+# When we update the community.general collection from 1.3.6 to >=5.2.0, we can use "archive"
+# with exclusion_patterns
+# exclude_targets is a platform-archive concept and is not set at the point the
+# platform delegates here. Build the option string so the clause disappears
+# entirely when the list is absent or empty: a bare "--exclude" makes tar
+# consume the following argument and exit 2.
+- name: Build the tar exclude options for the OpenStack archive
+  set_fact:
+    openstack_tar_excludes: >-
+      {{ ('--exclude ' + (exclude_targets | map('regex_replace', '^/', '') | list | join(' --exclude ')))
+         if (exclude_targets | default([]) | length > 0) else '' }}
+
+- name: Create a tgz archive for OpenStack backup
+  shell: >-
+    tar
+    --use-compress-program={{ compress_program }}
+    {{ openstack_tar_excludes }}
+    -cf {{ openstack_backup_file_path }}
+    $(ls -d
+    {{ fluxcd_permdir }}/{{ openstack_app_name }}
+    {{ helm_charts_permdir }}/starlingx
+    {{ mariadb_dir.path }}
+    {{ helm_overrides_sqldump_dir.path }}
+    2> /dev/null)
+  # Changing the failed_when behavior to prevent the backup to fail on "file changed as we read it", which
+  # makes tar return 1
+  register: tar_cmd
+  failed_when: tar_cmd.rc >= 2 or tar_cmd.rc < 0
+  when: check_mariadb_pod.rc == 0 or openstack_status.stdout == "uploaded"

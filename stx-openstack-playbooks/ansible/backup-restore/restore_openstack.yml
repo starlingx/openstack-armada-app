@@ -1,0 +1,67 @@
+---
+#
+# Copyright (c) 2026 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Application-owned OpenStack restore entry point.
+#
+# Bundled in the stx-openstack tarball under
+# ansible/backup-restore/restore_openstack.yml and deployed to
+# /opt/platform/ansible/<release>/<app-name>/<version>/backup-restore/
+# by the application post_upload lifecycle hook.
+#
+# The platform restore_openstack.yml delegates here via include_tasks when the
+# delegation check finds this file on disk. It is therefore a task list (not a
+# play): all platform-provided variables (software_version, openstack_app_name,
+# system_type, backup_dir, target_backup_dir, backup_filename,
+# restore_cinder_glance_data, restore_openstack_continue, on_box_data,
+# initial_backup_dir) are inherited from the calling platform playbook scope.
+#
+# Roles are invoked via include_tasks with absolute paths resolved from the
+# deployed bundle because the platform playbook's roles_path does not include
+# /opt/platform/ansible/... .
+
+- name: Resolve the deployed playbook bundle paths
+  ansible.builtin.set_fact:
+    app_playbook_current: >-
+      /opt/platform/ansible/{{ software_version }}/{{ openstack_app_name }}/current
+    app_playbook_dir: >-
+      /opt/platform/ansible/{{ software_version }}/{{ openstack_app_name }}/current/backup-restore
+    restore_openstack_role_base: >-
+      /opt/platform/ansible/{{ software_version }}/{{ openstack_app_name }}/current/backup-restore/roles/restore-openstack
+
+# The platform's delegation check is a plain file-existence test and logs
+# nothing about which branch it took, so a run that fell back to the inline
+# roles looks much like one that delegated. State the decision explicitly, and
+# name the version the 'current' pointer resolved to, so the restore log
+# identifies the playbook that actually ran.
+- name: Resolve the application version selected by the 'current' pointer
+  ansible.builtin.stat:
+    path: "{{ app_playbook_current }}"
+    follow: false
+  register: app_playbook_current_link
+
+- name: Report that the application-owned restore playbook is handling this restore
+  ansible.builtin.debug:
+    msg: >-
+      Application-owned restore playbook ACTIVE for {{ openstack_app_name }};
+      platform inline restore roles are skipped.
+      Source: {{ app_playbook_dir }}/ (resolved version:
+      {{ app_playbook_current_link.stat.lnk_target
+         | default('unresolved') | basename }})
+
+- name: Load restore-openstack path variables
+  ansible.builtin.include_vars:
+    file: "{{ restore_openstack_role_base }}/restore/vars/main.yml"
+
+- name: Run OpenStack restore pre-flight checks
+  ansible.builtin.include_tasks:
+    file: "{{ restore_openstack_role_base }}/prepare-env/tasks/main.yml"
+  when: not restore_openstack_continue | bool
+
+- name: Run the staged OpenStack restore sequence
+  ansible.builtin.include_tasks:
+    file: "{{ restore_openstack_role_base }}/restore/tasks/main.yml"
+    apply:
+      become: true

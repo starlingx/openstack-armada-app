@@ -4,11 +4,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import os
+import shutil
+import tempfile
+
 import mock
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.helm import common
 from sysinv.helm.lifecycle_constants import LifecycleConstants
+from sysinv.tests import base
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
 
@@ -18,6 +23,11 @@ from k8sapp_openstack.lifecycle import lifecycle_openstack
 
 EXTENDED_VSWITCH_ALLOWED_COMBINATIONS = (app_constants.VSWITCH_ALLOWED_COMBINATIONS +
                                         [{"other-vswitch=enabled"}])
+
+# Side effects post_apply triggers that are irrelevant to playbook delivery.
+_LIFECYCLE_MOD = 'k8sapp_openstack.lifecycle.lifecycle_openstack'
+_DEX_REDIRECT = _LIFECYCLE_MOD + '.post_apply_update_dex_redirect_uri'
+_RECOVER_SERVERS = _LIFECYCLE_MOD + '.app_utils.recover_error_servers'
 
 
 class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
@@ -437,16 +447,84 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         """Test _recover_actions
         """
         app = mock.Mock()
+        app.version = 'FAILED_VERSION'
         app_op = mock.Mock()
+
+        hook_info = {
+            LifecycleConstants.EXTRA: {
+                LifecycleConstants.FROM_APP_VERSION: 'FAILED_VERSION',
+            }
+        }
 
         self.lifecycle._recover_backup_snapshot = mock.Mock()
         self.lifecycle._recover_app_resources_failed_update = mock.Mock()
+        self.lifecycle._undeploy_ansible = mock.Mock()
 
-        self.lifecycle._recover_actions(app_op, app)
+        self.lifecycle._recover_actions(app_op, app, hook_info)
 
         self.lifecycle._recover_backup_snapshot.assert_called_once_with(app)
         self.lifecycle._recover_app_resources_failed_update.\
             assert_called_once_with(app_op, app)
+
+    def test__recover_actions_undeploys_failed_version(self, *_):
+        """The dispatch carrying the failed version retires its playbooks."""
+        app = mock.Mock()
+        app.name = 'stx-openstack'
+        app.version = 'FAILED_VERSION'
+        app_op = mock.Mock()
+
+        hook_info = {
+            LifecycleConstants.EXTRA: {
+                LifecycleConstants.FROM_APP_VERSION: 'FAILED_VERSION',
+            }
+        }
+
+        self.lifecycle._recover_backup_snapshot = mock.Mock()
+        self.lifecycle._recover_app_resources_failed_update = mock.Mock()
+        self.lifecycle._undeploy_ansible = mock.Mock()
+
+        self.lifecycle._recover_actions(app_op, app, hook_info)
+
+        self.lifecycle._undeploy_ansible.assert_called_once_with(app)
+
+    def test__recover_actions_skips_undeploy_for_recovered_version(self, *_):
+        """The second dispatch must not retire the recovered version.
+
+        sysinv raises the recover hook again once recovery has completed, that
+        time carrying the version that was restored. Undeploying then would
+        delete the tree that was just recovered to.
+        """
+        app = mock.Mock()
+        app.name = 'stx-openstack'
+        app.version = 'RECOVERED_VERSION'
+        app_op = mock.Mock()
+
+        hook_info = {
+            LifecycleConstants.EXTRA: {
+                LifecycleConstants.FROM_APP_VERSION: 'FAILED_VERSION',
+            }
+        }
+
+        self.lifecycle._recover_backup_snapshot = mock.Mock()
+        self.lifecycle._recover_app_resources_failed_update = mock.Mock()
+        self.lifecycle._undeploy_ansible = mock.Mock()
+
+        self.lifecycle._recover_actions(app_op, app, hook_info)
+
+        self.lifecycle._undeploy_ansible.assert_not_called()
+
+    def test__is_failed_update_version_missing_payload(self, *_):
+        """A hook with no FROM_APP_VERSION is treated as the failed version."""
+        app = mock.Mock()
+        app.version = 'SOME_VERSION'
+
+        self.assertTrue(
+            self.lifecycle._is_failed_update_version(app, {}))
+        self.assertTrue(
+            self.lifecycle._is_failed_update_version(
+                app, {LifecycleConstants.EXTRA: {}}))
+        self.assertTrue(
+            self.lifecycle._is_failed_update_version(app, None))
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.lifecycle_utils')
     def test__app_lifecycle_actions(self, mock_lifecycle_utils, *_):
@@ -468,10 +546,12 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         self.lifecycle._pre_update_actions = mock.Mock()
         self.lifecycle._post_update_image_actions = mock.Mock()
+        self.lifecycle.post_apply_manifest = mock.Mock()
 
         mocked_methods = [
             self.lifecycle.pre_apply,
             self.lifecycle.post_apply,
+            self.lifecycle.post_apply_manifest,
             self.lifecycle.pre_remove,
             self.lifecycle.post_remove,
             self.lifecycle._create_app_specific_resources_pre_apply,
@@ -632,7 +712,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
                 ),
                 'assertions': [
                     self.lifecycle._pre_update_actions.assert_called,
-                    self.lifecycle._post_update_image_actions.assert_not_called,
+                    self.lifecycle.post_apply_manifest.assert_not_called,
                 ]
             },
             {
@@ -643,7 +723,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
                 ),
                 'assertions': [
                     self.lifecycle._pre_update_actions.assert_not_called,
-                    self.lifecycle._post_update_image_actions.assert_called,
+                    self.lifecycle.post_apply_manifest.assert_called,
                 ]
             },
         ]
@@ -2607,3 +2687,586 @@ class TestSemanticCheckNetappSanStorageclasses(
         # Should not raise
         self.lifecycle._semantic_check_netapp_san_storageclasses()
         mock_cmd.assert_called_once()
+
+
+class OpenstackAppAnsibleDeliveryTest(base.TestCase):
+    """Unit tests for application-owned ansible playbook delivery.
+
+    Covers the post_upload deploy hook, the single-generation retention cap,
+    the rollback promote used by the update-recover path, and the full purge
+    performed on application-delete.
+
+    These exercise the real filesystem: ANSIBLE_DEPLOY_BASE is redirected to a
+    temporary directory so the symlink rotation and directory pruning are
+    verified as actually performed on disk rather than mocked away.
+    """
+
+    APP_NAME = 'stx-openstack'
+    RELEASE = '26.10'
+    PLAYBOOK = 'backup-restore/restore_openstack.yml'
+
+    def setUp(self):
+        super(OpenstackAppAnsibleDeliveryTest, self).setUp()
+        self.lifecycle = lifecycle_openstack.OpenstackAppLifecycleOperator()
+
+        self.tmp = tempfile.mkdtemp(prefix='ansible-delivery-')
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+        self.deploy_base = os.path.join(self.tmp, 'opt-platform-ansible')
+        self.scratch = os.path.join(self.tmp, 'scratch')
+        os.makedirs(self.deploy_base)
+        os.makedirs(self.scratch)
+
+        base_patch = mock.patch.object(
+            lifecycle_openstack.app_constants, 'ANSIBLE_DEPLOY_BASE',
+            self.deploy_base)
+        base_patch.start()
+        self.addCleanup(base_patch.stop)
+
+        version_patch = mock.patch.object(
+            lifecycle_openstack.tsc, 'SW_VERSION', self.RELEASE)
+        version_patch.start()
+        self.addCleanup(version_patch.stop)
+
+        self.app_base = os.path.join(
+            self.deploy_base, self.RELEASE, self.APP_NAME)
+
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+    def _make_app(self, version, with_ansible=True):
+        """Build an app whose inst_path mimics an extracted tarball."""
+        inst_path = os.path.join(self.scratch, version)
+        if with_ansible:
+            playbook = os.path.join(
+                inst_path, lifecycle_openstack.app_constants.
+                ANSIBLE_TARBALL_SUBDIR, self.PLAYBOOK)
+            os.makedirs(os.path.dirname(playbook), exist_ok=True)
+            with open(playbook, 'w') as f:
+                f.write('# playbook for {}\n'.format(version))
+        else:
+            os.makedirs(inst_path, exist_ok=True)
+
+        app = mock.MagicMock()
+        app.name = self.APP_NAME
+        app.version = version
+        app.inst_path = inst_path
+        return app
+
+    def _link(self, name):
+        return os.path.join(self.app_base, name)
+
+    def _link_target(self, name):
+        return os.path.basename(os.readlink(self._link(name)))
+
+    def _version_dirs(self):
+        """Real version directories present, excluding tracking symlinks."""
+        if not os.path.isdir(self.app_base):
+            return []
+        return sorted(
+            e for e in os.listdir(self.app_base)
+            if os.path.isdir(os.path.join(self.app_base, e))
+            and not os.path.islink(os.path.join(self.app_base, e)))
+
+    def _deploy(self, version):
+        app = self._make_app(version)
+        self.lifecycle._deploy_ansible(app)
+        return app
+
+    # ------------------------------------------------------------------
+    # deploy
+    # ------------------------------------------------------------------
+    def test_deploy_ansible_success(self):
+        """Playbooks land under <release>/<app>/<version>/ and current points
+        at the deployed version.
+        """
+        self._deploy('1.0-1')
+
+        deployed = os.path.join(self.app_base, '1.0-1', self.PLAYBOOK)
+        self.assertTrue(os.path.isfile(deployed))
+        self.assertTrue(os.path.islink(self._link('current')))
+        self.assertEqual('1.0-1', self._link_target('current'))
+        # Resolvable through the symlink, which is how the platform
+        # delegation check reaches it.
+        self.assertTrue(os.path.isfile(
+            os.path.join(self._link('current'), self.PLAYBOOK)))
+        # No rollback generation exists yet on a first deploy.
+        self.assertFalse(os.path.lexists(self._link('previous')))
+
+    def test_deploy_ansible_no_source(self):
+        """A tarball without ansible/ is skipped without error and without
+        creating any tree.
+        """
+        app = self._make_app('1.0-1', with_ansible=False)
+
+        self.lifecycle._deploy_ansible(app)
+
+        self.assertFalse(os.path.exists(self.app_base))
+
+    def test_deploy_ansible_replaces_existing_version(self):
+        """Re-deploying the same version succeeds and refreshes the content."""
+        self._deploy('1.0-1')
+
+        # Rewrite the source so the replacement is detectable.
+        app = self._make_app('1.0-1')
+        playbook = os.path.join(
+            app.inst_path,
+            lifecycle_openstack.app_constants.ANSIBLE_TARBALL_SUBDIR,
+            self.PLAYBOOK)
+        with open(playbook, 'w') as f:
+            f.write('# redeployed\n')
+
+        self.lifecycle._deploy_ansible(app)
+
+        with open(os.path.join(self.app_base, '1.0-1', self.PLAYBOOK)) as f:
+            self.assertEqual('# redeployed\n', f.read())
+        self.assertEqual('1.0-1', self._link_target('current'))
+        self.assertEqual(['1.0-1'], self._version_dirs())
+
+    def test_deploy_ansible_atomic_on_copy_failure(self):
+        """A copy failure leaves the previously deployed version and current
+        untouched, and cleans the staging directory.
+        """
+        self._deploy('1.0-1')
+
+        app = self._make_app('2.0-1')
+        with mock.patch.object(lifecycle_openstack.shutil, 'copytree',
+                               side_effect=OSError('disk full')):
+            self.assertRaises(OSError, self.lifecycle._deploy_ansible, app)
+
+        self.assertEqual('1.0-1', self._link_target('current'))
+        self.assertEqual(['1.0-1'], self._version_dirs())
+        # No staging directory left behind.
+        self.assertEqual(
+            [], [e for e in os.listdir(self.app_base)
+                 if e.startswith('.2.0-1-')])
+
+    def test_deploy_ansible_atomic_on_rename_failure(self):
+        """A failed publish of 'current' cleans the staging pointer rather
+        than leaving a stray current.new behind.
+        """
+        self._deploy('1.0-1')
+
+        real_rename = os.rename
+
+        def fail_link_swap(src, dst):
+            if str(src).endswith('.new'):
+                raise OSError('rename failed')
+            return real_rename(src, dst)
+
+        app = self._make_app('2.0-1')
+        with mock.patch.object(lifecycle_openstack.os, 'rename',
+                               side_effect=fail_link_swap):
+            self.assertRaises(OSError, self.lifecycle._deploy_ansible, app)
+
+        self.assertFalse(os.path.lexists(self._link('current.new')))
+        # The prior version's tree survives, so a rollback target remains.
+        self.assertIn('1.0-1', self._version_dirs())
+
+    def test_post_upload_calls_deploy_ansible(self):
+        """post_upload wires through to the playbook deploy."""
+        app = self._make_app('1.0-1')
+
+        with mock.patch.object(self.lifecycle,
+                               '_post_upload_ldap_actions') as mock_ldap, \
+                mock.patch.object(self.lifecycle,
+                                  '_deploy_ansible') as mock_deploy:
+            self.lifecycle.post_upload(mock.Mock(), mock.Mock(), app,
+                                       mock.Mock())
+
+        mock_ldap.assert_called_once_with(app)
+        mock_deploy.assert_called_once_with(app)
+
+    # ------------------------------------------------------------------
+    # retention cap (one prior generation)
+    # ------------------------------------------------------------------
+    def test_deploy_ansible_rotates_current_to_previous(self):
+        """The version being replaced becomes the rollback target."""
+        self._deploy('1.0-1')
+        self._deploy('2.0-1')
+
+        self.assertEqual('2.0-1', self._link_target('current'))
+        self.assertEqual('1.0-1', self._link_target('previous'))
+        self.assertEqual(['1.0-1', '2.0-1'], self._version_dirs())
+
+    def test_deploy_ansible_retention_capped_at_one_generation(self):
+        """Repeated deploys never accumulate a third generation.
+
+        The deploy hook keeps the version being replaced as the rollback
+        target and prunes anything older, so even without the post-apply
+        cleanup the tree never grows past two generations.
+        """
+        for version in ('1.0-1', '2.0-1', '3.0-1', '4.0-1'):
+            self._deploy(version)
+
+        self.assertEqual('4.0-1', self._link_target('current'))
+        self.assertEqual('3.0-1', self._link_target('previous'))
+        # Two directories, never three: 1.0-1 and 2.0-1 were pruned.
+        self.assertEqual(['3.0-1', '4.0-1'], self._version_dirs())
+        self.assertFalse(os.path.lexists(self._link('previous_previous')))
+
+    # ------------------------------------------------------------------
+    # post-apply cleanup: at rest only the running version remains
+    # ------------------------------------------------------------------
+    def _applied_hook_info(self, applied=True):
+        hook_info = {LifecycleConstants.EXTRA: {
+            LifecycleConstants.APP_APPLIED: applied,
+            self.lifecycle.WAS_APPLIED: True,
+        }}
+        return hook_info
+
+    def test_prune_previous_ansible_leaves_only_current(self):
+        """REQ-3: after a successful apply no prior version remains on disk."""
+        self._deploy('1.0-1')
+        app = self._deploy('2.0-1')
+        # Mid-update state: the replaced version is the rollback target.
+        self.assertEqual('1.0-1', self._link_target('previous'))
+
+        self.lifecycle._prune_previous_ansible(app)
+
+        self.assertEqual('2.0-1', self._link_target('current'))
+        self.assertFalse(os.path.lexists(self._link('previous')))
+        self.assertEqual(['2.0-1'], self._version_dirs())
+        # The running version stays resolvable through 'current'.
+        self.assertTrue(os.path.isfile(
+            os.path.join(self._link('current'), self.PLAYBOOK)))
+
+    def test_prune_previous_ansible_no_previous_is_noop(self):
+        """Nothing to drop after a first deploy."""
+        app = self._deploy('1.0-1')
+
+        self.lifecycle._prune_previous_ansible(app)
+
+        self.assertEqual('1.0-1', self._link_target('current'))
+        self.assertEqual(['1.0-1'], self._version_dirs())
+
+    def test_prune_previous_ansible_never_deletes_running_version(self):
+        """A pointer aliasing the running version must not delete its tree."""
+        self._deploy('1.0-1')
+        app = self._deploy('2.0-1')
+        # Repoint 'previous' at the running version to model a bad state.
+        os.unlink(self._link('previous'))
+        os.symlink('2.0-1', self._link('previous'))
+
+        self.lifecycle._prune_previous_ansible(app)
+
+        self.assertFalse(os.path.lexists(self._link('previous')))
+        self.assertEqual('2.0-1', self._link_target('current'))
+        # Protected: the running version's tree survives.
+        self.assertIn('2.0-1', self._version_dirs())
+        self.assertTrue(os.path.isfile(
+            os.path.join(self._link('current'), self.PLAYBOOK)))
+
+    def test_post_apply_prunes_on_success(self):
+        """A successful apply drops the retained generation."""
+        app = self._deploy('1.0-1')
+
+        with mock.patch.object(self.lifecycle,
+                               '_prune_previous_ansible') as mock_prune, \
+                mock.patch.object(self.lifecycle,
+                                  '_delete_maridb_pvc_snapshots_if_exists'), \
+                mock.patch(_DEX_REDIRECT), \
+                mock.patch(_RECOVER_SERVERS):
+            self.lifecycle.post_apply(mock.Mock(), mock.Mock(), app,
+                                      self._applied_hook_info(applied=True))
+
+        mock_prune.assert_called_once_with(app)
+
+    def test_post_apply_does_not_prune_on_failure(self):
+        """A failed apply leaves the rollback target in place."""
+        app = self._deploy('1.0-1')
+
+        with mock.patch.object(self.lifecycle,
+                               '_prune_previous_ansible') as mock_prune, \
+                mock.patch.object(self.lifecycle,
+                                  '_delete_maridb_pvc_snapshots_if_exists'), \
+                mock.patch(_DEX_REDIRECT), \
+                mock.patch(_RECOVER_SERVERS):
+            self.lifecycle.post_apply(mock.Mock(), mock.Mock(), app,
+                                      self._applied_hook_info(applied=False))
+
+        mock_prune.assert_not_called()
+
+    def _manifest_hook_info(self, applied=True):
+        return {LifecycleConstants.EXTRA: {
+            LifecycleConstants.MANIFEST_APPLIED: applied,
+        }}
+
+    def test_post_apply_manifest_prunes_on_success(self):
+        """The manifest hook prunes too: it is the only one of the two that
+        fires on an application-update, which is the only path that creates a
+        retained generation.
+        """
+        app = self._deploy('1.0-1')
+
+        with mock.patch.object(self.lifecycle,
+                               '_prune_previous_ansible') as mock_prune, \
+                mock.patch.object(self.lifecycle,
+                                  '_post_update_image_actions') as mock_img:
+            self.lifecycle.post_apply_manifest(
+                app, self._manifest_hook_info(applied=True))
+
+        mock_prune.assert_called_once_with(app)
+        mock_img.assert_called_once_with(app)
+
+    def test_post_apply_manifest_does_not_prune_on_failure(self):
+        """Unlike post_apply, this hook also fires when the manifest failed;
+        a failed update must keep its rollback target.
+        """
+        app = self._deploy('1.0-1')
+
+        with mock.patch.object(self.lifecycle,
+                               '_prune_previous_ansible') as mock_prune, \
+                mock.patch.object(self.lifecycle,
+                                  '_post_update_image_actions'):
+            self.lifecycle.post_apply_manifest(
+                app, self._manifest_hook_info(applied=False))
+
+        mock_prune.assert_not_called()
+
+    def test_post_apply_manifest_prune_failure_does_not_raise(self):
+        """Cleanup failure must not fail an otherwise successful apply."""
+        app = self._deploy('1.0-1')
+
+        with mock.patch.object(self.lifecycle, '_prune_previous_ansible',
+                               side_effect=OSError('boom')), \
+                mock.patch.object(self.lifecycle,
+                                  '_post_update_image_actions'):
+            # Must not raise.
+            self.lifecycle.post_apply_manifest(
+                app, self._manifest_hook_info(applied=True))
+
+    def test_prune_previous_ansible_is_idempotent(self):
+        """Both post_apply and post_apply_manifest fire on a plain apply, so
+        the prune runs twice; the second call must be a no-op.
+        """
+        self._deploy('1.0-1')
+        app = self._deploy('2.0-1')
+
+        self.lifecycle._prune_previous_ansible(app)
+        # Second call, as happens when both post hooks fire.
+        self.lifecycle._prune_previous_ansible(app)
+
+        self.assertEqual('2.0-1', self._link_target('current'))
+        self.assertFalse(os.path.lexists(self._link('previous')))
+        self.assertEqual(['2.0-1'], self._version_dirs())
+
+    def test_prune_previous_failure_does_not_break_apply(self):
+        """Cleanup failure must not fail an otherwise successful apply."""
+        app = self._deploy('1.0-1')
+
+        with mock.patch.object(self.lifecycle, '_prune_previous_ansible',
+                               side_effect=OSError('boom')), \
+                mock.patch.object(self.lifecycle,
+                                  '_delete_maridb_pvc_snapshots_if_exists'), \
+                mock.patch(_DEX_REDIRECT), \
+                mock.patch(_RECOVER_SERVERS):
+            # Must not raise.
+            self.lifecycle.post_apply(mock.Mock(), mock.Mock(), app,
+                                      self._applied_hook_info(applied=True))
+
+    def test_deploy_ansible_prunes_dangling_previous(self):
+        """A previous pointer whose tree is already gone is dropped without
+        error and does not block the rotation.
+        """
+        self._deploy('1.0-1')
+        self._deploy('2.0-1')
+        # Simulate the retained tree having been removed out from under us.
+        shutil.rmtree(os.path.join(self.app_base, '1.0-1'))
+
+        self._deploy('3.0-1')
+
+        self.assertEqual('3.0-1', self._link_target('current'))
+        self.assertEqual('2.0-1', self._link_target('previous'))
+        self.assertEqual(['2.0-1', '3.0-1'], self._version_dirs())
+
+    # ------------------------------------------------------------------
+    # undeploy / rollback promote
+    # ------------------------------------------------------------------
+    def test_undeploy_ansible_promotes_previous(self):
+        """Removing the active version promotes the rollback target.
+
+        This is the update-recover path: sysinv applies the old version
+        through FluxCD without re-running the upload hook, so this promote is
+        what leaves the recovered version with playbooks on disk.
+        """
+        self._deploy('1.0-1')
+        failed_app = self._deploy('2.0-1')
+
+        self.lifecycle._undeploy_ansible(failed_app)
+
+        self.assertEqual('1.0-1', self._link_target('current'))
+        self.assertEqual(['1.0-1'], self._version_dirs())
+        self.assertTrue(os.path.isfile(
+            os.path.join(self._link('current'), self.PLAYBOOK)))
+        self.assertFalse(os.path.lexists(self._link('previous')))
+
+    def test_undeploy_ansible_no_previous_leaves_no_dangling_current(self):
+        """With nothing to promote, current is removed rather than left
+        pointing at a deleted tree.
+        """
+        app = self._deploy('1.0-1')
+
+        self.lifecycle._undeploy_ansible(app)
+
+        self.assertFalse(os.path.lexists(self._link('current')))
+        self.assertEqual([], self._version_dirs())
+
+    def test_undeploy_ansible_drops_dangling_previous(self):
+        """A dangling rollback pointer is dropped, not promoted, so current
+        never resolves to a missing tree.
+        """
+        self._deploy('1.0-1')
+        failed_app = self._deploy('2.0-1')
+        shutil.rmtree(os.path.join(self.app_base, '1.0-1'))
+
+        self.lifecycle._undeploy_ansible(failed_app)
+
+        self.assertFalse(os.path.lexists(self._link('current')))
+        self.assertFalse(os.path.lexists(self._link('previous')))
+
+    def test_undeploy_ansible_other_version_leaves_pointers_intact(self):
+        """Undeploying a version that is not active leaves the pointer chain
+        alone.
+        """
+        self._deploy('1.0-1')
+        self._deploy('2.0-1')
+
+        stale = self._make_app('1.0-1')
+        self.lifecycle._undeploy_ansible(stale)
+
+        self.assertEqual('2.0-1', self._link_target('current'))
+        self.assertEqual('1.0-1', self._link_target('previous'))
+        self.assertEqual(['2.0-1'], self._version_dirs())
+
+    def test_undeploy_ansible_missing_version_is_noop(self):
+        """Undeploying a version that was never deployed does not raise."""
+        self._deploy('1.0-1')
+
+        never = self._make_app('9.9-9')
+        self.lifecycle._undeploy_ansible(never)
+
+        self.assertEqual('1.0-1', self._link_target('current'))
+        self.assertEqual(['1.0-1'], self._version_dirs())
+
+    # ------------------------------------------------------------------
+    # purge on application-delete
+    # ------------------------------------------------------------------
+    def test_purge_ansible_removes_whole_tree(self):
+        """application-delete leaves no version directory and no pointer."""
+        self._deploy('1.0-1')
+        self._deploy('2.0-1')
+        app = self._make_app('2.0-1')
+
+        self.lifecycle._purge_ansible(app)
+
+        self.assertFalse(os.path.exists(self.app_base))
+
+    def test_purge_ansible_missing_tree_is_noop(self):
+        """Purging when nothing was deployed does not raise."""
+        app = self._make_app('1.0-1', with_ansible=False)
+
+        self.lifecycle._purge_ansible(app)
+
+        self.assertFalse(os.path.exists(self.app_base))
+
+    def test_pre_delete_purges_instead_of_undeploying(self):
+        """pre_delete removes the whole tree, not just the active version."""
+        app = self._make_app('1.0-1')
+
+        with mock.patch.object(self.lifecycle,
+                               '_purge_ansible') as mock_purge, \
+                mock.patch.object(self.lifecycle,
+                                  '_undeploy_ansible') as mock_undeploy:
+            self.lifecycle.pre_delete(mock.Mock(), app)
+
+        mock_purge.assert_called_once_with(app)
+        mock_undeploy.assert_not_called()
+
+    def test_purge_then_redeploy_restores_tree(self):
+        """A re-upload after delete rebuilds the tree, which is what keeps the
+        documented remove/delete/upload restore procedure working.
+        """
+        self._deploy('1.0-1')
+        self.lifecycle._purge_ansible(self._make_app('1.0-1'))
+
+        self._deploy('1.0-1')
+
+        self.assertEqual('1.0-1', self._link_target('current'))
+        self.assertTrue(os.path.isfile(
+            os.path.join(self._link('current'), self.PLAYBOOK)))
+
+    # ------------------------------------------------------------------
+    # downgrade uses the rollback promote, not the purge
+    # ------------------------------------------------------------------
+    def test_pre_downgrade_undeploys_single_version(self):
+        """pre_downgrade retires one version rather than purging the tree."""
+        app = self._make_app('2.0-1')
+
+        with mock.patch.object(self.lifecycle,
+                               '_undeploy_ansible') as mock_undeploy, \
+                mock.patch.object(self.lifecycle,
+                                  '_purge_ansible') as mock_purge:
+            self.lifecycle.pre_downgrade(mock.Mock(), app)
+
+        mock_undeploy.assert_called_once_with(app)
+        mock_purge.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # dispatch contract: a hook is only reachable when type, operation and
+    # timing all match what sysinv sends. These pin the combinations so a
+    # mis-registered hook fails here instead of silently never running.
+    # ------------------------------------------------------------------
+    def _dispatch(self, lifecycle_type, timing, operation):
+        hook_info = mock.MagicMock()
+        hook_info.lifecycle_type = lifecycle_type
+        hook_info.relative_timing = timing
+        hook_info.operation = operation
+        return hook_info
+
+    def test_downgrade_dispatched_as_resource_pre_reaches_pre_downgrade(self):
+        """sysinv sends APP_DOWNGRADE_OP as RESOURCE + PRE.
+
+        Verified against sysinv/conductor/kube_app.py, which sets
+        lifecycle_type=RESOURCE and relative_timing=PRE on the downgrade hook.
+        Registering it as OPERATION or POST makes it unreachable.
+        """
+        hook_info = self._dispatch(
+            LifecycleConstants.APP_LIFECYCLE_TYPE_RESOURCE,
+            LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
+            constants.APP_DOWNGRADE_OP)
+        app = self._make_app('2.0-1')
+
+        with mock.patch.object(self.lifecycle, 'pre_downgrade') as mock_hook:
+            self.lifecycle.app_lifecycle_actions(
+                mock.Mock(), mock.Mock(), mock.Mock(), app, hook_info)
+
+        mock_hook.assert_called_once()
+
+    def test_delete_dispatched_as_operation_pre_reaches_pre_delete(self):
+        """sysinv sends APP_DELETE_OP as OPERATION + PRE."""
+        hook_info = self._dispatch(
+            LifecycleConstants.APP_LIFECYCLE_TYPE_OPERATION,
+            LifecycleConstants.APP_LIFECYCLE_TIMING_PRE,
+            constants.APP_DELETE_OP)
+        app = self._make_app('1.0-1')
+
+        with mock.patch.object(self.lifecycle, 'pre_delete') as mock_hook:
+            self.lifecycle.app_lifecycle_actions(
+                mock.Mock(), mock.Mock(), mock.Mock(), app, hook_info)
+
+        mock_hook.assert_called_once()
+
+    def test_upload_dispatched_as_operation_post_reaches_post_upload(self):
+        """sysinv sends APP_UPLOAD_OP as OPERATION + POST."""
+        hook_info = self._dispatch(
+            LifecycleConstants.APP_LIFECYCLE_TYPE_OPERATION,
+            LifecycleConstants.APP_LIFECYCLE_TIMING_POST,
+            constants.APP_UPLOAD_OP)
+        app = self._make_app('1.0-1')
+
+        with mock.patch.object(self.lifecycle, 'post_upload') as mock_hook:
+            self.lifecycle.app_lifecycle_actions(
+                mock.Mock(), mock.Mock(), mock.Mock(), app, hook_info)
+
+        mock_hook.assert_called_once()

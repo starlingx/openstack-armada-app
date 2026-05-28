@@ -8,7 +8,10 @@
 
 """ System inventory App lifecycle operator."""
 
+import os
 from pathlib import Path
+import shutil
+import tempfile
 
 from oslo_log import log as logging
 from sysinv.api.controllers.v1 import utils
@@ -19,6 +22,7 @@ from sysinv.helm import common
 from sysinv.helm import lifecycle_base as base
 from sysinv.helm import lifecycle_utils as lifecycle_utils
 from sysinv.helm.lifecycle_constants import LifecycleConstants
+from tsconfig import tsconfig as tsc
 
 from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
@@ -59,6 +63,14 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         """
         # Operation
+        # relative_timing is logged because a hook is only reachable when the
+        # type, operation and timing all match what sysinv dispatches; without
+        # the timing a mis-registered hook looks indistinguishable from one
+        # that simply did not run.
+        LOG.info("app_lifecycle_actions %s/%s (%s)",
+                 hook_info.lifecycle_type, hook_info.relative_timing,
+                 hook_info.operation)
+
         if hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_OPERATION:
             if hook_info.operation == constants.APP_APPLY_OP:
                 if hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
@@ -73,6 +85,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             elif hook_info.operation == constants.APP_UPLOAD_OP:
                 if hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
                     return self.post_upload(context, conductor_obj, app, hook_info)
+            elif hook_info.operation == constants.APP_DELETE_OP:
+                if hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
+                    return self.pre_delete(app_op, app)
 
         # Resource
         elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_RESOURCE:
@@ -83,7 +98,13 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                     hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
                 return self._delete_app_specific_resources_post_remove(app_op, app, hook_info)
             elif hook_info.operation == constants.APP_RECOVER_OP:
-                return self._recover_actions(app_op, app)
+                return self._recover_actions(app_op, app, hook_info)
+            elif hook_info.operation == constants.APP_UPDATE_OP:
+                if hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
+                    return self.pre_update(app_op, app)
+            elif hook_info.operation == constants.APP_DOWNGRADE_OP:
+                if hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_PRE:
+                    return self.pre_downgrade(app_op, app)
 
         # Semantic checks
         elif hook_info.lifecycle_type == LifecycleConstants.APP_LIFECYCLE_TYPE_SEMANTIC_CHECK:
@@ -105,7 +126,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 return self._pre_update_actions(app)
             elif hook_info.operation == constants.APP_APPLY_OP and \
                     hook_info.relative_timing == LifecycleConstants.APP_LIFECYCLE_TIMING_POST:
-                return self._post_update_image_actions(app)
+                return self.post_apply_manifest(app, hook_info)
 
         # Default behavior
         super(OpenstackAppLifecycleOperator, self).app_lifecycle_actions(context, conductor_obj, app_op, app,
@@ -114,6 +135,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
     def post_upload(self, context, conductor_obj, app, hook_info):
         """Post upload actions
 
+        Performs LDAP-related post-upload setup, then deploys the
+        application-owned ansible playbooks bundled in the tarball to the
+        DRBD-replicated /opt/platform/ansible/ tree.
+
         :param context: request context
         :param conductor_obj: conductor object
         :param app: AppOperator.Application object
@@ -121,6 +146,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         """
         self._post_upload_ldap_actions(app)
+        self._deploy_ansible(app)
 
     def pre_apply(self, context, conductor_obj, app, hook_info):
         """Pre apply actions
@@ -178,6 +204,51 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             except Exception as e:
                 LOG.error(f"Failed to recover error servers: {e}")
 
+        # The apply succeeded, so the version it replaced is no longer a
+        # rollback target and no version other than the running one needs to
+        # stay on disk. Also attempted from post_apply_manifest, which is the
+        # only one of the two that fires on an application-update; the prune
+        # is idempotent so whichever runs first wins and the other no-ops.
+        if hook_info[LifecycleConstants.EXTRA][LifecycleConstants.APP_APPLIED]:
+            try:
+                self._prune_previous_ansible(app)
+            except Exception as e:
+                # Never fail an otherwise successful apply over cleanup.
+                LOG.error("Failed to prune the retained playbook version: %s",
+                          e)
+
+    def post_apply_manifest(self, app, hook_info):
+        """Post apply manifest actions
+
+        Registered in addition to post_apply because the two hooks do not
+        cover the same operations: sysinv raises no operation-timed hook on
+        the application-update path, so post_apply never runs for an update,
+        while this hook is raised for both a plain apply and an update. The
+        retained playbook generation only ever exists during an update, so
+        without this registration the prune could never reach a target.
+
+        Registering the same work on both hooks follows the precedent set by
+        the OIDC application plugin. On a plain apply both fire, a few
+        milliseconds apart; _prune_previous_ansible is idempotent, so the
+        second call finds no 'previous' pointer and returns.
+
+        :param app: AppOperator.Application object
+        :param hook_info: LifecycleHookInfo object
+        """
+        self._post_update_image_actions(app)
+
+        # Unlike post_apply, this hook is also raised when the manifest
+        # failed to apply, so the success flag has to be honoured here -- a
+        # failed update must keep its rollback target.
+        if hook_info[LifecycleConstants.EXTRA].get(
+                LifecycleConstants.MANIFEST_APPLIED):
+            try:
+                self._prune_previous_ansible(app)
+            except Exception as e:
+                # Never fail an otherwise successful apply over cleanup.
+                LOG.error("Failed to prune the retained playbook version: %s",
+                          e)
+
     def pre_remove(self, context, conductor_obj, hook_info):
         """Pre remove actions
 
@@ -209,6 +280,46 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # Update the VIM configuration.
             conductor_obj._update_vim_config(context)
             conductor_obj._update_radosgw_config(context)
+
+    def pre_delete(self, app_op, app):
+        """Pre delete actions.
+
+        Called only on explicit application-delete (not application-remove).
+        Purges the application's whole /opt/platform/ansible/ tree: the
+        application is going away, so no version directory or rollback
+        pointer needs to outlive it.
+        """
+        LOG.info("openstack pre_delete: full cleanup starting.")
+        # Remove every deployed playbook version and tracking pointer.
+        self._purge_ansible(app)
+
+    def pre_update(self, app_op, app):
+        """Pre update actions.
+
+        Called only on explicit application-update.
+        This deploys /opt/platform/ansible
+        """
+        LOG.info("openstack pre_update: ansible deploy starting.")
+        # Perform pre update playbook deploy.
+        self._deploy_ansible(app)
+
+    def pre_downgrade(self, app_op, app):
+        """Pre downgrade actions.
+
+        sysinv raises this from perform_app_update when the target version is
+        lower than the installed one. It is dispatched as a RESOURCE hook with
+        PRE timing (sysinv/conductor/kube_app.py, the APP_DOWNGRADE_OP block),
+        and ``app`` is the version being downgraded *from* -- the dispatch
+        passes ``from_rpc_app``.
+
+        Retires that version's playbooks and promotes the retained generation,
+        so the tree does not keep a directory for a version the system is
+        moving away from. It runs before the new (lower) version's tarball is
+        uploaded, so the subsequent pre_update deploy re-establishes 'current'.
+        """
+        LOG.info("openstack pre_downgrade: retiring playbooks for %s.",
+                 app.version)
+        self._undeploy_ansible(app)
 
     def _delete_maridb_pvc_snapshots_if_exists(self) -> None:
         """
@@ -1040,15 +1151,65 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             LOG.info(f"Trying to take a snapshot from PVC {pvc_name}")
             app_utils.create_pvc_snapshot(snapshot_name, pvc_name, SNAPSHOT_CLASS_NAME, path=app.inst_path)
 
-    def _recover_actions(self, app_op, app):
+    @staticmethod
+    def _is_failed_update_version(app, hook_info):
+        """Whether this recover dispatch carries the version that failed.
+
+        The recover hook is raised twice with the same 'extra' payload: once
+        with the version the update failed on, and once, after the recovery
+        has completed, with the version that was restored.
+        ``EXTRA[FROM_APP_VERSION]`` names the failed version in both, so
+        comparing it against the dispatched application tells the two apart.
+
+        Falls back to True when the information is unavailable, so a missing
+        payload retires the failed version's playbooks rather than silently
+        leaving them behind.
+
+        Args:
+            app (AppOperator.Application): Application being dispatched
+            hook_info (LifecycleHookInfo): Recover hook info
+
+        Returns:
+            bool: True if ``app`` is the version the update failed on.
+        """
+        try:
+            failed_version = hook_info[LifecycleConstants.EXTRA][
+                LifecycleConstants.FROM_APP_VERSION]
+        except (KeyError, TypeError):
+            LOG.warning("Recover hook carried no %s; assuming %s is the "
+                        "failed version",
+                        LifecycleConstants.FROM_APP_VERSION, app.version)
+            return True
+        return app.version == failed_version
+
+    def _recover_actions(self, app_op, app, hook_info):
         """Perform all recover actions.
 
         Args:
             app_op (AppOperator): System Inventory AppOperator object
             app (AppOperator.Application): Application we are recovering from
+            hook_info (LifecycleHookInfo): Recover hook info. Used to tell the
+                two recover dispatches apart; see _is_failed_update_version.
         """
         self._recover_backup_snapshot(app)
         self._recover_app_resources_failed_update(app_op, app)
+
+        # Retire the failed version's playbooks and promote the retained
+        # generation into 'current'. This is deliberately driven from here
+        # rather than from _recover_app_resources_failed_update: that method
+        # returns early when only one application version is present on the
+        # system, and playbook retirement must not be conditional on whether
+        # the FluxCD resource recovery was able to proceed.
+        #
+        # Guarded because the hook is dispatched twice. Undeploying on the
+        # second dispatch would remove the tree belonging to the version that
+        # was just recovered to and unlink 'current' along with it.
+        if self._is_failed_update_version(app, hook_info):
+            self._undeploy_ansible(app)
+        else:
+            LOG.info("Skipping playbook undeployment for %s %s: this recover "
+                     "dispatch carries the recovered version, not the failed "
+                     "one", app.name, app.version)
 
     def _recover_app_resources_failed_update(self, app_op, app):
         """Perform resource recover after failed update
@@ -1383,3 +1544,317 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 "backend resolves to the correct StorageClass. "
                 "Please update your StorageClass definitions before applying."
             )
+
+    def _deploy_ansible(self, app):
+        """Deploy application-owned ansible playbooks to /opt/platform/ansible.
+
+        Source:  <app.inst_path>/ansible/
+        Target:  /opt/platform/ansible/<release>/<app-name>/<version>/
+        Symlink: /opt/platform/ansible/<release>/<app-name>/current -> <version>/
+
+        On each deploy the tracking pointer rotates current -> previous, so
+        the version being replaced becomes the rollback target for the
+        update now starting. 'previous' exists solely for that purpose --
+        see _undeploy_ansible, which promotes it back to 'current' when an
+        update fails, and _prune_previous_ansible, which drops it once the
+        apply has succeeded. At rest only 'current' remains.
+
+        Anything the pointer still names from an earlier cycle is two
+        generations back and is pruned here, which covers an update that
+        was interrupted before its own post-apply cleanup ran. A dangling
+        pointer (its target directory already removed) is handled rather
+        than silently skipped.
+
+        /opt/platform/ is DRBD-replicated to the standby controller, so a
+        single write on the active controller is automatically mirrored.
+        Graceful skip when the tarball does not contain an ansible/
+        directory.
+        """
+        source_dir = os.path.join(
+            app.inst_path, app_constants.ANSIBLE_TARBALL_SUBDIR)
+        if not os.path.isdir(source_dir):
+            LOG.info(
+                "No ansible directory in tarball at %s; "
+                "skipping playbook deployment", source_dir)
+            return
+
+        release = tsc.SW_VERSION
+        app_name = app.name
+        version = app.version
+
+        app_base = os.path.join(
+            app_constants.ANSIBLE_DEPLOY_BASE, release, app_name)
+        target_dir = os.path.join(app_base, version)
+        current_link = os.path.join(
+            app_base, app_constants.ANSIBLE_CURRENT_LINK)
+        previous_link = os.path.join(
+            app_base, app_constants.ANSIBLE_PREVIOUS_LINK)
+
+        os.makedirs(app_base, exist_ok=True)
+
+        # Stage to a temp dir within app_base so rename is on the same
+        # filesystem (atomic).
+        tmp_dir = tempfile.mkdtemp(
+            prefix=".{}-".format(version), dir=app_base)
+        tmp_link = current_link + ".new"
+        try:
+            staged_dir = os.path.join(tmp_dir, version)
+            shutil.copytree(source_dir, staged_dir)
+
+            # Atomic replacement of the version directory.
+            if os.path.exists(target_dir):
+                shutil.rmtree(target_dir)
+            os.rename(staged_dir, target_dir)
+
+            # The version 'current' names right now becomes the single
+            # retained rollback generation.
+            current_version = None
+            if os.path.islink(current_link):
+                current_version = os.path.basename(
+                    os.readlink(current_link).rstrip("/"))
+
+            # Enforce the one-prior-generation cap: whatever 'previous' still
+            # names is two generations back and is dropped from disk before
+            # 'current' rotates into its place.
+            self._prune_link(previous_link, app_base,
+                             protected={version, current_version})
+            self._rotate_link(current_link, previous_link)
+
+            # Atomically publish 'current' -> <version>. Write a new symlink
+            # under a temp name, then os.rename over 'current'. os.rename
+            # atomically replaces an existing symlink, so 'current' is never
+            # observed missing by a concurrent reader.
+            if os.path.lexists(tmp_link):
+                os.unlink(tmp_link)
+            os.symlink(version, tmp_link)
+            os.rename(tmp_link, current_link)
+
+            LOG.info(
+                "Deployed application playbooks: %s (current -> %s)",
+                target_dir, version)
+        except Exception:
+            LOG.exception("Failed to deploy application playbooks")
+            raise
+        finally:
+            if os.path.isdir(tmp_dir):
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            # A failed link swap must not leave the staging pointer behind.
+            if os.path.lexists(tmp_link):
+                try:
+                    os.unlink(tmp_link)
+                except OSError:
+                    LOG.exception("Failed to remove staging pointer %s",
+                                  tmp_link)
+
+    def _undeploy_ansible(self, app):
+        """Undeploy application-owned ansible playbooks from /opt/platform/ansible.
+
+        Removes the version-specific playbook directory, and if 'current'
+        points at the version being removed, unlinks it and promotes
+        'previous' into 'current'. A pointer whose target directory no longer
+        exists (dangling) is dropped rather than promoted, so 'current' is
+        never left pointing at a missing tree. When 'current' points at a
+        different version it is left intact (this version was not the active
+        one).
+
+        This is the rollback path for a failed application-update: sysinv's
+        recover flow applies the old version through FluxCD directly and does
+        not re-run the upload hook, so promoting 'previous' here is what
+        leaves the recovered version with playbooks on disk.
+
+        Note this is a single-version undeploy. Removing the application
+        entirely is _purge_ansible, wired to pre_delete.
+        """
+        release = tsc.SW_VERSION
+        app_name = app.name
+        version = app.version
+
+        app_base = os.path.join(
+            app_constants.ANSIBLE_DEPLOY_BASE, release, app_name)
+        target_dir = os.path.join(app_base, version)
+        current_link = os.path.join(
+            app_base, app_constants.ANSIBLE_CURRENT_LINK)
+        previous_link = os.path.join(
+            app_base, app_constants.ANSIBLE_PREVIOUS_LINK)
+
+        LOG.info("Starting playbook undeployment for %s %s", app_name, version)
+
+        # 1. Remove the version-specific playbook directory.
+        if os.path.islink(target_dir):
+            # Defensive: target_dir should be a real directory, never a link.
+            os.unlink(target_dir)
+        elif os.path.isdir(target_dir):
+            try:
+                shutil.rmtree(target_dir)
+                LOG.info("Purged playbook directory: %s", target_dir)
+            except Exception:
+                LOG.exception("Failed to remove playbook tree at %s", target_dir)
+        else:
+            LOG.info("Playbook path %s does not exist; skipping deletion",
+                     target_dir)
+
+        # 2. Only touch 'current' if it actively points at the version we
+        #    just removed. Otherwise this version was not the active one and
+        #    the pointer chain must be left alone.
+        if not os.path.islink(current_link):
+            return
+
+        current_target = os.readlink(current_link)
+        if os.path.basename(current_target.rstrip("/")) != version:
+            LOG.info("'current' points at a different version (%s); "
+                     "leaving tracking pointers intact", current_target)
+            return
+
+        # 'current' pointed at the removed version. Unlink it and promote
+        # 'previous' into its place, but only if that pointer's target
+        # directory still exists so 'current' is never left dangling.
+        try:
+            os.unlink(current_link)
+            self._promote_link(previous_link, current_link, app_base)
+            LOG.info("Unlinked 'current' and promoted 'previous' for %s",
+                     app_name)
+        except Exception:
+            LOG.exception("Failed to unlink/promote tracking pointer %s",
+                          current_link)
+
+    def _prune_previous_ansible(self, app):
+        """Drop the retained playbook generation once an apply has succeeded.
+
+        The rollback generation only has to exist *during* an update: the
+        deploy hook rotates 'current' into 'previous' at pre_update, and a
+        failed update is recovered from that pointer. Once the apply has
+        succeeded there is nothing left to roll back to, so the retained
+        version is removed and only the running one stays on disk.
+
+        Safe against destroying a rollback target mid-recovery: sysinv's
+        recover flow re-applies the old version through FluxCD directly
+        (_make_app_request), bypassing perform_app_apply. That path does
+        raise fluxcd-request hooks, but neither of the hooks this runs from
+        -- operation/post and manifest/post -- so it never runs as part of a
+        recovery. Do not move this call onto a fluxcd-request hook.
+
+        The running version is passed as protected so an unexpected pointer
+        state can never delete the tree that 'current' resolves to.
+        """
+        release = tsc.SW_VERSION
+        app_base = os.path.join(
+            app_constants.ANSIBLE_DEPLOY_BASE, release, app.name)
+        current_link = os.path.join(
+            app_base, app_constants.ANSIBLE_CURRENT_LINK)
+        previous_link = os.path.join(
+            app_base, app_constants.ANSIBLE_PREVIOUS_LINK)
+
+        if not os.path.lexists(previous_link):
+            return
+
+        current_version = None
+        if os.path.islink(current_link):
+            current_version = os.path.basename(
+                os.readlink(current_link).rstrip("/"))
+
+        self._prune_link(previous_link, app_base,
+                         protected={current_version, app.version})
+        LOG.info("Dropped the retained playbook generation for %s; only the "
+                 "running version remains", app.name)
+
+    def _purge_ansible(self, app):
+        """Remove the whole application playbook tree on application-delete.
+
+        Unlike _undeploy_ansible, which removes one version and preserves the
+        rollback pointer, this drops /opt/platform/ansible/<release>/<app-name>/
+        entirely: every version directory and every tracking pointer. Once the
+        application is deleted there is nothing left to back up or restore for
+        it, and the platform delegation check degrades to its inline fallback
+        when it finds no playbook at the expected path.
+
+        A re-upload redeploys the tree from the tarball via post_upload, so
+        the restore procedure (remove, delete, upload, restore) is unaffected.
+        """
+        release = tsc.SW_VERSION
+        app_base = os.path.join(
+            app_constants.ANSIBLE_DEPLOY_BASE, release, app.name)
+
+        if os.path.islink(app_base):
+            # Defensive: app_base should be a real directory, never a link.
+            os.unlink(app_base)
+            return
+        if not os.path.isdir(app_base):
+            LOG.info("No playbook tree at %s; nothing to purge", app_base)
+            return
+
+        try:
+            # rmtree does not follow the symlinks it removes, so the version
+            # directories are deleted exactly once via their real paths.
+            shutil.rmtree(app_base)
+            LOG.info("Purged application playbook tree: %s", app_base)
+        except Exception:
+            LOG.exception("Failed to purge playbook tree at %s", app_base)
+
+    @staticmethod
+    def _prune_link(link, app_base, protected=frozenset()):
+        """Drop a tracking symlink and the version directory it names.
+
+        Enforces the one-prior-generation retention cap during deploy: the
+        pointer is removed along with the version tree it resolves to. A
+        version named in 'protected' is never deleted -- defensive cover for
+        an unexpected pointer state where 'previous' names the version being
+        deployed or the one about to become the rollback target. A dangling
+        pointer is dropped without error. No-op if link is absent.
+        """
+        if not os.path.islink(link):
+            return
+        target = os.readlink(link)
+        target_version = os.path.basename(target.rstrip("/"))
+        resolved = target if os.path.isabs(target) \
+            else os.path.join(app_base, target)
+
+        if target_version in protected:
+            LOG.info("Retaining protected version %s; dropping pointer %s",
+                     target_version, link)
+        elif os.path.isdir(resolved) and not os.path.islink(resolved):
+            try:
+                shutil.rmtree(resolved)
+                LOG.info("Pruned playbook directory past retention: %s",
+                         resolved)
+            except Exception:
+                LOG.exception("Failed to prune playbook tree at %s", resolved)
+        os.unlink(link)
+
+    @staticmethod
+    def _rotate_link(src_link, dst_link):
+        """Move a tracking symlink src_link -> dst_link during deploy.
+
+        Rotates real symlinks (valid or dangling). Removes a stray non-link
+        occupying dst_link first so os.rename cannot fail on a real directory.
+        No-op if src_link is absent.
+        """
+        if not os.path.islink(src_link):
+            return
+        if os.path.lexists(dst_link):
+            if os.path.islink(dst_link):
+                os.unlink(dst_link)
+            elif os.path.isdir(dst_link):
+                shutil.rmtree(dst_link)
+            else:
+                os.unlink(dst_link)
+        os.rename(src_link, dst_link)
+
+    @staticmethod
+    def _promote_link(src_link, dst_link, app_base):
+        """Promote src_link into dst_link during undeploy, dangling-safe.
+
+        If src_link resolves to an existing directory, move it to dst_link.
+        If src_link is dangling (target dir gone), drop it instead of
+        promoting a broken pointer. No-op if src_link is absent.
+        """
+        if not os.path.islink(src_link):
+            return
+        target = os.readlink(src_link)
+        resolved = target if os.path.isabs(target) \
+            else os.path.join(app_base, target)
+        if os.path.isdir(resolved):
+            os.rename(src_link, dst_link)
+        else:
+            os.unlink(src_link)
+            LOG.info("Dropped dangling tracking pointer %s (-> %s)",
+                     src_link, target)

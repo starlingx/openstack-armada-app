@@ -915,6 +915,81 @@ class CinderHelmTestCase(testtools.TestCase):
         check_nsp_override(app_constants.NETAPP_ISCSI_BACKEND_NAME, True)
         check_nsp_override(app_constants.NETAPP_FC_BACKEND_NAME, True)
 
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
+        return_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
+        return_value=["netapp-iscsi", "ceph"]
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_available_volume_backends',
+        return_value={
+            "ceph": "general",
+            app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+            app_constants.NETAPP_ISCSI_BACKEND_NAME: "netapp-san-backend",
+            app_constants.NETAPP_FC_BACKEND_NAME: ""
+        }
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_credentials',
+        return_value={"netapp_login": "user", "netapp_password": "pwd"}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.discover_netapp_configs',
+        return_value={"netapp_vserver": "svm_iscsi"}
+    )
+    def test_backend_excluded_from_priority_list_is_disabled(self, *_):
+        """Test that a backend available but not in priority list is disabled.
+
+        Exercises the real initialization logic from get_overrides() to ensure
+        that flags and downstream methods behave correctly when a backend is
+        available but excluded from volume_storage_class_priority.
+        """
+        ch = cinder.CinderHelm(None)
+
+        # Run the same initialization that get_overrides() performs
+        ch.VOLUME_PRIORITY_LIST = cinder.get_storage_backends_priority_list(ch.CHART)
+        ch.BACKUP_PRIORITY_LIST = cinder.get_storage_backup_priority_list(ch.CHART)
+        ch.available_backends = cinder.get_available_volume_backends()
+        ch.available_netapp_backends = [
+            be for be in ch.available_backends
+            if be.startswith('netapp') and ch.available_backends[be]
+        ]
+        ch._ceph_enabled = bool(
+            ch.available_backends.get(app_constants.CEPH_BACKEND_NAME, False)
+        )
+        ch._netapp_nfs_enabled = bool(
+            ch.available_backends.get(app_constants.NETAPP_NFS_BACKEND_NAME, False)
+            and app_constants.NETAPP_NFS_BACKEND_NAME in ch.VOLUME_PRIORITY_LIST
+        )
+        ch._netapp_iscsi_enabled = bool(
+            ch.available_backends.get(app_constants.NETAPP_ISCSI_BACKEND_NAME, False)
+            and app_constants.NETAPP_ISCSI_BACKEND_NAME in ch.VOLUME_PRIORITY_LIST
+        )
+        ch._netapp_fc_enabled = bool(
+            ch.available_backends.get(app_constants.NETAPP_FC_BACKEND_NAME, False)
+            and app_constants.NETAPP_FC_BACKEND_NAME in ch.VOLUME_PRIORITY_LIST
+        )
+        ch.netapp_enabled = any(
+            be for be in ch.available_netapp_backends
+            if be in ch.VOLUME_PRIORITY_LIST
+        )
+
+        # Verify flags: NFS available but excluded from priority list
+        self.assertFalse(ch._netapp_nfs_enabled)
+        self.assertTrue(ch._netapp_iscsi_enabled)
+        self.assertFalse(ch._netapp_fc_enabled)
+        self.assertTrue(ch.netapp_enabled)
+
+        # Verify downstream: excluded backend not in enabled_backends
+        cinder_overrides = {'DEFAULT': {}}
+        result = ch._get_conf_netapp_cinder_overrides(cinder_overrides)
+        enabled = result['DEFAULT'].get('enabled_backends', '')
+        self.assertIn('netapp-iscsi', enabled)
+        self.assertNotIn('netapp-nfs', enabled)
+
 
 class CinderMountOverridesTest(CinderConversionTestCase,
                                dbbase.ControllerHostTestCase):

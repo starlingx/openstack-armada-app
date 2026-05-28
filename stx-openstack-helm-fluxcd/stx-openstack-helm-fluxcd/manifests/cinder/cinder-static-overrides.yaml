@@ -1498,6 +1498,20 @@ storage_conf:
     host_cert: /var/opt/openstack/certs/storage.pem
     container_cert:
       - /usr/lib/ssl/cert.pem
+  backends_conf: []
+  extra_mounts:
+    cinder_volume:
+      volumeMounts: []
+      volumes: []
+    cinder_backup:
+      volumeMounts: []
+      volumes: []
+    cinder_api:
+      volumeMounts: []
+      volumes: []
+    cinder_scheduler:
+      volumeMounts: []
+      volumes: []
 
 manifests:
   certificates: false

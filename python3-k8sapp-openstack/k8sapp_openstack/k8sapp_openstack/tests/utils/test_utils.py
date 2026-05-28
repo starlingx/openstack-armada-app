@@ -1837,7 +1837,13 @@ class UtilsTest(dbbase.ControllerHostTestCase):
                 return_value="rook-ceph-rbd")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name")
     @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application",
+                return_value=[])
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override",
+                return_value=[])
     def test_get_available_volume_backends_all(self,
+                                                     mock_enabled_backends,
+                                                     mock_get_value,
                                                      mock_is_ceph,
                                                      mock_get_netapp_sc,
                                                      *_):
@@ -1884,7 +1890,13 @@ class UtilsTest(dbbase.ControllerHostTestCase):
                 return_value="ignored")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name")
     @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application",
+                return_value=[])
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override",
+                return_value=[])
     def test_get_available_volume_backends_no_ceph(self,
+                                                   mock_enabled_backends,
+                                                   mock_get_value,
                                                    mock_is_ceph,
                                                    mock_get_netapp_sc,
                                                    *_):
@@ -1931,7 +1943,13 @@ class UtilsTest(dbbase.ControllerHostTestCase):
                 return_value="ceph-rbd")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name")
     @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application",
+                return_value=[])
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override",
+                return_value=[])
     def test_get_available_volume_backends_only_ceph(self,
+                                                     mock_enabled_backends,
+                                                     mock_get_value,
                                                      mock_is_ceph,
                                                      mock_get_netapp_sc,
                                                      *_):
@@ -2956,3 +2974,233 @@ class TestRecoverErrorServers(dbbase.ControllerHostTestCase):
         app_utils._recover_error_servers_worker(self.conductor_obj)
 
         self.assertEqual(mock_recover.call_count, 2)
+
+
+class TestIsStrictBackend(dbbase.ControllerHostTestCase):
+    """Tests for is_strict_backend() classification helper."""
+
+    def test_ceph_is_strict(self):
+        """Ceph backend is classified as strict."""
+        self.assertTrue(app_utils.is_strict_backend("ceph"))
+
+    def test_netapp_nfs_is_strict(self):
+        """NetApp NFS backend is classified as strict."""
+        self.assertTrue(app_utils.is_strict_backend("netapp-nfs"))
+
+    def test_netapp_iscsi_is_strict(self):
+        """NetApp iSCSI backend is classified as strict."""
+        self.assertTrue(app_utils.is_strict_backend("netapp-iscsi"))
+
+    def test_netapp_fc_is_strict(self):
+        """NetApp FC backend is classified as strict."""
+        self.assertTrue(app_utils.is_strict_backend("netapp-fc"))
+
+    def test_arbitrary_name_is_not_strict(self):
+        """An arbitrary ESB name is not classified as strict."""
+        self.assertFalse(app_utils.is_strict_backend("my-custom-iscsi"))
+
+    def test_empty_string_is_not_strict(self):
+        """Empty string is not classified as strict."""
+        self.assertFalse(app_utils.is_strict_backend(""))
+
+    def test_partial_match_is_not_strict(self):
+        """A partial match of a strict name is not classified as strict."""
+        self.assertFalse(app_utils.is_strict_backend("netapp"))
+        self.assertFalse(app_utils.is_strict_backend("ceph-rook"))
+        self.assertFalse(app_utils.is_strict_backend("netapp-nfs-extra"))
+
+    def test_case_sensitive(self):
+        """Classification is case-sensitive — uppercase variants are ESB."""
+        self.assertFalse(app_utils.is_strict_backend("Ceph"))
+        self.assertFalse(app_utils.is_strict_backend("NETAPP-NFS"))
+
+
+class TestGetAvailableVolumeBackendsESB(dbbase.ControllerHostTestCase):
+    """Tests for ESB (Extended Storage Backend) entries in get_available_volume_backends()."""
+
+    @mock.patch("k8sapp_openstack.utils.check_ceph_backends",
+                return_value={app_constants.CEPH_ROOK_BACKEND_NAME: False,
+                              app_constants.CEPH_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.check_netapp_backends",
+                return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                              app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                              app_constants.NETAPP_FC_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override",
+                return_value=["ceph", "my-custom-iscsi", "my-nfs-backend"])
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_esb_entries_appear_with_correct_storage_class(
+        self, mock_get_value, *_
+    ):
+        """ESB entries from backends_conf appear in the returned dict."""
+        def get_value_side_effect(default_value, chart_name, override_name):
+            if override_name == "storage_conf.backends_conf":
+                return [
+                    {"name": "my-custom-iscsi", "k8s_storage_class": "custom-sc"},
+                    {"name": "my-nfs-backend", "k8s_storage_class": "nfs-sc"},
+                ]
+            return default_value
+
+        mock_get_value.side_effect = get_value_side_effect
+
+        result = app_utils.get_available_volume_backends()
+
+        self.assertEqual(result["my-custom-iscsi"], "custom-sc")
+        self.assertEqual(result["my-nfs-backend"], "nfs-sc")
+
+    @mock.patch("k8sapp_openstack.utils.check_ceph_backends",
+                return_value={app_constants.CEPH_ROOK_BACKEND_NAME: False,
+                              app_constants.CEPH_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.check_netapp_backends",
+                return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                              app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                              app_constants.NETAPP_FC_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override",
+                return_value=["ceph", "my-iscsi-backend"])
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_esb_storage_class_none_variants_are_falsy(self, mock_get_value, *_):
+        """All none-like k8s_storage_class values are coerced to empty string.
+
+        Covers:
+        - Python None (from YAML null, ~, or empty value)
+        - String "none" (from YAML unquoted lowercase none)
+        - String "None" (from YAML unquoted capitalized None)
+        - Empty string
+        - Missing key entirely
+        """
+        cases = [
+            ("Python None (yaml null/~/empty)", None),
+            ("string 'none' (yaml unquoted lowercase)", "none"),
+            ("string 'None' (yaml unquoted capitalized)", "None"),
+            ("empty string", ""),
+        ]
+
+        for description, storage_class_value in cases:
+            with self.subTest(case=description):
+                def get_value_side_effect(
+                    default_value, chart_name, override_name,
+                    _sc=storage_class_value
+                ):
+                    if override_name == "storage_conf.backends_conf":
+                        return [
+                            {"name": "my-iscsi-backend",
+                             "k8s_storage_class": _sc},
+                        ]
+                    return default_value
+
+                mock_get_value.side_effect = get_value_side_effect
+
+                result = app_utils.get_available_volume_backends()
+
+                self.assertIn("my-iscsi-backend", result)
+                self.assertEqual(
+                    "", result["my-iscsi-backend"],
+                    f"Expected empty string for {description}, "
+                    f"got: {result['my-iscsi-backend']!r}"
+                )
+                self.assertFalse(result["my-iscsi-backend"])
+
+    @mock.patch("k8sapp_openstack.utils.check_ceph_backends",
+                return_value={app_constants.CEPH_ROOK_BACKEND_NAME: False,
+                              app_constants.CEPH_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.check_netapp_backends",
+                return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                              app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                              app_constants.NETAPP_FC_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override",
+                return_value=["ceph", "my-esb"])
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_esb_strict_name_is_silently_ignored(self, mock_get_value, *_):
+        """backends_conf entry with a strict backend name is silently ignored."""
+        def get_value_side_effect(default_value, chart_name, override_name):
+            if override_name == "storage_conf.backends_conf":
+                return [
+                    {"name": "ceph", "k8s_storage_class": "fake-sc"},
+                    {"name": "netapp-nfs", "k8s_storage_class": "fake-sc"},
+                    {"name": "my-esb", "k8s_storage_class": "real-sc"},
+                ]
+            return default_value
+
+        mock_get_value.side_effect = get_value_side_effect
+
+        result = app_utils.get_available_volume_backends()
+
+        # Strict backends should have their normal values (empty — no ceph/netapp available)
+        self.assertEqual(result[app_constants.CEPH_BACKEND_NAME], "")
+        self.assertEqual(result[app_constants.NETAPP_NFS_BACKEND_NAME], "")
+        # ESB entry should be present
+        self.assertEqual(result["my-esb"], "real-sc")
+
+    @mock.patch("k8sapp_openstack.utils.check_ceph_backends",
+                return_value={app_constants.CEPH_ROOK_BACKEND_NAME: False,
+                              app_constants.CEPH_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.check_netapp_backends",
+                return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                              app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                              app_constants.NETAPP_FC_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override",
+                return_value=["ceph"])
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_esb_not_enabled_is_excluded(self, mock_get_value, *_):
+        """ESB entry not in storage_backends enabled list is excluded."""
+        def get_value_side_effect(default_value, chart_name, override_name):
+            if override_name == "storage_conf.backends_conf":
+                return [
+                    {"name": "my-disabled-backend", "k8s_storage_class": "some-sc"},
+                ]
+            return default_value
+
+        mock_get_value.side_effect = get_value_side_effect
+
+        result = app_utils.get_available_volume_backends()
+
+        self.assertNotIn("my-disabled-backend", result)
+
+    @mock.patch("k8sapp_openstack.utils.check_ceph_backends",
+                return_value={app_constants.CEPH_ROOK_BACKEND_NAME: False,
+                              app_constants.CEPH_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.check_netapp_backends",
+                return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
+                              app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+                              app_constants.NETAPP_FC_BACKEND_NAME: False})
+    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
+                return_value="")
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override",
+                return_value=["ceph", "my-esb"])
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_esb_missing_storage_class_key_is_empty_string(self, mock_get_value, *_):
+        """ESB entry without k8s_storage_class key stores empty string ("").
+
+        When the key is entirely absent, dict.get() returns None,
+        which is then coerced to "" by the 'or' fallback.
+        """
+        def get_value_side_effect(default_value, chart_name, override_name):
+            if override_name == "storage_conf.backends_conf":
+                return [
+                    {"name": "my-esb"},
+                ]
+            return default_value
+
+        mock_get_value.side_effect = get_value_side_effect
+
+        result = app_utils.get_available_volume_backends()
+
+        self.assertIn("my-esb", result)
+        self.assertEqual("", result["my-esb"])

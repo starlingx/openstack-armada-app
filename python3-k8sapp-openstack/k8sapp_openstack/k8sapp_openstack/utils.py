@@ -2305,6 +2305,21 @@ def get_server_list() -> str:
         return ""
 
 
+def is_strict_backend(name: str) -> bool:
+    """Classify a backend name as strict ("native") or extended (ESB).
+
+    All names in app_constants.STRICT_BACKEND_NAMES are strict; anything
+    else is ESB. The 'ceph' name covers both Host-based Ceph and Rook Ceph.
+
+    Args:
+        name: The backend name to classify.
+
+    Returns:
+        True if the backend is a strict (or "native") backend, False otherwise.
+    """
+    return name in app_constants.STRICT_BACKEND_NAMES
+
+
 def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CINDER,
                                   override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS) -> dict:
     """
@@ -2325,7 +2340,8 @@ def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CIN
             "ceph": "ceph-rbd",
             "netapp-nfs": "netapp-nas-backend",
             "netapp-iscsi": "",  # NetApp iscsi backend not available
-            "netapp-fc": "netapp-fc-backend"
+            "netapp-fc": "netapp-fc-backend",
+            "extended-storage": "extended-storage-backend",
         }
     """
     ceph_backends = check_ceph_backends(chart_name, override_name)
@@ -2360,6 +2376,31 @@ def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CIN
             else ""
         ),
     }
+
+    # Append Extended Storage Backend (ESB) entries from backends_conf
+    backends_conf = _get_value_from_application(
+        default_value=[],
+        chart_name=chart_name,
+        override_name=app_constants.OVERRIDE_BACKENDS_CONF
+    )
+
+    enabled_backends = get_enabled_storage_backends_from_override(
+        chart_name=chart_name,
+        override_name=override_name
+    )
+
+    for entry in backends_conf:
+        name = entry.get("name", "")
+        if not name or is_strict_backend(name):
+            continue  # strict backends handled above; silently ignored here
+        if name not in enabled_backends:
+            continue  # not enabled in storage_backends
+
+        storage_class = entry.get("k8s_storage_class")
+        if isinstance(storage_class, str) and storage_class.lower() == "none":
+            storage_class = None
+        available_volume_backends[name] = storage_class or ""
+
     return available_volume_backends
 
 

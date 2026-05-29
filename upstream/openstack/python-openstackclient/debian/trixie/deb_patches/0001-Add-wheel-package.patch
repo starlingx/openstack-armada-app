@@ -1,21 +1,23 @@
-From 129e890076816c5d132e260ef3987d71d0154c4f Mon Sep 17 00:00:00 2001
+From e49f71bf750be498eb718c5493e03564f98a5692 Mon Sep 17 00:00:00 2001
 From: Charles Short <charles.short@windriver.com>
-Date: Wed, 27 Oct 2021 13:57:42 +0000
-Subject: [PATCH] Add wheel package
+Date: Tue, 5 May 2026 22:51:05 -0400
+Subject: [PATCH 1/2] Add wheel package
 
 Add python3-openstackclient-wheel
 
 Signed-off-by: Charles Short <charles.short@windriver.com>
+[ Ported this patch to python-openstackclient 9.0.0-3 @ Gazpacho ]
+Signed-off-by: Yathavan Parameshwaran <Yathavan.Parameshwaran@windriver.com>
 ---
  debian/control | 21 +++++++++++++++++++++
  debian/rules   |  2 +-
  2 files changed, 22 insertions(+), 1 deletion(-)
 
 diff --git a/debian/control b/debian/control
-index 8a09181c..2eaa1545 100644
+index 2f2a34a..fbaab6b 100644
 --- a/debian/control
 +++ b/debian/control
-@@ -125,3 +125,24 @@ Description: OpenStack Command-line Client - Python 3.x
+@@ -119,3 +119,24 @@ Description: OpenStack Command-line Client - Python 3.x
   operations in OpenStack.
   .
   This package contains the Python 3.x module.
@@ -41,7 +43,7 @@ index 8a09181c..2eaa1545 100644
 + .
 + This package contains the Python wheel.
 diff --git a/debian/rules b/debian/rules
-index 65f97b66..f032e337 100755
+index 65f97b6..f032e33 100755
 --- a/debian/rules
 +++ b/debian/rules
 @@ -14,7 +14,7 @@ override_dh_auto_build:
@@ -54,5 +56,5 @@ index 65f97b66..f032e337 100755
  	# Generate bash completion
  	pkgos-gen-completion --py3 openstack
 -- 
-2.34.1
+2.43.0
 

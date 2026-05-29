@@ -1,6 +1,6 @@
-From 58b9db2ebc81c2a8e2d4dd212e44f7f246255705 Mon Sep 17 00:00:00 2001
+From 3cf9e9a4ded78d6a4b60cdb88e502b3088b85b20 Mon Sep 17 00:00:00 2001
 From: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
-Date: Fri, 21 Nov 2025 17:21:13 -0300
+Date: Tue, 5 May 2026 11:20:36 -0400
 Subject: [PATCH] Add plugin entry point sorting mechanism
 
 On CentOS, with `python-openstackclient` on version 4.0.0
@@ -47,45 +47,47 @@ Signed-off-by: Luan Nunes Utimura <LuanNunes.Utimura@windriver.com>
 Signed-off-by: Jose Claudio <joseclaudio.paespires@windriver.com>
 [ Ported this patch to python-openstackclient v7.4.0-3 @ Epoxy ]
 Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+[ Ported this patch to python-openstackclient v9.0.0-3 @ Gazpacho ]
+Adapted for 9.0.0 API: use ep.entry_point.module (importlib.metadata),
+added osc_lib.i18n import, custom CommandManager with ignored_modules,
+build_option_parser accepts argparse_kwargs.
+Signed-off-by: Yathavan Parameshwaran <Yathavan.Parameshwaran@windriver.com>
 ---
- openstackclient/common/clientmanager.py | 175 +++++++++++++++++++++++-
- openstackclient/shell.py                |  32 ++++-
- 2 files changed, 202 insertions(+), 5 deletions(-)
+ openstackclient/common/clientmanager.py | 172 +++++++++++++++++++++++-
+ openstackclient/shell.py                |  31 ++++-
+ 2 files changed, 198 insertions(+), 5 deletions(-)
 
 diff --git a/openstackclient/common/clientmanager.py b/openstackclient/common/clientmanager.py
-index 42e2b24f..133dd49f 100644
+index 51911aa..aba0fa6 100644
 --- a/openstackclient/common/clientmanager.py
 +++ b/openstackclient/common/clientmanager.py
-@@ -19,14 +19,17 @@ import importlib
- import logging
- import sys
+@@ -23,8 +23,10 @@ import sys
+ import typing as ty
  
+ from osc_lib.cli import client_config
 +from osc_lib.i18n import _
  from osc_lib import clientmanager
  from osc_lib import shell
 +from oslo_config import cfg
  import stevedore
  
- 
+ if ty.TYPE_CHECKING:
+@@ -38,6 +40,7 @@ if ty.TYPE_CHECKING:
  LOG = logging.getLogger(__name__)
  
- PLUGIN_MODULES = []
+ PLUGIN_MODULES: list[ty.Any] = []
 +PLUGIN_OPTIONS = {}
  
  USER_AGENT = 'python-openstackclient'
  
-@@ -143,7 +146,6 @@ class ClientManager(clientmanager.ClientManager):
- 
- # Plugin Support
- 
--
- def _on_load_failure_callback(
-     manager: stevedore.ExtensionManager,
-     ep: importlib.metadata.EntryPoint,
-@@ -153,14 +155,179 @@ def _on_load_failure_callback(
-         f"WARNING: Failed to import plugin {ep.group}:{ep.name}: {err}.\n"
+@@ -204,14 +207,175 @@ def _on_load_failure_callback(
      )
  
+ 
+-def get_plugin_modules(group):
+-    """Find plugin entry points"""
+-    mod_list = []
+-    mgr: stevedore.ExtensionManager[PluginModule]
 +def _get_config_file_sections(config):
 +    """Get sections from a configuration file.
 +
@@ -225,24 +227,17 @@ index 42e2b24f..133dd49f 100644
 +    before_entry_points = []
 +    after_entry_points = []
 +    entry_points = []
- 
--def get_plugin_modules(group):
--    """Find plugin entry points"""
--    mod_list = []
++
      mgr = stevedore.ExtensionManager(
          group, on_load_failure_callback=_on_load_failure_callback
      )
      for ep in mgr:
-+        # Different versions of stevedore use different
-+        # implementations of EntryPoint from other libraries, which
-+        # are not API-compatible.
++        # In 9.0.0, stevedore uses importlib.metadata.EntryPoint which
++        # exposes the module via ep.entry_point.module
 +        try:
-+            module_name = ep.entry_point.module_name
++            module_name = ep.entry_point.module
 +        except AttributeError:
-+            try:
-+                module_name = ep.entry_point.module
-+            except AttributeError:
-+                module_name = ep.entry_point.value
++            module_name = ep.entry_point.value
 +
 +        # If the module name matches at least one plugin specified in
 +        # `load_first` or `load_last`, append the current entry point
@@ -264,23 +259,21 @@ index 42e2b24f..133dd49f 100644
 +    for ep in sort_plugin_entry_points(group):
          LOG.debug('Found plugin %s', ep.name)
  
-         # Different versions of stevedore use different
+         module_name = ep.entry_point.module
 diff --git a/openstackclient/shell.py b/openstackclient/shell.py
-index df60d3c0..8bb056b4 100644
+index 743ed2b..bb81846 100644
 --- a/openstackclient/shell.py
 +++ b/openstackclient/shell.py
-@@ -21,7 +21,9 @@ import warnings
+@@ -21,6 +21,7 @@ import warnings
  
  from osc_lib.api import auth
  from osc_lib.command import commandmanager
 +from osc_lib.i18n import _
  from osc_lib import shell
-+from osc_lib import utils
  
  import openstackclient
- from openstackclient.common import clientmanager
-@@ -30,12 +32,25 @@ from openstackclient.common import clientmanager
- DEFAULT_DOMAIN = 'default'
+@@ -35,11 +36,24 @@ IGNORED_MODULES = (
+ )
  
  
 +class CommandManager(commandmanager.CommandManager):
@@ -297,17 +290,16 @@ index df60d3c0..8bb056b4 100644
 +
 +
  class OpenStackShell(shell.OpenStackShell):
+     client_manager: clientmanager.ClientManager
+ 
      def __init__(self):
-         super().__init__(
-             description=__doc__.strip(),
-             version=openstackclient.__version__,
--            command_manager=commandmanager.CommandManager('openstack.cli'),
-+            command_manager=CommandManager('openstack.cli'),
-             deferred_help=True,
+-        command_manager = commandmanager.CommandManager(
++        command_manager = CommandManager(
+             'openstack.cli', ignored_modules=IGNORED_MODULES
          )
  
-@@ -52,6 +67,18 @@ class OpenStackShell(shell.OpenStackShell):
-         parser = super().build_option_parser(description, version)
+@@ -65,6 +79,18 @@ class OpenStackShell(shell.OpenStackShell):
+         )
          parser = clientmanager.build_plugin_option_parser(parser)
          parser = auth.build_auth_plugins_option_parser(parser)
 +
@@ -325,7 +317,7 @@ index df60d3c0..8bb056b4 100644
          return parser
  
      def _final_defaults(self):
-@@ -64,6 +91,9 @@ class OpenStackShell(shell.OpenStackShell):
+@@ -77,6 +103,9 @@ class OpenStackShell(shell.OpenStackShell):
          else:
              self._auth_type = 'password'
  
@@ -333,8 +325,8 @@ index df60d3c0..8bb056b4 100644
 +        clientmanager.process_plugin_options(self.options)
 +
      def _load_plugins(self):
-         """Load plugins via stevedore
- 
+         """Load plugins via stevedore."""
+         # Loop through extensions to get API versions
 -- 
-2.34.1
+2.43.0
 

@@ -1,7 +1,7 @@
-From 6b0824bd7da3d208b64f0caaf589b5f6d1d56c2a Mon Sep 17 00:00:00 2001
+From dbae68c347740aac1d85a6c8124ebb7cf676a944 Mon Sep 17 00:00:00 2001
 From: Dan Voiculeasa <dan.voiculeasa@windriver.com>
-Date: Thu, 2 Jun 2022 20:20:50 +0300
-Subject: [PATCH] Allow external bash completion
+Date: Tue, 5 May 2026 22:53:22 -0400
+Subject: [PATCH 2/2] Allow external bash completion
 
 Don't generate the bash completion at build time, as it is different
 than the one generated at runtime. Allow bash completion to be
@@ -10,6 +10,8 @@ generated at /etc/bash_completion.d .
 Signed-off-by: Dan Voiculeasa <dan.voiculeasa@windriver.com>
 [ Ported this patch to python-openstackclient v6.6.0-5 @ Caracal ]
 Signed-off-by: Jose Claudio <joseclaudio.paespires@windriver.com>
+[ Ported this patch to python-openstackclient 9.0.0-3 @ Gazpacho ]
+Signed-off-by: Yathavan Parameshwaran <Yathavan.Parameshwaran@windriver.com>
 ---
  debian/python3-openstackclient.dirs | 1 +
  debian/rules                        | 3 ---
@@ -18,13 +20,13 @@ Signed-off-by: Jose Claudio <joseclaudio.paespires@windriver.com>
 
 diff --git a/debian/python3-openstackclient.dirs b/debian/python3-openstackclient.dirs
 new file mode 100644
-index 00000000..bc3b6805
+index 0000000..bc3b680
 --- /dev/null
 +++ b/debian/python3-openstackclient.dirs
 @@ -0,0 +1 @@
 +etc/bash_completion.d/
 diff --git a/debian/rules b/debian/rules
-index f032e337..638ee8d4 100755
+index f032e33..638ee8d 100755
 --- a/debian/rules
 +++ b/debian/rules
 @@ -16,9 +16,6 @@ override_dh_auto_build:
@@ -38,5 +40,5 @@ index f032e337..638ee8d4 100755
  ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
  	# See https://bugs.debian.org/1058097
 -- 
-2.34.1
+2.43.0
 

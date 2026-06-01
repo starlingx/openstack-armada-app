@@ -42,6 +42,19 @@ override_dh_auto_build:
 	# Remove helm-toolkit.
 	rm  helm-charts/helm-toolkit-$(TOOLKIT_VERSION).tgz
 
+	# Adjust the helmrelease yamls based on the chart versions
+	cp helm-charts/*.tgz /usr/lib/helm/
+	for c in /usr/lib/helm/*; do \
+		chart=$$(basename $$c .tgz); \
+		chart_name=$${chart%-*}; \
+		chart_version=$${chart##*-}; \
+		echo "Found $$chart; name: $$chart_name, version: $$chart_version"; \
+		chart_manifest=$$(find manifests -name helmrelease.yaml -exec grep -q "chart: $$chart_name$$" {} \; -print); \
+		echo "Updating manifest: $$chart_manifest"; \
+		sed -i "s/REPLACE_HELM_CHART_VERSION/$$chart_version/g" $$chart_manifest; \
+		grep version $$chart_manifest; \
+	done
+
 override_dh_auto_install:
 	# Install the app tar file.
 	install -d -m 755 $(APP_FOLDER)

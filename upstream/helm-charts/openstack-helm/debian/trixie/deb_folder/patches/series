@@ -52,3 +52,4 @@
 0052-cinder-unhardcode-readiness-liveness-probe-params.patch
 0053-Switch-prometheus-openstack-exporter-to-Go-exporter.patch
 0054-Add-tolerations-to-prometheus-openstack-exporter-pods.patch
+0055-ceilometer-Wire-tlsSecret-to-ks-bootstrap-Jobs.patch

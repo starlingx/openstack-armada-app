@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -12,7 +12,6 @@ from sysinv.tests.db import utils as dbutils
 from sysinv.tests.helm import base
 
 from k8sapp_openstack.common import constants as app_constants
-from k8sapp_openstack.helm import ceilometer
 from k8sapp_openstack.tests import test_plugins
 
 
@@ -31,17 +30,39 @@ class CeilometerGetOverrideTest(CeilometerHelmTestCase,
             app_constants.HELM_CHART_CEILOMETER,
             cnamespace=common.HELM_NS_OPENSTACK)
         self.assertOverridesParameters(overrides, {
-            'pod': {},
-            'conf': {},
-            'manifests': {},
-            'endpoints': {
-                'metering': {
-                    'host_fqdn_override': {
-                        'public': {},
+            'pod': {
+                'replicas': {},
+            },
+            'conf': {
+                'ceilometer': {
+                    'notification': {
+                        'messaging_urls': {'values': mock.ANY},
+                    },
+                    'meter': {
+                        'meter_definitions_dirs': '/etc/ceilometer/meters.d',
                     },
                 },
-            }
+            },
+            'manifests': {
+                'daemonset_ipmi': False,
+            },
+            'endpoints': {
+                'identity': {},
+                'oslo_cache': {},
+                'oslo_messaging': {},
+            },
         })
+        messaging_urls = overrides['conf']['ceilometer'][
+            'notification']['messaging_urls']['values']
+        for url in messaging_urls:
+            self.assertIn('rabbitmq.openstack.svc.cluster.local:5672', url)
+        self.assertNotIn('metering', overrides['endpoints'])
+        self.assertNotIn('polling', overrides['conf']['ceilometer'])
+        self.assertNotIn(
+            'keystone_authtoken', overrides['conf']['ceilometer'])
+        self.assertNotIn(
+            'service_credentials', overrides['conf']['ceilometer'])
+        self.assertNotIn('certificates', overrides['manifests'])
 
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
@@ -58,52 +79,21 @@ class CeilometerGetOverrideTest(CeilometerHelmTestCase,
             app_constants.OPENSTACK_CERT_CA: 'fake'
         }
     )
-    def test_ceilometer_overrides_https_enabled(self, *_):
+    def test_ceilometer_overrides_https_wires_tls(self, *_):
+        """
+        Asserts that manifests.certificates and service_credentials.cafile
+        are set when OpenStack HTTPS is enabled.
+        """
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_CEILOMETER,
             cnamespace=common.HELM_NS_OPENSTACK)
-
-        self.assertOverridesParameters(overrides, {
-            'conf': {
-                'ceilometer': {
-                    'keystone_authtoken': {
-                        'cafile': ceilometer.CeilometerHelm.get_ca_file()
-                    },
-                    'notification': mock.ANY,
-                    'meter': mock.ANY,
-                },
-            },
-            'endpoints': {
-                'identity': {
-                    'auth': {
-                        'admin': {
-                            'cacert': ceilometer.CeilometerHelm.get_ca_file(),
-                            'password': mock.ANY,
-                            'region_name': mock.ANY,
-                        },
-                        'ceilometer': {
-                            'cacert': ceilometer.CeilometerHelm.get_ca_file(),
-                            'password': mock.ANY,
-                            'region_name': mock.ANY,
-                        },
-                    },
-                },
-                'metering': {
-                    'host_fqdn_override': {
-                        'public': {
-                            'tls': {
-                                'ca': 'fake',
-                                'crt': 'fake',
-                                'key': 'fake',
-                            },
-                        },
-                    },
-                },
-            },
-            'manifests': {
-                'certificates': True,
-            },
-        })
+        self.assertTrue(overrides['manifests']['certificates'])
+        self.assertEqual(
+            overrides['conf']['ceilometer']['service_credentials']['cafile'],
+            '/etc/ssl/private/openstack/ca-cert.pem')
+        self.assertNotIn(
+            'keystone_authtoken', overrides['conf']['ceilometer'])
+        self.assertNotIn('metering', overrides['endpoints'])
 
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_ceilometer_overrides_invalid_namespace(self, *_):

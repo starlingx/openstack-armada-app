@@ -34,11 +34,15 @@ images:
     ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ks_service: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ks_endpoints: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ceilometer_api: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_central: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    ceilometer_collector: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_compute: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_db_sync: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_ipmi: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ceilometer_notification: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    db_init: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    db_init_mongodb: docker.io/starlingx/stx-ceilometer:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
@@ -714,22 +718,18 @@ dependencies:
   static:
     central:
       jobs:
-        - ceilometer-db-sync
         - ceilometer-rabbit-init
       services: null
     compute:
       jobs:
-        - ceilometer-db-sync
         - ceilometer-rabbit-init
       services: null
     ipmi:
       jobs:
-        - ceilometer-db-sync
         - ceilometer-rabbit-init
       services: null
     notification:
       jobs:
-        - ceilometer-db-sync
         - ceilometer-rabbit-init
       services:
         - endpoint: internal
@@ -1059,20 +1059,29 @@ network:
 manifests:
   configmap_bin: true
   configmap_etc: true
+  deployment_api: false
   deployment_central: true
+  deployment_collector: false
   daemonset_compute: true
   daemonset_ipmi: false
   deployment_notification: true
+  ingress_api: false
   job_bootstrap: true
-  job_db_sync: true
+  job_db_init: false
+  job_db_init_mongodb: false
+  job_db_sync: false
   job_image_repo_sync: true
+  job_ks_endpoints: false
   job_ks_user: true
   job_rabbit_init: true
+  pdb_api: false
+  secret_db: false
   secret_keystone: true
+  secret_mongodb: false
   secret_rabbitmq: true
   secret_registry: true
-  service_api: true
-  service_ingress_api: true
+  service_api: false
+  service_ingress_api: false
 
 # -- Array of extra K8s manifests to deploy
 ## Note: Supports use of custom Helm templates

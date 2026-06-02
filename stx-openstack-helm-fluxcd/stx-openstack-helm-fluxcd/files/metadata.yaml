@@ -6,7 +6,6 @@ class: optional
 disabled_charts:
 - aodh
 - barbican
-- ceilometer
 - ceph-rgw
 - dcdbsync
 - gnocchi

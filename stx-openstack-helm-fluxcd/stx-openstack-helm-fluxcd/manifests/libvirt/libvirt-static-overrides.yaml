@@ -409,8 +409,4 @@ secrets:
 libvirt:
   listen_addr: "::"
   extraContainers: []
-annotations:
-  pod:
-    libvirt:
-      starlingx.io/core_pattern: "/dev/null"
 ...

@@ -23,8 +23,10 @@ from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import get_storage_backup_priority_list
+from k8sapp_openstack.utils import get_storage_tls_container_certs
+from k8sapp_openstack.utils import get_storage_tls_host_cert
 from k8sapp_openstack.utils import is_ceph_backend_available
-from k8sapp_openstack.utils import is_netapp_ca_cert_secret_available
+from k8sapp_openstack.utils import is_storage_ca_cert_secret_available
 
 LOG = logging.getLogger(__name__)
 
@@ -78,41 +80,33 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 'name': 'varlibcinder',
                 'mountPath': state_path
             })
-            # Mount NetApp CA certificate from Kubernetes secret.
-            # The secret is created during the pre-apply lifecycle hook
-            # (which runs after overrides but before helm install).
-            # We include the mount if the host cert file exists (the
-            # lifecycle hook will create the secret from it) or if the
-            # secret already exists (e.g., user created it manually or
-            # from a previous apply).
-            host_cert = _get_value_from_application(
-                default_value=app_constants.NETAPP_TLS_DEFAULT_HOST_CERT,
-                chart_name=self.CHART,
-                override_name=app_constants.OVERRIDE_NETAPP_TLS_HOST_CERT
-            )
-            container_cert = _get_value_from_application(
-                default_value=app_constants.NETAPP_TLS_DEFAULT_CONTAINER_CERT,
-                chart_name=self.CHART,
-                override_name=app_constants.OVERRIDE_NETAPP_TLS_CONTAINER_CERT
-            )
-            if container_cert and (
-                os.path.isfile(host_cert) or
-                is_netapp_ca_cert_secret_available()
-            ):
-                overrides['volumes'].append({
-                    'name': 'netapp-ca-cert',
-                    'secret': {
-                        'secretName': app_constants.NETAPP_CA_CERT_SECRET_NAME,
-                        'items': [{
-                            'key': app_constants.NETAPP_CA_CERT_SECRET_KEY,
-                            'path': app_constants.NETAPP_CA_CERT_SECRET_KEY
-                        }]
-                    }
-                })
+
+        # Mount storage CA certificate from Kubernetes secret.
+        # The secret is created or migrated during the pre-apply lifecycle hook
+        # (which runs after overrides but before helm install). We include the
+        # mount if the host cert file exists or if either the new storage secret
+        # or deprecated NetApp secret already exists.
+        host_cert = get_storage_tls_host_cert()
+        container_certs = get_storage_tls_container_certs()
+        if container_certs and (
+            (host_cert and os.path.isfile(host_cert)) or
+            is_storage_ca_cert_secret_available()
+        ):
+            overrides['volumes'].append({
+                'name': app_constants.STORAGE_CA_CERT_SECRET_NAME,
+                'secret': {
+                    'secretName': app_constants.STORAGE_CA_CERT_SECRET_NAME,
+                    'items': [{
+                        'key': app_constants.STORAGE_CA_CERT_SECRET_KEY,
+                        'path': app_constants.STORAGE_CA_CERT_SECRET_KEY
+                    }]
+                }
+            })
+            for container_cert in container_certs:
                 overrides['volumeMounts'].append({
-                    'name': 'netapp-ca-cert',
+                    'name': app_constants.STORAGE_CA_CERT_SECRET_NAME,
                     'mountPath': container_cert,
-                    'subPath': app_constants.NETAPP_CA_CERT_SECRET_KEY,
+                    'subPath': app_constants.STORAGE_CA_CERT_SECRET_KEY,
                     'readOnly': True
                 })
 

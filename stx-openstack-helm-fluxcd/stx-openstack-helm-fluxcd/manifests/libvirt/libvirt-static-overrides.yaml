@@ -422,8 +422,4 @@ secrets:
     client: libvirt-tls-client
 libvirt:
   listen_addr: "::"
-annotations:
-  pod:
-    libvirt:
-      starlingx.io/core_pattern: "/dev/null"
 ...

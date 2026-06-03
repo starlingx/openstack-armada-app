@@ -274,7 +274,6 @@ network:
     from_subnet: 0.0.0.0/0
     key_types:
       - rsa
-      - dsa
       - ecdsa
       - ed25519
     private_key: 'null'

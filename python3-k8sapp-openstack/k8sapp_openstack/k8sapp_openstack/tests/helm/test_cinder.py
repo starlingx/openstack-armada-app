@@ -45,6 +45,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             patcher.start()
             self.addCleanup(patcher.stop)
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -101,6 +102,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             }
         })
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch(
             'os.path.exists',
             return_value=True
@@ -223,6 +225,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             },
         })
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -311,6 +314,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -393,6 +397,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -483,6 +488,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -594,6 +600,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -694,6 +701,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert default_backup_driver == app_constants.CEPH_BACKUP_DRIVER
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -794,6 +802,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert default_backup_driver == app_constants.NETAPP_NFS_BACKUP_DRIVER
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -1007,6 +1016,8 @@ class CinderMountOverridesTest(CinderConversionTestCase,
         super(CinderMountOverridesTest, self).setUp()
         self.cinder_helm = cinder.CinderHelm(self.operator)
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                return_value=app_constants.CINDER_STATE_PATH)
     @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_container_certs',
                 return_value=['/usr/lib/ssl/cert.pem'])
     @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_host_cert',
@@ -1015,7 +1026,7 @@ class CinderMountOverridesTest(CinderConversionTestCase,
     @mock.patch('k8sapp_openstack.helm.cinder.os.path.isfile', return_value=True)
     def test_get_mount_overrides_netapp_enabled_host_cert_available(
             self, mock_isfile, mock_secret_available, mock_get_host_cert,
-            mock_get_container_certs):
+            mock_get_container_certs, mock_get_state_path):
         """Test mount overrides with NetApp enabled and host cert file available."""
         self.cinder_helm.netapp_enabled = True
 
@@ -1038,6 +1049,8 @@ class CinderMountOverridesTest(CinderConversionTestCase,
         self.assertEqual(storage_mount['mountPath'], '/usr/lib/ssl/cert.pem')
         self.assertTrue(storage_mount['readOnly'])
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                return_value=app_constants.CINDER_STATE_PATH)
     @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_container_certs',
                 return_value=['/usr/lib/ssl/cert.pem'])
     @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_host_cert',
@@ -1046,7 +1059,7 @@ class CinderMountOverridesTest(CinderConversionTestCase,
     @mock.patch('k8sapp_openstack.helm.cinder.os.path.isfile', return_value=False)
     def test_get_mount_overrides_netapp_enabled_secret_available(
             self, mock_isfile, mock_secret_available, mock_get_host_cert,
-            mock_get_container_certs):
+            mock_get_container_certs, mock_get_state_path):
         """Test mount overrides with NetApp enabled and secret pre-created by user."""
         self.cinder_helm.netapp_enabled = True
 
@@ -1057,6 +1070,8 @@ class CinderMountOverridesTest(CinderConversionTestCase,
         self.assertEqual(len(overrides['volumeMounts']), 2)
         self.assertEqual(overrides['volumes'][1]['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
 
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                return_value=app_constants.CINDER_STATE_PATH)
     @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_container_certs',
                 return_value=['/usr/lib/ssl/cert.pem'])
     @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_host_cert',
@@ -1065,7 +1080,7 @@ class CinderMountOverridesTest(CinderConversionTestCase,
     @mock.patch('k8sapp_openstack.helm.cinder.os.path.isfile', return_value=False)
     def test_get_mount_overrides_netapp_enabled_no_cert(
             self, mock_isfile, mock_secret_available, mock_get_host_cert,
-            mock_get_container_certs):
+            mock_get_container_certs, mock_get_state_path):
         """Test mount overrides with NetApp enabled but no cert file or secret."""
         self.cinder_helm.netapp_enabled = True
 

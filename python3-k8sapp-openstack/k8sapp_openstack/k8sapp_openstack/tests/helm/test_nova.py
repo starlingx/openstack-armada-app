@@ -182,7 +182,6 @@ class NovaGetOverrideTest(NovaHelmTestCase,
                     'vnc': {
                         'novncproxy_base_url': mock.ANY,
                     },
-                    'pci': mock.ANY,
                 },
                 'enable_iscsi': mock.ANY,
                 'ceph': {

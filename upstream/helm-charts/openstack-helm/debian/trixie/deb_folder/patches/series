@@ -50,3 +50,4 @@
 0050-Add-tolerations-to-prometheus-openstack-exporter-pods.patch
 0051-Fix-keystone-openrc-secret-encoding.patch
 0052-ceilometer-Wire-tlsSecret-to-ks-bootstrap-Jobs.patch
+0053-Add-ServiceMonitor-Defaults-to-Ceilometer-Helm.patch

@@ -1,0 +1,59 @@
+From b12c68aebe3ea2e9608926deac6cb9d0c34a7b88 Mon Sep 17 00:00:00 2001
+From: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+Date: Mon, 1 Jun 2026 12:07:22 -0300
+Subject: [PATCH] Add ServiceMonitor Defaults to Ceilometer Helm
+
+This patch aims to establish the foundational values that
+all ServiceMonitor templates and overrides will depend on.
+The foundational values include:
+
+a new top-level servicemonitor section
+...
+servicemonitor:
+  central:
+    scrape_interval: 30s
+    scrape_timeout: 10s
+  compute:
+    scrape_interval: 30s
+    scrape_timeout: 10s
+...
+manifests:
+...
+  servicemonitor_central: true
+  servicemonitor_compute: true
+...
+
+Signed-off-by: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+---
+ ceilometer/values.yaml | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
+index e5fc73d9b..5d87e3377 100644
+--- a/ceilometer/values.yaml
++++ b/ceilometer/values.yaml
+@@ -2119,6 +2119,14 @@ network_policy:
+     egress:
+       - {}
+ 
++servicemonitor:
++  central:
++    scrape_interval: 30s
++    scrape_timeout: 10s
++  compute:
++    scrape_interval: 30s
++    scrape_timeout: 10s
++
+ manifests:
+   configmap_bin: true
+   configmap_etc: true
+@@ -2150,4 +2158,6 @@ manifests:
+   secret_registry: true
+   service_api: true
+   service_ingress_api: true
++  servicemonitor_central: true
++  servicemonitor_compute: true
+ ...
+-- 
+2.34.1
+

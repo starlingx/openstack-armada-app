@@ -1055,6 +1055,14 @@ network:
         namespace: "nginx-openstack"
         cluster: "nginx"
 
+servicemonitor:
+  central:
+    scrape_interval: 30s
+    scrape_timeout: 10s
+  compute:
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
 manifests:
   configmap_bin: true
   configmap_etc: true
@@ -1081,6 +1089,8 @@ manifests:
   secret_registry: true
   service_api: false
   service_ingress_api: false
+  servicemonitor_central: true
+  servicemonitor_compute: true
 
 # -- Array of extra K8s manifests to deploy
 ## Note: Supports use of custom Helm templates

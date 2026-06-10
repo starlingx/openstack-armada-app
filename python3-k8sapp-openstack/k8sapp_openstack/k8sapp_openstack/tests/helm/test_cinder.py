@@ -38,6 +38,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                        return_value=[]),
             mock.patch('k8sapp_openstack.helm.cinder.is_storage_ca_cert_secret_available',
                        return_value=False),
+            mock.patch('k8sapp_openstack.helm.cinder.get_backends_conf',
+                       return_value={}),
         ]
         for patcher in patchers:
             patcher.start()

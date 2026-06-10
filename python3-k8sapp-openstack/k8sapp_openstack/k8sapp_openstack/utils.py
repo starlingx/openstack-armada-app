@@ -1598,6 +1598,42 @@ def get_enabled_storage_backends_from_override(
     return [backend["name"] for backend in storage_backends if backend["enabled"]] if storage_backends else []
 
 
+def get_backends_conf(
+    chart_name: str = app_constants.HELM_CHART_CINDER,
+) -> dict:
+    """Retrieve backends_conf entries from user overrides, keyed by name.
+
+    Each entry in storage_conf.backends_conf is a dict with at least a
+    ``name`` field. Returns a dict keyed by that name.
+
+    Args:
+        chart_name: The Helm chart name to query user overrides for.
+
+    Returns:
+        dict: Mapping of backend name to its backends_conf entry.
+              Empty dict when no user override is defined.
+
+    Example:
+        >>> get_backends_conf()
+        {
+            "dell-powerstore-iscsi": {
+                "name": "dell-powerstore-iscsi",
+                "protocol": "iscsi",
+                "k8s_storage_class": "none",
+                "volume_backend": { ... }
+            }
+        }
+    """
+    backends_conf_list = _get_value_from_application(
+        default_value=[],
+        chart_name=chart_name,
+        override_name=app_constants.OVERRIDE_BACKENDS_CONF
+    )
+    if not backends_conf_list:
+        return {}
+    return {entry['name']: entry for entry in backends_conf_list if 'name' in entry}
+
+
 def get_storage_backends_priority_list(
     chart: str,
     override_name: str = app_constants.OVERRIDE_STORAGE_PRIORITY,

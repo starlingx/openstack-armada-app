@@ -1,11 +1,11 @@
 ---
 debname: ingress-nginx-helm
-debver: 4.12-1
+debver: 4.15-0
 src_path: ${MY_REPO}/stx/openstack-armada-app/upstream/helm-charts/ingress-nginx-helm
 dl_path:
-  name: ingress-nginx-helm-chart-4.12.1.tar.gz
-  url: https://github.com/kubernetes/ingress-nginx/archive/refs/tags/helm-chart-4.12.1.tar.gz
-  sha256sum: 7c633bfcef6a866ec85e256a1593ec1c89c1ccbe3cff867679a210774edd413a
+  name: ingress-nginx-helm-chart-4.15.0.tar.gz
+  url: https://github.com/kubernetes/ingress-nginx/archive/refs/tags/helm-chart-4.15.0.tar.gz
+  sha256sum: d0d1901734332cd85ac0ec26803a680a1bff90f10fa3f0d3e4842f48f29f6246
 src_files:
   - ingress-nginx-helm/files/Makefile
 revision:

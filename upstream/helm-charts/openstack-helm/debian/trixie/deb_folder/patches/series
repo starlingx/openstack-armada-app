@@ -51,3 +51,4 @@
 0051-Fix-keystone-openrc-secret-encoding.patch
 0052-ceilometer-Wire-tlsSecret-to-ks-bootstrap-Jobs.patch
 0053-Add-ServiceMonitor-Defaults-to-Ceilometer-Helm.patch
+0054-Set-nova-services-to-eventlet-mode.patch

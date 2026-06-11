@@ -175,25 +175,43 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         mock_get_server_list.assert_called_once()
 
+    _MARIADB_CHART_VERSION_BY_APP = {
+        '25.03-0': '0.2.43',
+        '25.09-0': '2025.1.0',
+    }
+
+    @staticmethod
+    def _make_recovery_app(from_version='25.03-0', to_version='25.09-0'):
+        app = mock.MagicMock()
+        app.name = 'stx-openstack'
+        app.version = to_version
+        app.sync_imgfile = (
+            f"/opt/platform/fluxcd/<stx version>/{app.name}/"
+            f"{from_version}/{app.name}-images.yaml"
+        )
+        return app
+
     @mock.patch('k8sapp_openstack.utils.force_app_reconciliation')
     @mock.patch('k8sapp_openstack.utils.delete_kubernetes_resource')
+    @mock.patch('k8sapp_openstack.utils.get_mariadb_chart_version')
     @mock.patch('k8sapp_openstack.utils.get_app_version_list',
                 return_value=['25.03-0', '25.09-0'])
-    def test__recover_app_resources_failed_update(
+    def test__recover_app_resources_failed_update_version_changed(
         self,
         mock_get_app_version_list,
+        mock_get_mariadb_chart_version,
         mock_delete_kubernetes_resource,
         mock_force_app_reconciliation
     ):
-        """Test _recover_app_resources_failed_update for the app update
-        operation
+        """Chart version changed: MariaDB HelmRelease is deleted and excluded
+        from the forced reconciliation.
         """
+        mock_get_mariadb_chart_version.side_effect = (
+            lambda name, version: self._MARIADB_CHART_VERSION_BY_APP[version]
+        )
+
         app_op = mock.MagicMock()
-        app = mock.MagicMock()
-        app.name = 'stx-openstack'
-        app.version = '25.09-0'
-        app.sync_imgfile = ("/opt/platform/fluxcd/<stx version>/stx-openstack/"
-                            "25.03-0/stx-openstack-images.yaml")
+        app = self._make_recovery_app()
 
         self.lifecycle._recover_app_resources_failed_update(app_op, app)
 
@@ -203,7 +221,63 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             resource_type='helmrelease',
             resource_name='mariadb'
         )
-        mock_force_app_reconciliation.assert_called_once()
+        mock_force_app_reconciliation.assert_called_once_with(
+            app_op, app, exclude_charts=['mariadb']
+        )
+
+    @mock.patch('k8sapp_openstack.utils.force_app_reconciliation')
+    @mock.patch('k8sapp_openstack.utils.delete_kubernetes_resource')
+    @mock.patch('k8sapp_openstack.utils.get_mariadb_chart_version')
+    @mock.patch('k8sapp_openstack.utils.get_app_version_list',
+                return_value=['25.03-0', '25.09-0'])
+    def test__recover_app_resources_failed_update_version_unchanged(
+        self,
+        mock_get_app_version_list,
+        mock_get_mariadb_chart_version,
+        mock_delete_kubernetes_resource,
+        mock_force_app_reconciliation
+    ):
+        """Chart version unchanged: MariaDB HelmRelease is not deleted."""
+        mock_get_mariadb_chart_version.return_value = '2025.1.0'
+
+        app_op = mock.MagicMock()
+        app = self._make_recovery_app()
+
+        self.lifecycle._recover_app_resources_failed_update(app_op, app)
+
+        app_op._deregister_app_abort.assert_called_once_with(app.name)
+        mock_get_app_version_list.assert_called_once()
+        mock_delete_kubernetes_resource.assert_not_called()
+        mock_force_app_reconciliation.assert_called_once_with(
+            app_op, app, exclude_charts=None
+        )
+
+    @mock.patch('k8sapp_openstack.utils.force_app_reconciliation')
+    @mock.patch('k8sapp_openstack.utils.delete_kubernetes_resource')
+    @mock.patch('k8sapp_openstack.utils.get_mariadb_chart_version')
+    @mock.patch('k8sapp_openstack.utils.get_app_version_list',
+                return_value=['25.03-0', '25.09-0'])
+    def test__recover_app_resources_failed_update_version_unknown(
+        self,
+        mock_get_app_version_list,
+        mock_get_mariadb_chart_version,
+        mock_delete_kubernetes_resource,
+        mock_force_app_reconciliation
+    ):
+        """Chart version undeterminable: MariaDB HelmRelease is not deleted."""
+        mock_get_mariadb_chart_version.side_effect = (
+            lambda name, version: None if version == '25.03-0' else '2025.1.0'
+        )
+
+        app_op = mock.MagicMock()
+        app = self._make_recovery_app()
+
+        self.lifecycle._recover_app_resources_failed_update(app_op, app)
+
+        mock_delete_kubernetes_resource.assert_not_called()
+        mock_force_app_reconciliation.assert_called_once_with(
+            app_op, app, exclude_charts=None
+        )
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.post_apply_update_dex_redirect_uri')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')

@@ -2828,10 +2828,5 @@ manifests:
 
 # List of hosts and uuids
 hosts_uuids: []
-annotations:
-  pod:
-    nova_api_metadata:
-      starlingx.io/core_pattern: "/dev/null"
-    nova_api_osapi:
-      starlingx.io/core_pattern: "/dev/null"
+
 ...

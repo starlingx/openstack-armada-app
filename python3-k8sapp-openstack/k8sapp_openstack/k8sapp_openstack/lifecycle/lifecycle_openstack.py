@@ -837,15 +837,49 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # https://mariadb.com/kb/en/downgrading-between-major-versions-of-mariadb/
         # Because of that, we need to delete the Helmrelease for the new MariaDB
         # before deploying the old one.
-        app_utils.delete_kubernetes_resource(
-            resource_type='helmrelease',
-            resource_name='mariadb'
-        )
+        # Only do this when the MariaDB chart version actually changed: deleting
+        # it when the version is unchanged would leave the cluster without
+        # MariaDB, as FluxCD can't reconcile a resource that no longer exists.
+        # If the version can't be determined, skip the deletion.
+        recovered_mariadb_version = app_utils.get_mariadb_chart_version(
+            app.name, from_version)
+        failed_mariadb_version = app_utils.get_mariadb_chart_version(
+            app.name, to_version)
+
+        mariadb_deleted = False
+        if (recovered_mariadb_version is not None and
+                failed_mariadb_version is not None and
+                recovered_mariadb_version != failed_mariadb_version):
+            LOG.info(
+                "MariaDB chart version changed (failed update used "
+                f"{failed_mariadb_version}, recovering to "
+                f"{recovered_mariadb_version}); deleting the MariaDB "
+                "HelmRelease so the recovered version can be reinstalled "
+                "cleanly from the restored PVC snapshot."
+            )
+            app_utils.delete_kubernetes_resource(
+                resource_type='helmrelease',
+                resource_name=app_constants.FLUXCD_HELMRELEASE_MARIADB
+            )
+            mariadb_deleted = True
+        else:
+            LOG.info(
+                "MariaDB chart version unchanged "
+                f"(version: {failed_mariadb_version}); skipping MariaDB "
+                "HelmRelease deletion during recovery."
+            )
 
         # Force FLuxCD reconciliation for all the application helmreleases.
         # By default the AppFwk only force reconciliation for app updates,
         # but not for app recovery
-        app_utils.force_app_reconciliation(app_op, app)
+        # A deleted MariaDB HelmRelease is excluded to avoid a 'not found'
+        # reconciliation error; the AppFwk recreates it later.
+        exclude_charts = (
+            [app_constants.FLUXCD_HELMRELEASE_MARIADB] if mariadb_deleted
+            else None
+        )
+        app_utils.force_app_reconciliation(
+            app_op, app, exclude_charts=exclude_charts)
 
     def _post_update_image_actions(self, app):
         """Perform post update actions, deleting residual images.

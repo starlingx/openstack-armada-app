@@ -491,6 +491,59 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             "-n", mock.ANY
         ])
 
+    @mock.patch('sysinv.common.utils.generate_synced_fluxcd_manifests_fqpn')
+    def test_get_mariadb_chart_version(self, mock_manifests_fqpn):
+        """Returns the chart version read from the MariaDB helmrelease."""
+        manifests_dir = "/opt/platform/fluxcd/manifests"
+        mock_manifests_fqpn.return_value = manifests_dir
+        expected_path = os.path.join(
+            manifests_dir,
+            app_constants.FLUXCD_HELMRELEASE_MARIADB,
+            "helmrelease.yaml"
+        )
+        helmrelease_yaml = (
+            "spec:\n"
+            "  chart:\n"
+            "    spec:\n"
+            "      chart: mariadb\n"
+            "      version: 2025.1.0\n"
+        )
+        mocked_open = mock.mock_open(read_data=helmrelease_yaml)
+        with mock.patch("builtins.open", mocked_open):
+            version = app_utils.get_mariadb_chart_version(
+                "stx-openstack", "25.09-0")
+
+        self.assertEqual(version, "2025.1.0")
+        mock_manifests_fqpn.assert_called_once_with(
+            "stx-openstack", "25.09-0")
+        mocked_open.assert_called_once_with(
+            expected_path, "r", encoding="utf-8")
+
+    @mock.patch('sysinv.common.utils.generate_synced_fluxcd_manifests_fqpn')
+    def test_get_mariadb_chart_version_file_not_found(self, mock_manifests_fqpn):
+        """Returns None when the manifest file does not exist."""
+        mock_manifests_fqpn.return_value = "/opt/platform/fluxcd/manifests"
+        with mock.patch("builtins.open", side_effect=FileNotFoundError):
+            version = app_utils.get_mariadb_chart_version(
+                "stx-openstack", "25.09-0")
+        self.assertIsNone(version)
+
+    @mock.patch('sysinv.common.utils.generate_synced_fluxcd_manifests_fqpn')
+    def test_get_mariadb_chart_version_malformed(self, mock_manifests_fqpn):
+        """Returns None when the manifest is missing the version key."""
+        mock_manifests_fqpn.return_value = "/opt/platform/fluxcd/manifests"
+        helmrelease_yaml = (
+            "spec:\n"
+            "  chart:\n"
+            "    spec:\n"
+            "      chart: mariadb\n"
+        )
+        with mock.patch("builtins.open",
+                        mock.mock_open(read_data=helmrelease_yaml)):
+            version = app_utils.get_mariadb_chart_version(
+                "stx-openstack", "25.09-0")
+        self.assertIsNone(version)
+
     @mock.patch('sysinv.db.api.get_instance')
     def test_get_system_vswitch_labels_openvswitch(self, mock_dbapi_get_instance):
         """Test if get_system_vswitch_labels returns the Openvswitch label.
@@ -888,6 +941,36 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         # Asserts that reconciliation is called for all the helm releases
         for release in helm_releases:
             mock_fluxcd_reconciliation.assert_any_call(release, "openstack")
+
+    @mock.patch('sysinv.helm.utils.call_fluxcd_reconciliation')
+    def test_force_app_reconciliation_excludes_charts(
+            self, mock_fluxcd_reconciliation):
+        """Helm releases in exclude_charts are skipped."""
+        helm_releases = ["keystone", "mariadb", "nova"]
+        mock_chart_list = []
+        for chart in helm_releases:
+            mock_chart = mock.MagicMock()
+            mock_chart.metadata_name = chart
+            mock_chart.chart_label = chart
+            mock_chart.namespace = "openstack"
+            mock_chart.helm_repo_name = "starlingx"
+            mock_chart_list.append(mock_chart)
+        mock_app_op = mock.MagicMock()
+        mock_app_op._get_list_of_charts.return_value = mock_chart_list
+        mock_app = mock.MagicMock()
+        mock_app.name = 'stx-openstack'
+        mock_app.version = '25.09-0'
+
+        app_utils.force_app_reconciliation(
+            mock_app_op, mock_app, exclude_charts=["mariadb"])
+
+        reconciled = [
+            call.args[0] for call in mock_fluxcd_reconciliation.call_args_list
+        ]
+        self.assertNotIn("mariadb", reconciled)
+        self.assertIn("keystone", reconciled)
+        self.assertIn("nova", reconciled)
+        self.assertEqual(mock_fluxcd_reconciliation.call_count, 2)
 
     @mock.patch('sysinv.db.api.get_instance')
     def test_get_hosts_uuids(self, mock_dbapi_get_instance):

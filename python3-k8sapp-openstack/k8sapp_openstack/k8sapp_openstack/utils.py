@@ -2152,6 +2152,48 @@ def delete_kubernetes_resource(resource_type, resource_name):
         LOG.error(f"Unexpected error while deleting {resource_type}: {e}")
 
 
+def get_mariadb_chart_version(app_name, app_version):
+    """Get the MariaDB Helm chart version for a given application version.
+
+    Reads the MariaDB HelmRelease manifest synced on the system for the
+    specified application version and returns 'spec.chart.spec.version'.
+
+    Note:
+        Parses the manifest file directly rather than reusing
+        AppOperator._get_list_of_charts(), which is bound to a single
+        application version (app.sync_fluxcd_manifest) and is expensive
+        (it runs 'kubectl kustomize'). Recovery needs to inspect two
+        versions, so a lightweight direct read is preferred.
+
+    Args:
+        app_name (str): The application name (e.g. 'wr-openstack').
+        app_version (str): The application version whose manifests will
+            be inspected.
+
+    Returns:
+        str or None: The MariaDB chart version, or None if it could not
+            be determined (e.g. manifest missing or malformed).
+    """
+    manifests_fqpn = cutils.generate_synced_fluxcd_manifests_fqpn(
+        app_name, app_version)
+    helmrelease_path = os.path.join(
+        manifests_fqpn,
+        app_constants.FLUXCD_HELMRELEASE_MARIADB,
+        "helmrelease.yaml"
+    )
+
+    try:
+        with open(helmrelease_path, "r", encoding="utf-8") as f:
+            helmrelease = yaml.safe_load(f)
+        return helmrelease["spec"]["chart"]["spec"]["version"]
+    except (FileNotFoundError, KeyError, TypeError, yaml.YAMLError) as e:
+        LOG.warning(
+            f"Could not determine MariaDB chart version for {app_name} "
+            f"{app_version} from '{helmrelease_path}': {e}"
+        )
+        return None
+
+
 def get_image_rook_ceph():
     """Get client image to be used for rook ceph deployments
 
@@ -2174,13 +2216,18 @@ def get_image_rook_ceph():
 
 
 def force_app_reconciliation(app_op: kube_app.AppOperator,
-                             app: kube_app.AppOperator.Application):
+                             app: kube_app.AppOperator.Application,
+                             exclude_charts: list = None):
     """Force FluxCD reconciliation for all the app helmreleases
 
     Args:
         app_op (AppOperator): System Inventory AppOperator object
         app (AppOperator.Application): Application we are recovering from
+        exclude_charts (list): Optional list of helmrelease metadata names to
+            skip. Used when a chart was intentionally deleted during recovery
+            (e.g. MariaDB), so it is not reconciled while it is absent.
     """
+    exclude_charts = exclude_charts or []
     charts = {
         c.metadata_name: {
             "namespace": c.namespace,
@@ -2190,6 +2237,10 @@ def force_app_reconciliation(app_op: kube_app.AppOperator,
         for c in app_op._get_list_of_charts(app)
     }
     for release_name, chart_obj in list(charts.items()):
+        if release_name in exclude_charts:
+            LOG.info(f"Skipping FluxCD reconciliation for helmrelease "
+                     f"{release_name} of application {app.name} {app.version}")
+            continue
         LOG.info(f"Forcing FluxCD reconciliation for helmrelease {release_name}"
                  f" of application {app.name} {app.version}")
         try:

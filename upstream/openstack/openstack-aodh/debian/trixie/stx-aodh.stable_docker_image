@@ -2,16 +2,12 @@ BUILDER=loci
 LABEL=stx-aodh
 PROJECT=aodh
 PROJECT_REPO=https://opendev.org/openstack/aodh.git
-PROJECT_REF=f759fdf7d28c3a761d9593d4e1155217b8b7c89a
+PROJECT_REF=ef38edc511cfa75c6f359ee6a3c04e3d5c71e0d1
 DIST_REPOS="OS"
 UPGRADE_PIP_PACKAGES=pip
 PROJECT_UID=42425
 PROJECT_GID=42425
-PIP_PACKAGES="\
-  aodhclient \
-  gnocchiclient \
-  SQLAlchemy \
-"
+PIP_PACKAGES="aodhclient"
 PROFILES="apache"
 CUSTOMIZATION="\
     ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \

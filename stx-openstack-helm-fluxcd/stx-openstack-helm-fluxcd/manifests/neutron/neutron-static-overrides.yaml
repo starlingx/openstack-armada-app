@@ -2781,10 +2781,7 @@ manifests:
   secret_registry: true
   service_ingress_server: true
   service_server: true
-annotations:
-  pod:
-    neutron_server:
-      starlingx.io/core_pattern: "/dev/null"
+
 # Virtual switch type
 # This field is used to store the vswitch type based on the
 # compute node labels. Defaults to 'none'. It can be a combination

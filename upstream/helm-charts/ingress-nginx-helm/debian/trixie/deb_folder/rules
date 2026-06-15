@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 # export DH_VERBOSE = 1
 
-export CHART_BASE_VERSION = 4.12.1
+export CHART_BASE_VERSION = 4.15.0
 export PATCH_VERSION = 1
 export CHART_VERSION = $(CHART_BASE_VERSION)+STX.$(PATCH_VERSION)
 

@@ -1,0 +1,96 @@
+From ab8af9c705aba380d5083d1f3c66ebc90f80232a Mon Sep 17 00:00:00 2001
+From: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+Date: Tue, 9 Jun 2026 11:07:41 -0300
+Subject: [PATCH] Set nova services to eventlet mode
+
+Pin nova-api, nova-metadata, and nova-scheduler to Eventlet
+concurrency mode in Gazpacho (Nova 33.0.0 / 2026.1).
+
+In Gazpacho the default concurrency mode for nova-scheduler,
+nova-api, and nova-metadata was switched from Eventlet to
+native threading [1][2]. This patch sets
+OS_NOVA_DISABLE_EVENTLET_PATCHING="false" on those three
+services, keeping them on the proven Eventlet mode.
+
+The value is driven by
+.Values.conf.nova_concurrency.disable_eventlet_patching
+so it can be controlled via chart overrides.
+
+Services NOT modified (native threading is experimental and
+disabled by default upstream for these):
+- nova-compute
+- nova-conductor
+
+[1] - https://docs.openstack.org/releasenotes/nova/2026.1.html
+[2] - https://docs.openstack.org/nova/latest/admin/concurrency.html
+
+Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+---
+ nova/templates/deployment-api-metadata.yaml | 4 +++-
+ nova/templates/deployment-api-osapi.yaml    | 4 +++-
+ nova/templates/deployment-scheduler.yaml    | 2 ++
+ nova/values.yaml                            | 3 +++
+ 4 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/nova/templates/deployment-api-metadata.yaml b/nova/templates/deployment-api-metadata.yaml
+index 691c18402..c93c41bc7 100644
+--- a/nova/templates/deployment-api-metadata.yaml
++++ b/nova/templates/deployment-api-metadata.yaml
+@@ -98,8 +98,10 @@ spec:
+ {{ tuple $envAll "nova_api" | include "helm-toolkit.snippets.image" | indent 10 }}
+ {{ tuple $envAll $envAll.Values.pod.resources.api_metadata | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+ {{ dict "envAll" $envAll "application" "nova" "container" "nova_api" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+-{{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
++            - name: OS_NOVA_DISABLE_EVENTLET_PATCHING
++              value: "{{ .Values.conf.nova_concurrency.disable_eventlet_patching }}"
++{{- if or .Values.manifests.certificates .Values.tls.identity }}
+             - name: REQUESTS_CA_BUNDLE
+               value: "/etc/nova/certs/ca.crt"
+ {{- end }}
+diff --git a/nova/templates/deployment-api-osapi.yaml b/nova/templates/deployment-api-osapi.yaml
+index 8e12ceaa7..65671c4d7 100644
+--- a/nova/templates/deployment-api-osapi.yaml
++++ b/nova/templates/deployment-api-osapi.yaml
+@@ -79,8 +79,10 @@ spec:
+ {{ tuple $envAll "nova_api" | include "helm-toolkit.snippets.image" | indent 10 }}
+ {{ tuple $envAll $envAll.Values.pod.resources.api | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+ {{ dict "envAll" $envAll "application" "nova" "container" "nova_osapi" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+-{{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
++            - name: OS_NOVA_DISABLE_EVENTLET_PATCHING
++              value: "{{ .Values.conf.nova_concurrency.disable_eventlet_patching }}"
++{{- if or .Values.manifests.certificates .Values.tls.identity }}
+             - name: REQUESTS_CA_BUNDLE
+               value: "/etc/nova/certs/ca.crt"
+ {{- end }}
+diff --git a/nova/templates/deployment-scheduler.yaml b/nova/templates/deployment-scheduler.yaml
+index c1ae4fb0d..618036159 100644
+--- a/nova/templates/deployment-scheduler.yaml
++++ b/nova/templates/deployment-scheduler.yaml
+@@ -94,6 +94,8 @@ spec:
+               value: "{{ .Values.pod.probes.rpc_timeout }}"
+             - name: RPC_PROBE_RETRIES
+               value: "{{ .Values.pod.probes.rpc_retries }}"
++            - name: OS_NOVA_DISABLE_EVENTLET_PATCHING
++              value: "{{ .Values.conf.nova_concurrency.disable_eventlet_patching }}"
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+             - name: REQUESTS_CA_BUNDLE
+               value: "/etc/ssl/certs/openstack-helm.crt"
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 08288dfc5..22e2b0a07 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -536,6 +536,9 @@ rbd_pool:
+   chunk_size: 8
+ 
+ conf:
++  nova_concurrency:
++    # "false" keeps Eventlet mode (disables the new native-threading default).
++    disable_eventlet_patching: "false"
+   security: |
+     #
+     # Disable access to the entire file system except for the directories that
+-- 
+2.34.1
+

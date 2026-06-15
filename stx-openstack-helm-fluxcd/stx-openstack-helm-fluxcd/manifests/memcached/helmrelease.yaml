@@ -16,7 +16,7 @@ spec:
   chart:
     spec:
       chart: memcached
-      version: 2025.1.0
+      version: REPLACE_HELM_CHART_VERSION
       sourceRef:
         kind: HelmRepository
         name: starlingx

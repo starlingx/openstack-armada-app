@@ -35,14 +35,21 @@ Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 [ Adapt OSH patches to Gazpacho release ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+
+[ESB: Add backend_conf and other fields]
+
+Added some new fields to storage_conf, related to the Extended Storage
+Backends. These fields are: tls, backend_conf, and extra_mounts.
+
+Signed-off-by: Dirley Rodrigues Lima da Silva <dirley.rodrigueslimadasilva@windriver.com>
 ---
- cinder/templates/configmap-etc.yaml     |  3 +++
- cinder/templates/deployment-volume.yaml |  6 ++++++
- cinder/values.yaml                      | 16 ++++++++++++++++
- 3 files changed, 25 insertions(+)
+  cinder/templates/configmap-etc.yaml     |  3 +++
+  cinder/templates/deployment-volume.yaml |  6 ++++++
+  cinder/values.yaml                      | 34 +++++++++++++++++++++++++++++++++
+  3 files changed, 43 insertions(+)
 
 diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
-index 511995b24..f36eee5a4 100644
+index 511995b..f36eee5 100644
 --- a/cinder/templates/configmap-etc.yaml
 +++ b/cinder/templates/configmap-etc.yaml
 @@ -123,6 +123,9 @@ data:
@@ -56,7 +63,7 @@ index 511995b24..f36eee5a4 100644
  {{- $filePrefix := replace "_" "-"  $key }}
    {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index 469e7f2ad..e288e1eb4 100644
+index 469e7f2..e288e1e 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
 @@ -201,6 +201,12 @@ spec:
@@ -73,10 +80,10 @@ index 469e7f2ad..e288e1eb4 100644
              - name: etcceph
                mountPath: /etc/ceph
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index 353145a0b..b382f9848 100644
+index 1c12e02..c50dbd6 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
-@@ -1517,6 +1517,22 @@ tls:
+@@ -1517,6 +1517,40 @@ tls:
    oslo_messaging: false
    oslo_db: false
  
@@ -95,9 +102,28 @@ index 353145a0b..b382f9848 100644
 +    - netapp-nfs
 +    - netapp-iscsi
 +    - netapp-fc
++  tls:
++    host_cert: /var/opt/openstack/certs/storage.pem
++    container_cert:
++      - /usr/lib/ssl/cert.pem
++  backends_conf: []
++  extra_mounts:
++    cinder_volume:
++      volumeMounts: []
++      volumes: []
++    cinder_backup:
++      volumeMounts: []
++      volumes: []
++    cinder_api:
++      volumeMounts: []
++      volumes: []
++    cinder_scheduler:
++      volumeMounts: []
++      volumes: []
 +
  manifests:
    certificates: false
    configmap_bin: true
--- 
-2.34.1
+--
+2.43.0
+

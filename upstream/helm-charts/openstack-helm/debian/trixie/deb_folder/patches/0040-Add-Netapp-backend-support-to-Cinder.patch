@@ -50,39 +50,70 @@ cinder-volume template.
 Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 [ Adapt OSH patches to Gazpacho release ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+
+[ESB: Add active_protocols-based template gating]
+
+Generalize the existing iSCSI/FC mount gates in deployment-volume.yaml
+and deployment-backup.yaml to additionally check active_protocols
+membership for iscsi/fcp/nfs. This allows ESB backends to trigger the
+same pod-level mounts that strict backends use, without requiring a
+specific driver name match.
+
+- Gate the NFS shares mount on either has_netapp_backend OR nfs in
+  active_protocols.
+- Gate the SAN mounts (iSCSI, multipath, host-dev, host-rootfs) on
+  either enable_iscsi OR iscsi/fcp in active_protocols.
+- Gate hostIPC on either enable_iscsi OR iscsi/fcp in active_protocols.
+- Generalize the storage-init.sh ESB no-op to handle any non-RBD
+  driver, so ESB backends skip Ceph initialization gracefully.
+
+All checks tolerate active_protocols being absent or empty for
+backward compatibility with strict-only deployments.
+
+Signed-off-by: Dirley Rodrigues Lima da Silva <dirley.rodrigueslimadasilva@windriver.com>
 ---
- cinder/templates/bin/_storage-init.sh.tpl     |  5 ++++
- cinder/templates/deployment-backup.yaml       | 14 +++++++++
- cinder/templates/deployment-volume.yaml       |  4 ++-
- cinder/templates/job-storage-init.yaml        | 18 +++++++----
- cinder/templates/utils/_has_ceph_backend.tpl  |  4 ++-
- .../templates/utils/_has_netapp_backend.tpl   | 25 ++++++++++++++++
- .../templates/utils/_is_backend_enabled.tpl   | 30 +++++++++++++++++++
- 7 files changed, 92 insertions(+), 8 deletions(-)
- create mode 100644 cinder/templates/utils/_has_netapp_backend.tpl
- create mode 100644 cinder/templates/utils/_is_backend_enabled.tpl
+  cinder/templates/bin/_storage-init.sh.tpl      |  6 ++++++
+  cinder/templates/deployment-backup.yaml        | 20 +++++++++++++++--
+  cinder/templates/deployment-volume.yaml        | 13 +++++++----
+  cinder/templates/job-storage-init.yaml         | 18 ++++++++++------
+  cinder/templates/utils/_has_ceph_backend.tpl   |  4 +++-
+  cinder/templates/utils/_has_netapp_backend.tpl | 25 +++++++++++++++++++++
+  cinder/templates/utils/_is_backend_enabled.tpl | 30 ++++++++++++++++++++++++++
+  7 files changed, 103 insertions(+), 13 deletions(-)
 
 diff --git a/cinder/templates/bin/_storage-init.sh.tpl b/cinder/templates/bin/_storage-init.sh.tpl
-index 53b0b071c..a04cc0856 100644
+index 53b0b07..fb1d7f5 100644
 --- a/cinder/templates/bin/_storage-init.sh.tpl
 +++ b/cinder/templates/bin/_storage-init.sh.tpl
-@@ -14,6 +14,11 @@ See the License for the specific language governing permissions and
+@@ -14,6 +14,12 @@ See the License for the specific language governing permissions and
  limitations under the License.
  */}}
  
 +set -x
-+if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.netapp.common.NetAppDriver" ]; then
-+  echo "INFO: no action required to use ${STORAGE_BACKEND}"
++if [ "x$STORAGE_BACKEND" != "xcinder.volume.drivers.rbd.RBDDriver" ]; then
++  echo "INFO: no Ceph action required for storage backend ${STORAGE_BACKEND}"
++  exit 0
 +fi
 +
  set -x
  if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
    SECRET=$(mktemp --suffix .yaml)
 diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
-index 9159694bb..4ecd30814 100644
+index 9159694..04b787e 100644
 --- a/cinder/templates/deployment-backup.yaml
 +++ b/cinder/templates/deployment-backup.yaml
-@@ -297,6 +297,17 @@ spec:
+@@ -272,7 +272,9 @@ spec:
+               mountPath: /etc/cinder/rootwrap.d/volume.filters
+               subPath: volume.filters
+               readOnly: true
+-            {{- if .Values.conf.enable_iscsi }}
++            {{- $active_protocols := (.Values.storage_conf.active_protocols | default list) -}}
++            {{- $has_san_protocol := or (has "iscsi" $active_protocols) (has "fcp" $active_protocols) -}}
++            {{- if or .Values.conf.enable_iscsi $has_san_protocol }}
+             - name: host-rootfs
+               mountPath: /mnt/host-rootfs
+               {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+@@ -297,6 +299,17 @@ spec:
              - name: cinder-bin
                mountPath: /usr/local/sbin/iscsiadm
                subPath: iscsiadm
@@ -100,7 +131,16 @@ index 9159694bb..4ecd30814 100644
              {{- end }}
  {{ if $mounts_cinder_backup.volumeMounts }}{{ toYaml $mounts_cinder_backup.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -386,6 +397,9 @@ spec:
+@@ -368,7 +381,7 @@ spec:
+         - name: cinder-coordination
+           emptyDir: {}
+         {{- end }}
+-        {{- if .Values.conf.enable_iscsi }}
++        {{- if or .Values.conf.enable_iscsi $has_san_protocol }}
+         - name: host-rootfs
+           hostPath:
+             path: /
+@@ -386,6 +399,9 @@ spec:
              path: /etc/iscsi
          - name: usrlocalsbin
            emptyDir: {}
@@ -111,10 +151,21 @@ index 9159694bb..4ecd30814 100644
  {{ if $mounts_cinder_backup.volumes }}{{ toYaml $mounts_cinder_backup.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index e288e1eb4..56c51a05f 100644
+index e288e1e..c73aca6 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
-@@ -80,6 +80,7 @@ spec:
+@@ -73,13 +73,17 @@ spec:
+       hostNetwork: true
+       dnsPolicy: ClusterFirstWithHostNet
+ {{- end }}
+-{{- if .Values.conf.enable_iscsi }}
++{{- $active_protocols := (.Values.storage_conf.active_protocols | default list) -}}
++{{- $has_san_protocol := or (has "iscsi" $active_protocols) (has "fcp" $active_protocols) -}}
++{{- $has_nfs_protocol := has "nfs" $active_protocols -}}
++{{- if or .Values.conf.enable_iscsi $has_san_protocol }}
+       hostIPC: true
+ {{- end }}
+       initContainers:
  {{ tuple $envAll "volume" $mounts_cinder_volume_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
          {{- range $name := rest (splitList "," (include "cinder.utils.ceph_backend_list" $envAll)) }}
            {{- $backend := index $envAll.Values.conf.backends $name }}
@@ -122,7 +173,7 @@ index e288e1eb4..56c51a05f 100644
              {{- if eq $internal_ceph_backend $name }}
          - name: ceph-keyring-placement-{{ $name | lower }}
  {{ tuple $envAll "cinder_volume" | include "helm-toolkit.snippets.image" | indent 10 }}
-@@ -113,6 +114,7 @@ spec:
+@@ -113,6 +117,7 @@ spec:
                readOnly: true
              {{- end }}
              {{- end }}
@@ -130,17 +181,35 @@ index e288e1eb4..56c51a05f 100644
          {{- end }}
          {{- if eq ( split "://" .Values.conf.cinder.coordination.backend_url )._0 "file" }}
          - name: ceph-coordination-volume-perms
-@@ -201,7 +203,7 @@ spec:
+@@ -201,7 +206,7 @@ spec:
                mountPath: /etc/cinder/conf/backends.conf
                subPath: backends.conf
                readOnly: true
 -            {{- if hasKey .Values.conf "nfs_shares" }}
-+            {{- if and (eq "true" (include "cinder.utils.has_netapp_backend" $envAll)) (hasKey .Values.conf "nfs_shares") }}
++            {{- if and (or (eq "true" (include "cinder.utils.has_netapp_backend" $envAll)) $has_nfs_protocol) (hasKey .Values.conf "nfs_shares") }}
              - name: cinder-etc
                mountPath: /etc/cinder/nfs.shares
                subPath: nfs.shares
+@@ -267,7 +272,7 @@ spec:
+               readOnly: true
+             {{- end }}
+             {{- end }}
+-            {{- if .Values.conf.enable_iscsi }}
++            {{- if or .Values.conf.enable_iscsi $has_san_protocol }}
+             - name: host-rootfs
+               mountPath: /mnt/host-rootfs
+               {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
+@@ -372,7 +377,7 @@ spec:
+         - name: cinder-coordination
+           emptyDir: {}
+         {{- end }}
+-        {{- if .Values.conf.enable_iscsi }}
++        {{- if or .Values.conf.enable_iscsi $has_san_protocol }}
+         - name: host-rootfs
+           hostPath:
+             path: /
 diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
-index 92a1f1fad..86331fe98 100755
+index 92a1f1f..86331fe 100755
 --- a/cinder/templates/job-storage-init.yaml
 +++ b/cinder/templates/job-storage-init.yaml
 @@ -101,8 +101,7 @@ spec:
@@ -201,7 +270,7 @@ index 92a1f1fad..86331fe98 100755
          - name: pod-tmp
            emptyDir: {}
 diff --git a/cinder/templates/utils/_has_ceph_backend.tpl b/cinder/templates/utils/_has_ceph_backend.tpl
-index bf975bb37..4e4f21e97 100644
+index bf975bb..4e4f21e 100644
 --- a/cinder/templates/utils/_has_ceph_backend.tpl
 +++ b/cinder/templates/utils/_has_ceph_backend.tpl
 @@ -16,7 +16,9 @@ limitations under the License.
@@ -217,7 +286,7 @@ index bf975bb37..4e4f21e97 100644
    {{- $has_ceph -}}
 diff --git a/cinder/templates/utils/_has_netapp_backend.tpl b/cinder/templates/utils/_has_netapp_backend.tpl
 new file mode 100644
-index 000000000..f791b804c
+index 0000000..f791b80
 --- /dev/null
 +++ b/cinder/templates/utils/_has_netapp_backend.tpl
 @@ -0,0 +1,25 @@
@@ -248,7 +317,7 @@ index 000000000..f791b804c
 +{{- end -}}
 diff --git a/cinder/templates/utils/_is_backend_enabled.tpl b/cinder/templates/utils/_is_backend_enabled.tpl
 new file mode 100644
-index 000000000..514187f6f
+index 0000000..514187f
 --- /dev/null
 +++ b/cinder/templates/utils/_is_backend_enabled.tpl
 @@ -0,0 +1,30 @@
@@ -283,6 +352,6 @@ index 000000000..514187f6f
 +    {{- printf "%v" (has $backend $backend_list) -}}
 +{{- end -}}
 \ No newline at end of file
--- 
-2.34.1
+--
+2.43.0
 

@@ -457,7 +457,7 @@ conf:
       thunder-lock: true
       worker-reload-mercy: 80
       module: glance.wsgi.api:application
-      stats: 0.0.0.0:1717
+      stats: "[::]:1717"
       stats-http: true
   glance_registry:
     keystone_authtoken:

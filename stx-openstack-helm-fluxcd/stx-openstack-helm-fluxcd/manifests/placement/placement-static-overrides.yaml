@@ -151,7 +151,7 @@ conf:
       thunder-lock: true
       worker-reload-mercy: 80
       module: placement.wsgi.api:application
-      stats: 0.0.0.0:1717
+      stats: "[::]:1717"
       stats-http: true
   wsgi_placement: |
     Listen :::{{ tuple "placement" "internal" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}

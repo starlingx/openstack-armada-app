@@ -1709,7 +1709,7 @@ conf:
       thunder-lock: true
       worker-reload-mercy: 80
       module: nova.wsgi.osapi_compute:application
-      stats: 0.0.0.0:1717
+      stats: "[::]:1717"
       stats-http: true
   nova_metadata_uwsgi:
     uwsgi:
@@ -1727,7 +1727,7 @@ conf:
       thunder-lock: true
       worker-reload-mercy: 80
       module: nova.wsgi.metadata:application
-      stats: 0.0.0.0:1717
+      stats: "[::]:1717"
       stats-http: true
   ssh: |
     Host *

@@ -208,7 +208,8 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
     )
     @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list')
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
-    def test_glance_cinder_ceph_hostnetwork_disabled(self, mock_https, mock_priority, *_):
+    @mock.patch('k8sapp_openstack.helm.glance.get_backend_protocol', return_value='rbd')
+    def test_glance_cinder_ceph_hostnetwork_disabled(self, mock_protocol, mock_https, mock_priority, *_):
         """
         Tests that hostNetwork is NOT enabled when Glance uses Cinder with Ceph backend.
         """
@@ -230,6 +231,7 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
                 cnamespace=common.HELM_NS_OPENSTACK)
             self.assertIn('pod', overrides)
             self.assertNotIn('useHostNetwork', overrides['pod'])
+            self.assertNotIn('security_context', overrides['pod'])
 
     @mock.patch(
         'k8sapp_openstack.helm.glance._get_value_from_application',
@@ -237,7 +239,8 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
     )
     @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list')
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
-    def test_glance_cinder_iscsi_hostnetwork_enabled(self, mock_https, mock_priority, *_):
+    @mock.patch('k8sapp_openstack.helm.glance.get_backend_protocol', return_value='iscsi')
+    def test_glance_cinder_iscsi_hostnetwork_enabled(self, mock_protocol, mock_https, mock_priority, *_):
         """
         Tests that hostNetwork is enabled when Glance uses Cinder with iSCSI backend.
         """
@@ -260,3 +263,120 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
             self.assertIn('pod', overrides)
             self.assertIn('useHostNetwork', overrides['pod'])
             self.assertEqual(overrides['pod']['useHostNetwork']['api'], True)
+            self.assertIn('security_context', overrides['pod'])
+
+
+class GlancePodOverridesESBTest(GlanceHelmTestCase,
+                                dbbase.ControllerHostTestCase):
+    """Tests for _get_pod_overrides() with ESB backends."""
+
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=[app_constants.GLANCE_BACKEND_CINDER]
+    )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.glance.get_backend_protocol', return_value='iscsi')
+    def test_esb_iscsi_enables_host_network(self, mock_protocol, mock_https, mock_priority, *_):
+        """ESB iSCSI backend enables useHostNetwork and privileged for Glance API."""
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_CINDER],
+            ['dell-powerstore-iscsi']
+        ]
+        with mock.patch(
+            'k8sapp_openstack.helm.glance.get_available_volume_backends',
+            return_value={
+                app_constants.GLANCE_BACKEND_CINDER: app_constants.GLANCE_BACKEND_CINDER,
+                'dell-powerstore-iscsi': 'dell-powerstore-iscsi'
+            }
+        ):
+            overrides = self.operator.get_helm_chart_overrides(
+                app_constants.HELM_CHART_GLANCE,
+                cnamespace=common.HELM_NS_OPENSTACK)
+            self.assertIn('pod', overrides)
+            self.assertIn('useHostNetwork', overrides['pod'])
+            self.assertEqual(overrides['pod']['useHostNetwork'], {'api': True})
+            self.assertIn('security_context', overrides['pod'])
+
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=[app_constants.GLANCE_BACKEND_CINDER]
+    )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.glance.get_backend_protocol', return_value='nfs')
+    def test_esb_nfs_no_host_network(self, mock_protocol, mock_https, mock_priority, *_):
+        """ESB NFS backend does not enable useHostNetwork or privileged."""
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_CINDER],
+            ['dell-powerstore-nfs']
+        ]
+        with mock.patch(
+            'k8sapp_openstack.helm.glance.get_available_volume_backends',
+            return_value={
+                app_constants.GLANCE_BACKEND_CINDER: app_constants.GLANCE_BACKEND_CINDER,
+                'dell-powerstore-nfs': 'dell-powerstore-nfs'
+            }
+        ):
+            overrides = self.operator.get_helm_chart_overrides(
+                app_constants.HELM_CHART_GLANCE,
+                cnamespace=common.HELM_NS_OPENSTACK)
+            self.assertIn('pod', overrides)
+            self.assertNotIn('useHostNetwork', overrides['pod'])
+            self.assertNotIn('security_context', overrides['pod'])
+
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=[app_constants.GLANCE_BACKEND_CINDER]
+    )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.glance.get_backend_protocol', return_value='iscsi')
+    def test_esb_iscsi_k8s_storage_class_none(self, mock_protocol, mock_https, mock_priority, *_):
+        """ESB iSCSI with k8s_storage_class: none still enables host networking."""
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_CINDER],
+            ['dell-powerstore-iscsi']
+        ]
+        with mock.patch(
+            'k8sapp_openstack.helm.glance.get_available_volume_backends',
+            return_value={
+                app_constants.GLANCE_BACKEND_CINDER: app_constants.GLANCE_BACKEND_CINDER,
+                'dell-powerstore-iscsi': ''
+            }
+        ):
+            overrides = self.operator.get_helm_chart_overrides(
+                app_constants.HELM_CHART_GLANCE,
+                cnamespace=common.HELM_NS_OPENSTACK)
+            self.assertIn('pod', overrides)
+            self.assertIn('useHostNetwork', overrides['pod'])
+            self.assertEqual(overrides['pod']['useHostNetwork'], {'api': True})
+            self.assertIn('security_context', overrides['pod'])
+
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=[app_constants.GLANCE_BACKEND_CINDER]
+    )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.glance.get_backend_protocol', return_value='iscsi')
+    def test_strict_netapp_iscsi_still_enables_host_network(self, mock_protocol, mock_https, mock_priority, *_):
+        """Regression: strict NetApp iSCSI still enables useHostNetwork."""
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_CINDER],
+            [app_constants.NETAPP_ISCSI_BACKEND_NAME]
+        ]
+        with mock.patch(
+            'k8sapp_openstack.helm.glance.get_available_volume_backends',
+            return_value={
+                app_constants.GLANCE_BACKEND_CINDER: app_constants.GLANCE_BACKEND_CINDER,
+                app_constants.NETAPP_ISCSI_BACKEND_NAME: app_constants.NETAPP_ISCSI_BACKEND_NAME,
+                app_constants.NETAPP_FC_BACKEND_NAME: app_constants.NETAPP_FC_BACKEND_NAME
+            }
+        ):
+            overrides = self.operator.get_helm_chart_overrides(
+                app_constants.HELM_CHART_GLANCE,
+                cnamespace=common.HELM_NS_OPENSTACK)
+            self.assertIn('pod', overrides)
+            self.assertIn('useHostNetwork', overrides['pod'])
+            self.assertEqual(overrides['pod']['useHostNetwork'], {'api': True})

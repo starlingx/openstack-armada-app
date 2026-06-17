@@ -19,6 +19,7 @@ from k8sapp_openstack.utils import _get_value_from_application
 from k8sapp_openstack.utils import discover_netapp_configs
 from k8sapp_openstack.utils import discover_netapp_credentials
 from k8sapp_openstack.utils import get_available_volume_backends
+from k8sapp_openstack.utils import get_backends_conf
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_storage_backends_priority_list
@@ -27,6 +28,7 @@ from k8sapp_openstack.utils import get_storage_tls_container_certs
 from k8sapp_openstack.utils import get_storage_tls_host_cert
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_storage_ca_cert_secret_available
+from k8sapp_openstack.utils import is_strict_backend
 
 LOG = logging.getLogger(__name__)
 
@@ -126,6 +128,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         ceph_overrides = dict()
         ceph_client_overrides = dict()
         self.available_backends = get_available_volume_backends()
+        self._backends_conf = get_backends_conf()
         self.available_netapp_backends = [
             be for be in self.available_backends
             if be.startswith('netapp') and self.available_backends[be]
@@ -151,6 +154,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         )
         LOG.info(f"Cinder available backends: {self.available_backends}")
         LOG.info(f"Cinder available NetApp backends: {self.available_netapp_backends}")
+        LOG.info(f"Cinder backends_conf entries: {list(self._backends_conf.keys())}")
         LOG.info(f"Cinder volume priority list: {self.VOLUME_PRIORITY_LIST}")
         LOG.info(f"Cinder backup priority list: {self.BACKUP_PRIORITY_LIST}")
         LOG.info(f"Cinder Ceph enabled: {self._ceph_enabled}")
@@ -174,27 +178,29 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 ceph_client_overrides = self._get_ceph_client_overrides()
 
         # Add NetApp configuration
-        cinder_volume_read_only_filesystem = True
-        cinder_backup_privileged = False
-        if self.netapp_enabled:
-            # If NetApp is using NFS, the cinder-volume pod cannot have a readOnly filesystem,
-            # as the NFS will be mounted into the pod during initialization
-            cinder_volume_read_only_filesystem = self._netapp_nfs_enabled
-
-            # For NetApp iSCSI the backup container needs to run in privileged
-            # mode [1][2]
-            # [1] https://review.opendev.org/c/openstack/tripleo-heat-templates/+/538272
-            # [2] https://review.opendev.org/c/openstack/openstack-helm/+/770008
-            cinder_backup_privileged = (self._netapp_iscsi_enabled or
-                                        self._netapp_fc_enabled)
-
+        if any(self.available_netapp_backends):
             cinder_overrides = self._get_conf_netapp_cinder_overrides(cinder_overrides)
             backend_overrides = self._get_conf_netapp_backends_overrides(backend_overrides)
+
+        # Add ESB (Extended Storage Backend) configuration
+        if self._backends_conf:
+            cinder_overrides, backend_overrides = self._get_conf_esb_cinder_overrides(
+                cinder_overrides, backend_overrides)
+
+        # Compute active_protocols from all enabled backends (strict + ESB)
+        active_protocols = self._compute_active_protocols()
+        LOG.info(f"Cinder active_protocols: {active_protocols}")
+
+        # Derive pod security context from the active protocol set
+        # (most permissive setting wins across all active protocols).
+        pod_security = self._get_protocol_pod_config(set(active_protocols))
+        cinder_volume_read_only_filesystem = pod_security['volume_read_only_root_filesystem']
+        cinder_backup_privileged = pod_security['backup_privileged']
 
         # Setting default volume type based on the priority list.
         # It will be the first available backend following the priority order.
         for priority in self.VOLUME_PRIORITY_LIST:
-            if self.available_backends.get(priority, ""):
+            if self._is_backend_available(priority):
                 self.default_volume_type = priority
                 break
         if self.default_volume_type != app_constants.CEPH_BACKEND_NAME:
@@ -205,7 +211,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # Setting default backup driver based on priority list.
         # It will match the first available backend following the backup priority order.
         for priority in self.BACKUP_PRIORITY_LIST:
-            if self.available_backends.get(priority, ""):
+            if self._is_backend_available(priority):
                 self.default_backup_driver = self._get_backup_driver_name(priority)
                 self.default_backup_type = priority
                 break
@@ -224,14 +230,12 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 'pod': {
                     # Following the same approach as the OSH community did for
                     # Pure Storage integration [1], we use host network for
-                    # to support Netapp iSCSI.
+                    # to support iSCSI/FCP protocols (NetApp or ESB).
                     # [1] https://review.opendev.org/c/openstack/openstack-helm/+/770008
                     # [2] https://review.opendev.org/c/openstack/openstack-helm/+/709378
                     'useHostNetwork': {
-                        'volume': (self._netapp_iscsi_enabled or
-                                   self._netapp_fc_enabled),
-                        'backup': (self._netapp_iscsi_enabled or
-                                   self._netapp_fc_enabled),
+                        'volume': pod_security['use_host_network'],
+                        'backup': pod_security['use_host_network'],
                     },
                     'mounts': {
                         'cinder_volume': {
@@ -265,11 +269,13 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                     },
                 },
                 'conf': {
-                    'enable_iscsi': (self._netapp_iscsi_enabled or
-                                     self._netapp_fc_enabled),
+                    'enable_iscsi': pod_security['enable_iscsi'],
                     'cinder': cinder_overrides,
                     'ceph': ceph_overrides,
                     'backends': backend_overrides,
+                },
+                'storage_conf': {
+                    'active_protocols': active_protocols,
                 },
                 'endpoints': self._get_endpoints_overrides(),
                 'ceph_client': ceph_client_overrides,
@@ -492,6 +498,127 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # https://netapp-openstack-dev.github.io/openstack-docs/wallaby/cinder/configuration/cinder_config_files/section_fibre-channel.html
 
         return backend_overrides
+
+    def _get_conf_esb_cinder_overrides(self, cinder_overrides, backend_overrides):
+        """Add ESB backend entries to Cinder's enabled_backends and conf.backends.
+
+        For each ESB backend in the volume priority list that is available,
+        this method adds the backend to enabled_backends and emits its
+        volume_backend dict as a separate conf.backends section (passed as-is).
+
+        Args:
+            cinder_overrides: The mutable cinder conf overrides dict.
+            backend_overrides: The mutable conf.backends overrides dict.
+
+        Returns:
+            tuple: (cinder_overrides, backend_overrides) with ESB entries added.
+        """
+        cinder_overrides.setdefault('DEFAULT', {})
+
+        for backend_name in self.VOLUME_PRIORITY_LIST:
+            # Strict backends are configured by their own code paths.
+            if is_strict_backend(backend_name):
+                continue
+            if backend_name not in self.available_backends:
+                continue
+            conf_entry = self._backends_conf.get(backend_name)
+            if not conf_entry:
+                LOG.warning(f"ESB backend '{backend_name}' is in priority list "
+                            "but has no matching backends_conf entry. Skipping.")
+                continue
+            protocol = conf_entry.get('protocol', '')
+            if protocol not in app_constants.VALID_ESB_PROTOCOLS:
+                LOG.warning(f"ESB backend '{backend_name}' has invalid or missing "
+                            f"protocol '{protocol}'. Skipping.")
+                continue
+
+            existing_backends = cinder_overrides['DEFAULT'].get(
+                'enabled_backends', '').split(',')
+            backends_list = list(filter(None, set(existing_backends + [backend_name])))
+            cinder_overrides['DEFAULT']['enabled_backends'] = ','.join(backends_list)
+
+            # volume_backend is emitted unchanged into the cinder.conf section.
+            volume_backend = conf_entry.get('volume_backend', {})
+            backend_overrides[backend_name] = dict(volume_backend) if volume_backend else {}
+
+            LOG.info(f"ESB backend '{backend_name}' (protocol={protocol}) "
+                     "added to Cinder enabled_backends and conf.backends")
+
+        return cinder_overrides, backend_overrides
+
+    def _is_backend_available(self, backend_name):
+        """Return True if a backend is available for Cinder volume/backup use.
+
+        A backend is available when it is either:
+        - a strict backend whose StorageClass value is non-empty, or
+        - an ESB backend present in available_backends with a matching
+          backends_conf entry and a valid protocol.
+
+        For ESB backends, presence in available_backends (not the value) is
+        what matters: an ESB backend with k8s_storage_class: none has an empty
+        StorageClass value but is still a valid Cinder volume backend
+        (e.g. iSCSI over the network).
+
+        Args:
+            backend_name: The backend name to check.
+
+        Returns:
+            bool: True if the backend is available for Cinder use.
+        """
+        if is_strict_backend(backend_name):
+            return bool(self.available_backends.get(backend_name, ""))
+        # ESB backend: must be in available_backends and have a valid conf entry
+        if backend_name not in self.available_backends:
+            return False
+        conf_entry = self._backends_conf.get(backend_name)
+        if not conf_entry:
+            return False
+        return conf_entry.get('protocol', '') in app_constants.VALID_ESB_PROTOCOLS
+
+    def _compute_active_protocols(self):
+        """Compute the set of active storage protocols across all enabled backends.
+
+        Walks enabled storage_backends, resolving each name to either a
+        strict-backend protocol or the protocol field of the matching
+        backends_conf entry, and deduplicates.
+
+        Strict-backend protocol resolution:
+            ceph -> rbd, netapp-nfs -> nfs, netapp-iscsi -> iscsi, netapp-fc -> fcp
+
+        Only entries whose name matches an enabled storage_backends entry
+        contribute — orphan backends_conf entries do not affect active_protocols.
+
+        Returns:
+            list: Deduplicated, sorted list of protocol strings
+                  (e.g., ['iscsi', 'rbd']).
+        """
+        active_protocols = set()
+
+        for backend_name, storage_class in self.available_backends.items():
+            if is_strict_backend(backend_name):
+                # Strict backend contributes only when it is available
+                # (truthy StorageClass) and present in the priority list.
+                if storage_class and backend_name in self.VOLUME_PRIORITY_LIST:
+                    protocol = app_constants.STRICT_BACKEND_TO_PROTOCOL.get(backend_name)
+                    if protocol:
+                        active_protocols.add(protocol)
+            else:
+                # ESB backend contributes only if it is in the priority list
+                # (orphan entries are not in available_backends and are skipped).
+                if backend_name not in self.VOLUME_PRIORITY_LIST:
+                    continue
+                conf_entry = self._backends_conf.get(backend_name)
+                if conf_entry:
+                    protocol = conf_entry.get('protocol', '')
+                    if protocol in app_constants.VALID_ESB_PROTOCOLS:
+                        active_protocols.add(protocol)
+                    else:
+                        LOG.warning(
+                            f"ESB backend '{backend_name}' has invalid "
+                            f"protocol '{protocol}' for active_protocols computation"
+                        )
+
+        return sorted(active_protocols)
 
     def _get_backup_overrides(self):
         backup_overrides = dict()

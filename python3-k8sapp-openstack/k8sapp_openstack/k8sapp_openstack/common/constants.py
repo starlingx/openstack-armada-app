@@ -355,6 +355,11 @@ DEFAULT_NOVA_PVC_PRIORITY_LIST = [
     NETAPP_NFS_BACKEND_NAME,
 ]
 
+# Valid ESB protocol values that operators can declare in backends_conf.
+# rbd is excluded — it is internal-only, representing the ceph strict
+# backend's contribution to active_protocols.
+VALID_ESB_PROTOCOLS = frozenset(['iscsi', 'fcp', 'nfs', 'local'])
+
 # Map backend -> driver
 BACKUP_DEFAULT_DRIVER = CEPH_BACKUP_DRIVER
 BACKUP_BACKEND_DRIVER_MAP = {

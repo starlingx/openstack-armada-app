@@ -14,10 +14,12 @@ from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import _get_value_from_application
 from k8sapp_openstack.utils import get_available_volume_backends
+from k8sapp_openstack.utils import get_backend_protocol
 from k8sapp_openstack.utils import get_external_service_url
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
+from k8sapp_openstack.utils import is_strict_backend
 
 LOG = logging.getLogger(__name__)
 
@@ -64,6 +66,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
 
         if self._backend == app_constants.GLANCE_BACKEND_CINDER:
             cinder_default = self._get_cinder_default_backend()
+            self._cinder_default_backend = cinder_default
             self._cinder_uses_ceph = cinder_default in [
                 app_constants.CEPH_BACKEND_NAME,
                 app_constants.CEPH_ROOK_BACKEND_NAME
@@ -76,6 +79,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     (cinder_ceph_type == constants.SB_TYPE_CEPH_ROOK)
                 )
         else:
+            self._cinder_default_backend = None
             self._cinder_uses_ceph = False
 
         LOG.info(f"Glance available backends: {self._available_backends}")
@@ -154,25 +158,32 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         }
 
         if self._image_store == app_constants.GLANCE_IMAGE_STORE_CINDER:
-            overrides['security_context'] = {
-                'glance': {
-                    'container': {
-                        'glance_api': {
-                            'readOnlyRootFilesystem': False,
-                            'privileged': True,
-                            'allowPrivilegeEscalation': True,
+            # Drive pod security context from the Cinder default backend
+            # protocol via the shared protocol-to-pod-config helper.
+            protocol = get_backend_protocol(self._cinder_default_backend)
+            if protocol is None:
+                LOG.warning(
+                    f"Could not resolve protocol for backend "
+                    f"'{self._cinder_default_backend}', skipping "
+                    f"hostNetwork config"
+                )
+            else:
+                pod_config = self._get_protocol_pod_config({protocol})
+                if pod_config['use_host_network']:
+                    overrides['security_context'] = {
+                        'glance': {
+                            'container': {
+                                'glance_api': {
+                                    'readOnlyRootFilesystem': False,
+                                    'privileged': True,
+                                    'allowPrivilegeEscalation': True,
+                                },
+                            },
                         },
-                    },
-                },
-            }
-            # Enable hostNetwork when Cinder uses a SAN (iSCSI or FC) backend
-            # to allow glance-api pod to access host's iSCSI/FC stack via os_brick
-            cinder_default = self._get_cinder_default_backend()
-            if cinder_default in (app_constants.NETAPP_ISCSI_BACKEND_NAME,
-                                  app_constants.NETAPP_FC_BACKEND_NAME):
-                overrides['useHostNetwork'] = {
-                    'api': True
-                }
+                    }
+                    overrides['useHostNetwork'] = {
+                        'api': True
+                    }
 
         return overrides
 
@@ -403,7 +414,10 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             override_name=app_constants.OVERRIDE_STORAGE_BACKENDS
         )
         for priority in cinder_priority_list:
-            if cinder_available_backends.get(priority, ""):
+            value = cinder_available_backends.get(priority)
+            # Strict backends need a non-empty storage class to be available;
+            # ESB backends are valid even with k8s_storage_class: none (value="")
+            if value or (value == "" and not is_strict_backend(priority)):
                 return priority
         LOG.error("No available storage backends found for Cinder.")
         return None

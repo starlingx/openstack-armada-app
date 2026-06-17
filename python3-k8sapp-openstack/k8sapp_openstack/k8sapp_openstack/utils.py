@@ -3700,3 +3700,25 @@ def _recover_error_servers_worker(conductor_obj):
         len(error_servers))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         executor.map(_do_recover, error_servers)
+
+
+def get_backend_protocol(name: str):
+    """Resolve a storage backend name to its storage protocol.
+
+    For strict backends, uses the STRICT_BACKEND_TO_PROTOCOL mapping.
+    For ESB backends, looks up the protocol field in backends_conf
+    from the Cinder chart overrides.
+
+    Args:
+        name: Backend name (e.g., "netapp-iscsi", "dell-powerstore-iscsi")
+
+    Returns:
+        Protocol string ("iscsi", "fcp", "nfs", "rbd", "local") or None
+        if the backend cannot be resolved.
+    """
+    protocol = app_constants.STRICT_BACKEND_TO_PROTOCOL.get(name)
+    if protocol:
+        return protocol
+
+    entry = get_backends_conf().get(name)
+    return entry.get("protocol") if entry else None

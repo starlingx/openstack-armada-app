@@ -33,6 +33,13 @@ Change-Id: I00919573fed352c2df568e59f8d8d940b05d9c73
 Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+
+[ESB: Add backend_conf and other fields]
+
+Added some new fields to storage_conf, related to the Extended Storage
+Backends. These fields are: tls, backend_conf, and extra_mounts.
+
+Signed-off-by: Dirley Rodrigues Lima da Silva <dirley.rodrigueslimadasilva@windriver.com>
 ---
  cinder/templates/configmap-etc.yaml     |  3 +++
  cinder/templates/deployment-volume.yaml |  6 ++++++
@@ -74,10 +81,10 @@ diff --git a/cinder/values.yaml b/cinder/values.yaml
 index 8179fc8f6..14a24f879 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
-@@ -1470,6 +1470,22 @@ tls:
+@@ -1470,6 +1470,40 @@ tls:
    oslo_messaging: false
    oslo_db: false
- 
+
 +storage_conf:
 +  storage_backends:
 +    - name: ceph
@@ -93,10 +100,28 @@ index 8179fc8f6..14a24f879 100644
 +    - netapp-nfs
 +    - netapp-iscsi
 +    - netapp-fc
++  tls:
++    host_cert: /var/opt/openstack/certs/storage.pem
++    container_cert:
++      - /usr/lib/ssl/cert.pem
++  backends_conf: []
++  extra_mounts:
++    cinder_volume:
++      volumeMounts: []
++      volumes: []
++    cinder_backup:
++      volumeMounts: []
++      volumes: []
++    cinder_api:
++      volumeMounts: []
++      volumes: []
++    cinder_scheduler:
++      volumeMounts: []
++      volumes: []
 +
  manifests:
    certificates: false
    configmap_bin: true
--- 
+--
 2.43.0
 

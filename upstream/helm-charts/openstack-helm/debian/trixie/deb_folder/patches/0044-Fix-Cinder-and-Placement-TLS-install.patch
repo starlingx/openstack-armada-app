@@ -18,10 +18,22 @@ Change-Id: Ie64bf9b2f61cad05a281262a422fdae9162a742e
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ Adapt OSH patches to Gazpacho release ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Fix TLS startup failure in 2026.1 ]
+
+The placement-api console_script entry point was removed upstream.
+When manifests.certificates is enabled, the startup script failed
+with "cp: missing destination file operand" because type -p
+placement-api returned empty. Generate a WSGI script in-place
+when the binary is absent, using the same module reference
+(placement.wsgi.api:application) as the uwsgi path.
+
+https://docs.openstack.org/releasenotes/placement/2026.1.html
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
- cinder/templates/ingress-api.yaml | 2 +-
- placement/values.yaml             | 6 ++++++
- 2 files changed, 7 insertions(+), 1 deletion(-)
+ cinder/templates/ingress-api.yaml             |  2 +-
+ placement/templates/bin/_placement-api.sh.tpl | 13 ++++++++++++-
+ placement/values.yaml                         |  6 ++++++
+ 3 files changed, 19 insertions(+), 1 deletions(-)
 
 diff --git a/cinder/templates/ingress-api.yaml b/cinder/templates/ingress-api.yaml
 index a514adfde..be8c04d06 100644
@@ -35,8 +47,32 @@ index a514adfde..be8c04d06 100644
 +{{- $ingressOpts := dict "envAll" . "backendServiceType" "volumev3" "backendPort" "c-api" -}}
  {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
  {{- end }}
+diff --git a/placement/templates/bin/_placement-api.sh.tpl b/placement/templates/bin/_placement-api.sh.tpl
+index f59947aaf..8a943787e 100644
+--- a/placement/templates/bin/_placement-api.sh.tpl
++++ b/placement/templates/bin/_placement-api.sh.tpl
+@@ -21,7 +21,18 @@ COMMAND="${@:-start}"
+ 
+ function start () {
+ {{- if .Values.manifests.certificates }}
+-  cp -a $(type -p placement-api) /var/www/cgi-bin/placement/
++  PLACEMENT_BIN=$(type -p placement-api 2>/dev/null || true)
++  if [ -n "$PLACEMENT_BIN" ]; then
++    cp -a $PLACEMENT_BIN /var/www/cgi-bin/placement/
++  else
++    # If the placement-api binary is not found (removed upstream in 2026.1),
++    # create a WSGI script that loads the application via module reference.
++    cat <<'EOF' > /var/www/cgi-bin/placement/placement-api
++#!/usr/bin/env python3
++from placement.wsgi.api import application  # noqa: F401
++EOF
++    chmod +x /var/www/cgi-bin/placement/placement-api
++  fi
+   if [ -f /etc/apache2/envvars ]; then
+     # Loading Apache2 ENV variables
+     source /etc/apache2/envvars
 diff --git a/placement/values.yaml b/placement/values.yaml
-index 63b70ddd5..c6fcad0b0 100644
+index 366f9604f..cc27564df 100644
 --- a/placement/values.yaml
 +++ b/placement/values.yaml
 @@ -64,6 +64,12 @@ network:
@@ -54,3 +90,4 @@ index 63b70ddd5..c6fcad0b0 100644
      DEFAULT:
 -- 
 2.34.1
+

@@ -51,6 +51,12 @@ network:
       port: 30778
 
 conf:
+  software:
+    apache2:
+      binary: apache2
+      start_parameters: -DFOREGROUND
+      a2enmod: null
+      a2dismod: null
   policy: {}
   placement:
     DEFAULT:
@@ -378,7 +384,7 @@ pod:
     placement:
       api:
         liveness:
-          port: 1717
+          port: null
     jobs:
       db_init:
         requests:

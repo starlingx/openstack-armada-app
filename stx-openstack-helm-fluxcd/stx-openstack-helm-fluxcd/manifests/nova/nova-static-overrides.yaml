@@ -65,6 +65,7 @@ images:
     nova_db_sync: docker.io/starlingx/stx-nova:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     nova_novncproxy: docker.io/starlingx/stx-nova:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     nova_novncproxy_assets: 'docker.io/starlingx/stx-nova:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@'
+    nova_sanitizer: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     nova_scheduler: docker.io/starlingx/stx-nova:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     nova_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     # NOTE(portdirect): we simply use the ceph config helper here,
@@ -105,6 +106,12 @@ jobs:
       failed: 1
     sleep_time: 60
     extra_command: null
+  instances_sanitizer:
+    cron: "0 0 * * *"
+    starting_deadline: 600
+    history:
+      success: 3
+      failed: 1
   archive_deleted_rows:
     cron: "0 */1 * * *"
     starting_deadline: 600
@@ -383,12 +390,34 @@ dependencies:
           service: identity
         - endpoint: internal
           service: compute
+    instances_sanitizer:
+      jobs:
+        - nova-db-sync
+        - nova-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_messaging
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
+        - endpoint: internal
+          service: compute
+      pod:
+        - requireSameNode: false
+          labels:
+            application: nova
+            component: conductor
     compute:
       pod:
         - requireSameNode: true
           labels:
             application: libvirt
             component: libvirt
+        - requireSameNode: true
+          labels:
+            application: nova
+            component: conductor
       jobs:
         - nova-db-sync
         - nova-rabbit-init
@@ -2394,6 +2423,11 @@ pod:
         nova_novncproxy:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
+        nova_sanitizer:
+          runAsUser: 0
+          runAsGroup: 0
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
         nova_scheduler:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
@@ -2450,6 +2484,13 @@ pod:
         runAsUser: 42424
       container:
         nova_cell_setup:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+    instances_sanitizer:
+      pod:
+        runAsUser: 0
+      container:
+        nova_sanitizer:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
     service_cleaner:
@@ -2640,6 +2681,13 @@ pod:
         memory: "128Mi"
         cpu: "100m"
         ephemeral-storage: "100Ki"
+      limits:
+        memory: "1024Mi"
+        cpu: "2000m"
+    sanitizer:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
       limits:
         memory: "1024Mi"
         cpu: "2000m"
@@ -2838,6 +2886,8 @@ manifests:
   cron_job_cell_setup: false
   cron_job_service_cleaner: true
   cron_job_archive_deleted_rows: false
+  init_container_instances_sanitizer: true
+  cron_job_instances_sanitizer: false
   daemonset_compute: true
   deployment_api_metadata: true
   deployment_api_osapi: true

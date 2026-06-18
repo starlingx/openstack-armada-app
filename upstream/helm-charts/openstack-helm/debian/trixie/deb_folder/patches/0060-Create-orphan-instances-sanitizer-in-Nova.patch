@@ -1,0 +1,381 @@
+From e6dcec062781ace7c379134a704cdf811440c2c8 Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Tue, 17 Feb 2026 14:28:23 -0300
+Subject: [PATCH] Create orphan instances sanitizer in Nova
+
+Add an init container (nova-orphan-instances-sanitizer) to the
+nova-compute daemonset that cleans up libvirt domains not owned
+by Nova before the compute service starts.
+
+Also add a CronJob (nova-instances-sanitizer) for periodic
+orphan cleanup on a configurable schedule.
+
+Changes to the Nova chart:
+- Add _orphan-instances-sanitizer.sh.tpl script template
+- Add orphan-instances-sanitizer.sh entry to configmap-bin
+  (gated by init_container_instances_sanitizer OR
+  cron_job_instances_sanitizer)
+- Add cron-job-instances-sanitizer.yaml template
+- Add init container to daemonset-compute.yaml (guarded by
+  manifests.init_container_instances_sanitizer)
+- Add nova_sanitizer image, job config, dependencies,
+  security contexts, and resource definitions to values.yaml
+- Add manifests flags (both disabled by default):
+  cron_job_instances_sanitizer and
+  init_container_instances_sanitizer
+
+Notes on intentional deviations from CronJob conventions:
+- nodeSelector uses agent.compute labels instead of job labels
+  because the sanitizer requires host-level access to the
+  libvirt socket at /run/libvirt/libvirt-sock, which only
+  exists on compute nodes.
+- pod.resources.sanitizer is a top-level resource key (not
+  under pod.resources.jobs) because it is shared between the
+  CronJob container and the init container in
+  daemonset-compute.yaml.
+
+Change-Id: I13b33c9eae6385d785ba005617536a88e7b2f59c
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+---
+ .../bin/_orphan-instances-sanitizer.sh.tpl    | 71 ++++++++++++++++
+ nova/templates/configmap-bin.yaml             |  2 +
+ .../cron-job-instances-sanitizer.yaml         | 84 +++++++++++++++++++
+ nova/templates/daemonset-compute.yaml         | 19 ++++
+ nova/values.yaml                              | 48 +++++++++++
+ 5 files changed, 224 insertions(+)
+ create mode 100644 nova/templates/bin/_orphan-instances-sanitizer.sh.tpl
+ create mode 100644 nova/templates/cron-job-instances-sanitizer.yaml
+
+diff --git a/nova/templates/bin/_orphan-instances-sanitizer.sh.tpl b/nova/templates/bin/_orphan-instances-sanitizer.sh.tpl
+new file mode 100644
+index 000000000..14329bfb8
+--- /dev/null
++++ b/nova/templates/bin/_orphan-instances-sanitizer.sh.tpl
+@@ -0,0 +1,71 @@
++#!/bin/bash
++
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -euo pipefail
++
++echo "Starting orphaned instances cleanup"
++
++TMP_NOVA_UUIDS=$(mktemp)
++trap 'rm -f "$TMP_NOVA_UUIDS"' EXIT
++
++echo "Fetching Nova instance UUIDs"
++
++if ! openstack server list --all-projects -f value -c ID | sort > "$TMP_NOVA_UUIDS"; then
++    echo "WARNING: Failed to fetch Nova instances, skipping orphan cleanup"
++    exit 0
++fi
++
++if [[ ! -s "$TMP_NOVA_UUIDS" ]]; then
++    echo "WARNING: Nova returned no instances"
++fi
++
++mapfile -t DOMAINS < <(virsh list --all --name | grep '^instance-' || true)
++
++if (( ${#DOMAINS[@]} == 0 )); then
++    echo "No libvirt instances found"
++    exit 0
++fi
++
++for domain in "${DOMAINS[@]}"; do
++
++    echo "Inspecting ${domain}"
++
++    UUID=$(virsh domuuid "$domain")
++
++    if [[ -z "$UUID" ]]; then
++        echo "ERROR: Failed to extract UUID for $domain"
++        continue
++    fi
++
++    if ! grep -qxF "$UUID" "$TMP_NOVA_UUIDS"; then
++
++        echo "Orphan instance detected: ${domain} (${UUID})"
++
++        if virsh domstate "$domain" | grep -qi running; then
++            echo "Destroying running domain ${domain}"
++            virsh destroy "$domain"
++        fi
++
++        echo "Undefining domain ${domain}"
++        virsh undefine "$domain"
++
++    else
++        echo "Nova-owned instance ${domain}"
++    fi
++
++done
++
++echo "Orphan servers cleanup completed successfully"
+diff --git a/nova/templates/configmap-bin.yaml b/nova/templates/configmap-bin.yaml
+index 564c23094..728e604f5 100644
+--- a/nova/templates/configmap-bin.yaml
++++ b/nova/templates/configmap-bin.yaml
+@@ -105,6 +105,8 @@ data:
+ {{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
+   wait-for-computes-init.sh: |
+ {{ tuple "bin/_wait-for-computes-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++{{- if or .Values.manifests.init_container_instances_sanitizer .Values.manifests.cron_job_instances_sanitizer }}
++  orphan-instances-sanitizer.sh: |
++{{ tuple "bin/_orphan-instances-sanitizer.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++{{- end }}
+ {{- if ( has "tungstenfabric" .Values.network.backend ) }}
+   tf-plugin.pth: |
+     /opt/plugin/site-packages
+diff --git a/nova/templates/cron-job-instances-sanitizer.yaml b/nova/templates/cron-job-instances-sanitizer.yaml
+new file mode 100644
+index 000000000..af882ed17
+--- /dev/null
++++ b/nova/templates/cron-job-instances-sanitizer.yaml
+@@ -0,0 +1,89 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.cron_job_instances_sanitizer }}
++{{- $envAll := . }}
++
++{{- $serviceAccountName := "nova-instances-sanitizer" }}
++{{ tuple $envAll "instances_sanitizer" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: batch/v1
++kind: CronJob
++metadata:
++  name: nova-instances-sanitizer
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++spec:
++  ttlSecondsAfterFinished: 120
++  schedule: {{ .Values.jobs.instances_sanitizer.cron | quote }}
++  successfulJobsHistoryLimit: {{ .Values.jobs.instances_sanitizer.history.success }}
++  failedJobsHistoryLimit: {{ .Values.jobs.instances_sanitizer.history.failed }}
++  {{- if .Values.jobs.instances_sanitizer.starting_deadline }}
++  startingDeadlineSeconds: {{ .Values.jobs.instances_sanitizer.starting_deadline }}
++  {{- end }}
++  concurrencyPolicy: Forbid
++  jobTemplate:
++    metadata:
++      labels:
++{{ tuple $envAll "nova" "instances-sanitizer" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++    spec:
++      template:
++        metadata:
++          labels:
++            app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
++{{ tuple $envAll "nova" "instances-sanitizer" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 12 }}
++          annotations:
++            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
++        spec:
++          serviceAccountName: {{ $serviceAccountName }}
++{{ dict "envAll" $envAll "application" "instances_sanitizer" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
++{{ dict "envAll" $envAll "application" "instances_sanitizer" | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 10 }}
++{{ dict "envAll" $envAll "application" "instances_sanitizer" | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 10 }}
++          restartPolicy: OnFailure
++          nodeSelector:
++            {{ .Values.labels.agent.compute.node_selector_key }}: {{ .Values.labels.agent.compute.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.nova.enabled }}
++{{ tuple $envAll "nova" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 10 }}
++{{ end }}
++          initContainers:
++{{ tuple $envAll "instances_sanitizer" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 12 }}
++          containers:
++            - name: nova-orphan-instances-sanitizer
++{{ tuple $envAll "nova_sanitizer" | include "helm-toolkit.snippets.image" | indent 14 }}
++{{ tuple $envAll $envAll.Values.pod.resources.sanitizer | include "helm-toolkit.snippets.kubernetes_resources" | indent 14 }}
++{{ dict "envAll" $envAll "application" "nova" "container" "nova_sanitizer" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 14 }}
++              env:
++{{- with $env := dict "ksUserSecret" $envAll.Values.secrets.identity.nova "useCA" (or .Values.manifests.certificates .Values.tls.identity) }}
++{{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 14 }}
++{{- end }}
++              command:
++                - /tmp/orphan-instances-sanitizer.sh
++              volumeMounts:
++                - name: pod-tmp
++                  mountPath: /tmp
++                - name: nova-bin
++                  mountPath: /tmp/orphan-instances-sanitizer.sh
++                  subPath: orphan-instances-sanitizer.sh
++                  readOnly: true
++                - name: run
++                  mountPath: /run
++          volumes:
++            - name: pod-tmp
++              emptyDir: {}
++            - name: nova-bin
++              configMap:
++                name: nova-bin
++                defaultMode: 0555
++            - name: run
++              hostPath:
++                path: /run
++{{- end }}
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 00928f35a..0905da746 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -290,6 +290,25 @@ spec:
+               readOnly: true
+ {{ if $mounts_nova_compute.volumeMounts }}{{ toYaml $mounts_nova_compute.volumeMounts | indent 12 }}{{ end }}
+         {{- end }}
++{{- if .Values.manifests.init_container_instances_sanitizer }}
++        - name: nova-orphan-instances-sanitizer
++{{ tuple $envAll "nova_sanitizer" | include "helm-toolkit.snippets.image" | indent 10 }}
++{{ tuple $envAll $envAll.Values.pod.resources.sanitizer | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++{{ dict "envAll" $envAll "application" "nova" "container" "nova_sanitizer" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
++          env:
++{{- with $env := dict "ksUserSecret" $envAll.Values.secrets.identity.nova "useCA" (or .Values.manifests.certificates .Values.tls.identity) }}
++{{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 10 }}
++{{- end }}
++          command:
++            - /tmp/orphan-instances-sanitizer.sh
++          volumeMounts:
++            - name: pod-tmp
++              mountPath: /tmp
++            - name: nova-bin
++              mountPath: /tmp/orphan-instances-sanitizer.sh
++              subPath: orphan-instances-sanitizer.sh
++              readOnly: true
++            - name: run
++              mountPath: /run
++{{- end }}
+       containers:
+         - name: nova-compute
+ {{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index fa5edee76..4f57d4e94 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -76,6 +76,7 @@ images:
+     nova_db_sync: quay.io/airshipit/nova:2024.1-ubuntu_jammy
+     nova_novncproxy: quay.io/airshipit/nova:2024.1-ubuntu_jammy
+     nova_novncproxy_assets: 'docker.io/kolla/ubuntu-source-nova-novncproxy:wallaby'
++    nova_sanitizer: docker.io/openstackhelm/nova:2024.1-ubuntu_jammy
+     nova_scheduler: quay.io/airshipit/nova:2024.1-ubuntu_jammy
+     nova_storage_init: 'docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy'
+     # NOTE(portdirect): we simply use the ceph config helper here,
+@@ -109,6 +110,12 @@ jobs:
+       iteration: 3
+       duration: 5
+     extra_command: null
++  instances_sanitizer:
++    cron: "0 0 * * *"
++    starting_deadline: 600
++    history:
++      success: 3
++      failed: 1
+   service_cleaner:
+     cron: "0 */1 * * *"
+     starting_deadline: 600
+@@ -375,6 +382,24 @@ dependencies:
+           labels:
+             application: nova
+             component: compute
++    instances_sanitizer:
++      jobs:
++        - nova-db-sync
++        - nova-rabbit-init
++      services:
++        - endpoint: internal
++          service: oslo_messaging
++        - endpoint: internal
++          service: oslo_db
++        - endpoint: internal
++          service: identity
++        - endpoint: internal
++          service: compute
++      pod:
++        - requireSameNode: false
++          labels:
++            application: nova
++            component: conductor
+     service_cleaner:
+       jobs:
+         - nova-db-sync
+@@ -394,6 +419,10 @@ dependencies:
+           labels:
+             application: libvirt
+             component: libvirt
++        - requireSameNode: true
++          labels:
++            application: nova
++            component: conductor
+       jobs:
+         - nova-db-sync
+         - nova-rabbit-init
+@@ -2267,6 +2296,10 @@ pod:
+         nova_novncproxy:
+           readOnlyRootFilesystem: true
+           allowPrivilegeEscalation: false
++        nova_sanitizer:
++          runAsUser: 0
++          runAsGroup: 0
++          readOnlyRootFilesystem: true
++          allowPrivilegeEscalation: false
+         nova_scheduler:
+           readOnlyRootFilesystem: true
+           allowPrivilegeEscalation: false
+@@ -2325,6 +2358,13 @@ pod:
+         nova_cell_setup:
+           readOnlyRootFilesystem: true
+           allowPrivilegeEscalation: false
++    instances_sanitizer:
++      pod:
++        runAsUser: 0
++      container:
++        nova_sanitizer:
++          readOnlyRootFilesystem: true
++          allowPrivilegeEscalation: false
+     service_cleaner:
+       pod:
+         runAsUser: 42424
+@@ -2490,6 +2530,13 @@ pod:
+       limits:
+         memory: "1024Mi"
+         cpu: "2000m"
++    sanitizer:
++      requests:
++        memory: "128Mi"
++        cpu: "100m"
++      limits:
++        memory: "1024Mi"
++        cpu: "2000m"
+     scheduler:
+       requests:
+         memory: "128Mi"
+@@ -2654,6 +2701,7 @@ manifests:
+   cron_job_cell_setup: true
+   cron_job_service_cleaner: true
+   cron_job_archive_deleted_rows: false
++  cron_job_instances_sanitizer: false
++  init_container_instances_sanitizer: false
+   daemonset_compute: true
+   deployment_api_metadata: true
+   deployment_api_osapi: true
+-- 
+2.34.1

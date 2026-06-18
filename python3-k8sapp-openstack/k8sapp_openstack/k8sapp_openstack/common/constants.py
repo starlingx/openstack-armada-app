@@ -309,6 +309,10 @@ KEYSTONE_API_K8S_PORT = 5000
 OVERRIDE_STORAGE_BACKENDS = "storage_conf.storage_backends"
 OVERRIDE_BACKENDS_CONF = "storage_conf.backends_conf"
 
+# Extra mounts overrides
+OVERRIDE_EXTRA_MOUNTS_VOLUME = "storage_conf.extra_mounts.cinder_volume"
+OVERRIDE_EXTRA_MOUNTS_BACKUP = "storage_conf.extra_mounts.cinder_backup"
+
 # Volume priority
 OVERRIDE_STORAGE_PRIORITY = "storage_conf.volume_storage_class_priority"
 DEFAULT_VOLUME_PRIORITY_LIST = [

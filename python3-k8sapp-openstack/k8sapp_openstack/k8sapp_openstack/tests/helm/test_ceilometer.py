@@ -56,6 +56,7 @@ class CeilometerGetOverrideTest(CeilometerHelmTestCase,
             'notification']['messaging_urls']['values']
         for url in messaging_urls:
             self.assertIn('rabbitmq.openstack.svc.cluster.local:5672', url)
+            self.assertNotIn("b'", url)
         self.assertNotIn('metering', overrides['endpoints'])
         self.assertNotIn('polling', overrides['conf']['ceilometer'])
         self.assertNotIn(

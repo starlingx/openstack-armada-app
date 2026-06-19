@@ -78,6 +78,8 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
     def _get_notification_messaging_urls(self):
         rabbit_user = 'rabbitmq-admin'
         rabbit_pass = self._get_common_password(rabbit_user)
+        if isinstance(rabbit_pass, bytes):
+            rabbit_pass = rabbit_pass.decode()
         rabbit_host = self._get_service_default_dns_name(
             app_constants.HELM_CHART_RABBITMQ)
         rabbit_port = 5672

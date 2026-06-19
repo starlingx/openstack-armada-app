@@ -60,25 +60,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         })
 
         if self.netapp_enabled:
-            # Mount Cinder writable state path used by default for:
-            # - `$state_path/ssh_known_hosts`: file containing SSH host keys
-            # for the systems with which Cinder needs to communicate;
-            # - `$state_path/volumes`: directory used by some drivers to
-            # store volume configuration data;
-            # - `$state_path/mnt`: directory used as mount point for NFS shares.
-            state_path = _get_value_from_application(
-                default_value=app_constants.CINDER_STATE_PATH,
-                chart_name=self.CHART,
-                override_name=app_constants.OVERRIDE_CINDER_STATE_PATH
-            )
-            overrides['volumes'].append({
-                'name': 'varlibcinder',
-                'emptyDir': {}
-            })
-            overrides['volumeMounts'].append({
-                'name': 'varlibcinder',
-                'mountPath': state_path
-            })
+            # Note: The /var/lib/cinder (state_path) volumeMount is now
+            # provided by the chart's default values (2026.1.0+), so we
+            # no longer add it here to avoid duplicate mount errors.
+
             # Mount NetApp CA certificate from Kubernetes secret.
             # The secret is created during the pre-apply lifecycle hook
             # (which runs after overrides but before helm install).

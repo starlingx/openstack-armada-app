@@ -54,3 +54,4 @@
 0054-Add-tolerations-to-prometheus-openstack-exporter-pods.patch
 0055-ceilometer-Wire-tlsSecret-to-ks-bootstrap-Jobs.patch
 0056-Add-ServiceMonitor-Defaults-to-Ceilometer-Helm.patch
+0057-Add-extraArgs-support-to-prometheus-openstack-exporter.patch

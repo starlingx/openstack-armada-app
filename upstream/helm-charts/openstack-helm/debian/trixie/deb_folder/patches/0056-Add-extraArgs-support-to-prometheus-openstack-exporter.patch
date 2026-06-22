@@ -1,0 +1,64 @@
+From ae18352048245a57dee5d2396284bdd68a5d1d7d Mon Sep 17 00:00:00 2001
+From: Dirley Rodrigues Lima da Silva
+ <dirley.rodrigueslimadasilva@windriver.com>
+Date: Mon, 22 Jun 2026 12:23:35 -0300
+Subject: [PATCH] Add extra_args support to prometheus-openstack-exporter
+
+Allow operators to pass arbitrary command-line flags to the
+openstack-exporter container through helm-override-update.
+
+The new extra_args field under conf.prometheus_openstack_exporter
+in values.yaml accepts a list of strings that are appended to the
+container args at render time. The default is an empty list,
+preserving current behavior.
+
+Example usage:
+  conf:
+    prometheus_openstack_exporter:
+      extra_args:
+        - "--disable-slow-metrics"
+        - "--cache-ttl=600"
+
+Signed-off-by: Dirley Rodrigues Lima da Silva <Dirley.RodriguesLimadaSilva@windriver.com>
+---
+ prometheus-openstack-exporter/templates/deployment.yaml | 5 +++++
+ prometheus-openstack-exporter/values.yaml               | 7 +++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/prometheus-openstack-exporter/templates/deployment.yaml b/prometheus-openstack-exporter/templates/deployment.yaml
+index f47bd74..59e1eea 100644
+--- a/prometheus-openstack-exporter/templates/deployment.yaml
++++ b/prometheus-openstack-exporter/templates/deployment.yaml
+@@ -145,6 +145,11 @@ spec:
+             - --web.listen-address=:{{ tuple "prometheus_openstack_exporter" "internal" "exporter" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+             - --os-client-config=/etc/openstack/clouds.yaml
+             - default
++{{- if .Values.conf.prometheus_openstack_exporter.extra_args }}
++{{- range .Values.conf.prometheus_openstack_exporter.extra_args }}
++            - {{ . | quote }}
++{{- end }}
++{{- end }}
+           ports:
+             - name: metrics
+               containerPort: {{ tuple "prometheus_openstack_exporter" "internal" "exporter" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+diff --git a/prometheus-openstack-exporter/values.yaml b/prometheus-openstack-exporter/values.yaml
+index cd2d842..42b615f 100644
+--- a/prometheus-openstack-exporter/values.yaml
++++ b/prometheus-openstack-exporter/values.yaml
+@@ -152,6 +152,13 @@ conf:
+   prometheus_openstack_exporter:
+     OS_POLLING_INTERVAL: 30
+     TIMEOUT_SECONDS: 20
++    # Extra command-line arguments for the openstack-exporter container.
++    # Each entry is appended as-is to the container args list.
++    # Example:
++    #   extra_args:
++    #     - "--disable-slow-metrics"
++    #     - "--cache-ttl=600"
++    extra_args: []
+     OS_RETRIES: 1
+ 
+ secrets:
+-- 
+2.43.0
+

@@ -299,6 +299,16 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         backend based on priority ordering, and normalizes the result for
         downstream Nova/libvirt override generation.
 
+        Storage class resolution for the PVC follows this priority order:
+        1. Strict backends returned by get_available_volume_backends()
+           (Ceph, NetApp NFS/iSCSI/FC).
+        2. ESB backends from the Cinder chart's backends_conf, identified
+           by their k8s_storage_class field (skipped when set to 'none').
+
+        Precedence between strict and ESB backends is determined solely by
+        their position in pvc_priority_list — there is no inherent type-based
+        preference.
+
         Returns:
             dict: Nova PVC configuration values.
                 {
@@ -336,10 +346,20 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             app_constants.OVERRIDE_NOVA_PVC_STORAGE_PRIORITY,
             app_constants.DEFAULT_NOVA_PVC_PRIORITY_LIST
         )
+
         pvc_priority_storage_class = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
+        cinder_backends_conf = app_utils.get_backends_conf()
 
         for priority in pvc_priority_list:
             backend_storage_class = pvc_available_backend.get(priority)
+            if not backend_storage_class and not app_utils.is_strict_backend(priority):
+                # ESB — resolve storage class from Cinder backends_conf
+                backend_conf_entry = cinder_backends_conf.get(priority, {})
+                k8s_storage_class = backend_conf_entry.get('k8s_storage_class')
+                if isinstance(k8s_storage_class, str) and k8s_storage_class.lower() != 'none':
+                    backend_storage_class = k8s_storage_class
+                    LOG.info(f"ESB backend: {priority}, storage class: {backend_storage_class}")
+
             if backend_storage_class:
                 pvc_priority_storage_class = backend_storage_class
                 break
@@ -908,7 +928,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         enabled_backends = get_enabled_storage_backends_from_override(app_constants.HELM_CHART_NOVA,
                                                                       app_constants.OVERRIDE_STORAGE_BACKENDS)
         for priority in priority_list:
-            if priority in enabled_backends and priority == app_constants.NETAPP_NFS_NAS_TYPE:
+            if priority in enabled_backends and priority == app_constants.NFS_NAS_TYPE:
                 nfs_share = get_nova_nfs_share()
                 nfs_share.update({
                     'enabled': True

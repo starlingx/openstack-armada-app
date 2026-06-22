@@ -1182,7 +1182,7 @@ def netapp_backends_auto_discovery() -> dict:
         for info in protocol_info.split("\n"):
             if "ontap-nas" in info:
                 nas_type = info.split(":")[1].strip()
-                if nas_type == app_constants.NETAPP_NFS_NAS_TYPE:
+                if nas_type == app_constants.NFS_NAS_TYPE:
                     protocols_found.append(app_constants.NETAPP_NFS_BACKEND_NAME)
                 else:
                     LOG.warning(f"Unknown NAS type '{nas_type}' found in "
@@ -2424,7 +2424,8 @@ def is_strict_backend(name: str) -> bool:
 
 
 def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CINDER,
-                                  override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS) -> dict:
+                                  override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS,
+                                  default_storage_backends=None) -> dict:
     """
     Searches for all available backends volume available.
 
@@ -2436,6 +2437,15 @@ def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CIN
         chart_name (str): The Helm chart name to check for user overrides.
                      Defaults to `app_constants.HELM_CHART_CINDER`.
         override_name (str): The name of the override field in values.yaml.
+        default_storage_backends (list | None): Default backend list passed to
+                     get_enabled_storage_backends_from_override() when
+                     filtering ESB entries. Controls which backends are
+                     considered "enabled" when no user override is present for
+                     ``override_name``. When None, ``DEFAULT_STORAGE_BACKEND_SELECT``
+                     (Cinder's default) is used. Callers in a different chart
+                     context (e.g. Nova PVC) should pass their own default list
+                     so that ESB entries are filtered against the correct set
+                     of enabled backends.
 
     Example:
         >>> get_available_volume_backends()
@@ -2489,7 +2499,8 @@ def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CIN
 
     enabled_backends = get_enabled_storage_backends_from_override(
         chart_name=chart_name,
-        override_name=override_name
+        override_name=override_name,
+        default_storage_backends=default_storage_backends,
     )
 
     for entry in backends_conf:
@@ -3506,21 +3517,21 @@ def get_nova_nfs_share() -> dict:
     """
     return {
         'server': _get_value_from_application(
-            default_value=app_constants.NETAPP_NFS_DEFAULT_SERVER,
+            default_value=app_constants.NFS_DEFAULT_SERVER,
             chart_name=app_constants.HELM_CHART_NOVA,
-            override_name=app_constants.NETAPP_NFS_SERVER_OVERRIDE),
+            override_name=app_constants.NFS_SERVER_OVERRIDE),
         'path': _get_value_from_application(
-            default_value=app_constants.NETAPP_NFS_DEFAULT_PATH,
+            default_value=app_constants.NFS_DEFAULT_PATH,
             chart_name=app_constants.HELM_CHART_NOVA,
-            override_name=app_constants.NETAPP_NFS_PATH_OVERRIDE),
+            override_name=app_constants.NFS_PATH_OVERRIDE),
         'instances_path': _get_value_from_application(
-            default_value=app_constants.NETAPP_NFS_DEFAULT_MOUNT_POINT,
+            default_value=app_constants.NFS_DEFAULT_MOUNT_POINT,
             chart_name=app_constants.HELM_CHART_NOVA,
-            override_name=app_constants.NETAPP_NFS_MOUNT_POINT_OVERRIDE),
+            override_name=app_constants.NFS_MOUNT_POINT_OVERRIDE),
         'enabled': _get_value_from_application(
-            default_value=app_constants.NETAPP_NFS_DEFAULT_ENABLED,
+            default_value=app_constants.NFS_DEFAULT_ENABLED,
             chart_name=app_constants.HELM_CHART_NOVA,
-            override_name=app_constants.NETAPP_NFS_ENABLED_OVERRIDE),
+            override_name=app_constants.NFS_ENABLED_OVERRIDE),
     }
 
 

@@ -12,6 +12,7 @@ from sysinv.helm import helm
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
 from sysinv.tests.helm import base
+import testtools
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import nova
@@ -394,3 +395,118 @@ class NovaGetOverrideTest(NovaHelmTestCase,
         self.assertEqual(
             overrides['conf']['nova']['libvirt']['rbd_secret_uuid'],
             '89bd29e9-c505-4170-a097-04dc8e43c897')
+
+
+class TestEnableMultipath(testtools.TestCase):
+    """Unit tests for NovaHelm._enable_multipath()."""
+
+    def _make_helm(self):
+        return nova.NovaHelm(None)
+
+    # ------------------------------------------------------------------
+    # ESB-first cases
+    # ------------------------------------------------------------------
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf')
+    def test_esb_iscsi_enables_multipath(self, mock_get_backends_conf):
+        """ESB entry with protocol: iscsi enables multipath without consulting NetApp."""
+        mock_get_backends_conf.return_value = {
+            'dell-iscsi': {'name': 'dell-iscsi', 'protocol': 'iscsi'}
+        }
+        result = self._make_helm()._enable_multipath()
+        self.assertTrue(result)
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf')
+    def test_esb_fcp_enables_multipath(self, mock_get_backends_conf):
+        """ESB entry with protocol: fcp enables multipath without consulting NetApp."""
+        mock_get_backends_conf.return_value = {
+            'vendor-fc': {'name': 'vendor-fc', 'protocol': 'fcp'}
+        }
+        result = self._make_helm()._enable_multipath()
+        self.assertTrue(result)
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf')
+    def test_esb_nfs_does_not_enable_multipath(self, mock_get_backends_conf):
+        """ESB entry with protocol: nfs does not trigger multipath on its own."""
+        mock_get_backends_conf.return_value = {
+            'dell-nfs': {'name': 'dell-nfs', 'protocol': 'nfs'}
+        }
+        with mock.patch('k8sapp_openstack.helm.nova.check_netapp_backends',
+                        return_value={'netapp-iscsi': False, 'netapp-fc': False}):
+            result = self._make_helm()._enable_multipath()
+        self.assertFalse(result)
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf')
+    def test_esb_local_does_not_enable_multipath(self, mock_get_backends_conf):
+        """ESB entry with protocol: local does not trigger multipath."""
+        mock_get_backends_conf.return_value = {
+            'local-backend': {'name': 'local-backend', 'protocol': 'local'}
+        }
+        with mock.patch('k8sapp_openstack.helm.nova.check_netapp_backends',
+                        return_value={'netapp-iscsi': False, 'netapp-fc': False}):
+            result = self._make_helm()._enable_multipath()
+        self.assertFalse(result)
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf')
+    def test_esb_check_short_circuits_before_netapp(self, mock_get_backends_conf):
+        """When ESB returns iscsi/fcp, check_netapp_backends is never called."""
+        mock_get_backends_conf.return_value = {
+            'dell-iscsi': {'name': 'dell-iscsi', 'protocol': 'iscsi'}
+        }
+        with mock.patch('k8sapp_openstack.helm.nova.check_netapp_backends') as mock_netapp:
+            result = self._make_helm()._enable_multipath()
+        self.assertTrue(result)
+        mock_netapp.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # NetApp fallback cases
+    # ------------------------------------------------------------------
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf', return_value={})
+    @mock.patch('k8sapp_openstack.helm.nova.check_netapp_backends',
+                return_value={'netapp-iscsi': True, 'netapp-fc': False})
+    def test_netapp_iscsi_fallback_enables_multipath(self, *_):
+        """No ESB entries: NetApp iSCSI backend enables multipath."""
+        result = self._make_helm()._enable_multipath()
+        self.assertTrue(result)
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf', return_value={})
+    @mock.patch('k8sapp_openstack.helm.nova.check_netapp_backends',
+                return_value={'netapp-iscsi': False, 'netapp-fc': True})
+    def test_netapp_fc_fallback_enables_multipath(self, *_):
+        """No ESB entries: NetApp FC backend enables multipath."""
+        result = self._make_helm()._enable_multipath()
+        self.assertTrue(result)
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf', return_value={})
+    @mock.patch('k8sapp_openstack.helm.nova.check_netapp_backends',
+                return_value={'netapp-iscsi': False, 'netapp-fc': False})
+    def test_no_backends_disables_multipath(self, *_):
+        """No ESB entries and no NetApp iSCSI/FC: multipath is disabled."""
+        result = self._make_helm()._enable_multipath()
+        self.assertFalse(result)
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf')
+    @mock.patch('k8sapp_openstack.helm.nova.check_netapp_backends',
+                return_value={'netapp-iscsi': False, 'netapp-fc': False})
+    def test_esb_no_protocol_key_falls_through_to_netapp(
+            self, mock_netapp, mock_get_backends_conf):
+        """ESB entry missing 'protocol' key does not trigger multipath on its own."""
+        mock_get_backends_conf.return_value = {
+            'mystery-backend': {'name': 'mystery-backend'}
+        }
+        result = self._make_helm()._enable_multipath()
+        self.assertFalse(result)
+        mock_netapp.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_backends_conf')
+    @mock.patch('k8sapp_openstack.helm.nova.check_netapp_backends',
+                return_value={'netapp-iscsi': True, 'netapp-fc': False})
+    def test_esb_nfs_plus_netapp_iscsi_enables_multipath(
+            self, mock_netapp, mock_get_backends_conf):
+        """ESB NFS (no multipath) + NetApp iSCSI: multipath enabled via fallback."""
+        mock_get_backends_conf.return_value = {
+            'dell-nfs': {'name': 'dell-nfs', 'protocol': 'nfs'}
+        }
+        result = self._make_helm()._enable_multipath()
+        self.assertTrue(result)

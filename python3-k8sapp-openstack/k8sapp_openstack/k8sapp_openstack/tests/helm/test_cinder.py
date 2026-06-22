@@ -766,7 +766,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         default_backup_driver = overrides['conf']['cinder']['DEFAULT']['backup_driver']
 
-        assert default_backup_driver == app_constants.NETAPP_NFS_BACKUP_DRIVER
+        assert default_backup_driver == app_constants.NFS_BACKUP_DRIVER
 
     @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('os.path.isfile', return_value=True)

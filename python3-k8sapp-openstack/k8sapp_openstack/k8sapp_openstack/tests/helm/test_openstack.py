@@ -800,6 +800,7 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
                 return_value='/var/lib/nova/instances')
     @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_name',
                 return_value='nova-instances')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_backends_conf', return_value={})
     @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends',
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: 'netapp-nas-backend'})
     @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list')
@@ -810,6 +811,7 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         _mock_get_enabled_storage_backends,
         mock_get_storage_backends_priority_list,
         _mock_get_available_volume_backends,
+        _mock_get_backends_conf,
         _mock_get_nova_pvc_name,
         _mock_get_nova_pvc_instances_path
     ):
@@ -1059,3 +1061,122 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
                     f"Failed for {description}: "
                     f"protocols={protocols}, got={result}"
                 )
+
+    # ------------------------------------------------------------------
+    # _resolve_nova_pvc_overrides — ESB / default_storage_backends tests
+    # ------------------------------------------------------------------
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_instances_path',
+                return_value='/var/lib/nova/instances')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_name',
+                return_value='nova-instances')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_backends_conf',
+                return_value={
+                    'dell-nfs': {
+                        'name': 'dell-nfs',
+                        'protocol': 'nfs',
+                        'k8s_storage_class': 'dell-nfs-storageclass',
+                        'volume_backend': {},
+                    }
+                })
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends',
+                return_value={})
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_enabled_storage_backends_from_override',
+                return_value=[app_constants.PVC_BACKEND_NAME])
+    def test_resolve_nova_pvc_overrides_esb_backend_selected(
+        self,
+        _mock_enabled,
+        mock_priority_list,
+        _mock_get_backends,
+        _mock_backends_conf,
+        _mock_pvc_name,
+        _mock_pvc_path,
+    ):
+        """An ESB backend that appears in the PVC priority list and has a
+        non-empty storage class is used as the resolved storage_class."""
+        mock_priority_list.side_effect = [
+            [app_constants.PVC_BACKEND_NAME],
+            ['dell-nfs'],  # pvc_priority_list
+        ]
+
+        result = self.helm._resolve_nova_pvc_overrides()
+
+        self.assertEqual(result['storage_class'], 'dell-nfs-storageclass')
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_instances_path',
+                return_value='/var/lib/nova/instances')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_name',
+                return_value='nova-instances')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_backends_conf',
+                return_value={
+                    'dell-iscsi': {
+                        'name': 'dell-iscsi',
+                        'protocol': 'iscsi',
+                        'k8s_storage_class': 'none',
+                        'volume_backend': {},
+                    }
+                })
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends',
+                return_value={})
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_enabled_storage_backends_from_override',
+                return_value=[app_constants.PVC_BACKEND_NAME])
+    def test_resolve_nova_pvc_overrides_esb_backend_no_storage_class_skipped(
+        self,
+        _mock_enabled,
+        mock_priority_list,
+        _mock_get_backends,
+        _mock_backends_conf,
+        _mock_pvc_name,
+        _mock_pvc_path,
+    ):
+        """An ESB backend with k8s_storage_class: none must be skipped;
+        the resolver falls through to the default storage class."""
+        mock_priority_list.side_effect = [
+            [app_constants.PVC_BACKEND_NAME],
+            ['dell-iscsi'],  # pvc_priority_list
+        ]
+
+        result = self.helm._resolve_nova_pvc_overrides()
+
+        # Falls back to the default storage class, not the empty ESB value
+        self.assertEqual(result['storage_class'], app_constants.BACKEND_DEFAULT_STORAGE_CLASS)
+
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_instances_path',
+                return_value='/var/lib/nova/instances')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_name',
+                return_value='nova-instances')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_backends_conf',
+                return_value={
+                    'dell-nfs': {
+                        'name': 'dell-nfs',
+                        'protocol': 'nfs',
+                        'k8s_storage_class': 'dell-nfs-sc',
+                        'volume_backend': {},
+                    }
+                })
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_available_volume_backends',
+                return_value={app_constants.NETAPP_NFS_BACKEND_NAME: 'netapp-nas-backend'})
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_enabled_storage_backends_from_override',
+                return_value=[app_constants.PVC_BACKEND_NAME])
+    def test_resolve_nova_pvc_overrides_esb_beats_netapp_in_priority(
+        self,
+        _mock_enabled,
+        mock_priority_list,
+        _mock_get_backends,
+        _mock_backends_conf,
+        _mock_pvc_name,
+        _mock_pvc_path,
+    ):
+        """When an ESB backend ranks ahead of netapp-nfs in the PVC priority
+        list, its storage class wins."""
+        mock_priority_list.side_effect = [
+            [app_constants.PVC_BACKEND_NAME],
+            ['dell-nfs', app_constants.NETAPP_NFS_BACKEND_NAME],
+        ]
+
+        result = self.helm._resolve_nova_pvc_overrides()
+
+        self.assertEqual(result['storage_class'], 'dell-nfs-sc')

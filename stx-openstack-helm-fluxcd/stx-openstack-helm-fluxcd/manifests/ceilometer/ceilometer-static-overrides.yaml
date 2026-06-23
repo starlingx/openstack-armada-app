@@ -719,11 +719,17 @@ dependencies:
     central:
       jobs:
         - ceilometer-rabbit-init
-      services: null
+        - ceilometer-ks-user
+      services:
+        - endpoint: internal
+          service: identity
     compute:
       jobs:
         - ceilometer-rabbit-init
-      services: null
+        - ceilometer-ks-user
+      services:
+        - endpoint: internal
+          service: identity
     ipmi:
       jobs:
         - ceilometer-rabbit-init
@@ -731,9 +737,10 @@ dependencies:
     notification:
       jobs:
         - ceilometer-rabbit-init
+        - ceilometer-ks-user
       services:
         - endpoint: internal
-          service: event
+          service: identity
     db_sync:
       jobs:
         - ceilometer-ks-user

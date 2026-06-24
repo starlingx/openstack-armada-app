@@ -935,19 +935,19 @@ class CinderMountOverridesTest(CinderConversionTestCase,
 
         overrides = self.cinder_helm._get_mount_overrides()
 
-        # Should have: imageconversion + varlibcinder + netapp-ca-cert
-        self.assertEqual(len(overrides['volumes']), 3)
-        self.assertEqual(len(overrides['volumeMounts']), 3)
+        # Should have: imageconversion + netapp-ca-cert
+        self.assertEqual(len(overrides['volumes']), 2)
+        self.assertEqual(len(overrides['volumeMounts']), 2)
 
         # Verify NetApp cert volume uses secret
-        netapp_volume = overrides['volumes'][2]
+        netapp_volume = overrides['volumes'][1]
         self.assertEqual(netapp_volume['name'], 'netapp-ca-cert')
         self.assertIn('secret', netapp_volume)
         self.assertEqual(netapp_volume['secret']['secretName'],
                          app_constants.NETAPP_CA_CERT_SECRET_NAME)
 
         # Verify mount configuration
-        netapp_mount = overrides['volumeMounts'][2]
+        netapp_mount = overrides['volumeMounts'][1]
         self.assertEqual(netapp_mount['name'], 'netapp-ca-cert')
         self.assertEqual(netapp_mount['mountPath'], '/usr/lib/ssl/cert.pem')
         self.assertTrue(netapp_mount['readOnly'])
@@ -963,10 +963,10 @@ class CinderMountOverridesTest(CinderConversionTestCase,
 
         overrides = self.cinder_helm._get_mount_overrides()
 
-        # Should have: imageconversion + varlibcinder + netapp-ca-cert
-        self.assertEqual(len(overrides['volumes']), 3)
-        self.assertEqual(len(overrides['volumeMounts']), 3)
-        self.assertEqual(overrides['volumes'][2]['name'], 'netapp-ca-cert')
+        # Should have: imageconversion + netapp-ca-cert
+        self.assertEqual(len(overrides['volumes']), 2)
+        self.assertEqual(len(overrides['volumeMounts']), 2)
+        self.assertEqual(overrides['volumes'][1]['name'], 'netapp-ca-cert')
 
     @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
     @mock.patch('k8sapp_openstack.helm.cinder.is_netapp_ca_cert_secret_available', return_value=False)
@@ -979,11 +979,10 @@ class CinderMountOverridesTest(CinderConversionTestCase,
 
         overrides = self.cinder_helm._get_mount_overrides()
 
-        # Should have: imageconversion + varlibcinder (no netapp-ca-cert)
-        self.assertEqual(len(overrides['volumes']), 2)
-        self.assertEqual(len(overrides['volumeMounts']), 2)
+        # Should have: imageconversion only (no netapp-ca-cert, no varlibcinder)
+        self.assertEqual(len(overrides['volumes']), 1)
+        self.assertEqual(len(overrides['volumeMounts']), 1)
         self.assertEqual(overrides['volumes'][0]['name'], 'imageconversion')
-        self.assertEqual(overrides['volumes'][1]['name'], 'varlibcinder')
 
     def test_get_mount_overrides_netapp_disabled(self):
         """Test mount overrides with NetApp disabled."""

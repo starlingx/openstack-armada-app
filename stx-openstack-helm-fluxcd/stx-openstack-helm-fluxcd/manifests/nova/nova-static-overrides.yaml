@@ -1503,7 +1503,6 @@ conf:
     cinder:
       auth_type: password
       catalog_info: volumev3::internalURL
-      endpoint_template: http://cinder.openstack.svc.cluster.local:80/v3/%(project_id)s
       auth_url: null
     database:
       max_retries: -1

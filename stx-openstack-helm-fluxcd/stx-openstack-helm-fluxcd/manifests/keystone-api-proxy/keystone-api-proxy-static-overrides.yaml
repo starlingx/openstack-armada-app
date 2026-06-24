@@ -8,9 +8,6 @@
 release_group: osh-openstack-keystone-api-proxy
 labels:
   isApplication: false
-endpoints:
-  identity:
-    force_public_endpoint: true
 images:
   tags:
     keystone_api_proxy: docker.io/starlingx/stx-keystone-api-proxy:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@

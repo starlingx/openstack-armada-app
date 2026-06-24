@@ -258,7 +258,6 @@ endpoints:
       memcache:
         default: 11211
   identity:
-    force_public_endpoint: true
     name: keystone
     auth:
       admin:

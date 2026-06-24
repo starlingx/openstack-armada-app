@@ -22,18 +22,16 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 
 The placement-api console_script entry point was removed upstream.
 When manifests.certificates is enabled, the startup script failed
-with "cp: missing destination file operand" because type -p
-placement-api returned empty. Generate a WSGI script in-place
-when the binary is absent, using the same module reference
-(placement.wsgi.api:application) as the uwsgi path.
+with "cp: missing destination file operand" because "type -p placement-api"
+returned empty. Following what is the current behaviour for other
+openstack services, this patch removes the apache path, effectively
+removing TLS at pod level for Placement.
 
-https://docs.openstack.org/releasenotes/placement/2026.1.html
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  cinder/templates/ingress-api.yaml             |  2 +-
- placement/templates/bin/_placement-api.sh.tpl | 13 ++++++++++++-
- placement/values.yaml                         |  6 ++++++
- 3 files changed, 19 insertions(+), 1 deletions(-)
+ placement/templates/bin/_placement-api.sh.tpl | 34 -------------------
+ 2 files changed, 1 insertion(+), 35 deletions(-)
 
 diff --git a/cinder/templates/ingress-api.yaml b/cinder/templates/ingress-api.yaml
 index a514adfde..be8c04d06 100644
@@ -48,46 +46,55 @@ index a514adfde..be8c04d06 100644
  {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
  {{- end }}
 diff --git a/placement/templates/bin/_placement-api.sh.tpl b/placement/templates/bin/_placement-api.sh.tpl
-index f59947aaf..8a943787e 100644
+index f59947aaf..c38fc363c 100644
 --- a/placement/templates/bin/_placement-api.sh.tpl
 +++ b/placement/templates/bin/_placement-api.sh.tpl
-@@ -21,7 +21,18 @@ COMMAND="${@:-start}"
+@@ -20,45 +20,11 @@ set -ex
+ COMMAND="${@:-start}"
  
  function start () {
- {{- if .Values.manifests.certificates }}
+-{{- if .Values.manifests.certificates }}
 -  cp -a $(type -p placement-api) /var/www/cgi-bin/placement/
-+  PLACEMENT_BIN=$(type -p placement-api 2>/dev/null || true)
-+  if [ -n "$PLACEMENT_BIN" ]; then
-+    cp -a $PLACEMENT_BIN /var/www/cgi-bin/placement/
-+  else
-+    # If the placement-api binary is not found (removed upstream in 2026.1),
-+    # create a WSGI script that loads the application via module reference.
-+    cat <<'EOF' > /var/www/cgi-bin/placement/placement-api
-+#!/usr/bin/env python3
-+from placement.wsgi.api import application  # noqa: F401
-+EOF
-+    chmod +x /var/www/cgi-bin/placement/placement-api
-+  fi
-   if [ -f /etc/apache2/envvars ]; then
-     # Loading Apache2 ENV variables
-     source /etc/apache2/envvars
-diff --git a/placement/values.yaml b/placement/values.yaml
-index 366f9604f..cc27564df 100644
---- a/placement/values.yaml
-+++ b/placement/values.yaml
-@@ -64,6 +64,12 @@ network:
-       port: 30778
+-  if [ -f /etc/apache2/envvars ]; then
+-    # Loading Apache2 ENV variables
+-    source /etc/apache2/envvars
+-    # The directory below has to be created due to the fact that
+-    # libapache2-mod-wsgi-py3 doesn't create it in contrary by libapache2-mod-wsgi
+-    mkdir -p ${APACHE_RUN_DIR}
+-  fi
+-
+-  # Get rid of stale pid file if present.
+-  rm -f /var/run/apache2/*.pid
+-
+-  # Start Apache2
+-  {{- if .Values.conf.software.apache2.a2enmod }}
+-    {{- range .Values.conf.software.apache2.a2enmod }}
+-  a2enmod {{ . }}
+-    {{- end }}
+-  {{- end }}
+-  {{- if .Values.conf.software.apache2.a2dismod }}
+-    {{- range .Values.conf.software.apache2.a2dismod }}
+-  a2dismod {{ . }}
+-    {{- end }}
+-  {{- end }}
+-  exec {{ .Values.conf.software.apache2.binary }} {{ .Values.conf.software.apache2.start_parameters }}
+-{{- else }}
+   exec uwsgi --ini /etc/placement/placement-api-uwsgi.ini
+-{{- end }}
+ }
  
- conf:
-+  software:
-+    apache2:
-+      binary: apache2
-+      start_parameters: -DFOREGROUND
-+      a2enmod: null
-+      a2dismod: null
-   policy: {}
-   placement:
-     DEFAULT:
+ function stop () {
+-{{- if .Values.manifests.certificates }}
+-  if [ -f /etc/apache2/envvars ]; then
+-    source /etc/apache2/envvars
+-  fi
+-  {{ .Values.conf.software.apache2.binary }} -k graceful-stop
+-{{- else }}
+   kill -TERM 1
+-{{- end }}
+ }
+ 
+ $COMMAND
 -- 
 2.34.1
 

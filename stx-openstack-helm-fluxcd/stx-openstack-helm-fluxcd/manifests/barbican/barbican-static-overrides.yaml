@@ -61,8 +61,6 @@ endpoints:
   oslo_messaging:
     statefulset:
       name: osh-openstack-rabbitmq-rabbitmq
-  identity:
-    force_public_endpoint: true
 conf:
   barbican:
     barbican_api:

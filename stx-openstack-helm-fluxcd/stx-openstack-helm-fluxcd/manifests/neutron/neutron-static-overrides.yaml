@@ -2549,7 +2549,6 @@ endpoints:
       api:
         default: 80
         internal: 5000
-    force_public_endpoint: true
   network:
     name: neutron
     hosts:

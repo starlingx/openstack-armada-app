@@ -1195,7 +1195,6 @@ endpoints:
         # running under a unprivileged user simply, we default to a port > 1000.
         internal: 5000
         service: 5000
-    force_public_endpoint: true
   oslo_db:
     namespace: null
     auth:

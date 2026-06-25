@@ -149,6 +149,4 @@ endpoints:
   oslo_cache:
     hosts:
       default: memcached
-  identity:
-    force_public_endpoint: true
 ...

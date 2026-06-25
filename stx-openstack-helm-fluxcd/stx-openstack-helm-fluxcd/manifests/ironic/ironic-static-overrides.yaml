@@ -117,6 +117,4 @@ endpoints:
     port:
       pxe_http:
         default: 28080
-  identity:
-    force_public_endpoint: true
 ...

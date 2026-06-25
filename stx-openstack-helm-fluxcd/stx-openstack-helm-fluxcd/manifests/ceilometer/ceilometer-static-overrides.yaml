@@ -796,7 +796,6 @@ endpoints:
         default: null
   identity:
     name: keystone
-    force_public_endpoint: true
     auth:
       admin:
         region_name: RegionOne

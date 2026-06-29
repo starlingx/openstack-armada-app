@@ -1,14 +1,17 @@
 #
-# Copyright (c) 2019-2024 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from oslo_log import log as logging
 from sysinv.common import exception
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+
+LOG = logging.getLogger(__name__)
 
 
 class AodhHelm(openstack.OpenstackBaseHelm):
@@ -56,7 +59,7 @@ class AodhHelm(openstack.OpenstackBaseHelm):
         conf_overrides = {
             'aodh': {
                 'service_credentials': {
-                    'region_name': self._region_name()
+                    'region_name': self.get_region_name()
                 }
             }
         }
@@ -72,18 +75,22 @@ class AodhHelm(openstack.OpenstackBaseHelm):
         return conf_overrides
 
     def _get_endpoints_overrides(self):
+        alarming_endpoints = {
+            'host_fqdn_override':
+                self._get_endpoints_host_fqdn_overrides(
+                    self.SERVICE_NAME),
+            'port': self._get_endpoints_port_api_public_overrides(),
+            'scheme': self._get_endpoints_scheme_public_overrides(),
+        }
+
+        LOG.debug("Aodh alarming endpoints: %s", alarming_endpoints)
+
         return {
             'identity': {
                 'auth': self._get_endpoints_identity_overrides(
                     self.SERVICE_NAME, self.AUTH_USERS),
             },
-            'alarming': {
-                'host_fqdn_override':
-                    self._get_endpoints_host_fqdn_overrides(
-                        self.SERVICE_NAME),
-                'port': self._get_endpoints_port_api_public_overrides(),
-                'scheme': self._get_endpoints_scheme_public_overrides(),
-            },
+            'alarming': alarming_endpoints,
             'oslo_cache': {
                 'auth': {
                     'memcache_secret_key':
@@ -99,3 +106,6 @@ class AodhHelm(openstack.OpenstackBaseHelm):
                     self.SERVICE_NAME, self.AUTH_USERS)
             },
         }
+
+    def get_region_name(self):
+        return self._get_service_region_name(self.SERVICE_NAME)

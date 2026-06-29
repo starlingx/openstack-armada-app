@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -126,3 +126,18 @@ class AodhGetOverrideTest(AodhHelmTestCase,
             app_constants.HELM_CHART_AODH)
         self.assertIsInstance(overrides, dict)
         self.assertIn(common.HELM_NS_OPENSTACK, overrides)
+
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_region_name')
+    def test_aodh_get_region_name(self, mock_get_region, *_):
+        """
+        Tests the injected service region name in override parameters.
+        """
+        mock_get_region.return_value = 'regionA'
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_AODH)
+        mock_get_region.assert_called_with(app_constants.HELM_CHART_AODH)
+        self.assertIsInstance(overrides, dict)
+        result_service_conf = overrides[common.HELM_NS_OPENSTACK]['conf'][app_constants.HELM_CHART_AODH]
+        result_region_name = result_service_conf['service_credentials']['region_name']
+        self.assertEqual('regionA', result_region_name)

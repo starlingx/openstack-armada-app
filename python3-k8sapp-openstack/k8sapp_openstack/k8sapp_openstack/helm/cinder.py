@@ -15,6 +15,7 @@ from tsconfig import tsconfig as tsc
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import _get_value_from_application
 from k8sapp_openstack.utils import discover_netapp_configs
 from k8sapp_openstack.utils import discover_netapp_credentials
 from k8sapp_openstack.utils import get_available_volume_backends
@@ -265,6 +266,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 'backup': self._get_backup_overrides()
             }
         }
+
+        overrides[common.HELM_NS_OPENSTACK] = self._process_extra_mounts(
+            overrides[common.HELM_NS_OPENSTACK])
 
         if self._netapp_nfs_enabled:
             overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
@@ -797,6 +801,49 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             backend_overrides[app_constants.CEPH_ROOK_BACKEND_NAME]['rbd_secret_uuid'] = ceph_uuid
 
         return backend_overrides
+
+    def _process_extra_mounts(self, overrides):
+        """Process extra mounts from storage_conf user overrides.
+
+        Reads storage_conf.extra_mounts.cinder_volume and
+        storage_conf.extra_mounts.cinder_backup from user overrides
+        and appends them into pod.mounts.cinder_volume / pod.mounts.cinder_backup.
+
+        Args:
+            overrides: The cinder overrides dict.
+
+        Returns:
+            Dict: cinder overrides with ESB extra mounts added.
+        """
+        extra_mounts_volume = _get_value_from_application(
+            default_value=None,
+            chart_name=self.CHART,
+            override_name=app_constants.OVERRIDE_EXTRA_MOUNTS_VOLUME
+        )
+        extra_mounts_backup = _get_value_from_application(
+            default_value=None,
+            chart_name=self.CHART,
+            override_name=app_constants.OVERRIDE_EXTRA_MOUNTS_BACKUP
+        )
+
+        # We are not checking for duplicate volumes and volumeMounts
+        if extra_mounts_volume:
+            mounts = overrides['pod']['mounts']['cinder_volume']['cinder_volume']
+            for volume_entry in extra_mounts_volume.get('volumes', []):
+                mounts['volumes'].append(volume_entry)
+
+            for volume_mounts_entry in extra_mounts_volume.get('volumeMounts', []):
+                mounts['volumeMounts'].append(volume_mounts_entry)
+
+        if extra_mounts_backup:
+            mounts = overrides['pod']['mounts']['cinder_backup']['cinder_backup']
+            for volume_entry in extra_mounts_backup.get('volumes', []):
+                mounts['volumes'].append(volume_entry)
+
+            for volume_mounts_entry in extra_mounts_backup.get('volumeMounts', []):
+                mounts['volumeMounts'].append(volume_mounts_entry)
+
+        return overrides
 
     def _get_ceph_client_rook_overrides(self):
         return {

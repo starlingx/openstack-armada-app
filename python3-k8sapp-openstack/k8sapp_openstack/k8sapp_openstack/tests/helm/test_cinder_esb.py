@@ -11,6 +11,7 @@ Tests cover:
 - Pod security context derivation from active_protocols
 - ESB backend emission into conf.backends and enabled_backends
 - Strict-mode regression (no ESB present)
+- extra_mounts processing for cinder-volume and cinder-backup
 """
 
 import mock
@@ -788,3 +789,178 @@ class TestCinderESBOverridesIntegration(CinderESBTestCase,
         self.assertTrue(
             sec_ctx['cinder_volume']['container']['cinder_volume']['readOnlyRootFilesystem'])
         self.assertFalse(overrides['conf']['enable_iscsi'])
+
+
+class CinderProcessExtraMountsTest(testtools.TestCase):
+    """Unit tests for CinderHelm._process_extra_mounts."""
+
+    def setUp(self):
+        super(CinderProcessExtraMountsTest, self).setUp()
+        self.helm = cinder.CinderHelm(None)
+        # Minimal overrides structure matching what get_overrides builds
+        self.overrides = {
+            'pod': {
+                'mounts': {
+                    'cinder_volume': {
+                        'cinder_volume': {
+                            'volumes': [{'name': 'existing-vol'}],
+                            'volumeMounts': [{'name': 'existing-vol', 'mountPath': '/mnt/existing'}],
+                        }
+                    },
+                    'cinder_backup': {
+                        'cinder_backup': {
+                            'volumes': [{'name': 'existing-backup-vol'}],
+                            'volumeMounts': [{'name': 'existing-backup-vol', 'mountPath': '/mnt/backup'}],
+                        }
+                    },
+                }
+            }
+        }
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=None)
+    def test_no_extra_mounts(self, _):
+        """When storage_conf.extra_mounts is not set, overrides are unchanged."""
+        result = self.helm._process_extra_mounts(self.overrides)
+
+        vol_mounts = result['pod']['mounts']['cinder_volume']['cinder_volume']
+        backup_mounts = result['pod']['mounts']['cinder_backup']['cinder_backup']
+
+        self.assertEqual(len(vol_mounts['volumes']), 1)
+        self.assertEqual(len(vol_mounts['volumeMounts']), 1)
+        self.assertEqual(len(backup_mounts['volumes']), 1)
+        self.assertEqual(len(backup_mounts['volumeMounts']), 1)
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
+    def test_extra_mounts_cinder_volume_only(self, mock_get_value):
+        """Extra volumes/mounts for cinder_volume are appended; cinder_backup unchanged."""
+        extra_vol = {'name': 'extra-vol', 'hostPath': {'path': '/data/extra'}}
+        extra_mount = {'name': 'extra-vol', 'mountPath': '/mnt/extra'}
+
+        def side_effect(default_value, chart_name, override_name):
+            if override_name == 'storage_conf.extra_mounts.cinder_volume':
+                return {'volumes': [extra_vol], 'volumeMounts': [extra_mount]}
+            return None
+
+        mock_get_value.side_effect = side_effect
+
+        result = self.helm._process_extra_mounts(self.overrides)
+
+        vol_mounts = result['pod']['mounts']['cinder_volume']['cinder_volume']
+        backup_mounts = result['pod']['mounts']['cinder_backup']['cinder_backup']
+
+        self.assertEqual(len(vol_mounts['volumes']), 2)
+        self.assertEqual(len(vol_mounts['volumeMounts']), 2)
+        self.assertIn(extra_vol, vol_mounts['volumes'])
+        self.assertIn(extra_mount, vol_mounts['volumeMounts'])
+
+        # cinder_backup untouched
+        self.assertEqual(len(backup_mounts['volumes']), 1)
+        self.assertEqual(len(backup_mounts['volumeMounts']), 1)
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
+    def test_extra_mounts_cinder_backup_only(self, mock_get_value):
+        """Extra volumes/mounts for cinder_backup are appended; cinder_volume unchanged."""
+        extra_vol = {'name': 'backup-extra', 'emptyDir': {}}
+        extra_mount = {'name': 'backup-extra', 'mountPath': '/mnt/backup-extra'}
+
+        def side_effect(default_value, chart_name, override_name):
+            if override_name == 'storage_conf.extra_mounts.cinder_backup':
+                return {'volumes': [extra_vol], 'volumeMounts': [extra_mount]}
+            return None
+
+        mock_get_value.side_effect = side_effect
+
+        result = self.helm._process_extra_mounts(self.overrides)
+
+        vol_mounts = result['pod']['mounts']['cinder_volume']['cinder_volume']
+        backup_mounts = result['pod']['mounts']['cinder_backup']['cinder_backup']
+
+        self.assertEqual(len(vol_mounts['volumes']), 1)
+        self.assertEqual(len(vol_mounts['volumeMounts']), 1)
+
+        self.assertEqual(len(backup_mounts['volumes']), 2)
+        self.assertEqual(len(backup_mounts['volumeMounts']), 2)
+        self.assertIn(extra_vol, backup_mounts['volumes'])
+        self.assertIn(extra_mount, backup_mounts['volumeMounts'])
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
+    def test_extra_mounts_both_components(self, mock_get_value):
+        """Extra mounts for both cinder_volume and cinder_backup are each appended."""
+        vol_extra = {'name': 'vol-extra', 'hostPath': {'path': '/data/vol'}}
+        vol_extra_mount = {'name': 'vol-extra', 'mountPath': '/mnt/vol-extra'}
+        backup_extra = {'name': 'bk-extra', 'hostPath': {'path': '/data/bk'}}
+        backup_extra_mount = {'name': 'bk-extra', 'mountPath': '/mnt/bk-extra'}
+
+        def side_effect(default_value, chart_name, override_name):
+            if override_name == 'storage_conf.extra_mounts.cinder_volume':
+                return {'volumes': [vol_extra], 'volumeMounts': [vol_extra_mount]}
+            if override_name == 'storage_conf.extra_mounts.cinder_backup':
+                return {'volumes': [backup_extra], 'volumeMounts': [backup_extra_mount]}
+            return None
+
+        mock_get_value.side_effect = side_effect
+
+        result = self.helm._process_extra_mounts(self.overrides)
+
+        vol_mounts = result['pod']['mounts']['cinder_volume']['cinder_volume']
+        backup_mounts = result['pod']['mounts']['cinder_backup']['cinder_backup']
+
+        self.assertEqual(len(vol_mounts['volumes']), 2)
+        self.assertIn(vol_extra, vol_mounts['volumes'])
+        self.assertIn(vol_extra_mount, vol_mounts['volumeMounts'])
+
+        self.assertEqual(len(backup_mounts['volumes']), 2)
+        self.assertIn(backup_extra, backup_mounts['volumes'])
+        self.assertIn(backup_extra_mount, backup_mounts['volumeMounts'])
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
+    def test_extra_mounts_multiple_entries(self, mock_get_value):
+        """Multiple volumes/mounts in a single extra_mounts entry are all appended."""
+        extra_vols = [
+            {'name': 'vol-a', 'hostPath': {'path': '/a'}},
+            {'name': 'vol-b', 'emptyDir': {}},
+        ]
+        extra_vol_mounts = [
+            {'name': 'vol-a', 'mountPath': '/mnt/a'},
+            {'name': 'vol-b', 'mountPath': '/mnt/b'},
+        ]
+
+        def side_effect(default_value, chart_name, override_name):
+            if override_name == 'storage_conf.extra_mounts.cinder_volume':
+                return {'volumes': extra_vols, 'volumeMounts': extra_vol_mounts}
+            return None
+
+        mock_get_value.side_effect = side_effect
+
+        result = self.helm._process_extra_mounts(self.overrides)
+
+        vol_mounts = result['pod']['mounts']['cinder_volume']['cinder_volume']
+        # 1 pre-existing + 2 extra
+        self.assertEqual(len(vol_mounts['volumes']), 3)
+        self.assertEqual(len(vol_mounts['volumeMounts']), 3)
+        for v in extra_vols:
+            self.assertIn(v, vol_mounts['volumes'])
+        for m in extra_vol_mounts:
+            self.assertIn(m, vol_mounts['volumeMounts'])
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
+    def test_extra_mounts_uses_cinder_chart_name(self, mock_get_value):
+        """_process_extra_mounts queries overrides under the cinder chart name."""
+        mock_get_value.return_value = None
+
+        self.helm._process_extra_mounts(self.overrides)
+
+        calls = mock_get_value.call_args_list
+        chart_names = [c.kwargs.get('chart_name', c.args[1] if len(c.args) > 1 else None)
+                       for c in calls]
+        for name in chart_names:
+            self.assertEqual(name, app_constants.HELM_CHART_CINDER)
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
+    def test_extra_mounts_returns_same_overrides_object(self, mock_get_value):
+        """_process_extra_mounts returns the overrides dict (in-place mutation)."""
+        mock_get_value.return_value = None
+
+        result = self.helm._process_extra_mounts(self.overrides)
+
+        self.assertIs(result, self.overrides)

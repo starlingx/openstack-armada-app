@@ -681,7 +681,7 @@ conf:
     sinks:
       - name: event_sink
         publishers:
-          - notifier://
+          - notifier://?topic=alarm.all
     sources:
       - events:
           - '*'
@@ -832,21 +832,6 @@ endpoints:
       api:
         default: 80
         internal: 5000
-  metric:
-    name: gnocchi
-    hosts:
-      default: gnocchi-api
-      public: gnocchi
-    host_fqdn_override:
-      default: null
-    path:
-      default: null
-    scheme:
-      default: 'http'
-    port:
-      api:
-        default: 8041
-        public: 80
   alarming:
     name: aodh
     hosts:

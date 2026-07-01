@@ -1,0 +1,56 @@
+From 44c1d0920541c3dacad88ccf61574c9bc81acb92 Mon Sep 17 00:00:00 2001
+From: cfigueir <carlos.figueiredofelipe@windriver.com>
+Date: Tue, 30 Jun 2026 11:54:41 -0300
+Subject: [PATCH] Add Prometheus support to Aodh
+
+This patch adds the Aodh prometheus configuration structure to be set
+in the respective Helm Chart overrides.
+
+Configuration keys are under the prefix `.Values.conf.prometheus.`.
+Following is a Charts configuration example:
+`
+conf:
+  prometheus:
+    host: prometheus.monitoring.svc.cluster.local
+    port: 9090
+`
+
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+---
+ aodh/templates/deployment-evaluator.yaml | 5 +++++
+ aodh/values.yaml                         | 3 +++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/aodh/templates/deployment-evaluator.yaml b/aodh/templates/deployment-evaluator.yaml
+index 662063880..17e70e088 100644
+--- a/aodh/templates/deployment-evaluator.yaml
++++ b/aodh/templates/deployment-evaluator.yaml
+@@ -76,6 +76,11 @@ spec:
+                 command:
+                   - /tmp/aodh-evaluator.sh
+                   - stop
++          env:
++            - name: PROMETHEUS_HOST
++              value: {{ .Values.conf.prometheus.host | quote }}
++            - name: PROMETHEUS_PORT
++              value: {{ .Values.conf.prometheus.port | quote }}
+           volumeMounts:
+             - name: pod-tmp
+               mountPath: /tmp
+diff --git a/aodh/values.yaml b/aodh/values.yaml
+index 12489bb0a..e3d8f7038 100644
+--- a/aodh/values.yaml
++++ b/aodh/values.yaml
+@@ -548,6 +548,9 @@ conf:
+       class: oslo_log.formatters.ContextFormatter
+     formatter_default:
+       format: "%(message)s"
++  prometheus:
++    host: null
++    port: null
+ 
+ secrets:
+   identity:
+-- 
+2.43.0
+

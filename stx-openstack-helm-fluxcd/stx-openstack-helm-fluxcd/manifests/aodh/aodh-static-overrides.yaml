@@ -540,6 +540,9 @@ conf:
       class: oslo_log.formatters.ContextFormatter
     formatter_default:
       format: "%(message)s"
+  prometheus:
+    host: kube-prometheus-stack-prometheus.monitoring.svc.cluster.local
+    port: 9090
 secrets:
   identity:
     admin: aodh-keystone-admin

@@ -3287,3 +3287,53 @@ class TestGetAvailableVolumeBackendsESB(dbbase.ControllerHostTestCase):
 
         self.assertIn("my-esb", result)
         self.assertEqual("", result["my-esb"])
+
+
+class TestGetBackendProtocol(dbbase.ControllerHostTestCase):
+    """Tests for get_backend_protocol() helper."""
+
+    def test_strict_netapp_iscsi(self):
+        """Strict netapp-iscsi resolves to 'iscsi'."""
+        self.assertEqual(app_utils.get_backend_protocol("netapp-iscsi"), "iscsi")
+
+    def test_strict_netapp_fc(self):
+        """Strict netapp-fc resolves to 'fcp'."""
+        self.assertEqual(app_utils.get_backend_protocol("netapp-fc"), "fcp")
+
+    def test_strict_netapp_nfs(self):
+        """Strict netapp-nfs resolves to 'nfs'."""
+        self.assertEqual(app_utils.get_backend_protocol("netapp-nfs"), "nfs")
+
+    def test_strict_ceph(self):
+        """Strict ceph resolves to 'rbd'."""
+        self.assertEqual(app_utils.get_backend_protocol("ceph"), "rbd")
+
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_esb_backend_resolves_protocol(self, mock_get_value):
+        """ESB backend resolves protocol from backends_conf."""
+        mock_get_value.return_value = [
+            {"name": "dell-powerstore-iscsi", "protocol": "iscsi"},
+            {"name": "dell-powerstore-nfs", "protocol": "nfs"},
+        ]
+        self.assertEqual(
+            app_utils.get_backend_protocol("dell-powerstore-iscsi"), "iscsi"
+        )
+        self.assertEqual(
+            app_utils.get_backend_protocol("dell-powerstore-nfs"), "nfs"
+        )
+
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_unknown_backend_returns_none(self, mock_get_value):
+        """Backend with no match returns None."""
+        mock_get_value.return_value = [
+            {"name": "some-other-backend", "protocol": "nfs"},
+        ]
+        self.assertIsNone(app_utils.get_backend_protocol("nonexistent"))
+
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_esb_fcp_protocol(self, mock_get_value):
+        """ESB backend with fcp protocol resolves correctly."""
+        mock_get_value.return_value = [
+            {"name": "netapp-fc-tef", "protocol": "fcp"},
+        ]
+        self.assertEqual(app_utils.get_backend_protocol("netapp-fc-tef"), "fcp")

@@ -96,6 +96,13 @@ pod:
       limits:
         memory: "1024Mi"
         cpu: "2000m"
+    clouds_yaml_gen:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "1024Mi"
+        cpu: "2000m"
     jobs:
       image_repo_sync:
         requests:
@@ -259,4 +266,8 @@ manifests:
   secret_keystone: true
   secret_registry: true
   service: true
+
+# -- Array of extra K8s manifests to deploy
+## Note: Supports use of custom Helm templates
+extraObjects: []
 ...

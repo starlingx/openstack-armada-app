@@ -42,6 +42,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
     SERVICE_NAME = app_constants.HELM_CHART_CINDER
     SERVICE_TYPE = 'volume'
     AUTH_USERS = ['cinder']
+    SERVICE_USERS = ['glance', 'nova', 'swift', 'service']
 
     def _get_backup_driver_name(self, backend_name=app_constants.BACKEND_DEFAULT_BACKEND_NAME):
         return app_constants.BACKUP_BACKEND_DRIVER_MAP.get(
@@ -62,26 +63,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             'mountPath': tsc.IMAGE_CONVERSION_PATH
         })
 
-        if self.netapp_enabled:
-            # Mount Cinder writable state path used by default for:
-            # - `$state_path/ssh_known_hosts`: file containing SSH host keys
-            # for the systems with which Cinder needs to communicate;
-            # - `$state_path/volumes`: directory used by some drivers to
-            # store volume configuration data;
-            # - `$state_path/mnt`: directory used as mount point for NFS shares.
-            state_path = _get_value_from_application(
-                default_value=app_constants.CINDER_STATE_PATH,
-                chart_name=self.CHART,
-                override_name=app_constants.OVERRIDE_CINDER_STATE_PATH
-            )
-            overrides['volumes'].append({
-                'name': 'varlibcinder',
-                'emptyDir': {}
-            })
-            overrides['volumeMounts'].append({
-                'name': 'varlibcinder',
-                'mountPath': state_path
-            })
+        # Note: The /var/lib/cinder (state_path) volumeMount is now provided by
+        # the chart's default values (2026.1.0+), so we no longer add it here to
+        # avoid duplicate mount errors.
 
         # Mount storage CA certificate from Kubernetes secret.
         # The secret is created or migrated during the pre-apply lifecycle hook
@@ -645,7 +629,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             'identity': {
                 'auth':
                 self._get_endpoints_identity_overrides(
-                    self.SERVICE_NAME, self.AUTH_USERS),
+                    self.SERVICE_NAME, self.AUTH_USERS, self.SERVICE_USERS),
             },
             'oslo_db': {
                 'auth': self._get_endpoints_oslo_db_overrides(

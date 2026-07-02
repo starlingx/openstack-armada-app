@@ -16,7 +16,6 @@ labels:
 images:
   tags:
     libvirt: docker.io/starlingx/stx-libvirt:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
-    libvirt_exporter: null
     ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
     image_repo_sync: null
@@ -64,10 +63,6 @@ endpoints:
     port:
       registry:
         default: null
-  libvirt_exporter:
-    port:
-      metrics:
-        default: 9474
 
 network_policy:
   libvirt:
@@ -239,6 +234,9 @@ conf:
       kubectl -n ${POD_NAMESPACE} get secret ${POD_NAME}-${TYPE} -o jsonpath='{.data.tls\.crt}' | base64 -d > /tmp/${TYPE}.crt
       kubectl -n ${POD_NAMESPACE} get secret ${POD_NAME}-${TYPE} -o jsonpath='{.data.tls\.key}' | base64 -d > /tmp/${TYPE}.key
       kubectl -n ${POD_NAMESPACE} get secret ${POD_NAME}-${TYPE} -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/${TYPE}-ca.crt
+  hooks:
+    enabled: false
+    scripts: {}
 pod:
   labels:
     include_app_kubernetes_io: false
@@ -269,8 +267,6 @@ pod:
         libvirt:
           privileged: true
           readOnlyRootFilesystem: false
-        libvirt_exporter:
-          privileged: true
         libvirt_init_modules:
           readOnlyRootFilesystem: true
           privileged: true
@@ -285,9 +281,6 @@ pod:
           capabilities:
             drop:
               - ALL
-  sidecars:
-    libvirt_exporter: false
-
   affinity:
     anti:
       type:
@@ -339,13 +332,6 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
-    libvirt_exporter:
-      requests:
-        memory: "128Mi"
-        cpu: "100m"
-      limits:
-        memory: "256Mi"
-        cpu: "500m"
 
 dependencies:
   dynamic:
@@ -422,4 +408,5 @@ secrets:
     client: libvirt-tls-client
 libvirt:
   listen_addr: "::"
+  extraContainers: []
 ...

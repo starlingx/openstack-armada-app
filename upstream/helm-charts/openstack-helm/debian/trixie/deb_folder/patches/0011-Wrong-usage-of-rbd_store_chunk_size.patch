@@ -12,16 +12,18 @@ option.
 
 [ updated glance_store chunk_size for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  glance/templates/job-storage-init.yaml | 2 +-
  glance/values.yaml                     | 2 +-
  2 files changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/glance/templates/job-storage-init.yaml b/glance/templates/job-storage-init.yaml
-index be9d2331b..d24a0cfb3 100644
+index d6ca4ea54..62ce3efe1 100644
 --- a/glance/templates/job-storage-init.yaml
 +++ b/glance/templates/job-storage-init.yaml
-@@ -122,7 +122,7 @@ spec:
+@@ -121,7 +121,7 @@ spec:
              - name: RBD_POOL_CRUSH_RULE
                value: {{ .Values.conf.glance.rbd.rbd_store_crush_rule | quote }}
              - name: RBD_POOL_CHUNK_SIZE
@@ -31,7 +33,7 @@ index be9d2331b..d24a0cfb3 100644
                value: {{ .Values.secrets.rbd | quote }}
              {{ end }}
 diff --git a/glance/values.yaml b/glance/values.yaml
-index 8e1d1371b..d545e24b3 100644
+index 0e0c79098..2d0583a23 100644
 --- a/glance/values.yaml
 +++ b/glance/values.yaml
 @@ -265,7 +265,7 @@ conf:
@@ -44,5 +46,5 @@ index 8e1d1371b..d545e24b3 100644
        rbd_store_crush_rule: replicated_rule
        rbd_store_pool: glance.images
 -- 
-2.43.0
+2.34.1
 

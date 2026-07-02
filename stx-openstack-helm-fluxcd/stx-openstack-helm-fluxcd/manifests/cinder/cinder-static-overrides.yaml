@@ -43,6 +43,7 @@ images:
     cinder_scheduler: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     cinder_volume: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     cinder_volume_usage_audit: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    cinder_db_purge: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     cinder_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     cinder_backup: docker.io/starlingx/stx-cinder:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     cinder_backup_storage_init: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
@@ -59,6 +60,12 @@ images:
 jobs:
   volume_usage_audit:
     cron: "5 * * * *"
+    starting_deadline: 600
+    history:
+      success: 3
+      failed: 1
+  db_purge:
+    cron: "0 0 * * *"
     starting_deadline: 600
     history:
       success: 3
@@ -83,6 +90,13 @@ pod:
   labels:
     include_app_kubernetes_io: false
   security_context:
+    db_purge:
+      pod:
+        runAsUser: 42424
+      container:
+        cinder_db_purge:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
     volume_usage_audit:
       pod:
         runAsUser: 42425
@@ -146,11 +160,8 @@ pod:
           runAsUser: 0
           readOnlyRootFilesystem: true
         cinder_volume:
-          capabilities:
-            add:
-              - SYS_ADMIN
-          readOnlyRootFilesystem: true
           privileged: true
+          readOnlyRootFilesystem: true
     storage_init:
       pod:
         runAsUser: 42425
@@ -199,6 +210,14 @@ pod:
   useHostNetwork:
     volume: false
     backup: false
+  etcSources:
+    cinder_api: []
+    cinder_scheduler: []
+    cinder_volume: []
+    cinder_volume_usage_audit: []
+    cinder_db_purge: []
+    cinder_backup: []
+    cinder_db_sync: []
   mounts:
     cinder_api:
       init_container: null
@@ -218,6 +237,11 @@ pod:
     cinder_volume_usage_audit:
       init_container: null
       cinder_volume_usage_audit:
+        volumeMounts:
+        volumes:
+    cinder_db_purge:
+      init_container: null
+      cinder_db_purge:
         volumeMounts:
         volumes:
     cinder_backup:
@@ -419,6 +443,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+        haproxy.org/path-rewrite: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -448,19 +473,7 @@ conf:
       use: call:cinder.api:root_app_factory
       /: apiversions
       /healthcheck: healthcheck
-      /v1: openstack_volume_api_v1
-      /v2: openstack_volume_api_v2
       /v3: openstack_volume_api_v3
-    composite:openstack_volume_api_v1:
-      use: call:cinder.api.middleware.auth:pipeline_factory
-      noauth: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler noauth apiv1
-      keystone: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv1
-      keystone_nolimit: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv1
-    composite:openstack_volume_api_v2:
-      use: call:cinder.api.middleware.auth:pipeline_factory
-      noauth: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler noauth apiv2
-      keystone: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv2
-      keystone_nolimit: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler authtoken audit keystonecontext apiv2
     composite:openstack_volume_api_v3:
       use: call:cinder.api.middleware.auth:pipeline_factory
       noauth: cors http_proxy_to_wsgi request_id faultwrap sizelimit osprofiler noauth apiv3
@@ -481,10 +494,6 @@ conf:
       paste.filter_factory: cinder.api.middleware.auth:NoAuthMiddleware.factory
     filter:sizelimit:
       paste.filter_factory: oslo_middleware.sizelimit:RequestBodySizeLimiter.factory
-    app:apiv1:
-      paste.app_factory: cinder.api.v1.router:APIRouter.factory
-    app:apiv2:
-      paste.app_factory: cinder.api.v2.router:APIRouter.factory
     app:apiv3:
       paste.app_factory: cinder.api.v3.router:APIRouter.factory
     app:healthcheck:
@@ -521,8 +530,6 @@ conf:
       types: type
       volumes: volume
     service_endpoints:
-      volume: service/storage/block
-      volumev2: service/storage/block
       volumev3: service/storage/block
   cinder_sudoers: |
     # This sudoers file supports rootwrap for both Kolla and LOCI Images.
@@ -804,13 +811,12 @@ conf:
         app_name: cinder-volume
   cinder:
     DEFAULT:
+      state_path: /var/lib/cinder
       volume_usage_audit_period: hour
       resource_query_filters_file: /etc/cinder/resource_filters.json
       log_config_append: /etc/cinder/logging.conf
       use_syslog: false
       use_stderr: true
-      enable_v1_api: false
-      enable_v2_api: false
       volume_name_template: "%s"
       osapi_volume_workers: 1
       glance_api_version: 2
@@ -842,6 +848,7 @@ conf:
       glance_api_servers: http://glance.openstack.svc.cluster.local:80/
     database:
       max_retries: -1
+      connection: ""
     keystone_authtoken:
       service_token_roles: service
       service_token_roles_required: true
@@ -859,7 +866,7 @@ conf:
     oslo_policy:
       policy_file: /etc/cinder/policy.yaml
     oslo_concurrency:
-      lock_path: "/var/lib/cinder/tmp"
+      lock_path: /var/lock
     oslo_messaging_notifications:
       driver: messagingv2
     oslo_middleware:
@@ -1030,7 +1037,11 @@ conf:
       route-user-agent: '^kube-probe.* donotlog:'
       thunder-lock: true
       worker-reload-mercy: 80
-      wsgi-file: /var/lib/openstack/bin/cinder-wsgi
+      module: cinder.wsgi.api:application
+      stats: "[::]:1717"
+      stats-http: true
+  db_purge:
+    before: 30
 
 backup:
   external_ceph_rbd:
@@ -1079,7 +1090,7 @@ dependencies:
         - endpoint: internal
           service: identity
         - endpoint: internal
-          service: volume
+          service: volumev3
     backup_storage_init:
       jobs: null
     bootstrap:
@@ -1087,7 +1098,7 @@ dependencies:
         - endpoint: internal
           service: identity
         - endpoint: internal
-          service: volume
+          service: volumev3
       pod:
         - requireSameNode: false
           labels:
@@ -1138,7 +1149,19 @@ dependencies:
         - endpoint: internal
           service: identity
         - endpoint: internal
-          service: volume
+          service: volumev3
+    db_purge:
+      jobs:
+        - cinder-db-sync
+        - cinder-db-init
+        - cinder-ks-user
+        - cinder-ks-endpoints
+        - cinder-rabbit-init
+      services:
+        - endpoint: internal
+          service: oslo_db
+        - endpoint: internal
+          service: identity
     storage_init:
       jobs: null
     tests:
@@ -1146,7 +1169,7 @@ dependencies:
         - endpoint: internal
           service: identity
         - endpoint: internal
-          service: volume
+          service: volumev3
     volume:
       jobs:
         - cinder-db-sync
@@ -1158,7 +1181,7 @@ dependencies:
         - endpoint: internal
           service: identity
         - endpoint: internal
-          service: volume
+          service: volumev3
     volume_usage_audit:
       jobs:
         - cinder-db-sync
@@ -1170,7 +1193,7 @@ dependencies:
         - endpoint: internal
           service: identity
         - endpoint: internal
-          service: volume
+          service: volumev3
     image_repo_sync:
       services:
         - endpoint: internal
@@ -1185,7 +1208,12 @@ secrets:
   identity:
     admin: cinder-keystone-admin
     cinder: cinder-keystone-user
+    glance: cinder-keystone-glance
+    nova: cinder-keystone-nova
+    swift: cinder-keystone-swift
+    service: cinder-keystone-service
     test: cinder-keystone-test
+    stx_admin: cinder-keystone-stx-admin
   oslo_db:
     admin: cinder-db-admin
     cinder: cinder-db-user
@@ -1254,6 +1282,22 @@ endpoints:
         project_name: service
         user_domain_name: service
         project_domain_name: service
+      nova:
+        role: admin,service
+        region_name: RegionOne
+        project_name: service
+        username: cinder_nova
+        password: password
+        user_domain_name: service
+        project_domain_name: service
+      service:
+        role: admin,service
+        region_name: RegionOne
+        project_name: service
+        username: cinder_service_user
+        password: password
+        user_domain_name: service
+        project_domain_name: service
       test:
         role: admin
         region_name: RegionOne
@@ -1290,52 +1334,6 @@ endpoints:
       api:
         default: 9292
         public: 80
-  volume:
-    name: cinder
-    hosts:
-      default: cinder-api
-      public: cinder
-    host_fqdn_override:
-      default: null
-      # NOTE(portdirect): this chart supports TLS for fqdn over-ridden public
-      # endpoints using the following format:
-      # public:
-      #   host: null
-      #   tls:
-      #     crt: null
-      #     key: null
-    path:
-      default: '/v1/%(tenant_id)s'
-      healthcheck: /healthcheck
-    scheme:
-      default: 'http'
-    port:
-      api:
-        default: 8776
-        public: 80
-  volumev2:
-    name: cinderv2
-    hosts:
-      default: cinder-api
-      public: cinder
-    host_fqdn_override:
-      default: null
-      # NOTE(portdirect): this chart supports TLS for fqdn over-ridden public
-      # endpoints using the following format:
-      # public:
-      #   host: null
-      #   tls:
-      #     crt: null
-      #     key: null
-    path:
-      default: '/v2/%(tenant_id)s'
-      healthcheck: /healthcheck
-    scheme:
-      default: 'http'
-    port:
-      api:
-        default: 8776
-        public: 80
   volumev3:
     name: cinderv3
     hosts:
@@ -1351,7 +1349,7 @@ endpoints:
       #     crt: null
       #     key: null
     path:
-      default: '/v3/%(tenant_id)s'
+      default: '/v3'
       healthcheck: /healthcheck
     scheme:
       default: 'http'
@@ -1517,6 +1515,7 @@ manifests:
   configmap_bin: true
   configmap_etc: true
   cron_volume_usage_audit: true
+  cron_db_purge: false
   deployment_api: true
   deployment_backup: true
   deployment_scheduler: true
@@ -1543,6 +1542,7 @@ manifests:
   secret_db: true
   secret_ingress_tls: true
   secret_keystone: true
+  secret_ks_etc: true
   secret_rabbitmq: true
   secret_registry: true
   service_api: true

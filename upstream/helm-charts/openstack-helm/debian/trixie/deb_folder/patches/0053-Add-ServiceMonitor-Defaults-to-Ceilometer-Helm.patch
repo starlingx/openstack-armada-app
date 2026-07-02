@@ -1,6 +1,6 @@
-From b12c68aebe3ea2e9608926deac6cb9d0c34a7b88 Mon Sep 17 00:00:00 2001
+From 8b61b0df8750ee5c2447c0848b4622b486f91702 Mon Sep 17 00:00:00 2001
 From: kgoncalv <kayo.goncalvesdacosta@windriver.com>
-Date: Mon, 1 Jun 2026 12:07:22 -0300
+Date: Tue, 9 Jun 2026 16:35:21 -0300
 Subject: [PATCH] Add ServiceMonitor Defaults to Ceilometer Helm
 
 This patch aims to establish the foundational values that
@@ -23,18 +23,19 @@ manifests:
   servicemonitor_compute: true
 ...
 
+[ Adapted for Trixie/Gazpacho ]
 Signed-off-by: kgoncalv <kayo.goncalvesdacosta@windriver.com>
 ---
  ceilometer/values.yaml | 10 ++++++++++
  1 file changed, 10 insertions(+)
 
 diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
-index e5fc73d9b..5d87e3377 100644
+index 1ebd7d21b..886640240 100644
 --- a/ceilometer/values.yaml
 +++ b/ceilometer/values.yaml
-@@ -2119,6 +2119,14 @@ network_policy:
-     egress:
-       - {}
+@@ -1630,6 +1630,14 @@ pod:
+           memory: "1024Mi"
+           cpu: "2000m"
  
 +servicemonitor:
 +  central:
@@ -47,13 +48,15 @@ index e5fc73d9b..5d87e3377 100644
  manifests:
    configmap_bin: true
    configmap_etc: true
-@@ -2150,4 +2158,6 @@ manifests:
+@@ -1648,6 +1656,8 @@ manifests:
    secret_registry: true
    service_api: true
    service_ingress_api: true
 +  servicemonitor_central: true
 +  servicemonitor_compute: true
- ...
+ 
+ # -- Array of extra K8s manifests to deploy
+ ## Note: Supports use of custom Helm templates
 -- 
 2.34.1
 

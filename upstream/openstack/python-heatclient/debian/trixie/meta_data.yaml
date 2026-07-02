@@ -1,11 +1,11 @@
 ---
 debname: python-heatclient
-debver: 4.1.0-3
+debver: 5.1.0-2
 dl_path:
-  name: python-heatclient-debian-4.1.0-3.tar.gz
-  url: https://salsa.debian.org/openstack-team/clients/python-heatclient/-/archive/debian/4.1.0-3/python-heatclient-debian-4.1.0-3.tar.gz
-  md5sum: d8dad619c48b63ddb0b348ec78bcd662
-  sha256sum: c10f82d12669bb10c004e0cde221407eae36f259df75486d4dbf111740559c1e
+  name: python-heatclient-debian-5.1.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-heatclient/-/archive/debian/5.1.0-2/python-heatclient-debian-5.1.0-2.tar.gz
+  md5sum: ec8b15f79a1693fa483da62b60cc35ae
+  sha256sum: 9ad71ab5c43a09bdcc5cf12a4067ad32677d0ac6883cb275aefc2a1a8d6824bf
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

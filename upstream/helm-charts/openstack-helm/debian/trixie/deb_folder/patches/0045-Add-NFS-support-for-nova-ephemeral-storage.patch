@@ -13,6 +13,8 @@ Addionallty libvirt requires access to the NFS volumes.
 
 Change-Id: I48ab7fe0652eef167c49f7f9efbf43742c29c95a
 Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  libvirt/templates/daemonset-libvirt.yaml | 10 ++++++++++
  libvirt/values.yaml                      |  7 +++++++
@@ -21,7 +23,7 @@ Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
  4 files changed, 55 insertions(+)
 
 diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
-index ab55cb64c..4a3c8e099 100644
+index a104b6edf..6e8be3557 100644
 --- a/libvirt/templates/daemonset-libvirt.yaml
 +++ b/libvirt/templates/daemonset-libvirt.yaml
 @@ -273,6 +273,10 @@ spec:
@@ -35,7 +37,7 @@ index ab55cb64c..4a3c8e099 100644
              - name: run
                mountPath: /run
              - name: dev
-@@ -373,6 +377,12 @@ spec:
+@@ -358,6 +362,12 @@ spec:
          - name: var-lib-nova
            hostPath:
              path: /var/lib/nova
@@ -49,12 +51,12 @@ index ab55cb64c..4a3c8e099 100644
            hostPath:
              path: /run
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index 47511663a..078729140 100644
+index 8fbae1656..709fb23c7 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
-@@ -397,6 +397,13 @@ dependencies:
-         - endpoint: internal
-           service: local_image_registry
+@@ -395,6 +395,13 @@ libvirt:
+   extraContainers: []
+ 
  
 +storage_conf:
 +  nfs_shares:
@@ -67,10 +69,10 @@ index 47511663a..078729140 100644
    configmap_bin: true
    configmap_etc: true
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 2f0266cf6..f5641d283 100644
+index b439c87ed..4655a2615 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
-@@ -123,6 +123,10 @@ spec:
+@@ -137,6 +137,10 @@ spec:
                readOnly: true
              - name: varlibnova
                mountPath: /var/lib/nova
@@ -81,7 +83,7 @@ index 2f0266cf6..f5641d283 100644
              - name: pod-shared
                mountPath: /tmp/pod-shared
  {{ if $mounts_nova_compute.volumeMounts }}{{ toYaml $mounts_nova_compute.volumeMounts | indent 12 }}{{ end }}
-@@ -281,6 +285,10 @@ spec:
+@@ -282,6 +286,10 @@ spec:
            volumeMounts:
              - name: varlibnova
                mountPath: /var/lib/nova
@@ -92,7 +94,7 @@ index 2f0266cf6..f5641d283 100644
              - name: nova-ssh
                mountPath: /tmp/nova-ssh/authorized_keys
                subPath: public-key
-@@ -406,6 +414,10 @@ spec:
+@@ -412,6 +420,10 @@ spec:
                {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
                mountPropagation: Bidirectional
                {{- end }}
@@ -103,7 +105,7 @@ index 2f0266cf6..f5641d283 100644
              - name: varliblibvirt
                mountPath: /var/lib/libvirt
                {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
-@@ -503,6 +515,10 @@ spec:
+@@ -489,6 +501,10 @@ spec:
            volumeMounts:
              - name: varlibnova
                mountPath: /var/lib/nova
@@ -114,7 +116,7 @@ index 2f0266cf6..f5641d283 100644
              - name: nova-bin
                mountPath: /tmp/ssh-start.sh
                subPath: ssh-start.sh
-@@ -547,6 +563,12 @@ spec:
+@@ -543,6 +559,12 @@ spec:
          - name: libmodules
            hostPath:
              path: /lib/modules
@@ -128,10 +130,10 @@ index 2f0266cf6..f5641d283 100644
            hostPath:
              path: /var/lib/nova
 diff --git a/nova/values.yaml b/nova/values.yaml
-index 61435f807..f6675de7e 100644
+index b748c0198..ed38915a7 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -1423,6 +1423,7 @@ conf:
+@@ -1431,6 +1431,7 @@ conf:
        disk_allocation_ratio: 1.0
        cpu_allocation_ratio: 3.0
        state_path: /var/lib/nova
@@ -139,7 +141,7 @@ index 61435f807..f6675de7e 100644
        osapi_compute_listen: 0.0.0.0
        # NOTE(portdirect): the bind port should not be defined, and is manipulated
        # via the endpoints section.
-@@ -2646,6 +2647,21 @@ tls:
+@@ -2717,6 +2718,21 @@ tls:
    oslo_messaging: false
    oslo_db: false
  
@@ -162,5 +164,5 @@ index 61435f807..f6675de7e 100644
    certificates: false
    compute_uuid_self_provisioning: true
 -- 
-2.43.0
+2.34.1
 

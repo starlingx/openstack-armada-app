@@ -1,3 +1,4 @@
+upstream/openstack/python-aodh
 upstream/openstack/python-ceilometer
 upstream/openstack/python-cinder
 upstream/openstack/python-glance

@@ -25,6 +25,8 @@ uWSGI to the fix being applied to uWSGI http-socket in order to support
 both IPv4 and IPv6 deployments.
 [1]https://review.opendev.org/c/openstack/openstack-helm/+/899914
 Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  barbican/templates/configmap-etc.yaml  | 2 +-
  cinder/templates/configmap-etc.yaml    | 2 +-
@@ -36,7 +38,7 @@ Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
  7 files changed, 9 insertions(+), 9 deletions(-)
 
 diff --git a/barbican/templates/configmap-etc.yaml b/barbican/templates/configmap-etc.yaml
-index 2b9762e82..a86a71b64 100644
+index d906b65ed..7ccc38503 100644
 --- a/barbican/templates/configmap-etc.yaml
 +++ b/barbican/templates/configmap-etc.yaml
 @@ -69,7 +69,7 @@ limitations under the License.
@@ -49,20 +51,20 @@ index 2b9762e82..a86a71b64 100644
  {{- end -}}
  
 diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
-index f7ba5dd96..9fde4d477 100644
+index f36eee5a4..abf35af2f 100644
 --- a/cinder/templates/configmap-etc.yaml
 +++ b/cinder/templates/configmap-etc.yaml
-@@ -145,7 +145,7 @@ limitations under the License.
+@@ -89,7 +89,7 @@ limitations under the License.
  {{- end -}}
  {{- if empty (index .Values.conf.cinder_api_uwsgi.uwsgi "http-socket") -}}
- {{- $http_socket_port := tuple "volume" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
+ {{- $http_socket_port := tuple "volumev3" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
 -{{- $http_socket := printf "0.0.0.0:%s" $http_socket_port }}
 +{{- $http_socket := printf "[::]:%s" $http_socket_port }}
  {{- $_ := set .Values.conf.cinder_api_uwsgi.uwsgi "http-socket" $http_socket -}}
  {{- end -}}
  
 diff --git a/glance/templates/configmap-etc.yaml b/glance/templates/configmap-etc.yaml
-index 8ce851563..70dfd0402 100644
+index 30c71c0bf..279fe2b43 100644
 --- a/glance/templates/configmap-etc.yaml
 +++ b/glance/templates/configmap-etc.yaml
 @@ -99,7 +99,7 @@ limitations under the License.
@@ -75,10 +77,10 @@ index 8ce851563..70dfd0402 100644
  {{- end -}}
  
 diff --git a/heat/templates/configmap-etc.yaml b/heat/templates/configmap-etc.yaml
-index b90bba6e5..e86bf60ee 100644
+index 10a3e61a3..71bbc4548 100644
 --- a/heat/templates/configmap-etc.yaml
 +++ b/heat/templates/configmap-etc.yaml
-@@ -124,7 +124,7 @@ limitations under the License.
+@@ -116,7 +116,7 @@ limitations under the License.
  {{- end -}}
  {{- if empty (index .Values.conf.heat_api_uwsgi.uwsgi "http-socket") -}}
  {{- $http_socket_port := tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
@@ -87,7 +89,7 @@ index b90bba6e5..e86bf60ee 100644
  {{- $_ := set .Values.conf.heat_api_uwsgi.uwsgi "http-socket" $http_socket -}}
  {{- end -}}
  
-@@ -133,7 +133,7 @@ limitations under the License.
+@@ -125,7 +125,7 @@ limitations under the License.
  {{- end -}}
  {{- if empty (index .Values.conf.heat_api_cfn_uwsgi.uwsgi "http-socket") -}}
  {{- $http_socket_port := tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
@@ -97,10 +99,10 @@ index b90bba6e5..e86bf60ee 100644
  {{- end -}}
  
 diff --git a/neutron/templates/configmap-etc.yaml b/neutron/templates/configmap-etc.yaml
-index df1fe525d..7066405df 100644
+index 0aea514d0..0ca04b72e 100644
 --- a/neutron/templates/configmap-etc.yaml
 +++ b/neutron/templates/configmap-etc.yaml
-@@ -190,7 +190,7 @@ limitations under the License.
+@@ -139,7 +139,7 @@ limitations under the License.
  {{- end -}}
  {{- if empty (index .Values.conf.neutron_api_uwsgi.uwsgi "http-socket") -}}
  {{- $http_socket_port := tuple "network" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
@@ -110,10 +112,10 @@ index df1fe525d..7066405df 100644
  {{- end -}}
  
 diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
-index 220db538a..6de893719 100644
+index ed5acf6ed..4b60acf9b 100644
 --- a/nova/templates/configmap-etc.yaml
 +++ b/nova/templates/configmap-etc.yaml
-@@ -290,7 +290,7 @@ limitations under the License.
+@@ -170,7 +170,7 @@ limitations under the License.
  {{- end -}}
  {{- if empty (index .Values.conf.nova_api_uwsgi.uwsgi "http-socket") -}}
  {{- $http_socket_port := tuple "compute" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}
@@ -122,7 +124,7 @@ index 220db538a..6de893719 100644
  {{- $_ := set .Values.conf.nova_api_uwsgi.uwsgi "http-socket" $http_socket -}}
  {{- end -}}
  
-@@ -299,7 +299,7 @@ limitations under the License.
+@@ -179,7 +179,7 @@ limitations under the License.
  {{- end -}}
  {{- if empty (index .Values.conf.nova_metadata_uwsgi.uwsgi "http-socket") -}}
  {{- $http_socket_port := .Values.network.metadata.port | toString }}
@@ -132,10 +134,10 @@ index 220db538a..6de893719 100644
  {{- end -}}
  
 diff --git a/placement/templates/configmap-etc.yaml b/placement/templates/configmap-etc.yaml
-index 34a968333..57a9dcb8d 100644
+index 9406e8a01..6de27f043 100644
 --- a/placement/templates/configmap-etc.yaml
 +++ b/placement/templates/configmap-etc.yaml
-@@ -56,7 +56,7 @@ limitations under the License.
+@@ -38,7 +38,7 @@ limitations under the License.
  
  {{- if empty (index .Values.conf.placement_api_uwsgi.uwsgi "http-socket") -}}
  {{- $http_socket_port := tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" | toString }}

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023-2025 Wind River Systems, Inc.
+# Copyright (c) 2023-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -80,6 +80,7 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
+        haproxy.org/path-rewrite: /
     external_policy_local: false
     node_port:
       enabled: false
@@ -238,6 +239,17 @@ pod:
         - key: openstack-compute-node
           operator: Exists
           effect: NoSchedule
+  # -- This allows users to add Kubernetes Projected Volumes to be mounted at /etc/keystone/keystone.conf.d/
+  ## This is a list of projected volume source objects for each deployment/statefulset/daemonset/cronjob
+  ## https://kubernetes.io/docs/concepts/storage/projected-volumes/
+  etcSources:
+    keystone_db_sync: []
+    keystone_api: []
+    keystone_fernet_setup: []
+    keystone_fernet_rotate: []
+    keystone_credential_setup: []
+    keystone_credential_rotate: []
+    keystone_domain_manage: []
   mounts:
     keystone_db_init:
       init_container: null
@@ -558,6 +570,11 @@ conf:
       key_repository: /etc/keystone/credential-keys/
     database:
       max_retries: -1
+      # -- Database connection URI. When empty the URI is auto-generated
+      ## from endpoints.oslo_db. Set to null to disable auto-generation,
+      ## e.g. when using an operator such as mariadb-operator that supplies
+      ## the connection string via a mounted configuration snippet.
+      connection: ""
     cache:
       enabled: true
       backend: dogpile.cache.memcached
@@ -567,6 +584,8 @@ conf:
       rabbit_ha_queues: true
     oslo_middleware:
       enable_proxy_headers_parsing: true
+    oslo_concurrency:
+      lock_path: /var/lock
     oslo_policy:
       policy_file: /etc/keystone/policy.yaml
     security_compliance:
@@ -873,6 +892,16 @@ conf:
       MaxRequestsPerChild 128
       ThreadLimit         720
     </IfModule>
+  wsgi_script: |
+    import threading
+
+    from keystone.server import wsgi
+
+    application = None
+    lock = threading.Lock()
+    with lock:
+        if application is None:
+            application = wsgi.initialize_public_application()
   wsgi_keystone: |
     {{- $portInt := tuple "identity" "internal" "api" $ | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
@@ -884,6 +913,8 @@ conf:
     SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded
     CustomLog /dev/stdout combined env=!forwarded
     CustomLog /dev/stdout proxy env=forwarded
+    ErrorLogFormat "%{cu}t %M"
+    ErrorLog /dev/stdout
     WSGISocketPrefix /var/run/apache2/wsgi
 
     <VirtualHost *:{{ $portInt }}>
@@ -959,12 +990,10 @@ conf:
 
         WSGIDaemonProcess keystone-public processes=5 threads=1 user=keystone group=keystone display-name=%{GROUP} python-home=/var/lib/openstack socket-user=www-data
         WSGIProcessGroup keystone-public
-        WSGIScriptAlias / /var/www/cgi-bin/keystone/keystone-wsgi-public
+        WSGIScriptAlias / /var/www/cgi-bin/keystone/wsgi.py
         WSGIApplicationGroup %{GLOBAL}
         WSGIPassAuthorization On
-        <IfVersion >= 2.4>
-          ErrorLogFormat "%{cu}t %M"
-        </IfVersion>
+        ErrorLogFormat "%{cu}t %M"
         ErrorLog /dev/stdout
 
         SetEnvIf X-Forwarded-For "^.*\..*\..*\..*" forwarded

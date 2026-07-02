@@ -12,6 +12,8 @@ Task: 37747
 Signed-off-by: Andy Ning <andy.ning@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  keystone/templates/ingress-api.yaml | 8 ++++++++
  1 file changed, 8 insertions(+)
@@ -33,5 +35,4 @@ index 7bdcee60c..525c21215 100644
 +{{- end }}
 +{{- end }}
 -- 
-2.43.0
-
+2.34.1

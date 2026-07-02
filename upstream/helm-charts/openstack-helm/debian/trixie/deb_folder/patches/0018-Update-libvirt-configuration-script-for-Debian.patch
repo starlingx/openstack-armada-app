@@ -21,7 +21,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
-index 81813f4f5..af1b4f5e0 100644
+index 56daa56e1..16e2939e6 100644
 --- a/libvirt/templates/bin/_libvirt.sh.tpl
 +++ b/libvirt/templates/bin/_libvirt.sh.tpl
 @@ -41,9 +41,11 @@ fi

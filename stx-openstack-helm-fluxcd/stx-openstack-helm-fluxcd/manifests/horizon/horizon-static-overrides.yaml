@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -46,7 +46,8 @@ network:
         cluster: "nginx"
       annotations:
         nginx.ingress.kubernetes.io/rewrite-target: /
-        nginx.ingress.kubernetes.io/proxy-body-size: 300m
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+        haproxy.org/path-rewrite: /
   external_policy_local: false
   node_port:
     enabled: 'true'
@@ -103,9 +104,7 @@ conf:
               SetHandler static
           </Location>
 
-          <IfVersion >= 2.4>
-            ErrorLogFormat "%{cu}t %M"
-          </IfVersion>
+          ErrorLogFormat "%{cu}t %M"
           ErrorLog /dev/stdout
           TransferLog /dev/stdout
 
@@ -186,13 +185,6 @@ conf:
       #   REMOVE_PANEL = True
       ## https://docs.openstack.org/horizon/latest/configuration/pluggable_panels.html#id2
     local_settings_d: {}
-      ## For example, _50_monasca_ui_settings.py
-      # _50_monasca_ui_settings: |
-      #   from django.conf import settings
-      #   # Grafana button titles/file names (global across all projects):
-      #   GRAFANA_LINKS = []
-      #   DASHBOARDS = getattr(settings, 'GRAFANA_LINKS', GRAFANA_LINKS)
-
     local_settings:
       config:
         # Use "True" and "False" as Titlecase strings with quotes, boolean
@@ -203,6 +195,9 @@ conf:
         endpoint_type: "internalURL"
         # Turn off domain support as we aren't using
         keystone_multidomain_support: "False"
+        keystone_multidomain_dropdown: "False"
+        keystone_domains:
+          Default: "Default"
         keystone_default_domain: Default
         disable_password_reveal: "True"
         show_openrc_file: "True"
@@ -217,9 +212,12 @@ conf:
         pwd_validator_help_text: '_("Your password must be at least eight (8) characters in length and must include characters from at least two (2) of these groupings: alpha, numeric, and special characters.")'
         session_cookie_secure: "True"
         session_cookie_httponly: "False"
+        session_engine: 'django.contrib.sessions.backends.cache'
+        cache_backend: 'django.core.cache.backends.memcached.PyMemcacheCache'
         secure_proxy_ssl_header: false
         password_autocomplete: "False"
         disallow_iframe_embed: "False"
+        ssl_no_verify: "True"
         allowed_hosts:
           - '*'
         horizon_images_upload_mode: 'legacy'
@@ -262,7 +260,7 @@ conf:
         lockout_period_sec: '300'
         lockout_retries_num: '3'
         # OpenStack Help Documentation URL
-        help_url: 'http://docs.openstack.org/2024.1/'
+        help_url: 'http://docs.openstack.org/2026.1/'
       template: |
         import os
 
@@ -1037,17 +1035,6 @@ conf:
         'cloudformation:ListStacks': 'rule:deny_stack_user'
         'cloudformation:UpdateStack': 'rule:deny_stack_user'
         'cloudformation:ValidateTemplate': 'rule:deny_stack_user'
-        'cloudwatch:DeleteAlarms': 'rule:deny_stack_user'
-        'cloudwatch:DescribeAlarmHistory': 'rule:deny_stack_user'
-        'cloudwatch:DescribeAlarms': 'rule:deny_stack_user'
-        'cloudwatch:DescribeAlarmsForMetric': 'rule:deny_stack_user'
-        'cloudwatch:DisableAlarmActions': 'rule:deny_stack_user'
-        'cloudwatch:EnableAlarmActions': 'rule:deny_stack_user'
-        'cloudwatch:GetMetricStatistics': 'rule:deny_stack_user'
-        'cloudwatch:ListMetrics': 'rule:deny_stack_user'
-        'cloudwatch:PutMetricAlarm': 'rule:deny_stack_user'
-        'cloudwatch:PutMetricData': ''
-        'cloudwatch:SetAlarmState': 'rule:deny_stack_user'
         context_is_admin: 'role:admin'
         deny_everybody: '!'
         deny_stack_user: 'not role:heat_stack_user'

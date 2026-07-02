@@ -29,6 +29,9 @@ Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 [ Added labels to the new prometheus-openstack-exporter chart ]
 Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Removed hunks for templates no longer present in Gazpacho
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  aodh/templates/cron-job-alarms-cleaner.yaml                | 3 +++
  aodh/templates/deployment-api.yaml                         | 2 ++
@@ -42,12 +45,8 @@ Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windri
  barbican/values.yaml                                       | 1 +
  ceilometer/templates/daemonset-compute.yaml                | 2 ++
  ceilometer/templates/daemonset-ipmi.yaml                   | 2 ++
- ceilometer/templates/deployment-api.yaml                   | 2 ++
  ceilometer/templates/deployment-central.yaml               | 2 ++
- ceilometer/templates/deployment-collector.yaml             | 2 ++
  ceilometer/templates/deployment-notification.yaml          | 2 ++
- ceilometer/templates/job-db-init-mongodb.yaml              | 5 +++++
- ceilometer/templates/pod-rally-test.yaml                   | 3 +++
  ceilometer/values.yaml                                     | 1 +
  ceph-rgw/templates/deployment-rgw.yaml                     | 2 ++
  ceph-rgw/templates/job-bootstrap.yaml                      | 2 ++
@@ -88,7 +87,6 @@ Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windri
  heat/templates/cron-job-purge-deleted.yaml                 | 2 ++
  heat/templates/deployment-api.yaml                         | 2 ++
  heat/templates/deployment-cfn.yaml                         | 2 ++
- heat/templates/deployment-cloudwatch.yaml                  | 2 ++
  heat/templates/deployment-engine.yaml                      | 2 ++
  heat/templates/job-ks-user-domain.yaml                     | 2 ++
  heat/templates/job-trusts.yaml                             | 2 ++
@@ -130,8 +128,6 @@ Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windri
  mariadb/values.yaml                                        | 1 +
  memcached/templates/statefulset.yaml                       | 2 ++
  memcached/values.yaml                                      | 1 +
- mongodb/templates/statefulset.yaml                         | 2 ++
- mongodb/values.yaml                                        | 1 +
  neutron/templates/daemonset-bagpipe-bgp.yaml               | 2 ++
  neutron/templates/daemonset-dhcp-agent.yaml                | 2 ++
  neutron/templates/daemonset-l2gw-agent.yaml                | 2 ++
@@ -172,13 +168,13 @@ Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windri
  rabbitmq/templates/pod-test.yaml                           | 2 ++
  rabbitmq/templates/statefulset.yaml                        | 2 ++
  rabbitmq/values.yaml                                       | 1 +
- 142 files changed, 308 insertions(+)
+ 135 files changed, 291 insertions(+)
 
 diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
-index ec0b58f7a..6a9848403 100644
+index 5cf07d2cd..aeb3b9356 100644
 --- a/aodh/templates/cron-job-alarms-cleaner.yaml
 +++ b/aodh/templates/cron-job-alarms-cleaner.yaml
-@@ -42,7 +42,10 @@ spec:
+@@ -44,7 +44,10 @@ spec:
        template:
          metadata:
            labels:
@@ -190,10 +186,10 @@ index ec0b58f7a..6a9848403 100644
            serviceAccountName: {{ $serviceAccountName }}
            restartPolicy: OnFailure
 diff --git a/aodh/templates/deployment-api.yaml b/aodh/templates/deployment-api.yaml
-index 769195515..d795f214d 100644
+index 6d0e1fb54..0a3f0cd4b 100644
 --- a/aodh/templates/deployment-api.yaml
 +++ b/aodh/templates/deployment-api.yaml
-@@ -40,11 +40,13 @@ spec:
+@@ -42,11 +42,13 @@ spec:
    template:
      metadata:
        labels:
@@ -208,10 +204,10 @@ index 769195515..d795f214d 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/aodh/templates/deployment-evaluator.yaml b/aodh/templates/deployment-evaluator.yaml
-index 2f6b88614..83e9e26d8 100644
+index 4d37cfc69..662063880 100644
 --- a/aodh/templates/deployment-evaluator.yaml
 +++ b/aodh/templates/deployment-evaluator.yaml
-@@ -40,11 +40,13 @@ spec:
+@@ -42,11 +42,13 @@ spec:
    template:
      metadata:
        labels:
@@ -226,10 +222,10 @@ index 2f6b88614..83e9e26d8 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/aodh/templates/deployment-listener.yaml b/aodh/templates/deployment-listener.yaml
-index cca9fb166..e28641b7c 100644
+index 85155a478..780125ee4 100644
 --- a/aodh/templates/deployment-listener.yaml
 +++ b/aodh/templates/deployment-listener.yaml
-@@ -40,11 +40,13 @@ spec:
+@@ -42,11 +42,13 @@ spec:
    template:
      metadata:
        labels:
@@ -244,10 +240,10 @@ index cca9fb166..e28641b7c 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/aodh/templates/deployment-notifier.yaml b/aodh/templates/deployment-notifier.yaml
-index eed5d80b0..0eb4a44d6 100644
+index 4b75bf20d..bddd72775 100644
 --- a/aodh/templates/deployment-notifier.yaml
 +++ b/aodh/templates/deployment-notifier.yaml
-@@ -40,11 +40,13 @@ spec:
+@@ -42,11 +42,13 @@ spec:
    template:
      metadata:
        labels:
@@ -277,7 +273,7 @@ index dc4b816d0..2d26dc0af 100644
      {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
  spec:
 diff --git a/aodh/values.yaml b/aodh/values.yaml
-index 5c79b9864..56882dcc9 100644
+index 190a89a7e..af97d86e2 100644
 --- a/aodh/values.yaml
 +++ b/aodh/values.yaml
 @@ -21,6 +21,7 @@
@@ -289,10 +285,10 @@ index 5c79b9864..56882dcc9 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/barbican/templates/deployment-api.yaml b/barbican/templates/deployment-api.yaml
-index 53d77e285..6d7c4567e 100644
+index 44c8dcb6b..9cfcd4946 100644
 --- a/barbican/templates/deployment-api.yaml
 +++ b/barbican/templates/deployment-api.yaml
-@@ -46,11 +46,13 @@ spec:
+@@ -47,11 +47,13 @@ spec:
    template:
      metadata:
        labels:
@@ -307,7 +303,7 @@ index 53d77e285..6d7c4567e 100644
  {{ dict "envAll" $envAll "podName" "barbican-api" "containerNames" (list "init" "barbican-api") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/barbican/templates/pod-test.yaml b/barbican/templates/pod-test.yaml
-index f41435640..183f9766b 100644
+index 303e9ce31..8a903b681 100644
 --- a/barbican/templates/pod-test.yaml
 +++ b/barbican/templates/pod-test.yaml
 @@ -27,8 +27,10 @@ kind: Pod
@@ -322,7 +318,7 @@ index f41435640..183f9766b 100644
      {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
  {{ dict "envAll" $envAll "podName" "barbican-test" "containerNames" (list "init" "barbican-test") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
 diff --git a/barbican/values.yaml b/barbican/values.yaml
-index 63ee8f3c2..4264341bb 100644
+index 44a0b0984..6e53d00cc 100644
 --- a/barbican/values.yaml
 +++ b/barbican/values.yaml
 @@ -17,6 +17,7 @@
@@ -334,10 +330,10 @@ index 63ee8f3c2..4264341bb 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/ceilometer/templates/daemonset-compute.yaml b/ceilometer/templates/daemonset-compute.yaml
-index 07536d443..a1323f668 100644
+index bec180b29..3f87e3783 100644
 --- a/ceilometer/templates/daemonset-compute.yaml
 +++ b/ceilometer/templates/daemonset-compute.yaml
-@@ -37,11 +37,13 @@ spec:
+@@ -39,11 +39,13 @@ spec:
    template:
      metadata:
        labels:
@@ -352,10 +348,10 @@ index 07536d443..a1323f668 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/ceilometer/templates/daemonset-ipmi.yaml b/ceilometer/templates/daemonset-ipmi.yaml
-index 619a2168f..7ec95e363 100644
+index 4ab8fa7f0..51632ffed 100644
 --- a/ceilometer/templates/daemonset-ipmi.yaml
 +++ b/ceilometer/templates/daemonset-ipmi.yaml
-@@ -37,11 +37,13 @@ spec:
+@@ -39,11 +39,13 @@ spec:
    template:
      metadata:
        labels:
@@ -369,29 +365,11 @@ index 619a2168f..7ec95e363 100644
  {{ tuple "ceilometer_ipmi" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
      spec:
        serviceAccountName: {{ $serviceAccountName }}
-diff --git a/ceilometer/templates/deployment-api.yaml b/ceilometer/templates/deployment-api.yaml
-index d82478aba..2c9ef26a2 100644
---- a/ceilometer/templates/deployment-api.yaml
-+++ b/ceilometer/templates/deployment-api.yaml
-@@ -38,11 +38,13 @@ spec:
-   template:
-     metadata:
-       labels:
-+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
- {{ tuple $envAll "ceilometer" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
-       annotations:
- {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
-         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
-         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
-+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
- {{ tuple "ceilometer_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
-     spec:
-       serviceAccountName: {{ $serviceAccountName }}
 diff --git a/ceilometer/templates/deployment-central.yaml b/ceilometer/templates/deployment-central.yaml
-index 15fae9591..607c9c981 100644
+index 90e8fc32f..1a5ac3ead 100644
 --- a/ceilometer/templates/deployment-central.yaml
 +++ b/ceilometer/templates/deployment-central.yaml
-@@ -38,11 +38,13 @@ spec:
+@@ -40,11 +40,13 @@ spec:
    template:
      metadata:
        labels:
@@ -405,29 +383,11 @@ index 15fae9591..607c9c981 100644
  {{ tuple "ceilometer_central" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
      spec:
        serviceAccountName: {{ $serviceAccountName }}
-diff --git a/ceilometer/templates/deployment-collector.yaml b/ceilometer/templates/deployment-collector.yaml
-index 5a10a0b01..5a1878327 100644
---- a/ceilometer/templates/deployment-collector.yaml
-+++ b/ceilometer/templates/deployment-collector.yaml
-@@ -38,11 +38,13 @@ spec:
-   template:
-     metadata:
-       labels:
-+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
- {{ tuple $envAll "ceilometer" "collector" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
-       annotations:
- {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
-         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
-         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
-+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
- {{ tuple "ceilometer_collector" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
-     spec:
-       serviceAccountName: {{ $serviceAccountName }}
 diff --git a/ceilometer/templates/deployment-notification.yaml b/ceilometer/templates/deployment-notification.yaml
-index 33b2c382c..bdb3719f9 100644
+index ec61c8fe1..584af1038 100644
 --- a/ceilometer/templates/deployment-notification.yaml
 +++ b/ceilometer/templates/deployment-notification.yaml
-@@ -38,11 +38,13 @@ spec:
+@@ -40,11 +40,13 @@ spec:
    template:
      metadata:
        labels:
@@ -441,39 +401,8 @@ index 33b2c382c..bdb3719f9 100644
  {{ tuple "ceilometer_notification" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
      spec:
        serviceAccountName: {{ $serviceAccountName }}
-diff --git a/ceilometer/templates/job-db-init-mongodb.yaml b/ceilometer/templates/job-db-init-mongodb.yaml
-index c8fdda998..669bcba01 100644
---- a/ceilometer/templates/job-db-init-mongodb.yaml
-+++ b/ceilometer/templates/job-db-init-mongodb.yaml
-@@ -26,6 +26,11 @@ metadata:
-     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
- spec:
-   template:
-+    metadata:
-+      labels:
-+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
-+      annotations:
-+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
-     spec:
-       serviceAccountName: {{ $serviceAccountName }}
-       restartPolicy: OnFailure
-diff --git a/ceilometer/templates/pod-rally-test.yaml b/ceilometer/templates/pod-rally-test.yaml
-index 040836e5f..b3136dbbd 100644
---- a/ceilometer/templates/pod-rally-test.yaml
-+++ b/ceilometer/templates/pod-rally-test.yaml
-@@ -25,7 +25,10 @@ apiVersion: v1
- kind: Pod
- metadata:
-   name: {{ print $envAll.Release.Name "-test" }}
-+  labels:
-+    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
-   annotations:
-+    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
-     "helm.sh/hook": test-success
-     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
- spec:
 diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
-index d933b9d8e..54d449d93 100644
+index 6b60226ca..984cddc8f 100644
 --- a/ceilometer/values.yaml
 +++ b/ceilometer/values.yaml
 @@ -19,6 +19,7 @@
@@ -481,11 +410,11 @@ index d933b9d8e..54d449d93 100644
  
  labels:
 +  isApplication: false
-   api:
-     node_selector_key: openstack-control-plane
+   compute:
+     node_selector_key: openstack-compute-node
      node_selector_value: enabled
 diff --git a/ceph-rgw/templates/deployment-rgw.yaml b/ceph-rgw/templates/deployment-rgw.yaml
-index 1fde8afe5..a62f27574 100644
+index eff781b29..ebaabfe48 100644
 --- a/ceph-rgw/templates/deployment-rgw.yaml
 +++ b/ceph-rgw/templates/deployment-rgw.yaml
 @@ -123,11 +123,13 @@ spec:
@@ -593,7 +522,7 @@ index 54a0f8706..01c3325bb 100644
  {{ dict "envAll" $envAll "podName" "ceph-rgw-test" "containerNames" (list "ceph-rgw-ks-validation" "ceph-rgw-s3-validation") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
  spec:
 diff --git a/ceph-rgw/values.yaml b/ceph-rgw/values.yaml
-index 3f3bbc6d0..abf9d618c 100644
+index d9162c20d..440d848bb 100644
 --- a/ceph-rgw/values.yaml
 +++ b/ceph-rgw/values.yaml
 @@ -42,6 +42,7 @@ images:
@@ -605,10 +534,10 @@ index 3f3bbc6d0..abf9d618c 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
-index e66286e44..d2b5db503 100644
+index ebc1074a0..9c94ee74a 100644
 --- a/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
 +++ b/cinder/templates/cron-job-cinder-volume-usage-audit.yaml
-@@ -45,8 +45,10 @@ spec:
+@@ -49,8 +49,10 @@ spec:
        template:
          metadata:
            labels:
@@ -620,10 +549,10 @@ index e66286e44..d2b5db503 100644
          spec:
  {{ dict "envAll" $envAll "application" "volume_usage_audit" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
 diff --git a/cinder/templates/deployment-api.yaml b/cinder/templates/deployment-api.yaml
-index 895495239..8b3773cf1 100644
+index 0608e7c3a..18e9658c1 100644
 --- a/cinder/templates/deployment-api.yaml
 +++ b/cinder/templates/deployment-api.yaml
-@@ -42,11 +42,13 @@ spec:
+@@ -61,11 +61,13 @@ spec:
    template:
      metadata:
        labels:
@@ -638,10 +567,10 @@ index 895495239..8b3773cf1 100644
  {{ dict "envAll" $envAll "podName" "cinder-api" "containerNames" (list "cinder-api" "ceph-coordination-volume-perms" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
-index e65da8daf..6de1ae0a8 100644
+index 974de89c4..9159694bb 100644
 --- a/cinder/templates/deployment-backup.yaml
 +++ b/cinder/templates/deployment-backup.yaml
-@@ -40,11 +40,13 @@ spec:
+@@ -44,11 +44,13 @@ spec:
    template:
      metadata:
        labels:
@@ -656,10 +585,10 @@ index e65da8daf..6de1ae0a8 100644
  {{ dict "envAll" $envAll "podName" "cinder-backup" "containerNames" (list "cinder-backup" "ceph-coordination-volume-perms" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/cinder/templates/deployment-scheduler.yaml b/cinder/templates/deployment-scheduler.yaml
-index d01200962..7c5de9a77 100644
+index a9f244dc1..395ee447b 100644
 --- a/cinder/templates/deployment-scheduler.yaml
 +++ b/cinder/templates/deployment-scheduler.yaml
-@@ -42,11 +42,13 @@ spec:
+@@ -46,11 +46,13 @@ spec:
    template:
      metadata:
        labels:
@@ -674,10 +603,10 @@ index d01200962..7c5de9a77 100644
  {{ dict "envAll" $envAll "podName" "cinder-scheduler" "containerNames" (list "cinder-scheduler" "ceph-coordination-volume-perms" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index eb9b17bfd..20dcb4f41 100644
+index 837d6234c..469e7f2ad 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
-@@ -44,11 +44,13 @@ spec:
+@@ -48,11 +48,13 @@ spec:
    template:
      metadata:
        labels:
@@ -692,10 +621,10 @@ index eb9b17bfd..20dcb4f41 100644
  {{ dict "envAll" $envAll "podName" "cinder-volume" "containerNames" (list "cinder-volume" "ceph-coordination-volume-perms" "init-cinder-conf" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/cinder/templates/job-backup-storage-init.yaml b/cinder/templates/job-backup-storage-init.yaml
-index 62db734bc..1f1fa3faf 100644
+index cb3885254..43069dc7f 100644
 --- a/cinder/templates/job-backup-storage-init.yaml
 +++ b/cinder/templates/job-backup-storage-init.yaml
-@@ -62,8 +62,10 @@ spec:
+@@ -60,8 +60,10 @@ spec:
    template:
      metadata:
        labels:
@@ -707,10 +636,10 @@ index 62db734bc..1f1fa3faf 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/cinder/templates/job-clean.yaml b/cinder/templates/job-clean.yaml
-index d4efac570..193afc487 100755
+index 293eabf66..d7f997257 100755
 --- a/cinder/templates/job-clean.yaml
 +++ b/cinder/templates/job-clean.yaml
-@@ -59,7 +59,10 @@ spec:
+@@ -60,7 +60,10 @@ spec:
    template:
      metadata:
        labels:
@@ -722,10 +651,10 @@ index d4efac570..193afc487 100755
        serviceAccountName: {{ $serviceAccountName }}
  {{ dict "envAll" $envAll "application" "clean" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/cinder/templates/job-create-internal-tenant.yaml b/cinder/templates/job-create-internal-tenant.yaml
-index 646468152..c5d22ce9b 100644
+index b01da3f20..e504d2a4e 100644
 --- a/cinder/templates/job-create-internal-tenant.yaml
 +++ b/cinder/templates/job-create-internal-tenant.yaml
-@@ -39,8 +39,10 @@ spec:
+@@ -38,8 +38,10 @@ spec:
    template:
      metadata:
        labels:
@@ -737,10 +666,10 @@ index 646468152..c5d22ce9b 100644
      spec:
  {{ dict "envAll" $envAll "application" "create_internal_tenant" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
-index 350b013ac..6a63ce4a0 100755
+index f8eb7d06c..92a1f1fad 100755
 --- a/cinder/templates/job-storage-init.yaml
 +++ b/cinder/templates/job-storage-init.yaml
-@@ -63,7 +63,10 @@ spec:
+@@ -61,7 +61,10 @@ spec:
    template:
      metadata:
        labels:
@@ -752,7 +681,7 @@ index 350b013ac..6a63ce4a0 100755
        serviceAccountName: {{ $serviceAccountName }}
  {{ dict "envAll" $envAll "application" "cinder" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/cinder/templates/pod-rally-test.yaml b/cinder/templates/pod-rally-test.yaml
-index 0452e3721..437d6fab7 100644
+index f128cd1ef..9588c8bdf 100644
 --- a/cinder/templates/pod-rally-test.yaml
 +++ b/cinder/templates/pod-rally-test.yaml
 @@ -26,8 +26,10 @@ kind: Pod
@@ -767,7 +696,7 @@ index 0452e3721..437d6fab7 100644
      {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
  {{ dict "envAll" $envAll "podName" "cinder-test" "containerNames" (list "init" "cinder-test" "cinder-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index a30e61f7d..5246c20f8 100644
+index 4daf04d0f..e84433e4e 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
 @@ -19,6 +19,7 @@
@@ -779,10 +708,10 @@ index a30e61f7d..5246c20f8 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/glance/templates/deployment-api.yaml b/glance/templates/deployment-api.yaml
-index 726ac5c99..651cdb749 100644
+index 4cfcfeca5..a883ebd19 100644
 --- a/glance/templates/deployment-api.yaml
 +++ b/glance/templates/deployment-api.yaml
-@@ -47,11 +47,13 @@ spec:
+@@ -49,11 +49,13 @@ spec:
    template:
      metadata:
        labels:
@@ -797,10 +726,10 @@ index 726ac5c99..651cdb749 100644
  {{ dict "envAll" $envAll "podName" "glance-api" "containerNames" ( list "glance-perms" "glance-api" "init" "nginx" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/glance/templates/job-clean.yaml b/glance/templates/job-clean.yaml
-index 26977c084..198a15579 100644
+index 4694acfb7..476e6a755 100644
 --- a/glance/templates/job-clean.yaml
 +++ b/glance/templates/job-clean.yaml
-@@ -59,7 +59,10 @@ spec:
+@@ -60,7 +60,10 @@ spec:
    template:
      metadata:
        labels:
@@ -812,10 +741,10 @@ index 26977c084..198a15579 100644
        serviceAccountName: {{ $serviceAccountName }}
  {{ dict "envAll" $envAll "application" "clean" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/glance/templates/job-metadefs-load.yaml b/glance/templates/job-metadefs-load.yaml
-index 0f2cff69b..cfcfd0ec6 100644
+index 6bd4109bb..a27a56a07 100644
 --- a/glance/templates/job-metadefs-load.yaml
 +++ b/glance/templates/job-metadefs-load.yaml
-@@ -33,8 +33,10 @@ spec:
+@@ -34,8 +34,10 @@ spec:
    template:
      metadata:
        labels:
@@ -827,10 +756,10 @@ index 0f2cff69b..cfcfd0ec6 100644
  {{ dict "envAll" $envAll "podName" "glance-metadefs-load" "containerNames" (list "init" "glance-metadefs-load" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/glance/templates/job-storage-init.yaml b/glance/templates/job-storage-init.yaml
-index d43e0736c..6a2454eb6 100644
+index 0325eb39b..71a87fdfa 100644
 --- a/glance/templates/job-storage-init.yaml
 +++ b/glance/templates/job-storage-init.yaml
-@@ -61,8 +61,10 @@ spec:
+@@ -60,8 +60,10 @@ spec:
    template:
      metadata:
        labels:
@@ -842,7 +771,7 @@ index d43e0736c..6a2454eb6 100644
  {{ dict "envAll" $envAll "podName" "glance-storage-init" "containerNames" (list "init" "glance-storage-init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/glance/templates/pod-rally-test.yaml b/glance/templates/pod-rally-test.yaml
-index 6732c2395..f2779caf6 100644
+index 067d2e10d..cee3f7267 100644
 --- a/glance/templates/pod-rally-test.yaml
 +++ b/glance/templates/pod-rally-test.yaml
 @@ -32,8 +32,10 @@ kind: Pod
@@ -857,7 +786,7 @@ index 6732c2395..f2779caf6 100644
  {{ dict "envAll" $envAll "podName" "glance-test" "containerNames" (list "init" "glance-test" "glance-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
  spec:
 diff --git a/glance/values.yaml b/glance/values.yaml
-index 328abeaed..31a0cafe7 100644
+index 777f9c45a..10cec9f84 100644
 --- a/glance/values.yaml
 +++ b/glance/values.yaml
 @@ -20,6 +20,7 @@
@@ -884,7 +813,7 @@ index 608bab5ff..6de846f61 100644
            serviceAccountName: {{ $serviceAccountName }}
            restartPolicy: OnFailure
 diff --git a/gnocchi/templates/daemonset-metricd.yaml b/gnocchi/templates/daemonset-metricd.yaml
-index 6fe775939..5d94ce260 100644
+index 7888c9211..2345a761e 100644
 --- a/gnocchi/templates/daemonset-metricd.yaml
 +++ b/gnocchi/templates/daemonset-metricd.yaml
 @@ -35,11 +35,13 @@ spec:
@@ -902,7 +831,7 @@ index 6fe775939..5d94ce260 100644
        serviceAccountName: {{ $serviceAccountName }}
        nodeSelector:
 diff --git a/gnocchi/templates/daemonset-statsd.yaml b/gnocchi/templates/daemonset-statsd.yaml
-index 316265bc8..371448eec 100644
+index 5aaa86bf0..9fed7d714 100644
 --- a/gnocchi/templates/daemonset-statsd.yaml
 +++ b/gnocchi/templates/daemonset-statsd.yaml
 @@ -34,11 +34,13 @@ spec:
@@ -920,7 +849,7 @@ index 316265bc8..371448eec 100644
        serviceAccountName: {{ $serviceAccountName }}
        nodeSelector:
 diff --git a/gnocchi/templates/deployment-api.yaml b/gnocchi/templates/deployment-api.yaml
-index 68555b184..d34f76394 100644
+index efff4f596..4c4ac52da 100644
 --- a/gnocchi/templates/deployment-api.yaml
 +++ b/gnocchi/templates/deployment-api.yaml
 @@ -36,11 +36,13 @@ spec:
@@ -1009,7 +938,7 @@ index c3cbe67bf..961f8a2c1 100644
  spec:
    nodeSelector:
 diff --git a/gnocchi/values.yaml b/gnocchi/values.yaml
-index f33e5de07..4454e7d8c 100644
+index b82be25bf..5744739f9 100644
 --- a/gnocchi/values.yaml
 +++ b/gnocchi/values.yaml
 @@ -16,6 +16,7 @@
@@ -1021,10 +950,10 @@ index f33e5de07..4454e7d8c 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/heat/templates/cron-job-engine-cleaner.yaml b/heat/templates/cron-job-engine-cleaner.yaml
-index 5e425167a..dff130288 100644
+index 4ea88f4a1..5551a56aa 100644
 --- a/heat/templates/cron-job-engine-cleaner.yaml
 +++ b/heat/templates/cron-job-engine-cleaner.yaml
-@@ -45,6 +45,7 @@ spec:
+@@ -47,6 +47,7 @@ spec:
        template:
          metadata:
            labels:
@@ -1033,10 +962,10 @@ index 5e425167a..dff130288 100644
            annotations:
  {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 12 }}
 diff --git a/heat/templates/cron-job-purge-deleted.yaml b/heat/templates/cron-job-purge-deleted.yaml
-index 9e3be164c..6ce7278af 100644
+index 7876c2245..14948255e 100644
 --- a/heat/templates/cron-job-purge-deleted.yaml
 +++ b/heat/templates/cron-job-purge-deleted.yaml
-@@ -42,8 +42,10 @@ spec:
+@@ -44,8 +44,10 @@ spec:
        template:
          metadata:
            labels:
@@ -1048,10 +977,10 @@ index 9e3be164c..6ce7278af 100644
  {{ dict "envAll" $envAll "podName" "heat-purge-deleted" "containerNames" (list "init" "heat-purge-deleted" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 12 }}
          spec:
 diff --git a/heat/templates/deployment-api.yaml b/heat/templates/deployment-api.yaml
-index e4c6b1ded..d2c14651f 100644
+index e2416aeab..bd401e4a1 100644
 --- a/heat/templates/deployment-api.yaml
 +++ b/heat/templates/deployment-api.yaml
-@@ -38,11 +38,13 @@ spec:
+@@ -40,11 +40,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1066,10 +995,10 @@ index e4c6b1ded..d2c14651f 100644
  {{ dict "envAll" $envAll "podName" "heat-api" "containerNames" (list "heat-api" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/heat/templates/deployment-cfn.yaml b/heat/templates/deployment-cfn.yaml
-index 00647372d..22f037eb4 100644
+index 24d90ff5a..402059e76 100644
 --- a/heat/templates/deployment-cfn.yaml
 +++ b/heat/templates/deployment-cfn.yaml
-@@ -38,11 +38,13 @@ spec:
+@@ -40,11 +40,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1083,29 +1012,11 @@ index 00647372d..22f037eb4 100644
  {{ tuple "heat_cfn" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
  {{ dict "envAll" $envAll "podName" "heat-cfn" "containerNames" (list "heat-cfn" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
-diff --git a/heat/templates/deployment-cloudwatch.yaml b/heat/templates/deployment-cloudwatch.yaml
-index f9cc24073..222bd8ca4 100644
---- a/heat/templates/deployment-cloudwatch.yaml
-+++ b/heat/templates/deployment-cloudwatch.yaml
-@@ -38,11 +38,13 @@ spec:
-   template:
-     metadata:
-       labels:
-+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
- {{ tuple $envAll "heat" "cloudwatch" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
-       annotations:
- {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
-         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
-         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
-+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
- {{ tuple "heat_cloudwatch" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
-     spec:
-       serviceAccountName: {{ $serviceAccountName }}
 diff --git a/heat/templates/deployment-engine.yaml b/heat/templates/deployment-engine.yaml
-index cee5d4f79..39ec46785 100644
+index 6d51b496c..059c82094 100644
 --- a/heat/templates/deployment-engine.yaml
 +++ b/heat/templates/deployment-engine.yaml
-@@ -44,12 +44,14 @@ spec:
+@@ -46,12 +46,14 @@ spec:
    template:
      metadata:
        labels:
@@ -1121,10 +1032,10 @@ index cee5d4f79..39ec46785 100644
  {{ dict "envAll" $envAll "podName" "heat-engine" "containerNames" (list "heat-engine" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
  {{- end }}
 diff --git a/heat/templates/job-ks-user-domain.yaml b/heat/templates/job-ks-user-domain.yaml
-index 16ba3d3c6..410f8f7ee 100644
+index aa7a8a21c..08a1c1225 100644
 --- a/heat/templates/job-ks-user-domain.yaml
 +++ b/heat/templates/job-ks-user-domain.yaml
-@@ -34,11 +34,13 @@ spec:
+@@ -32,11 +32,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1139,10 +1050,10 @@ index 16ba3d3c6..410f8f7ee 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/heat/templates/job-trusts.yaml b/heat/templates/job-trusts.yaml
-index cf6a8a1a9..b544bcac9 100644
+index abb06777f..4bd010ab3 100644
 --- a/heat/templates/job-trusts.yaml
 +++ b/heat/templates/job-trusts.yaml
-@@ -36,11 +36,13 @@ spec:
+@@ -34,11 +34,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1155,9 +1066,9 @@ index cf6a8a1a9..b544bcac9 100644
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
  {{ dict "envAll" $envAll "podName" "heat-trusts" "containerNames" (list "heat-trusts" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "heat_trusts" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/heat/templates/pod-rally-test.yaml b/heat/templates/pod-rally-test.yaml
-index 4dc8154b7..36714701f 100644
+index fb207592b..2054d9582 100644
 --- a/heat/templates/pod-rally-test.yaml
 +++ b/heat/templates/pod-rally-test.yaml
 @@ -32,8 +32,10 @@ kind: Pod
@@ -1172,7 +1083,7 @@ index 4dc8154b7..36714701f 100644
      {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
  spec:
 diff --git a/heat/values.yaml b/heat/values.yaml
-index 9d33c6476..814f62aa6 100644
+index 7bbcebfd0..3a89b35a4 100644
 --- a/heat/values.yaml
 +++ b/heat/values.yaml
 @@ -19,6 +19,7 @@
@@ -1184,7 +1095,7 @@ index 9d33c6476..814f62aa6 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/helm-toolkit/templates/manifests/_job-bootstrap.tpl b/helm-toolkit/templates/manifests/_job-bootstrap.tpl
-index cefd4e859..58ead020c 100644
+index 031db54c1..bfff93edd 100644
 --- a/helm-toolkit/templates/manifests/_job-bootstrap.tpl
 +++ b/helm-toolkit/templates/manifests/_job-bootstrap.tpl
 @@ -64,11 +64,15 @@ spec:
@@ -1202,7 +1113,7 @@ index cefd4e859..58ead020c 100644
 +        {{- end }}
  {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "bootstrap" $envAll | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
 index 5e31a04db..404c3d495 100644
 --- a/helm-toolkit/templates/manifests/_job-db-drop-mysql.tpl
@@ -1224,7 +1135,7 @@ index 5e31a04db..404c3d495 100644
        serviceAccountName: {{ $serviceAccountName }}
        restartPolicy: OnFailure
 diff --git a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
-index ff5d54bab..84b8e1a9e 100644
+index 5b8b4f3b5..09df8e9ae 100644
 --- a/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-init-mysql.tpl
 @@ -63,11 +63,15 @@ spec:
@@ -1242,12 +1153,12 @@ index ff5d54bab..84b8e1a9e 100644
 +        {{- end }}
  {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "db_init" $envAll | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/helm-toolkit/templates/manifests/_job-db-sync.tpl b/helm-toolkit/templates/manifests/_job-db-sync.tpl
-index 0320cc60e..3a375466b 100644
+index e43f162c0..b31440aae 100644
 --- a/helm-toolkit/templates/manifests/_job-db-sync.tpl
 +++ b/helm-toolkit/templates/manifests/_job-db-sync.tpl
-@@ -62,11 +62,15 @@ spec:
+@@ -63,11 +63,15 @@ spec:
    template:
      metadata:
        labels:
@@ -1262,7 +1173,7 @@ index 0320cc60e..3a375466b 100644
 +        {{- end }}
  {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "db_sync" $envAll | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl b/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
 index e4b0e45d3..387716c41 100644
 --- a/helm-toolkit/templates/manifests/_job-ks-endpoints.tpl
@@ -1304,10 +1215,10 @@ index 9604c6372..8111d37be 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl b/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
-index 58dcdc5c6..f768e68ee 100644
+index 31c120a00..470005755 100644
 --- a/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-ks-user.yaml.tpl
-@@ -86,11 +86,15 @@ spec:
+@@ -72,11 +72,15 @@ spec:
    template:
      metadata:
        labels:
@@ -1344,7 +1255,7 @@ index f3ff145f5..4fda90deb 100644
      spec:
        serviceAccountName: {{ $serviceAccountName | quote }}
 diff --git a/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl b/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
-index b5fdc09c3..7c4b605fd 100644
+index e1e2c33e9..2435fae9d 100644
 --- a/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-s3-bucket.yaml.tpl
 @@ -61,10 +61,15 @@ spec:
@@ -1364,7 +1275,7 @@ index b5fdc09c3..7c4b605fd 100644
        serviceAccountName: {{ $serviceAccountName | quote }}
        restartPolicy: OnFailure
 diff --git a/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl b/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
-index 77d1a71e9..e07549c66 100644
+index 6ed8e3970..2e17169f2 100644
 --- a/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
 +++ b/helm-toolkit/templates/manifests/_job-s3-user.yaml.tpl
 @@ -59,10 +59,15 @@ spec:
@@ -1404,7 +1315,7 @@ index 0906df4c9..bc135c64d 100644
        serviceAccountName: {{ $serviceAccountName }}
        restartPolicy: OnFailure
 diff --git a/horizon/templates/deployment.yaml b/horizon/templates/deployment.yaml
-index bd6db03bb..76d64b388 100644
+index 33ea7e0b2..9b77e5097 100644
 --- a/horizon/templates/deployment.yaml
 +++ b/horizon/templates/deployment.yaml
 @@ -38,11 +38,13 @@ spec:
@@ -1422,10 +1333,10 @@ index bd6db03bb..76d64b388 100644
  {{- if .Values.manifests.configmap_logo }}
          configmap-logo-hash: {{ tuple "configmap-logo.yaml" . | include "helm-toolkit.utils.hash" }}
 diff --git a/horizon/templates/job-db-sync.yaml b/horizon/templates/job-db-sync.yaml
-index 6805bfa92..b14ecfe68 100644
+index e5db0bd54..2a395dcf3 100644
 --- a/horizon/templates/job-db-sync.yaml
 +++ b/horizon/templates/job-db-sync.yaml
-@@ -37,8 +37,10 @@ spec:
+@@ -36,8 +36,10 @@ spec:
    template:
      metadata:
        labels:
@@ -1435,9 +1346,9 @@ index 6805bfa92..b14ecfe68 100644
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
  {{ dict "envAll" $envAll "podName" "horizon-db-sync" "containerNames" (list "horizon-db-sync" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "db_sync" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/horizon/templates/pod-helm-tests.yaml b/horizon/templates/pod-helm-tests.yaml
-index 979402a70..868bac820 100644
+index 7b4294611..604181f0c 100644
 --- a/horizon/templates/pod-helm-tests.yaml
 +++ b/horizon/templates/pod-helm-tests.yaml
 @@ -26,8 +26,10 @@ kind: Pod
@@ -1452,7 +1363,7 @@ index 979402a70..868bac820 100644
      {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
  {{ dict "envAll" $envAll "podName" "horizon-test" "containerNames" (list "init" "horizon-test") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
 diff --git a/horizon/values.yaml b/horizon/values.yaml
-index 7cdbd18d5..1146acfac 100644
+index 2ecf3d7e0..c1c86a860 100644
 --- a/horizon/values.yaml
 +++ b/horizon/values.yaml
 @@ -38,6 +38,7 @@ selenium_v4: true
@@ -1464,10 +1375,10 @@ index 7cdbd18d5..1146acfac 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/ironic/templates/deployment-api.yaml b/ironic/templates/deployment-api.yaml
-index 7d4b83874..cdc6629e7 100644
+index d4104ad34..e2f95a26f 100644
 --- a/ironic/templates/deployment-api.yaml
 +++ b/ironic/templates/deployment-api.yaml
-@@ -38,11 +38,13 @@ spec:
+@@ -39,11 +39,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1480,12 +1391,12 @@ index 7d4b83874..cdc6629e7 100644
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
  {{ tuple "ironic_api" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "ironic_api" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/ironic/templates/job-manage-cleaning-network.yaml b/ironic/templates/job-manage-cleaning-network.yaml
-index 48e8d729c..400bec5b9 100644
+index f87397e53..b566c3db1 100644
 --- a/ironic/templates/job-manage-cleaning-network.yaml
 +++ b/ironic/templates/job-manage-cleaning-network.yaml
-@@ -33,7 +33,10 @@ spec:
+@@ -31,7 +31,10 @@ spec:
    template:
      metadata:
        labels:
@@ -1497,10 +1408,10 @@ index 48e8d729c..400bec5b9 100644
        serviceAccountName: {{ $serviceAccountName }}
        restartPolicy: OnFailure
 diff --git a/ironic/templates/statefulset-conductor.yaml b/ironic/templates/statefulset-conductor.yaml
-index f3e68167f..45b05a31a 100644
+index 84aef76f0..7187fdb04 100644
 --- a/ironic/templates/statefulset-conductor.yaml
 +++ b/ironic/templates/statefulset-conductor.yaml
-@@ -38,11 +38,13 @@ spec:
+@@ -39,11 +39,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1512,14 +1423,14 @@ index f3e68167f..45b05a31a 100644
          configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
-       affinity:
+ {{ tuple "ironic_conductor" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
+ {{ tuple "ironic_conductor" . | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 6 }}
 diff --git a/ironic/values.yaml b/ironic/values.yaml
-index 6aece995f..fb3e01f39 100644
+index 202f2b19f..c9ca1ce3b 100644
 --- a/ironic/values.yaml
 +++ b/ironic/values.yaml
-@@ -21,6 +21,7 @@ release_group: null
- helm3_hook: true
+@@ -19,6 +19,7 @@
+ release_group: null
  
  labels:
 +  isApplication: false
@@ -1527,10 +1438,10 @@ index 6aece995f..fb3e01f39 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/keystone/templates/cron-job-credential-rotate.yaml b/keystone/templates/cron-job-credential-rotate.yaml
-index 590607962..db662cea6 100644
+index 7394c0a91..0fa9a8035 100644
 --- a/keystone/templates/cron-job-credential-rotate.yaml
 +++ b/keystone/templates/cron-job-credential-rotate.yaml
-@@ -68,7 +68,10 @@ spec:
+@@ -70,7 +70,10 @@ spec:
        template:
          metadata:
            labels:
@@ -1539,13 +1450,13 @@ index 590607962..db662cea6 100644
 +          annotations:
 +            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
          spec:
-           serviceAccountName: {{ $serviceAccountName }}
-           initContainers:
+ {{ tuple "keystone_credential_rotate" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 10 }}
+ {{ tuple "keystone_credential_rotate" . | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 10 }}
 diff --git a/keystone/templates/cron-job-fernet-rotate.yaml b/keystone/templates/cron-job-fernet-rotate.yaml
-index a059f929a..39c539722 100644
+index 849fcd54b..5b48576b9 100644
 --- a/keystone/templates/cron-job-fernet-rotate.yaml
 +++ b/keystone/templates/cron-job-fernet-rotate.yaml
-@@ -69,7 +69,10 @@ spec:
+@@ -71,7 +71,10 @@ spec:
        template:
          metadata:
            labels:
@@ -1554,13 +1465,13 @@ index a059f929a..39c539722 100644
 +          annotations:
 +            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
          spec:
-           serviceAccountName: {{ $serviceAccountName }}
- {{ dict "envAll" $envAll "application" "fernet_rotate" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+ {{ tuple "keystone_fernet_rotate" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 10 }}
+ {{ tuple "keystone_fernet_rotate" . | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 10 }}
 diff --git a/keystone/templates/deployment-api.yaml b/keystone/templates/deployment-api.yaml
-index 8f3794f8a..167616eda 100644
+index 8e5bcf21e..7fcd0ee41 100644
 --- a/keystone/templates/deployment-api.yaml
 +++ b/keystone/templates/deployment-api.yaml
-@@ -45,11 +45,13 @@ spec:
+@@ -47,11 +47,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1575,7 +1486,7 @@ index 8f3794f8a..167616eda 100644
  {{ dict "envAll" $envAll "podName" "keystone-api" "containerNames" (list "keystone-api") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/keystone/templates/job-credential-cleanup.yaml b/keystone/templates/job-credential-cleanup.yaml
-index 37a161efd..b249476d8 100644
+index 5f65dcb28..b8fb8346f 100644
 --- a/keystone/templates/job-credential-cleanup.yaml
 +++ b/keystone/templates/job-credential-cleanup.yaml
 @@ -38,11 +38,13 @@ spec:
@@ -1591,9 +1502,9 @@ index 37a161efd..b249476d8 100644
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
  {{ dict "envAll" $envAll "podName" "keystone-credential-cleanup" "containerNames" (list "keystone-credential-cleanup") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceName }}
+ {{ tuple "keystone_credential_cleanup" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/keystone/templates/job-credential-setup.yaml b/keystone/templates/job-credential-setup.yaml
-index 38ff3c8ba..a97fe27d6 100644
+index 1fb21e8e4..7b668563b 100644
 --- a/keystone/templates/job-credential-setup.yaml
 +++ b/keystone/templates/job-credential-setup.yaml
 @@ -67,11 +67,13 @@ spec:
@@ -1609,12 +1520,12 @@ index 38ff3c8ba..a97fe27d6 100644
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
  {{ dict "envAll" $envAll "podName" "keystone-credential-setup" "containerNames" (list "keystone-credential-setup") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "keystone_credential_setup" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/keystone/templates/job-domain-manage.yaml b/keystone/templates/job-domain-manage.yaml
-index 50e76b8d0..4282757f7 100644
+index 8ace6bbeb..9faa4942f 100644
 --- a/keystone/templates/job-domain-manage.yaml
 +++ b/keystone/templates/job-domain-manage.yaml
-@@ -35,11 +35,13 @@ spec:
+@@ -37,11 +37,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1627,9 +1538,9 @@ index 50e76b8d0..4282757f7 100644
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
  {{ dict "envAll" $envAll "podName" "keystone-domain-manage" "containerNames" (list "keystone-domain-manage" "keystone-domain-manage-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "keystone_domain_manage" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/keystone/templates/job-fernet-setup.yaml b/keystone/templates/job-fernet-setup.yaml
-index d52aa6ce4..ee64d6a20 100644
+index 1d85aa7fb..d72db4888 100644
 --- a/keystone/templates/job-fernet-setup.yaml
 +++ b/keystone/templates/job-fernet-setup.yaml
 @@ -67,11 +67,13 @@ spec:
@@ -1645,9 +1556,9 @@ index d52aa6ce4..ee64d6a20 100644
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
  {{ dict "envAll" $envAll "podName" "keystone-fernet-setup" "containerNames" (list "keystone-fernet-setup") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "keystone_fernet_setup" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/keystone/templates/pod-rally-test.yaml b/keystone/templates/pod-rally-test.yaml
-index 2d5e9528b..5e5517c0d 100644
+index 1b62afba3..d72567d5b 100644
 --- a/keystone/templates/pod-rally-test.yaml
 +++ b/keystone/templates/pod-rally-test.yaml
 @@ -32,8 +32,10 @@ kind: Pod
@@ -1662,7 +1573,7 @@ index 2d5e9528b..5e5517c0d 100644
      {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
  {{ dict "envAll" $envAll "podName" "keystone-test" "containerNames" (list "init" "keystone-test" "keystone-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
 diff --git a/keystone/values.yaml b/keystone/values.yaml
-index 7d17cc425..e642d1cb4 100644
+index 4a143a4c4..2349d4d78 100644
 --- a/keystone/values.yaml
 +++ b/keystone/values.yaml
 @@ -17,6 +17,7 @@
@@ -1674,7 +1585,7 @@ index 7d17cc425..e642d1cb4 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
-index 48c16b04c..6acbb2709 100644
+index 7a537b403..ceb22ca57 100644
 --- a/libvirt/templates/daemonset-libvirt.yaml
 +++ b/libvirt/templates/daemonset-libvirt.yaml
 @@ -51,12 +51,14 @@ spec:
@@ -1693,7 +1604,7 @@ index 48c16b04c..6acbb2709 100644
  {{ dict "envAll" $envAll "application" "libvirt" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index 4ce6f990f..6fa3619c2 100644
+index 9b3ff0105..cd587fa4a 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
 @@ -19,6 +19,7 @@
@@ -1705,10 +1616,10 @@ index 4ce6f990f..6fa3619c2 100644
      libvirt:
        node_selector_key: openstack-compute-node
 diff --git a/mariadb/templates/cron-job-backup-mariadb.yaml b/mariadb/templates/cron-job-backup-mariadb.yaml
-index cb8381254..9222a0862 100644
+index 2809c58bb..595c54ebf 100644
 --- a/mariadb/templates/cron-job-backup-mariadb.yaml
 +++ b/mariadb/templates/cron-job-backup-mariadb.yaml
-@@ -47,7 +47,10 @@ spec:
+@@ -48,7 +48,10 @@ spec:
        template:
          metadata:
            labels:
@@ -1735,10 +1646,10 @@ index c8b3c29c3..2f4ef8511 100644
      {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
  {{ dict "envAll" $envAll "podName" "mariadb-test" "containerNames" (list "init" "mariadb-test") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
 diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
-index 316dc9539..dc1d3eb50 100644
+index b08f4f4a9..20b52a005 100644
 --- a/mariadb/templates/statefulset.yaml
 +++ b/mariadb/templates/statefulset.yaml
-@@ -114,8 +114,10 @@ spec:
+@@ -115,8 +115,10 @@ spec:
    template:
      metadata:
        labels:
@@ -1750,7 +1661,7 @@ index 316dc9539..dc1d3eb50 100644
          configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
          configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 72783bdc7..c0e30a040 100644
+index c9b4e1209..c59f25078 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
 @@ -38,6 +38,7 @@ images:
@@ -1762,10 +1673,10 @@ index 72783bdc7..c0e30a040 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/memcached/templates/statefulset.yaml b/memcached/templates/statefulset.yaml
-index 77692d1bb..c416c5cea 100644
+index bfa2527d0..9df9e7812 100644
 --- a/memcached/templates/statefulset.yaml
 +++ b/memcached/templates/statefulset.yaml
-@@ -55,10 +55,12 @@ spec:
+@@ -49,10 +49,12 @@ spec:
    template:
      metadata:
        annotations:
@@ -1779,10 +1690,10 @@ index 77692d1bb..c416c5cea 100644
      spec:
  {{ dict "envAll" $envAll "application" "server" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/memcached/values.yaml b/memcached/values.yaml
-index 41fcb5086..b56313100 100644
+index 2eead712e..21ea2fbc2 100644
 --- a/memcached/values.yaml
 +++ b/memcached/values.yaml
-@@ -133,6 +133,7 @@ images:
+@@ -124,6 +124,7 @@ images:
        - image_repo_sync
  
  labels:
@@ -1790,37 +1701,8 @@ index 41fcb5086..b56313100 100644
    server:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
-diff --git a/mongodb/templates/statefulset.yaml b/mongodb/templates/statefulset.yaml
-index 7456a0778..6c4c5148a 100644
---- a/mongodb/templates/statefulset.yaml
-+++ b/mongodb/templates/statefulset.yaml
-@@ -35,10 +35,12 @@ spec:
-   template:
-     metadata:
-       labels:
-+        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
- {{ tuple $envAll "mongodb" "server" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
-       annotations:
- {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
-         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
-+        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
-     spec:
-       serviceAccountName: {{ $serviceAccountName }}
-       affinity:
-diff --git a/mongodb/values.yaml b/mongodb/values.yaml
-index e0d353e5a..00afdcfe3 100644
---- a/mongodb/values.yaml
-+++ b/mongodb/values.yaml
-@@ -70,6 +70,7 @@ volume:
-     host_path: /var/lib/openstack-helm/mongodb
- 
- labels:
-+  isApplication: false
-   server:
-     node_selector_key: openstack-control-plane
-     node_selector_value: enabled
 diff --git a/neutron/templates/daemonset-bagpipe-bgp.yaml b/neutron/templates/daemonset-bagpipe-bgp.yaml
-index b6d2157ee..96fe11e47 100644
+index 8be4edac1..e6b0cf363 100644
 --- a/neutron/templates/daemonset-bagpipe-bgp.yaml
 +++ b/neutron/templates/daemonset-bagpipe-bgp.yaml
 @@ -49,11 +49,13 @@ spec:
@@ -1838,10 +1720,10 @@ index b6d2157ee..96fe11e47 100644
      spec:
  {{ dict "envAll" $envAll "application" "neutron_bagpipe_bgp" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/neutron/templates/daemonset-dhcp-agent.yaml b/neutron/templates/daemonset-dhcp-agent.yaml
-index 4a5866737..71b57e26c 100644
+index 6b14552f1..845ffc53f 100644
 --- a/neutron/templates/daemonset-dhcp-agent.yaml
 +++ b/neutron/templates/daemonset-dhcp-agent.yaml
-@@ -70,11 +70,13 @@ spec:
+@@ -74,11 +74,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1856,10 +1738,10 @@ index 4a5866737..71b57e26c 100644
  {{ dict "envAll" $envAll "podName" "neutron-dhcp-agent-default" "containerNames" (list "neutron-dhcp-agent" "neutron-dhcp-agent-init" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/neutron/templates/daemonset-l2gw-agent.yaml b/neutron/templates/daemonset-l2gw-agent.yaml
-index 954470747..01679ac8b 100644
+index 488cdfffe..5a1cd8e7c 100644
 --- a/neutron/templates/daemonset-l2gw-agent.yaml
 +++ b/neutron/templates/daemonset-l2gw-agent.yaml
-@@ -72,11 +72,13 @@ spec:
+@@ -76,11 +76,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1874,10 +1756,10 @@ index 954470747..01679ac8b 100644
      spec:
  {{ dict "envAll" $envAll "application" "neutron_l2gw_agent" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/neutron/templates/daemonset-l3-agent.yaml b/neutron/templates/daemonset-l3-agent.yaml
-index 5bddd62b0..5f62f6cbf 100644
+index 8cfda8eee..891291687 100644
 --- a/neutron/templates/daemonset-l3-agent.yaml
 +++ b/neutron/templates/daemonset-l3-agent.yaml
-@@ -71,11 +71,13 @@ spec:
+@@ -75,11 +75,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1892,10 +1774,10 @@ index 5bddd62b0..5f62f6cbf 100644
  {{ dict "envAll" $envAll "podName" "neutron-l3-agent-default" "containerNames" (list "neutron-l3-agent" "init"  "neutron-l3-agent-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/neutron/templates/daemonset-lb-agent.yaml b/neutron/templates/daemonset-lb-agent.yaml
-index a7437b376..754e692ff 100644
+index 86af17920..54a9e4e75 100644
 --- a/neutron/templates/daemonset-lb-agent.yaml
 +++ b/neutron/templates/daemonset-lb-agent.yaml
-@@ -47,11 +47,13 @@ spec:
+@@ -51,11 +51,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1910,10 +1792,10 @@ index a7437b376..754e692ff 100644
      spec:
  {{ dict "envAll" $envAll "application" "neutron_lb_agent" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/neutron/templates/daemonset-metadata-agent.yaml b/neutron/templates/daemonset-metadata-agent.yaml
-index 4319886c4..22b894027 100644
+index 249ddb4a1..58668ba6a 100644
 --- a/neutron/templates/daemonset-metadata-agent.yaml
 +++ b/neutron/templates/daemonset-metadata-agent.yaml
-@@ -67,11 +67,13 @@ spec:
+@@ -71,11 +71,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1928,10 +1810,10 @@ index 4319886c4..22b894027 100644
  {{ dict "envAll" $envAll "podName" "neutron-metadata-agent-default" "containerNames" (list "neutron-metadata-agent" "neutron-metadata-agent-init" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/neutron/templates/daemonset-netns-cleanup-cron.yaml b/neutron/templates/daemonset-netns-cleanup-cron.yaml
-index d43c5950d..a91a1adea 100644
+index b747129ec..652312333 100644
 --- a/neutron/templates/daemonset-netns-cleanup-cron.yaml
 +++ b/neutron/templates/daemonset-netns-cleanup-cron.yaml
-@@ -39,11 +39,13 @@ spec:
+@@ -43,11 +43,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1946,10 +1828,10 @@ index d43c5950d..a91a1adea 100644
  {{ dict "envAll" $envAll "podName" "neutron-netns-cleanup-cron-default" "containerNames" (list "neutron-netns-cleanup-cron" "init" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/neutron/templates/daemonset-ovn-metadata-agent.yaml b/neutron/templates/daemonset-ovn-metadata-agent.yaml
-index 47e12567b..4f2a44fed 100644
+index 6a8014178..dc8e658a8 100644
 --- a/neutron/templates/daemonset-ovn-metadata-agent.yaml
 +++ b/neutron/templates/daemonset-ovn-metadata-agent.yaml
-@@ -67,11 +67,13 @@ spec:
+@@ -71,11 +71,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1964,10 +1846,10 @@ index 47e12567b..4f2a44fed 100644
  {{ dict "envAll" $envAll "podName" "neutron-ovn-metadata-agent-default" "containerNames" (list "neutron-ovn-metadata-agent" "neutron-ovn-metadata-agent-init" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/neutron/templates/daemonset-ovs-agent.yaml b/neutron/templates/daemonset-ovs-agent.yaml
-index a5ed53451..13841f803 100644
+index 16fbbe266..ee2161525 100644
 --- a/neutron/templates/daemonset-ovs-agent.yaml
 +++ b/neutron/templates/daemonset-ovs-agent.yaml
-@@ -50,11 +50,13 @@ spec:
+@@ -54,11 +54,13 @@ spec:
    template:
      metadata:
        labels:
@@ -1982,10 +1864,10 @@ index a5ed53451..13841f803 100644
  {{ dict "envAll" $envAll "podName" "$configMapName" "containerNames" (list "neutron-ovs-agent" "init" "neutron-openvswitch-agent-kernel-modules" "neutron-ovs-agent-init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/neutron/templates/daemonset-sriov-agent.yaml b/neutron/templates/daemonset-sriov-agent.yaml
-index 07f5931cd..d8977e69d 100644
+index 842b02559..7d5b6ae1c 100644
 --- a/neutron/templates/daemonset-sriov-agent.yaml
 +++ b/neutron/templates/daemonset-sriov-agent.yaml
-@@ -53,11 +53,13 @@ spec:
+@@ -57,11 +57,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2000,10 +1882,10 @@ index 07f5931cd..d8977e69d 100644
  {{ dict "envAll" $envAll "podName" "neutron-sriov-agent-default" "containerNames" (list "neutron-sriov-agent-init" "init" "neutron-sriov-agent") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/neutron/templates/deployment-ironic-agent.yaml b/neutron/templates/deployment-ironic-agent.yaml
-index 90d95d199..8b9abf184 100644
+index f1ed55d80..6d37b40f9 100644
 --- a/neutron/templates/deployment-ironic-agent.yaml
 +++ b/neutron/templates/deployment-ironic-agent.yaml
-@@ -41,11 +41,13 @@ spec:
+@@ -45,11 +45,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2018,10 +1900,10 @@ index 90d95d199..8b9abf184 100644
      spec:
  {{ dict "envAll" $envAll "application" "neutron_ironic_agent" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/neutron/templates/deployment-server.yaml b/neutron/templates/deployment-server.yaml
-index f8a2492ba..b2fdd4521 100644
+index 256c3c70e..f61599a8f 100644
 --- a/neutron/templates/deployment-server.yaml
 +++ b/neutron/templates/deployment-server.yaml
-@@ -54,11 +54,13 @@ spec:
+@@ -62,11 +62,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2036,7 +1918,7 @@ index f8a2492ba..b2fdd4521 100644
  {{ dict "envAll" $envAll "podName" "neutron-server" "containerNames" (list "neutron-server" "init" "nginx") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/neutron/templates/pod-rally-test.yaml b/neutron/templates/pod-rally-test.yaml
-index 8f289bf7d..300658e97 100644
+index 1778b7ba8..8163591e2 100644
 --- a/neutron/templates/pod-rally-test.yaml
 +++ b/neutron/templates/pod-rally-test.yaml
 @@ -32,9 +32,11 @@ kind: Pod
@@ -2052,10 +1934,10 @@ index 8f289bf7d..300658e97 100644
  {{ dict "envAll" $envAll "podName" "neutron-test" "containerNames" (list "init" "neutron-test" "neutron-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
  spec:
 diff --git a/neutron/values.yaml b/neutron/values.yaml
-index 540c0d2fc..688613ce7 100644
+index ea1656859..eca9e25d5 100644
 --- a/neutron/values.yaml
 +++ b/neutron/values.yaml
-@@ -57,6 +57,7 @@ images:
+@@ -58,6 +58,7 @@ images:
        - image_repo_sync
  
  labels:
@@ -2064,10 +1946,10 @@ index 540c0d2fc..688613ce7 100644
      dhcp:
        node_selector_key: openstack-control-plane
 diff --git a/nova/templates/cron-job-archive-deleted-rows.yaml b/nova/templates/cron-job-archive-deleted-rows.yaml
-index 9e62bbdb6..bed0c7714 100644
+index 4cc7556d0..95c01ecf8 100644
 --- a/nova/templates/cron-job-archive-deleted-rows.yaml
 +++ b/nova/templates/cron-job-archive-deleted-rows.yaml
-@@ -40,7 +40,10 @@ spec:
+@@ -44,7 +44,10 @@ spec:
        template:
          metadata:
            labels:
@@ -2076,13 +1958,13 @@ index 9e62bbdb6..bed0c7714 100644
 +          annotations:
 +            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
          spec:
-           serviceAccountName: {{ $serviceAccountName }}
- {{ dict "envAll" $envAll "application" "archive_deleted_rows" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+ {{ tuple "nova_archive_deleted_rows" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 10 }}
+ {{ tuple "nova_archive_deleted_rows" . | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 10 }}
 diff --git a/nova/templates/cron-job-cell-setup.yaml b/nova/templates/cron-job-cell-setup.yaml
-index cb4e58c28..2efa455f8 100644
+index aca0f51ec..be5fffc0f 100644
 --- a/nova/templates/cron-job-cell-setup.yaml
 +++ b/nova/templates/cron-job-cell-setup.yaml
-@@ -40,7 +40,10 @@ spec:
+@@ -45,7 +45,10 @@ spec:
        template:
          metadata:
            labels:
@@ -2091,13 +1973,13 @@ index cb4e58c28..2efa455f8 100644
 +          annotations:
 +            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
          spec:
-           serviceAccountName: {{ $serviceAccountName }}
- {{ dict "envAll" $envAll "application" "cell_setup" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+ {{ tuple "nova_cell_setup" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 10 }}
+ {{ tuple "nova_cell_setup" . | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 10 }}
 diff --git a/nova/templates/cron-job-service-cleaner.yaml b/nova/templates/cron-job-service-cleaner.yaml
-index 0da8c5e19..c5a9e55b1 100644
+index 90a7a92d7..8738a7494 100644
 --- a/nova/templates/cron-job-service-cleaner.yaml
 +++ b/nova/templates/cron-job-service-cleaner.yaml
-@@ -40,7 +40,10 @@ spec:
+@@ -44,7 +44,10 @@ spec:
        template:
          metadata:
            labels:
@@ -2106,13 +1988,13 @@ index 0da8c5e19..c5a9e55b1 100644
 +          annotations:
 +            configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
          spec:
-           serviceAccountName: {{ $serviceAccountName }}
- {{ dict "envAll" $envAll "application" "service_cleaner" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
+ {{ tuple "nova_service_cleaner" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 10 }}
+ {{ tuple "nova_service_cleaner" . | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 10 }}
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 43a1b75b5..0e73eed71 100644
+index 91b745b72..905986ee7 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
-@@ -83,8 +83,10 @@ spec:
+@@ -93,8 +93,10 @@ spec:
    template:
      metadata:
        labels:
@@ -2124,10 +2006,10 @@ index 43a1b75b5..0e73eed71 100644
          configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
  {{ tuple "nova_compute" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
 diff --git a/nova/templates/deployment-api-metadata.yaml b/nova/templates/deployment-api-metadata.yaml
-index 066ef7ba1..691c18402 100644
+index df789f38a..97d08f8a8 100644
 --- a/nova/templates/deployment-api-metadata.yaml
 +++ b/nova/templates/deployment-api-metadata.yaml
-@@ -52,11 +52,13 @@ spec:
+@@ -56,11 +56,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2142,10 +2024,10 @@ index 066ef7ba1..691c18402 100644
  {{ dict "envAll" $envAll "podName" "nova-api-metadata" "containerNames" (list "nova-api-metadata-init" "nova-api" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/nova/templates/deployment-api-osapi.yaml b/nova/templates/deployment-api-osapi.yaml
-index 7aceeca10..8e12ceaa7 100644
+index 226cbe208..8b07d9442 100644
 --- a/nova/templates/deployment-api-osapi.yaml
 +++ b/nova/templates/deployment-api-osapi.yaml
-@@ -52,11 +52,13 @@ spec:
+@@ -56,11 +56,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2160,10 +2042,10 @@ index 7aceeca10..8e12ceaa7 100644
  {{ dict "envAll" $envAll "podName" "nova-api-osapi" "containerNames" (list "nova-osapi" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/nova/templates/deployment-conductor.yaml b/nova/templates/deployment-conductor.yaml
-index 7cffbcc21..b9943c04f 100644
+index 2457e41c3..71d4be317 100644
 --- a/nova/templates/deployment-conductor.yaml
 +++ b/nova/templates/deployment-conductor.yaml
-@@ -61,11 +61,13 @@ spec:
+@@ -69,11 +69,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2178,10 +2060,10 @@ index 7cffbcc21..b9943c04f 100644
  {{ dict "envAll" $envAll "podName" "nova-conductor" "containerNames" (list "nova-conductor" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/nova/templates/deployment-novncproxy.yaml b/nova/templates/deployment-novncproxy.yaml
-index 1491bffe3..15a7ca470 100644
+index 76151d722..4000a7644 100644
 --- a/nova/templates/deployment-novncproxy.yaml
 +++ b/nova/templates/deployment-novncproxy.yaml
-@@ -50,11 +50,13 @@ spec:
+@@ -54,11 +54,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2196,10 +2078,10 @@ index 1491bffe3..15a7ca470 100644
  {{ dict "envAll" $envAll "podName" "nova-novncproxy" "containerNames" (list "nova-novncproxy" "nova-novncproxy-init-assets" "nova-novncproxy-init" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/nova/templates/deployment-scheduler.yaml b/nova/templates/deployment-scheduler.yaml
-index ebc627af2..c1ae4fb0d 100644
+index 1c73b5f77..66988cac5 100644
 --- a/nova/templates/deployment-scheduler.yaml
 +++ b/nova/templates/deployment-scheduler.yaml
-@@ -61,11 +61,13 @@ spec:
+@@ -69,11 +69,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2214,10 +2096,10 @@ index ebc627af2..c1ae4fb0d 100644
  {{ dict "envAll" $envAll "podName" "nova-scheduler" "containerNames" (list "nova-scheduler" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/nova/templates/deployment-spiceproxy.yaml b/nova/templates/deployment-spiceproxy.yaml
-index a7b45ecab..8dd9bc521 100644
+index 190dbdb5a..879f50f16 100644
 --- a/nova/templates/deployment-spiceproxy.yaml
 +++ b/nova/templates/deployment-spiceproxy.yaml
-@@ -48,11 +48,13 @@ spec:
+@@ -52,11 +52,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2230,12 +2112,12 @@ index a7b45ecab..8dd9bc521 100644
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
  {{ tuple "nova_spiceproxy" . | include "helm-toolkit.snippets.custom_pod_annotations" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "nova_spiceproxy" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/nova/templates/job-bootstrap.yaml b/nova/templates/job-bootstrap.yaml
-index cddc74439..749eb29b8 100644
+index 685105884..77a788f89 100644
 --- a/nova/templates/job-bootstrap.yaml
 +++ b/nova/templates/job-bootstrap.yaml
-@@ -40,8 +40,10 @@ spec:
+@@ -39,8 +39,10 @@ spec:
    template:
      metadata:
        labels:
@@ -2247,10 +2129,10 @@ index cddc74439..749eb29b8 100644
      spec:
  {{ dict "envAll" $envAll "application" "bootstrap" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/nova/templates/job-cell-setup.yaml b/nova/templates/job-cell-setup.yaml
-index 0fd99e023..5536531bd 100644
+index 35e9136b2..dafaa07e2 100644
 --- a/nova/templates/job-cell-setup.yaml
 +++ b/nova/templates/job-cell-setup.yaml
-@@ -35,8 +35,10 @@ spec:
+@@ -37,8 +37,10 @@ spec:
    template:
      metadata:
        labels:
@@ -2262,7 +2144,7 @@ index 0fd99e023..5536531bd 100644
      spec:
        serviceAccountName: {{ $serviceAccountName }}
 diff --git a/nova/templates/pod-rally-test.yaml b/nova/templates/pod-rally-test.yaml
-index 9b66716b5..14dd0e51c 100644
+index bf2e477ed..0fdc655dd 100644
 --- a/nova/templates/pod-rally-test.yaml
 +++ b/nova/templates/pod-rally-test.yaml
 @@ -32,8 +32,10 @@ kind: Pod
@@ -2277,10 +2159,10 @@ index 9b66716b5..14dd0e51c 100644
      {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
  {{ dict "envAll" $envAll "podName" "nova-test" "containerNames" (list "init" "nova-test" "nova-test-ks-user") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 4 }}
 diff --git a/nova/templates/statefulset-compute-ironic.yaml b/nova/templates/statefulset-compute-ironic.yaml
-index e26afd3a3..52212ee80 100644
+index b3a69bd71..7b6e4aaeb 100644
 --- a/nova/templates/statefulset-compute-ironic.yaml
 +++ b/nova/templates/statefulset-compute-ironic.yaml
-@@ -38,11 +38,13 @@ spec:
+@@ -42,11 +42,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2293,9 +2175,9 @@ index e26afd3a3..52212ee80 100644
 +        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
  {{ dict "envAll" $envAll "podName" "nova-compute-default" "containerNames" (list "nova-compute") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
-       serviceAccountName: {{ $serviceAccountName }}
+ {{ tuple "nova_compute_ironic" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
 diff --git a/nova/values.yaml b/nova/values.yaml
-index f330471d8..ba5f5bb74 100644
+index 9b9775782..8f3a81972 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
 @@ -19,6 +19,7 @@
@@ -2307,7 +2189,7 @@ index f330471d8..ba5f5bb74 100644
      compute:
        node_selector_key: openstack-compute-node
 diff --git a/openvswitch/templates/daemonset.yaml b/openvswitch/templates/daemonset.yaml
-index a6c7527b5..1bd5ba85c 100644
+index f93b004be..e085bffe4 100644
 --- a/openvswitch/templates/daemonset.yaml
 +++ b/openvswitch/templates/daemonset.yaml
 @@ -76,9 +76,11 @@ spec:
@@ -2323,7 +2205,7 @@ index a6c7527b5..1bd5ba85c 100644
  {{ dict "envAll" $envAll "podName" "openvswitch" "containerNames" (list "openvswitch-db" "openvswitch-db-perms" "openvswitch-vswitchd" "openvswitch-vswitchd-modules" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/openvswitch/values.yaml b/openvswitch/values.yaml
-index 89aeb88f6..5f9ee7d57 100644
+index 1d2ac36b6..a0ae7be1f 100644
 --- a/openvswitch/values.yaml
 +++ b/openvswitch/values.yaml
 @@ -32,6 +32,7 @@ images:
@@ -2335,10 +2217,10 @@ index 89aeb88f6..5f9ee7d57 100644
      node_selector_key: openvswitch
      node_selector_value: enabled
 diff --git a/placement/templates/deployment.yaml b/placement/templates/deployment.yaml
-index 77a4f7a1f..702ec0f51 100644
+index a2147f555..2407e1811 100644
 --- a/placement/templates/deployment.yaml
 +++ b/placement/templates/deployment.yaml
-@@ -40,11 +40,13 @@ spec:
+@@ -44,11 +44,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2353,7 +2235,7 @@ index 77a4f7a1f..702ec0f51 100644
  {{ dict "envAll" $envAll "podName" "placement-api" "containerNames" (list "placement-api" "init") | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
      spec:
 diff --git a/placement/values.yaml b/placement/values.yaml
-index 3541b95ed..66df39ed3 100644
+index a9bd2806d..1f030605e 100644
 --- a/placement/values.yaml
 +++ b/placement/values.yaml
 @@ -20,6 +20,7 @@
@@ -2365,7 +2247,7 @@ index 3541b95ed..66df39ed3 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/prometheus-openstack-exporter/templates/deployment.yaml b/prometheus-openstack-exporter/templates/deployment.yaml
-index a9b0391f1..35ece2474 100644
+index 62bb770c5..eca8c32fe 100644
 --- a/prometheus-openstack-exporter/templates/deployment.yaml
 +++ b/prometheus-openstack-exporter/templates/deployment.yaml
 @@ -36,11 +36,13 @@ spec:
@@ -2398,7 +2280,7 @@ index 04d126a3f..f232e660f 100644
      spec:
  {{ dict "envAll" $envAll "application" "ks_user" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/prometheus-openstack-exporter/values.yaml b/prometheus-openstack-exporter/values.yaml
-index 82dde78a6..c520b2831 100644
+index 5d0b8a58b..63a909ddd 100644
 --- a/prometheus-openstack-exporter/values.yaml
 +++ b/prometheus-openstack-exporter/values.yaml
 @@ -29,6 +29,7 @@ images:
@@ -2410,10 +2292,10 @@ index 82dde78a6..c520b2831 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 diff --git a/rabbitmq/templates/job-cluster-wait.yaml b/rabbitmq/templates/job-cluster-wait.yaml
-index 1c4378c70..223291e48 100644
+index 784a574f3..f906ff0d9 100644
 --- a/rabbitmq/templates/job-cluster-wait.yaml
 +++ b/rabbitmq/templates/job-cluster-wait.yaml
-@@ -46,11 +46,13 @@ spec:
+@@ -44,11 +44,13 @@ spec:
    template:
      metadata:
        labels:
@@ -2445,7 +2327,7 @@ index 37d8af364..2cdc047d4 100644
  spec:
  {{ dict "envAll" $envAll "application" "test" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 2 }}
 diff --git a/rabbitmq/templates/statefulset.yaml b/rabbitmq/templates/statefulset.yaml
-index 827a83827..2f9f663dc 100644
+index 383226d41..60d1081f2 100644
 --- a/rabbitmq/templates/statefulset.yaml
 +++ b/rabbitmq/templates/statefulset.yaml
 @@ -107,6 +107,7 @@ spec:
@@ -2465,7 +2347,7 @@ index 827a83827..2f9f663dc 100644
      spec:
  {{ dict "envAll" $envAll "application" "server" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
 diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
-index 015d3d259..1f8f44174 100644
+index 5f6467659..ffa48c66d 100644
 --- a/rabbitmq/values.yaml
 +++ b/rabbitmq/values.yaml
 @@ -17,6 +17,7 @@
@@ -2477,5 +2359,5 @@ index 015d3d259..1f8f44174 100644
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 -- 
-2.43.0
+2.34.1
 

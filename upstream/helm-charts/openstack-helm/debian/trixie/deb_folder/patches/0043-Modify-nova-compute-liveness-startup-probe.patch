@@ -22,25 +22,26 @@ With this change:
   visibility, and libvirt connectivity.
 - Readiness probes continue to validate RPC/RabbitMQ
   connectivity.
-
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  nova/templates/bin/_health-probe.py.tpl | 25 ++++++++++++++++++++++++-
  nova/templates/daemonset-compute.yaml   |  2 ++
  2 files changed, 26 insertions(+), 1 deletion(-)
 
 diff --git a/nova/templates/bin/_health-probe.py.tpl b/nova/templates/bin/_health-probe.py.tpl
-index 04e95d01a..221feef7b 100644
+index 587b1da99..d38cdf6d6 100644
 --- a/nova/templates/bin/_health-probe.py.tpl
 +++ b/nova/templates/bin/_health-probe.py.tpl
-@@ -32,6 +32,7 @@ Usage example for Nova Compute:
+@@ -34,6 +34,7 @@ Usage example for Nova Compute:
  """
  
  import json
 +import libvirt
  import os
  import psutil
- import re
-@@ -191,6 +192,21 @@ def test_tcp_socket(service):
+ import signal
+@@ -199,6 +200,21 @@ def test_tcp_socket(service):
                      sys.exit(1)
  
  
@@ -62,16 +63,16 @@ index 04e95d01a..221feef7b 100644
  def test_rpc_liveness():
      """Test if service can consume message from queue"""
      oslo_messaging.set_transport_defaults(control_exchange='nova')
-@@ -203,6 +219,8 @@ def test_rpc_liveness():
+@@ -211,6 +227,8 @@ def test_rpc_liveness():
                                            required=False))
      cfg.CONF.register_cli_opt(cfg.BoolOpt('use-fqdn', default=False,
                                            required=False))
 +    cfg.CONF.register_cli_opt(cfg.BoolOpt('ignore-rpc-call',
 +                                          default=False, required=False))
  
-     cfg.CONF(sys.argv[1:])
- 
-@@ -231,7 +249,12 @@ def test_rpc_liveness():
+     # Opts need to be registered to be accessible by this script.
+     cfg.CONF.register_opt(cfg.StrOpt('host'))
+@@ -247,7 +265,12 @@ def test_rpc_liveness():
      service = cfg.CONF.service_queue_name
      test_tcp_socket(service)
  
@@ -86,10 +87,10 @@ index 04e95d01a..221feef7b 100644
  def check_pid_running(pid):
      if psutil.pid_exists(int(pid)):
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 2f0266cf6..d0230bb92 100644
+index 24cc59de2..b439c87ed 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
-@@ -22,6 +22,7 @@ exec:
+@@ -24,6 +24,7 @@ exec:
      - --service-queue-name
      - compute
      - --liveness-probe
@@ -97,7 +98,7 @@ index 2f0266cf6..d0230bb92 100644
      {{- if .Values.pod.use_fqdn.compute }}
      - --use-fqdn
      {{- end }}
-@@ -51,6 +52,7 @@ exec:
+@@ -57,6 +58,7 @@ exec:
      - --service-queue-name
      - compute
      - --liveness-probe

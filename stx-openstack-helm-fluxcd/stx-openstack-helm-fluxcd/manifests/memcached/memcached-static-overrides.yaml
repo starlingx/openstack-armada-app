@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -74,8 +74,6 @@ endpoints:
     port:
       memcache:
         default: 11211
-      metrics:
-        default: 9150
   kube_dns:
     namespace: kube-system
     name: kubernetes-dns
@@ -103,12 +101,6 @@ network_policy:
     egress:
       - {}
 
-monitoring:
-  prometheus:
-    enabled: false
-    memcached_exporter:
-      scrape: true
-
 images:
   pull_policy: IfNotPresent
   tags:
@@ -131,6 +123,10 @@ labels:
   prometheus_memcached_exporter:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+memcached:
+  extraContainers: []
+  extraServicePorts: []
+
 manifests:
   configmap_bin: true
   statefulset: true
@@ -156,12 +152,6 @@ pod:
           capabilities:
             drop:
               - ALL
-        memcached_exporter:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-              - ALL
   probes:
     memcached:
       memcached:
@@ -176,19 +166,6 @@ pod:
           params:
             initialDelaySeconds: 10
             periodSeconds: 15
-            timeoutSeconds: 10
-      memcached_exporter:
-        liveness:
-          enabled: True
-          params:
-            initialDelaySeconds: 15
-            periodSeconds: 60
-            timeoutSeconds: 10
-        readiness:
-          enabled: True
-          params:
-            initialDelaySeconds: 5
-            periodSeconds: 60
             timeoutSeconds: 10
   affinity:
     anti:
@@ -233,13 +210,6 @@ pod:
       requests:
         cpu: "500m"
         memory: "128Mi"
-    prometheus_memcached_exporter:
-      limits:
-        memory: "1024Mi"
-        cpu: "2000m"
-      requests:
-        cpu: 500m
-        memory: 128Mi
     jobs:
       image_repo_sync:
         requests:

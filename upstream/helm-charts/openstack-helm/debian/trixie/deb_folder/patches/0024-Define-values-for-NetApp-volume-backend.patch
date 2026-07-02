@@ -33,6 +33,8 @@ Change-Id: I00919573fed352c2df568e59f8d8d940b05d9c73
 Signed-off-by: Joao Fracarolli <joao.vicentinifracarolli@windriver.com>
 [ upversioned of changes to openstack-helm for epoxy release ]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 
 [ESB: Add backend_conf and other fields]
 
@@ -41,16 +43,16 @@ Backends. These fields are: tls, backend_conf, and extra_mounts.
 
 Signed-off-by: Dirley Rodrigues Lima da Silva <dirley.rodrigueslimadasilva@windriver.com>
 ---
- cinder/templates/configmap-etc.yaml     |  3 +++
- cinder/templates/deployment-volume.yaml |  6 ++++++
- cinder/values.yaml                      | 16 ++++++++++++++++
- 3 files changed, 25 insertions(+)
+  cinder/templates/configmap-etc.yaml     |  3 +++
+  cinder/templates/deployment-volume.yaml |  6 ++++++
+  cinder/values.yaml                      | 34 +++++++++++++++++++++++++++++++++
+  3 files changed, 43 insertions(+)
 
 diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
-index 2e83f3740..f7ba5dd96 100644
+index 511995b..f36eee5 100644
 --- a/cinder/templates/configmap-etc.yaml
 +++ b/cinder/templates/configmap-etc.yaml
-@@ -179,6 +179,9 @@ data:
+@@ -123,6 +123,9 @@ data:
    cinder_sudoers: {{ $envAll.Values.conf.cinder_sudoers | b64enc }}
    rootwrap.conf: {{ $envAll.Values.conf.rootwrap | b64enc }}
    resource_filters.json: {{ toJson .Values.conf.resource_filters | b64enc }}
@@ -61,10 +63,10 @@ index 2e83f3740..f7ba5dd96 100644
  {{- $filePrefix := replace "_" "-"  $key }}
    {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index 20dcb4f41..9ecf7f122 100644
+index 469e7f2..e288e1e 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
-@@ -188,6 +188,12 @@ spec:
+@@ -201,6 +201,12 @@ spec:
                mountPath: /etc/cinder/conf/backends.conf
                subPath: backends.conf
                readOnly: true
@@ -78,13 +80,13 @@ index 20dcb4f41..9ecf7f122 100644
              - name: etcceph
                mountPath: /etc/ceph
 diff --git a/cinder/values.yaml b/cinder/values.yaml
-index 8179fc8f6..14a24f879 100644
+index 1c12e02..c50dbd6 100644
 --- a/cinder/values.yaml
 +++ b/cinder/values.yaml
-@@ -1470,6 +1470,40 @@ tls:
+@@ -1517,6 +1517,40 @@ tls:
    oslo_messaging: false
    oslo_db: false
-
+ 
 +storage_conf:
 +  storage_backends:
 +    - name: ceph

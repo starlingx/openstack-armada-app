@@ -40,13 +40,6 @@ class HorizonHelm(openstack.OpenstackBaseHelm):
                         }
                     }
                 },
-                'dependencies': {
-                    'static': {
-                        'dashboard': {
-                            'jobs': []
-                        }
-                    }
-                },
                 'pod': {
                     'replicas': {
                         'server': self._num_provisioned_controllers()

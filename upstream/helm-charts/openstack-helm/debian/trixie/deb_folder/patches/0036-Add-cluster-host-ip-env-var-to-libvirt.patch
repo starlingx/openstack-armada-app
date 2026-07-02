@@ -27,7 +27,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  2 files changed, 31 insertions(+), 1 deletion(-)
 
 diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
-index af1b4f5e0..1e6bca4c2 100644
+index 16e2939e6..99f41c871 100644
 --- a/libvirt/templates/bin/_libvirt.sh.tpl
 +++ b/libvirt/templates/bin/_libvirt.sh.tpl
 @@ -16,6 +16,30 @@ limitations under the License.
@@ -68,7 +68,7 @@ index af1b4f5e0..1e6bca4c2 100644
 -cgexec -g ${CGROUPS%,}:/osh-libvirt systemd-run --scope --slice=system libvirtd --listen
 +cgexec -g ${CGROUPS%,}:/osh-libvirt systemd-run --scope --slice=system libvirtd --listen -f /tmp/libvirtd.conf
 diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
-index b82c930d0..ab55cb64c 100644
+index 91380ce7c..a104b6edf 100644
 --- a/libvirt/templates/daemonset-libvirt.yaml
 +++ b/libvirt/templates/daemonset-libvirt.yaml
 @@ -205,6 +205,10 @@ spec:

@@ -27,35 +27,6 @@ from k8sapp_openstack.utils import is_ceph_backend_available
 
 LOG = logging.getLogger(__name__)
 
-DEFAULT_NOVA_PCI_ALIAS = [
-    {"vendor_id": constants.NOVA_PCI_ALIAS_QAT_PF_VENDOR,
-     "product_id": constants.NOVA_PCI_ALIAS_QAT_DH895XCC_PF_DEVICE,
-     "name": constants.NOVA_PCI_ALIAS_QAT_DH895XCC_PF_NAME},
-    {"vendor_id": constants.NOVA_PCI_ALIAS_QAT_VF_VENDOR,
-     "product_id": constants.NOVA_PCI_ALIAS_QAT_DH895XCC_VF_DEVICE,
-     "name": constants.NOVA_PCI_ALIAS_QAT_DH895XCC_VF_NAME},
-    {"vendor_id": constants.NOVA_PCI_ALIAS_QAT_PF_VENDOR,
-     "product_id": constants.NOVA_PCI_ALIAS_QAT_C62X_PF_DEVICE,
-     "name": constants.NOVA_PCI_ALIAS_QAT_C62X_PF_NAME},
-    {"vendor_id": constants.NOVA_PCI_ALIAS_QAT_VF_VENDOR,
-     "product_id": constants.NOVA_PCI_ALIAS_QAT_C62X_VF_DEVICE,
-     "name": constants.NOVA_PCI_ALIAS_QAT_C62X_VF_NAME},
-    {"name": constants.NOVA_PCI_ALIAS_GPU_NAME},
-    {"vendor_id": app_constants.NOVA_PCI_ALIAS_GPU_MATROX_VENDOR,
-     "product_id": app_constants.NOVA_PCI_ALIAS_GPU_MATROX_G200E_DEVICE,
-     "name": app_constants.NOVA_PCI_ALIAS_GPU_MATROX_G200E_NAME},
-    {"vendor_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_VENDOR,
-     "product_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_M60_DEVICE,
-     "name": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_M60_NAME},
-    {"vendor_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_VENDOR,
-     "product_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_P40_DEVICE,
-     "name": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_P40_NAME},
-    {"vendor_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_VENDOR,
-     "product_id": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_T4_PF_DEVICE,
-     "device_type": app_constants.NOVA_PCI_ALIAS_DEVICE_TYPE_PF,
-     "name": app_constants.NOVA_PCI_ALIAS_GPU_NVIDIA_TESLA_T4_PF_NAME},
-]
-
 
 class NovaHelm(openstack.OpenstackBaseHelm):
     """Class to encapsulate helm operations for the nova chart"""
@@ -67,7 +38,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
     SERVICE_FQDN = 'nova-api-internal'
     SERVICE_NAME = app_constants.HELM_CHART_NOVA
     AUTH_USERS = ['nova']
-    SERVICE_USERS = ['neutron', 'ironic', 'placement', 'cinder']
+    SERVICE_USERS = ['neutron', 'ironic', 'placement', 'cinder', 'service']
     NOVNCPROXY_SERVICE_NAME = 'novncproxy'
     NOVNCPROXY_TLS_NAME = 'nova-novncproxy'
     NOVNCPROXY_NODE_PORT = '30680'
@@ -400,21 +371,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                         devices.append(device)
 
         return devices
-
-    def _get_pci_alias(self):
-        """
-        Generate multistring values containing global PCI alias
-        configuration for QAT and GPU devices.
-
-        The multistring type with list of JSON string values is used
-        to generate one-line-per-entry formatting, since JSON list of
-        dict is not supported by nova.
-        """
-        alias_config = DEFAULT_NOVA_PCI_ALIAS[:]
-        LOG.debug('_get_pci_alias: aliases = %s', alias_config)
-        multistring = self._oslo_multistring_override(
-            name='alias', values=alias_config)
-        return multistring
 
     def _get_port_interface_id_index(self, host):
         """
@@ -872,7 +828,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 'vnc': {
                     'novncproxy_base_url': self._get_novncproxy_base_url(),
                 },
-                'pci': self._get_pci_alias(),
             },
             'overrides': {
                 'nova_compute': {

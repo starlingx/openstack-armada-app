@@ -48,6 +48,8 @@ deployment template, matching what is already present in the
 cinder-volume template.
 
 Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 
 [ESB: Add active_protocols-based template gating]
 
@@ -70,16 +72,14 @@ backward compatibility with strict-only deployments.
 
 Signed-off-by: Dirley Rodrigues Lima da Silva <dirley.rodrigueslimadasilva@windriver.com>
 ---
- cinder/templates/bin/_storage-init.sh.tpl     |  6 ++++
- cinder/templates/deployment-backup.yaml       | 20 +++++++++++--
- cinder/templates/deployment-volume.yaml       | 13 +++++---
- cinder/templates/job-storage-init.yaml        | 18 +++++++----
- cinder/templates/utils/_has_ceph_backend.tpl  |  4 ++-
- .../templates/utils/_has_netapp_backend.tpl   | 25 ++++++++++++++++
- .../templates/utils/_is_backend_enabled.tpl   | 30 +++++++++++++++++++
- 7 files changed, 103 insertions(+), 13 deletions(-)
- create mode 100644 cinder/templates/utils/_has_netapp_backend.tpl
- create mode 100644 cinder/templates/utils/_is_backend_enabled.tpl
+  cinder/templates/bin/_storage-init.sh.tpl      |  6 ++++++
+  cinder/templates/deployment-backup.yaml        | 20 +++++++++++++++--
+  cinder/templates/deployment-volume.yaml        | 13 +++++++----
+  cinder/templates/job-storage-init.yaml         | 18 ++++++++++------
+  cinder/templates/utils/_has_ceph_backend.tpl   |  4 +++-
+  cinder/templates/utils/_has_netapp_backend.tpl | 25 +++++++++++++++++++++
+  cinder/templates/utils/_is_backend_enabled.tpl | 30 ++++++++++++++++++++++++++
+  7 files changed, 103 insertions(+), 13 deletions(-)
 
 diff --git a/cinder/templates/bin/_storage-init.sh.tpl b/cinder/templates/bin/_storage-init.sh.tpl
 index 53b0b07..fb1d7f5 100644
@@ -88,7 +88,7 @@ index 53b0b07..fb1d7f5 100644
 @@ -14,6 +14,12 @@ See the License for the specific language governing permissions and
  limitations under the License.
  */}}
-
+ 
 +set -x
 +if [ "x$STORAGE_BACKEND" != "xcinder.volume.drivers.rbd.RBDDriver" ]; then
 +  echo "INFO: no Ceph action required for storage backend ${STORAGE_BACKEND}"
@@ -99,10 +99,10 @@ index 53b0b07..fb1d7f5 100644
  if [ "x$STORAGE_BACKEND" == "xcinder.volume.drivers.rbd.RBDDriver" ]; then
    SECRET=$(mktemp --suffix .yaml)
 diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
-index 6de1ae0..ae596eb 100644
+index 9159694..04b787e 100644
 --- a/cinder/templates/deployment-backup.yaml
 +++ b/cinder/templates/deployment-backup.yaml
-@@ -261,7 +261,9 @@ spec:
+@@ -272,7 +272,9 @@ spec:
                mountPath: /etc/cinder/rootwrap.d/volume.filters
                subPath: volume.filters
                readOnly: true
@@ -113,7 +113,7 @@ index 6de1ae0..ae596eb 100644
              - name: host-rootfs
                mountPath: /mnt/host-rootfs
                {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
-@@ -286,6 +288,17 @@ spec:
+@@ -297,6 +299,17 @@ spec:
              - name: cinder-bin
                mountPath: /usr/local/sbin/iscsiadm
                subPath: iscsiadm
@@ -131,7 +131,7 @@ index 6de1ae0..ae596eb 100644
              {{- end }}
  {{ if $mounts_cinder_backup.volumeMounts }}{{ toYaml $mounts_cinder_backup.volumeMounts | indent 12 }}{{ end }}
        volumes:
-@@ -347,7 +360,7 @@ spec:
+@@ -368,7 +381,7 @@ spec:
          - name: cinder-coordination
            emptyDir: {}
          {{- end }}
@@ -140,7 +140,7 @@ index 6de1ae0..ae596eb 100644
          - name: host-rootfs
            hostPath:
              path: /
-@@ -365,6 +378,9 @@ spec:
+@@ -386,6 +399,9 @@ spec:
              path: /etc/iscsi
          - name: usrlocalsbin
            emptyDir: {}
@@ -151,10 +151,10 @@ index 6de1ae0..ae596eb 100644
  {{ if $mounts_cinder_backup.volumes }}{{ toYaml $mounts_cinder_backup.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index 9ecf7f1..d336476 100644
+index e288e1e..c73aca6 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
-@@ -67,13 +67,17 @@ spec:
+@@ -73,13 +73,17 @@ spec:
        hostNetwork: true
        dnsPolicy: ClusterFirstWithHostNet
  {{- end }}
@@ -173,7 +173,7 @@ index 9ecf7f1..d336476 100644
              {{- if eq $internal_ceph_backend $name }}
          - name: ceph-keyring-placement-{{ $name | lower }}
  {{ tuple $envAll "cinder_volume" | include "helm-toolkit.snippets.image" | indent 10 }}
-@@ -107,6 +111,7 @@ spec:
+@@ -113,6 +117,7 @@ spec:
                readOnly: true
              {{- end }}
              {{- end }}
@@ -181,7 +181,7 @@ index 9ecf7f1..d336476 100644
          {{- end }}
          {{- if eq ( split "://" .Values.conf.cinder.coordination.backend_url )._0 "file" }}
          - name: ceph-coordination-volume-perms
-@@ -188,7 +193,7 @@ spec:
+@@ -201,7 +206,7 @@ spec:
                mountPath: /etc/cinder/conf/backends.conf
                subPath: backends.conf
                readOnly: true
@@ -190,7 +190,7 @@ index 9ecf7f1..d336476 100644
              - name: cinder-etc
                mountPath: /etc/cinder/nfs.shares
                subPath: nfs.shares
-@@ -254,7 +259,7 @@ spec:
+@@ -267,7 +272,7 @@ spec:
                readOnly: true
              {{- end }}
              {{- end }}
@@ -199,7 +199,7 @@ index 9ecf7f1..d336476 100644
              - name: host-rootfs
                mountPath: /mnt/host-rootfs
                {{- if or ( gt .Capabilities.KubeVersion.Major "1" ) ( ge .Capabilities.KubeVersion.Minor "10" ) }}
-@@ -347,7 +352,7 @@ spec:
+@@ -372,7 +377,7 @@ spec:
          - name: cinder-coordination
            emptyDir: {}
          {{- end }}
@@ -209,10 +209,10 @@ index 9ecf7f1..d336476 100644
            hostPath:
              path: /
 diff --git a/cinder/templates/job-storage-init.yaml b/cinder/templates/job-storage-init.yaml
-index 6a63ce4..b1dca36 100755
+index 92a1f1f..86331fe 100755
 --- a/cinder/templates/job-storage-init.yaml
 +++ b/cinder/templates/job-storage-init.yaml
-@@ -103,8 +103,7 @@ spec:
+@@ -101,8 +101,7 @@ spec:
          {{ end }}
        containers:
          {{- range $name, $backend := .Values.conf.backends }}
@@ -222,7 +222,7 @@ index 6a63ce4..b1dca36 100755
          - name: cinder-storage-init-{{ $name | lower }}
  {{ tuple $envAll "cinder_storage_init" | include "helm-toolkit.snippets.image" | indent 10 }}
  {{ tuple $envAll $envAll.Values.pod.resources.jobs.storage_init | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
-@@ -115,6 +114,8 @@ spec:
+@@ -113,6 +112,8 @@ spec:
                    fieldPath: metadata.namespace
              - name: STORAGE_BACKEND
                value: {{ $backend.volume_driver | quote }}
@@ -231,7 +231,7 @@ index 6a63ce4..b1dca36 100755
              - name: RBD_POOL_NAME
                value: {{ $backend.rbd_pool | quote }}
              - name: RBD_POOL_APP_NAME
-@@ -129,6 +130,8 @@ spec:
+@@ -127,6 +128,8 @@ spec:
                value: {{ (index $envAll.Values.conf.ceph.pools $backend.rbd_pool).chunk_size | quote }}
              - name: RBD_POOL_SECRET
                value: {{ $envAll.Values.secrets.rbd.volume | quote }}
@@ -240,7 +240,7 @@ index 6a63ce4..b1dca36 100755
            command:
              - /tmp/storage-init.sh
            volumeMounts:
-@@ -138,21 +141,24 @@ spec:
+@@ -136,21 +139,24 @@ spec:
                mountPath: /tmp/storage-init.sh
                subPath: storage-init.sh
                readOnly: true

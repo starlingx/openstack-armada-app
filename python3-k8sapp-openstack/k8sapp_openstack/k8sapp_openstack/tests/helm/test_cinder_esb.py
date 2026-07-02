@@ -606,7 +606,6 @@ class TestCinderESBOverridesIntegration(CinderESBTestCase,
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
@@ -677,7 +676,6 @@ class TestCinderESBOverridesIntegration(CinderESBTestCase,
         # default_volume_type follows priority
         self.assertEqual(overrides['conf']['cinder']['DEFAULT']['default_volume_type'], 'dell-iscsi')
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
@@ -734,7 +732,6 @@ class TestCinderESBOverridesIntegration(CinderESBTestCase,
             sec_ctx['cinder_volume']['container']['cinder_volume']['readOnlyRootFilesystem'])
         self.assertFalse(overrides['conf']['enable_iscsi'])
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',

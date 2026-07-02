@@ -11,6 +11,8 @@ to SingleStack because it is the default value if not configured.
 Signed-off-by: Johnny Chia <johnny.chialung@windriver.com>
 [ Adapt openstack-helm-infra patches to Epoxy release ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
 ---
  mariadb/templates/service-discovery.yaml | 3 +++
  mariadb/templates/service-master.yaml    | 2 ++
@@ -60,10 +62,10 @@ index e68cbc49d..00a32cde9 100644
      - name: mysql
        port: {{ tuple "oslo_db" "direct" "mysql" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 diff --git a/mariadb/values.yaml b/mariadb/values.yaml
-index 581e358a3..40cb1ca20 100644
+index 361611e41..b17fc4d47 100644
 --- a/mariadb/values.yaml
 +++ b/mariadb/values.yaml
-@@ -687,6 +687,7 @@ network:
+@@ -689,6 +689,7 @@ network:
    mariadb: {}
    mariadb_discovery: {}
    mariadb_master: {}

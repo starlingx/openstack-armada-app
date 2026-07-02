@@ -1,0 +1,100 @@
+From 8bb6d3daea8366c2e8591d05c1840b1e71a48336 Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Thu, 12 Feb 2026 14:04:51 -0300
+Subject: [PATCH] Fix Cinder and Placement TLS install
+
+Two upstream commits [1][2] introduced changes that cause the Cinder and
+Placement charts to fail when TLS is enabled in an STX-O deployment.
+
+These commits removed values snippets that are still required when TLS is
+enabled. As a result, the charts attempt to access missing keys in the values
+file, leading to nil pointer errors during template rendering. This causes
+the corresponding HelmRelease installations to fail.
+
+[1] - https://opendev.org/openstack/openstack-helm/commit/6ec2773c958b9f09507c1d9bb7d1cb09c464fe9b#diff-852cd948055f91b4113c9d395a7166082b187d69
+[2] - https://opendev.org/openstack/openstack-helm/commit/30c22e2286ce78362899cb1854edb1ff081da774#diff-26bdd36b09082220c29f5ed3107c0faec8b84834
+
+Change-Id: Ie64bf9b2f61cad05a281262a422fdae9162a742e
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Adapt OSH patches to Gazpacho release ]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Fix TLS startup failure in 2026.1 ]
+
+The placement-api console_script entry point was removed upstream.
+When manifests.certificates is enabled, the startup script failed
+with "cp: missing destination file operand" because "type -p placement-api"
+returned empty. Following what is the current behaviour for other
+openstack services, this patch removes the apache path, effectively
+removing TLS at pod level for Placement.
+
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+---
+ cinder/templates/ingress-api.yaml             |  2 +-
+ placement/templates/bin/_placement-api.sh.tpl | 34 -------------------
+ 2 files changed, 1 insertion(+), 35 deletions(-)
+
+diff --git a/cinder/templates/ingress-api.yaml b/cinder/templates/ingress-api.yaml
+index a514adfde..be8c04d06 100644
+--- a/cinder/templates/ingress-api.yaml
++++ b/cinder/templates/ingress-api.yaml
+@@ -13,6 +13,6 @@ limitations under the License.
+ */}}
+ 
+ {{- if and .Values.manifests.ingress_api .Values.network.api.ingress.public }}
+-{{- $ingressOpts := dict "envAll" . "backendServiceType" "volume" "backendPort" "c-api" -}}
++{{- $ingressOpts := dict "envAll" . "backendServiceType" "volumev3" "backendPort" "c-api" -}}
+ {{ $ingressOpts | include "helm-toolkit.manifests.ingress" }}
+ {{- end }}
+diff --git a/placement/templates/bin/_placement-api.sh.tpl b/placement/templates/bin/_placement-api.sh.tpl
+index f59947aaf..c38fc363c 100644
+--- a/placement/templates/bin/_placement-api.sh.tpl
++++ b/placement/templates/bin/_placement-api.sh.tpl
+@@ -20,45 +20,11 @@ set -ex
+ COMMAND="${@:-start}"
+ 
+ function start () {
+-{{- if .Values.manifests.certificates }}
+-  cp -a $(type -p placement-api) /var/www/cgi-bin/placement/
+-  if [ -f /etc/apache2/envvars ]; then
+-    # Loading Apache2 ENV variables
+-    source /etc/apache2/envvars
+-    # The directory below has to be created due to the fact that
+-    # libapache2-mod-wsgi-py3 doesn't create it in contrary by libapache2-mod-wsgi
+-    mkdir -p ${APACHE_RUN_DIR}
+-  fi
+-
+-  # Get rid of stale pid file if present.
+-  rm -f /var/run/apache2/*.pid
+-
+-  # Start Apache2
+-  {{- if .Values.conf.software.apache2.a2enmod }}
+-    {{- range .Values.conf.software.apache2.a2enmod }}
+-  a2enmod {{ . }}
+-    {{- end }}
+-  {{- end }}
+-  {{- if .Values.conf.software.apache2.a2dismod }}
+-    {{- range .Values.conf.software.apache2.a2dismod }}
+-  a2dismod {{ . }}
+-    {{- end }}
+-  {{- end }}
+-  exec {{ .Values.conf.software.apache2.binary }} {{ .Values.conf.software.apache2.start_parameters }}
+-{{- else }}
+   exec uwsgi --ini /etc/placement/placement-api-uwsgi.ini
+-{{- end }}
+ }
+ 
+ function stop () {
+-{{- if .Values.manifests.certificates }}
+-  if [ -f /etc/apache2/envvars ]; then
+-    source /etc/apache2/envvars
+-  fi
+-  {{ .Values.conf.software.apache2.binary }} -k graceful-stop
+-{{- else }}
+   kill -TERM 1
+-{{- end }}
+ }
+ 
+ $COMMAND
+-- 
+2.34.1
+

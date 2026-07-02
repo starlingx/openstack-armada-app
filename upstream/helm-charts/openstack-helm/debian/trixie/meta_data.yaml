@@ -1,11 +1,11 @@
 ---
 debname: openstack-helm
-debver: 2025.1-0
+debver: 2026.1-0
 dl_path:
-  name: openstack-helm-49c117443391cec75e0bd52bb4a9d033325927ad.tar.gz
-  url: https://github.com/openstack/openstack-helm/archive/49c117443391cec75e0bd52bb4a9d033325927ad.tar.gz
-  md5sum: 1c8332b1ee178a8c96bc5cb13822088c
-  sha256sum: 7d241c2900287827f8fdbce75e4cf18392e24a9ca4fb2527a113d8ef16f56d13
+  name: openstack-helm-c665eedfa3ae1b76a7e8438fffcb62aefaa30a46.tar.gz
+  url: https://github.com/openstack/openstack-helm/archive/c665eedfa3ae1b76a7e8438fffcb62aefaa30a46.tar.gz
+  md5sum: 258762cebe1709e66a669151c856fdfa
+  sha256sum: b62cde1add7ba31291a1842ea673e135846ff73328d87f88a57b212ad72c5e7c
 src_files:
   - files/index.yaml
   - files/repositories.yaml
@@ -13,5 +13,5 @@ revision:
   dist: $STX_DIST
   PKG_GITREVCOUNT: true
   GITREVCOUNT:
-    BASE_SRCREV: 0a50ff4f895fb2d20122c23019f76d08d885a12f
+    BASE_SRCREV: 510e49d4ab5be9cbe870f9d2d72c96925f361329
     SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/helm-charts/openstack-helm/files

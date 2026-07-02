@@ -1032,19 +1032,19 @@ class CinderMountOverridesTest(CinderConversionTestCase,
 
         overrides = self.cinder_helm._get_mount_overrides()
 
-        # Should have: imageconversion + varlibcinder + storage-ca-cert
-        self.assertEqual(len(overrides['volumes']), 3)
-        self.assertEqual(len(overrides['volumeMounts']), 3)
+        # Should have: imageconversion + storage-ca-cert (no varlibcinder)
+        self.assertEqual(len(overrides['volumes']), 2)
+        self.assertEqual(len(overrides['volumeMounts']), 2)
 
         # Verify storage cert volume uses secret
-        storage_volume = overrides['volumes'][2]
+        storage_volume = overrides['volumes'][1]
         self.assertEqual(storage_volume['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
         self.assertIn('secret', storage_volume)
         self.assertEqual(storage_volume['secret']['secretName'],
                          app_constants.STORAGE_CA_CERT_SECRET_NAME)
 
         # Verify mount configuration
-        storage_mount = overrides['volumeMounts'][2]
+        storage_mount = overrides['volumeMounts'][1]
         self.assertEqual(storage_mount['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
         self.assertEqual(storage_mount['mountPath'], '/usr/lib/ssl/cert.pem')
         self.assertTrue(storage_mount['readOnly'])
@@ -1065,10 +1065,10 @@ class CinderMountOverridesTest(CinderConversionTestCase,
 
         overrides = self.cinder_helm._get_mount_overrides()
 
-        # Should have: imageconversion + varlibcinder + storage-ca-cert
-        self.assertEqual(len(overrides['volumes']), 3)
-        self.assertEqual(len(overrides['volumeMounts']), 3)
-        self.assertEqual(overrides['volumes'][2]['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
+        # Should have: imageconversion + storage-ca-cert (no varlibcinder)
+        self.assertEqual(len(overrides['volumes']), 2)
+        self.assertEqual(len(overrides['volumeMounts']), 2)
+        self.assertEqual(overrides['volumes'][1]['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
 
     @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
                 return_value=app_constants.CINDER_STATE_PATH)
@@ -1086,11 +1086,10 @@ class CinderMountOverridesTest(CinderConversionTestCase,
 
         overrides = self.cinder_helm._get_mount_overrides()
 
-        # Should have: imageconversion + varlibcinder (no storage-ca-cert)
-        self.assertEqual(len(overrides['volumes']), 2)
-        self.assertEqual(len(overrides['volumeMounts']), 2)
+        # Should have: imageconversion only (no storage-ca-cert, no varlibcinder)
+        self.assertEqual(len(overrides['volumes']), 1)
+        self.assertEqual(len(overrides['volumeMounts']), 1)
         self.assertEqual(overrides['volumes'][0]['name'], 'imageconversion')
-        self.assertEqual(overrides['volumes'][1]['name'], 'varlibcinder')
 
     @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_container_certs',
                 return_value=['/usr/lib/ssl/cert.pem'])

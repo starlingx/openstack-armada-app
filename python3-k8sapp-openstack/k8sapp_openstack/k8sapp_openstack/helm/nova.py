@@ -851,14 +851,15 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 "network CIDRs at chart defaults."
             )
 
-        ceph_uuid = get_ceph_fsid()
-        if ceph_uuid:
-            overrides['ceph']['cinder'] = {
-                'secret_uuid': ceph_uuid,
-            }
-            overrides['nova']['libvirt'] = {
-                'rbd_secret_uuid': ceph_uuid,
-            }
+        if self._ceph_enabled:
+            ceph_uuid = get_ceph_fsid()
+            if ceph_uuid:
+                overrides['ceph']['cinder'] = {
+                    'secret_uuid': ceph_uuid,
+                }
+                overrides['nova']['libvirt'] = {
+                    'rbd_secret_uuid': ceph_uuid,
+                }
 
         # Add the multipath config to nova.conf libvirt section
         overrides['nova']['libvirt']['volume_use_multipath'] = self._enable_multipath()

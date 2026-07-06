@@ -341,3 +341,56 @@ class NovaGetOverrideTest(NovaHelmTestCase,
 
         self.assertNotIn('storage_conf', overrides)
         mock_resolve_nova_pvc_overrides.assert_called_once_with()
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_ceph_fsid')
+    @mock.patch('k8sapp_openstack.helm.nova.NovaHelm.'
+                '_get_cinder_volumes_backends', return_value=[])
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
+                return_value=False)
+    def test_nova_overrides_skips_ceph_fsid_when_ceph_disabled(
+            self, _https, _appval, _backends, mock_get_ceph_fsid):
+        """NetApp-only / no ceph backend: the _ceph_enabled guard must
+        prevent get_ceph_fsid() from being called at all, so no ceph CLI
+        subprocess is spawned during override generation.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        mock_get_ceph_fsid.assert_not_called()
+        # ceph section always exists under conf, but is disabled
+        # and carries no real fsid (secret_uuid stays 'null').
+        self.assertFalse(overrides['conf']['ceph']['enabled'])
+        self.assertEqual(
+            overrides['conf']['ceph']['cinder']['secret_uuid'],
+            'null')
+
+    @mock.patch('k8sapp_openstack.helm.nova.get_ceph_fsid',
+                return_value='89bd29e9-c505-4170-a097-04dc8e43c897')
+    @mock.patch('k8sapp_openstack.helm.nova.is_ceph_backend_available',
+                return_value=(False, None))
+    @mock.patch('k8sapp_openstack.helm.nova.NovaHelm.'
+                '_get_cinder_volumes_backends',
+                return_value=[app_constants.CEPH_BACKEND_NAME])
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready',
+                return_value=False)
+    def test_nova_overrides_uses_ceph_fsid_when_ceph_enabled(
+            self, _https, _appval, _backends, _rook, mock_get_ceph_fsid):
+        """Ceph enabled + healthy (happy path): get_ceph_fsid() is called
+        and its uuid propagates into the ceph/libvirt override secrets.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        mock_get_ceph_fsid.assert_called_once_with()
+        self.assertEqual(
+            overrides['conf']['ceph']['cinder']['secret_uuid'],
+            '89bd29e9-c505-4170-a097-04dc8e43c897')
+        self.assertEqual(
+            overrides['conf']['nova']['libvirt']['rbd_secret_uuid'],
+            '89bd29e9-c505-4170-a097-04dc8e43c897')

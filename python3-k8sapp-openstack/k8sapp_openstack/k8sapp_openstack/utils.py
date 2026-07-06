@@ -558,7 +558,7 @@ def get_ceph_fsid():
     """
     fsid = None
     try:
-        fsid = send_cmd_read_response(["ceph", "fsid"])
+        fsid = send_cmd_read_response(["ceph", "fsid"], timeout=30)
         # Check if the response includes a UUID pattern
         pattern = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]"
                             r"{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}",
@@ -569,8 +569,20 @@ def get_ceph_fsid():
         else:
             fsid = None
             LOG.error("Ceph fsid not available through ceph fsid CLI")
+    except subprocess.TimeoutExpired:
+        LOG.warning("Ceph fsid CLI timed out - "
+                    "Ceph cluster may be unavailable")
     except Exception as e:
-        LOG.error(f"Ceph fsid CLI failed: {str(e)}")
+        # eventlet.green.subprocess.run() raises a TimeoutExpired whose
+        # class identity differs from subprocess.TimeoutExpired, so the
+        # direct except above does not catch it at runtime. Detect it by
+        # class name here so the timeout is reported as a warning rather
+        # than a misleading error.
+        if e.__class__.__name__ == "TimeoutExpired":
+            LOG.warning("Ceph fsid CLI timed out - "
+                        "Ceph cluster may be unavailable")
+        else:
+            LOG.error(f"Ceph fsid CLI failed: {str(e)}")
     return fsid
 
 
@@ -1721,13 +1733,16 @@ def is_openvswitch_dpdk_enabled(label_combinations=None) -> bool:
     )
 
 
-def send_cmd_read_response(cmd: list[str], log: bool = True) -> str:
+def send_cmd_read_response(cmd: list[str], log: bool = True,
+                           timeout: int = None) -> str:
     """
     Send command and reads its response as a string
 
     Args:
         cmd (list[str]): List containing each entry of the command
         log (bool): if True, print the logs (default)
+        timeout (int): timeout in seconds for the command execution
+                       (default: None, no timeout)
 
     Returns:
         str: Command response, if successful
@@ -1736,7 +1751,8 @@ def send_cmd_read_response(cmd: list[str], log: bool = True) -> str:
         args=cmd,
         capture_output=True,
         text=True,
-        shell=False
+        shell=False,
+        timeout=timeout
     )
     if log:
         if process.stdout.rstrip():

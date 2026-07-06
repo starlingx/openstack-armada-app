@@ -145,10 +145,11 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
             },
         }
 
-        ceph_uuid = get_ceph_fsid()
-        if ceph_uuid:
-            overrides['ceph']['cinder'] = {
-                'secret_uuid': ceph_uuid,
-            }
+        if self._ceph_enabled:
+            ceph_uuid = get_ceph_fsid()
+            if ceph_uuid:
+                overrides['ceph']['cinder'] = {
+                    'secret_uuid': ceph_uuid,
+                }
 
         return overrides

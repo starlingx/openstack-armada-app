@@ -148,7 +148,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         """
         result = app_utils.get_ceph_fsid()
         self.assertEqual(result, '89bd29e9-c505-4170-a097-04dc8e43c897')
-        mock_send_cmd.assert_called_with(['ceph', 'fsid'])
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'], timeout=30)
 
     @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
                 return_value="89bd29e9")
@@ -157,7 +157,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         """
         result = app_utils.get_ceph_fsid()
         self.assertEqual(result, None)
-        mock_send_cmd.assert_called_with(['ceph', 'fsid'])
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'], timeout=30)
 
     @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
                 return_value="")
@@ -166,7 +166,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         """
         result = app_utils.get_ceph_fsid()
         self.assertEqual(result, None)
-        mock_send_cmd.assert_called_with(['ceph', 'fsid'])
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'], timeout=30)
 
     @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
                 side_effect=Exception())
@@ -175,7 +175,76 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         """
         result = app_utils.get_ceph_fsid()
         self.assertEqual(result, None)
-        mock_send_cmd.assert_called_with(['ceph', 'fsid'])
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'], timeout=30)
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                side_effect=subprocess.TimeoutExpired(cmd=['ceph', 'fsid'],
+                                                      timeout=30))
+    def test_get_ceph_fsid_timeout(self, mock_send_cmd):
+        """Test get_ceph_fsid returns None when the CLI times out.
+        This covers the case when the ceph cluster is unreachable
+        (e.g. rook-ceph in apply-failed state).
+        """
+        result = app_utils.get_ceph_fsid()
+        self.assertEqual(result, None)
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'], timeout=30)
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_get_ceph_fsid_eventlet_timeout(self, mock_send_cmd):
+        """Test get_ceph_fsid handles a TimeoutExpired whose class
+        identity differs from subprocess.TimeoutExpired, as raised by
+        eventlet.green.subprocess.run(). The generic handler must detect
+        it by class name and still return None.
+        """
+        class _EventletTimeoutExpired(Exception):
+            pass
+        _EventletTimeoutExpired.__name__ = 'TimeoutExpired'
+        mock_send_cmd.side_effect = _EventletTimeoutExpired()
+        result = app_utils.get_ceph_fsid()
+        self.assertEqual(result, None)
+        mock_send_cmd.assert_called_with(['ceph', 'fsid'], timeout=30)
+
+    @mock.patch('k8sapp_openstack.utils.subprocess.run')
+    def test_send_cmd_read_response_passes_timeout(self, mock_run):
+        """Test that send_cmd_read_response passes the timeout parameter
+        to subprocess.run correctly.
+        """
+        mock_process = mock.MagicMock()
+        mock_process.stdout = "output"
+        mock_process.stderr = ""
+        mock_process.returncode = 0
+        mock_run.return_value = mock_process
+
+        app_utils.send_cmd_read_response(["echo", "hello"], timeout=30)
+
+        mock_run.assert_called_once_with(
+            args=["echo", "hello"],
+            capture_output=True,
+            text=True,
+            shell=False,
+            timeout=30
+        )
+
+    @mock.patch('k8sapp_openstack.utils.subprocess.run')
+    def test_send_cmd_read_response_no_timeout_by_default(self, mock_run):
+        """Test that send_cmd_read_response passes None timeout by default,
+        preserving existing behavior for all other callers.
+        """
+        mock_process = mock.MagicMock()
+        mock_process.stdout = "output"
+        mock_process.stderr = ""
+        mock_process.returncode = 0
+        mock_run.return_value = mock_process
+
+        app_utils.send_cmd_read_response(["echo", "hello"])
+
+        mock_run.assert_called_once_with(
+            args=["echo", "hello"],
+            capture_output=True,
+            text=True,
+            shell=False,
+            timeout=None
+        )
 
     @mock.patch('sysinv.db.api.get_instance')
     def test_is_rook_backend_available(self, mock_dbapi_get_instance):

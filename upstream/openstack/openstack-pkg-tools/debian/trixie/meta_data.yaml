@@ -2,10 +2,10 @@
 debname: openstack-pkg-tools
 debver: 143
 dl_path:
-  name: openstack-pkg-tools-debian-gazpacho.tar.gz
-  url: https://salsa.debian.org/openstack-team/debian/openstack-pkg-tools/-/archive/debian/gazpacho/openstack-pkg-tools-debian-gazpacho.tar.gz
-  md5sum: d5dc0f6b5cb304df9e0582e1a0383849
-  sha256sum: 7dccf587b3c6f1167a1485db28e4c54afb678dc9a88700d4495a8a66ed9cd6bf
+  name: openstack-pkg-tools-4f0f5396d0c5f4b8545fb304e65d77135ebce08b.tar.gz
+  url: https://salsa.debian.org/openstack-team/debian/openstack-pkg-tools/-/archive/4f0f5396d0c5f4b8545fb304e65d77135ebce08b/openstack-pkg-tools-4f0f5396d0c5f4b8545fb304e65d77135ebce08b.tar.gz
+  md5sum: 756da341ae21018596a77878e91db39b
+  sha256sum: 4e47671f9363ad04819be8156f65f49b75532ed57c5578609df074a56bfefa19
 revision:
   dist: $STX_DIST
   GITREVCOUNT:

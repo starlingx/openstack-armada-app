@@ -964,3 +964,204 @@ class CinderProcessExtraMountsTest(testtools.TestCase):
         result = self.helm._process_extra_mounts(self.overrides)
 
         self.assertIs(result, self.overrides)
+
+
+class TestGetBackupDriverName(testtools.TestCase):
+    """Protocol-based backup driver resolution for ESB backends."""
+
+    def _make_helm(self, backends_conf=None):
+        ch = cinder.CinderHelm(None)
+        ch._backends_conf = backends_conf or {}
+        return ch
+
+    def test_strict_ceph_returns_ceph_driver(self):
+        ch = self._make_helm()
+        result = ch._get_backup_driver_name(app_constants.CEPH_BACKEND_NAME)
+        self.assertEqual(result, app_constants.CEPH_BACKUP_DRIVER)
+
+    def test_strict_netapp_nfs_returns_nfs_driver(self):
+        ch = self._make_helm()
+        result = ch._get_backup_driver_name(app_constants.NETAPP_NFS_BACKEND_NAME)
+        self.assertEqual(result, app_constants.NETAPP_NFS_BACKUP_DRIVER)
+
+    def test_strict_netapp_iscsi_returns_posix_driver(self):
+        ch = self._make_helm()
+        result = ch._get_backup_driver_name(app_constants.NETAPP_ISCSI_BACKEND_NAME)
+        self.assertEqual(result, app_constants.NETAPP_ISCSI_BACKUP_DRIVER)
+
+    def test_strict_netapp_fc_returns_posix_driver(self):
+        ch = self._make_helm()
+        result = ch._get_backup_driver_name(app_constants.NETAPP_FC_BACKEND_NAME)
+        self.assertEqual(result, app_constants.NETAPP_FC_BACKUP_DRIVER)
+
+    def test_esb_nfs_returns_nfs_driver(self):
+        ch = self._make_helm(backends_conf={
+            'dell-nfs': {'name': 'dell-nfs', 'protocol': 'nfs'}
+        })
+        result = ch._get_backup_driver_name('dell-nfs')
+        self.assertEqual(result, app_constants.NETAPP_NFS_BACKUP_DRIVER)
+
+    def test_esb_iscsi_returns_posix_driver(self):
+        ch = self._make_helm(backends_conf={
+            'dell-iscsi': {'name': 'dell-iscsi', 'protocol': 'iscsi'}
+        })
+        result = ch._get_backup_driver_name('dell-iscsi')
+        self.assertEqual(result, app_constants.NETAPP_ISCSI_BACKUP_DRIVER)
+
+    def test_esb_fcp_returns_posix_driver(self):
+        ch = self._make_helm(backends_conf={
+            'netapp-fc-tef': {'name': 'netapp-fc-tef', 'protocol': 'fcp'}
+        })
+        result = ch._get_backup_driver_name('netapp-fc-tef')
+        self.assertEqual(result, app_constants.NETAPP_ISCSI_BACKUP_DRIVER)
+
+    def test_esb_local_returns_none(self):
+        """local protocol: WRO must not emit backup_driver."""
+        ch = self._make_helm(backends_conf={
+            'rakuten-cns': {'name': 'rakuten-cns', 'protocol': 'local'}
+        })
+        result = ch._get_backup_driver_name('rakuten-cns')
+        self.assertIsNone(result)
+
+    @mock.patch(
+        'k8sapp_openstack.helm.cinder.get_backend_protocol',
+        return_value=None
+    )
+    def test_esb_unresolved_protocol_returns_default(self, _):
+        ch = self._make_helm()
+        result = ch._get_backup_driver_name('unknown-backend')
+        self.assertEqual(result, app_constants.BACKUP_DEFAULT_DRIVER)
+
+    def test_default_argument_returns_ceph_driver(self):
+        ch = self._make_helm()
+        result = ch._get_backup_driver_name()
+        self.assertEqual(result, app_constants.CEPH_BACKUP_DRIVER)
+
+
+class TestBackupDriverEmission(testtools.TestCase):
+    """Conditional backup_driver emission — omitted for local protocol."""
+
+    def _make_helm(self, available_backends, backends_conf, backup_priority):
+        ch = cinder.CinderHelm(None)
+        ch.available_backends = available_backends
+        ch._backends_conf = backends_conf
+        ch.BACKUP_PRIORITY_LIST = backup_priority
+        ch.VOLUME_PRIORITY_LIST = list(available_backends.keys())
+        ch.default_backup_driver = ch._get_backup_driver_name()
+        ch.default_backup_type = app_constants.BACKEND_DEFAULT_BACKEND_NAME
+        return ch
+
+    def _resolve_backup(self, ch):
+        """Simulate the backup priority walk from get_overrides()."""
+        cinder_overrides = {'DEFAULT': {}}
+        for priority in ch.BACKUP_PRIORITY_LIST:
+            if ch._is_backend_available(priority):
+                ch.default_backup_driver = ch._get_backup_driver_name(priority)
+                ch.default_backup_type = priority
+                break
+        if ch.default_backup_driver:
+            cinder_overrides['DEFAULT']['backup_driver'] = ch.default_backup_driver
+        return cinder_overrides
+
+    def test_local_protocol_no_backup_driver_in_overrides(self):
+        ch = self._make_helm(
+            available_backends={'rakuten-cns': ''},
+            backends_conf={
+                'rakuten-cns': {
+                    'name': 'rakuten-cns',
+                    'protocol': 'local',
+                    'k8s_storage_class': 'none',
+                    'volume_backend': {}
+                }
+            },
+            backup_priority=['rakuten-cns']
+        )
+        overrides = self._resolve_backup(ch)
+        self.assertNotIn('backup_driver', overrides['DEFAULT'])
+
+    def test_local_protocol_get_backup_overrides_no_crash(self):
+        """_get_backup_overrides() must not crash when default_backup_driver is None."""
+        ch = self._make_helm(
+            available_backends={'rakuten-cns': ''},
+            backends_conf={
+                'rakuten-cns': {
+                    'name': 'rakuten-cns',
+                    'protocol': 'local',
+                    'k8s_storage_class': 'none',
+                    'volume_backend': {}
+                }
+            },
+            backup_priority=['rakuten-cns']
+        )
+        self._resolve_backup(ch)
+        result = ch._get_backup_overrides()
+        self.assertEqual(result, {})
+
+    def test_nfs_protocol_backup_driver_emitted(self):
+        ch = self._make_helm(
+            available_backends={'dell-nfs': 'dell-nfs-sc'},
+            backends_conf={
+                'dell-nfs': {
+                    'name': 'dell-nfs',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'dell-nfs-sc',
+                    'volume_backend': {}
+                }
+            },
+            backup_priority=['dell-nfs']
+        )
+        overrides = self._resolve_backup(ch)
+        self.assertEqual(
+            overrides['DEFAULT']['backup_driver'],
+            app_constants.NETAPP_NFS_BACKUP_DRIVER
+        )
+
+    def test_iscsi_protocol_backup_driver_emitted(self):
+        ch = self._make_helm(
+            available_backends={'dell-iscsi': ''},
+            backends_conf={
+                'dell-iscsi': {
+                    'name': 'dell-iscsi',
+                    'protocol': 'iscsi',
+                    'k8s_storage_class': 'none',
+                    'volume_backend': {}
+                }
+            },
+            backup_priority=['dell-iscsi']
+        )
+        overrides = self._resolve_backup(ch)
+        self.assertEqual(
+            overrides['DEFAULT']['backup_driver'],
+            app_constants.NETAPP_ISCSI_BACKUP_DRIVER
+        )
+
+    def test_strict_ceph_backup_driver_emitted(self):
+        ch = self._make_helm(
+            available_backends={'ceph': 'general'},
+            backends_conf={},
+            backup_priority=['ceph']
+        )
+        overrides = self._resolve_backup(ch)
+        self.assertEqual(
+            overrides['DEFAULT']['backup_driver'],
+            app_constants.CEPH_BACKUP_DRIVER
+        )
+
+    def test_mixed_ceph_higher_priority_than_esb(self):
+        ch = self._make_helm(
+            available_backends={'ceph': 'general', 'dell-iscsi': ''},
+            backends_conf={
+                'dell-iscsi': {
+                    'name': 'dell-iscsi',
+                    'protocol': 'iscsi',
+                    'k8s_storage_class': 'none',
+                    'volume_backend': {}
+                }
+            },
+            backup_priority=['ceph', 'dell-iscsi']
+        )
+        overrides = self._resolve_backup(ch)
+        self.assertEqual(
+            overrides['DEFAULT']['backup_driver'],
+            app_constants.CEPH_BACKUP_DRIVER
+        )

@@ -1,4 +1,4 @@
 # Helm charts tarball version
 # Used by cgcs-root/build-tools/build-helm-charts.sh
-VERSION=26.09
+VERSION=26.10
 RELEASE=0

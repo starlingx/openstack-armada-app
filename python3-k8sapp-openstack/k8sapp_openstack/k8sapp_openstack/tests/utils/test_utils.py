@@ -3481,3 +3481,105 @@ class TestGetBackendProtocol(dbbase.ControllerHostTestCase):
         result = app_utils.is_nova_ephemeral_ceph_enabled()
 
         self.assertFalse(result)
+
+
+class ResolveSecretRefTest(dbbase.ControllerHostTestCase):
+    """Unit tests for app_utils.resolve_secret_ref()."""
+
+    @staticmethod
+    def _mock_secret(data_map):
+        """Build a mock K8s Secret whose .data holds base64-encoded values."""
+        from oslo_serialization import base64
+        secret = mock.MagicMock()
+        secret.data = {k: base64.encode_as_text(v) for k, v in data_map.items()}
+        return secret
+
+    def test_empty_secret_ref_returns_empty(self):
+        self.assertEqual(app_utils.resolve_secret_ref({}), {})
+        self.assertEqual(app_utils.resolve_secret_ref(None), {})
+
+    def test_missing_name_or_keys_returns_empty(self):
+        self.assertEqual(app_utils.resolve_secret_ref({'keys': {'a': 'b'}}), {})
+        self.assertEqual(app_utils.resolve_secret_ref({'name': 's'}), {})
+        self.assertEqual(
+            app_utils.resolve_secret_ref({'name': 's', 'keys': {}}), {})
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_resolves_keys_default_namespace(self, mock_kube_op):
+        secret = self._mock_secret({'username': 'admin', 'password': 'pw'})
+        mock_kube = mock_kube_op.return_value
+        mock_kube.kube_get_secret.return_value = secret
+
+        result = app_utils.resolve_secret_ref({
+            'name': 'creds',
+            'keys': {'san_login': 'username', 'san_password': 'password'},
+        })
+
+        self.assertEqual(result, {'san_login': 'admin', 'san_password': 'pw'})
+        # namespace omitted -> defaults to openstack
+        mock_kube.kube_get_secret.assert_called_once_with(
+            name='creds', namespace=app_constants.HELM_NS_OPENSTACK)
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_uses_explicit_namespace(self, mock_kube_op):
+        secret = self._mock_secret({'k': 'v'})
+        mock_kube = mock_kube_op.return_value
+        mock_kube.kube_get_secret.return_value = secret
+
+        result = app_utils.resolve_secret_ref({
+            'name': 'creds',
+            'namespace': 'custom-ns',
+            'keys': {'field': 'k'},
+        })
+
+        self.assertEqual(result, {'field': 'v'})
+        mock_kube.kube_get_secret.assert_called_once_with(
+            name='creds', namespace='custom-ns')
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_missing_key_in_secret_is_skipped(self, mock_kube_op):
+        secret = self._mock_secret({'username': 'admin'})
+        mock_kube = mock_kube_op.return_value
+        mock_kube.kube_get_secret.return_value = secret
+
+        result = app_utils.resolve_secret_ref({
+            'name': 'creds',
+            'keys': {'san_login': 'username', 'san_password': 'password'},
+        })
+        # 'password' key absent in Secret -> skipped; 'username' still resolved
+        self.assertEqual(result, {'san_login': 'admin'})
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_secret_not_found_returns_empty(self, mock_kube_op):
+        mock_kube = mock_kube_op.return_value
+        mock_kube.kube_get_secret.return_value = None
+
+        result = app_utils.resolve_secret_ref({
+            'name': 'missing',
+            'keys': {'field': 'k'},
+        })
+        self.assertEqual(result, {})
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_secret_without_data_returns_empty(self, mock_kube_op):
+        secret = mock.MagicMock()
+        secret.data = None
+        mock_kube = mock_kube_op.return_value
+        mock_kube.kube_get_secret.return_value = secret
+
+        result = app_utils.resolve_secret_ref({
+            'name': 'creds',
+            'keys': {'field': 'k'},
+        })
+        self.assertEqual(result, {})
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_kube_exception_returns_empty(self, mock_kube_op):
+        mock_kube = mock_kube_op.return_value
+        mock_kube.kube_get_secret.side_effect = Exception("boom")
+
+        result = app_utils.resolve_secret_ref({
+            'name': 'creds',
+            'keys': {'field': 'k'},
+        })
+        self.assertEqual(result, {})

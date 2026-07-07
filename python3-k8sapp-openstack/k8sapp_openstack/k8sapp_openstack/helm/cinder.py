@@ -30,6 +30,7 @@ from k8sapp_openstack.utils import get_storage_tls_host_cert
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_storage_ca_cert_secret_available
 from k8sapp_openstack.utils import is_strict_backend
+from k8sapp_openstack.utils import resolve_secret_ref
 
 LOG = logging.getLogger(__name__)
 
@@ -515,6 +516,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         For each ESB backend in the volume priority list that is available,
         this method adds the backend to enabled_backends and emits its
         volume_backend dict as a separate conf.backends section (passed as-is).
+        Creates a [<backend_name>] section in cinder.conf
 
         Args:
             cinder_overrides: The mutable cinder conf overrides dict.
@@ -547,14 +549,54 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             backends_list = list(filter(None, set(existing_backends + [backend_name])))
             cinder_overrides['DEFAULT']['enabled_backends'] = ','.join(backends_list)
 
-            # volume_backend is emitted unchanged into the cinder.conf section.
-            volume_backend = conf_entry.get('volume_backend', {})
-            backend_overrides[backend_name] = dict(volume_backend) if volume_backend else {}
+            # Build the backend section: operator volume_backend with any
+            # secretRef-declared credentials resolved and injected on top.
+            section = self._resolve_esb_volume_backend(backend_name, conf_entry)
+            backend_overrides[backend_name] = section
 
             LOG.info(f"ESB backend '{backend_name}' (protocol={protocol}) "
-                     "added to Cinder enabled_backends and conf.backends")
+                     f"added to enabled_backends")
 
         return cinder_overrides, backend_overrides
+
+    def _resolve_esb_volume_backend(self, backend_name, conf_entry):
+        """Build the conf.backends section for ESB backend.
+
+        Starts from the operator-provided volume_backend dict and
+        when there is a non-empty secretRef resolves the referenced
+        Kubernetes Secret and injects the resulting credential field
+
+        Credential resolution is vendor-agnostic. The operator declares the
+        'secretRef.keys' mapping.
+
+        Args:
+            backend_name: The ESB backend name.
+            conf_entry: The matching backends_conf entry.
+
+        Returns:
+            dict: The resolved volume_backend section for cinder.conf.
+        """
+
+        volume_backend = dict(conf_entry.get('volume_backend') or {})
+
+        secret_ref = conf_entry.get('secretRef') or {}
+        if not secret_ref:
+            return volume_backend
+
+        resolved_creds = resolve_secret_ref(secret_ref)
+        if resolved_creds:
+            collisions = sorted(set(resolved_creds) & set(volume_backend))
+            if collisions:
+                LOG.info(f"ESB backend '{backend_name}': literal volume_backend "
+                         f"field(s) take precedence over secretRef on "
+                         f"collision: {collisions}")
+            # Inject resolved credentials, but keep any explicit literal
+            # volume_backend value on collision (user override wins).
+            merged = dict(resolved_creds)
+            merged.update(volume_backend)
+            volume_backend = merged
+
+        return volume_backend
 
     def _is_backend_available(self, backend_name):
         """Return True if a backend is available for Cinder volume/backup use.

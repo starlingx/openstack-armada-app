@@ -1,0 +1,261 @@
+From 525e71775d7f124f35dcfd8d8abf8c10e72b112a Mon Sep 17 00:00:00 2001
+From: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+Date: Thu, 16 Jul 2026 09:33:23 -0300
+Subject: [PATCH] Add Ceilometer metrics Services and ServiceMonitors
+
+Expose Ceilometer central and compute agent metrics to a
+Prometheus Operator deployment by adding headless metrics
+Services, matching ServiceMonitor CRDs, and the foundational
+values they depend on.
+
+New templates:
+  - templates/service-central-metrics.yaml
+  - templates/service-compute-metrics.yaml
+  - templates/servicemonitor-central.yaml
+  - templates/servicemonitor-compute.yaml
+
+Metrics Services:
+  - Headless (clusterIP: None) Services named
+    <release>-central and <release>-compute
+  - Named "metrics" port 9101 (targetPort 9101, TCP)
+  - Select pods via application=ceilometer with component
+    central/compute
+  - Gated on manifest toggles
+
+ServiceMonitors:
+  - monitoring.coreos.com/v1 ServiceMonitor CRDs selecting
+    Services labeled app=ceilometer-central/compute
+  - Scrape "metrics" port at /metrics, scoped to the release
+    namespace
+  - Set app and job labels to ceilometer-central/-compute
+  - Source interval/timeout from
+    .Values.servicemonitor.central|compute.scrape_interval
+    and scrape_timeout (default 30s/10s)
+  - Gated on .Capabilities.APIVersions and manifests toggles
+
+values.yaml additions:
+
+  servicemonitor:
+    central:
+      scrape_interval: 30s
+      scrape_timeout: 10s
+    compute:
+      scrape_interval: 30s
+      scrape_timeout: 10s
+  manifests:
+    service_central_metrics: true
+    service_compute_metrics: true
+    servicemonitor_central: true
+    servicemonitor_compute: true
+Co-authored-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+Signed-off-by: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+---
+ .../templates/service-central-metrics.yaml    | 33 +++++++++++++++++
+ .../templates/service-compute-metrics.yaml    | 33 +++++++++++++++++
+ .../templates/servicemonitor-central.yaml     | 37 +++++++++++++++++++
+ .../templates/servicemonitor-compute.yaml     | 37 +++++++++++++++++++
+ ceilometer/values.yaml                        | 12 ++++++
+ 5 files changed, 152 insertions(+)
+ create mode 100644 ceilometer/templates/service-central-metrics.yaml
+ create mode 100644 ceilometer/templates/service-compute-metrics.yaml
+ create mode 100644 ceilometer/templates/servicemonitor-central.yaml
+ create mode 100644 ceilometer/templates/servicemonitor-compute.yaml
+
+diff --git a/ceilometer/templates/service-central-metrics.yaml b/ceilometer/templates/service-central-metrics.yaml
+new file mode 100644
+index 000000000..0a5b1c42a
+--- /dev/null
++++ b/ceilometer/templates/service-central-metrics.yaml
+@@ -0,0 +1,33 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.service_central_metrics }}
++apiVersion: v1
++kind: Service
++metadata:
++  name: {{ printf "%s-%s" .Release.Name "central" | trunc 63 | trimSuffix "-" }}
++  namespace: {{ .Release.Namespace }}
++  labels:
++    app: ceilometer-central
++spec:
++  clusterIP: None        # headless — avoids load-balancing, lists all endpoints
++  selector:
++    application: ceilometer
++    component: central
++  ports:
++    - name: metrics
++      port: 9101
++      targetPort: 9101
++      protocol: TCP
++{{- end }}
+diff --git a/ceilometer/templates/service-compute-metrics.yaml b/ceilometer/templates/service-compute-metrics.yaml
+new file mode 100644
+index 000000000..a13389d0b
+--- /dev/null
++++ b/ceilometer/templates/service-compute-metrics.yaml
+@@ -0,0 +1,33 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.service_compute_metrics }}
++apiVersion: v1
++kind: Service
++metadata:
++  name: {{ printf "%s-%s" .Release.Name "compute" | trunc 63 | trimSuffix "-" }}
++  namespace: {{ .Release.Namespace }}
++  labels:
++    app: ceilometer-compute
++spec:
++  clusterIP: None        # headless — avoids load-balancing, lists all endpoints
++  selector:
++    application: ceilometer
++    component: compute
++  ports:
++    - name: metrics
++      port: 9101
++      targetPort: 9101
++      protocol: TCP
++{{- end }}
+diff --git a/ceilometer/templates/servicemonitor-central.yaml b/ceilometer/templates/servicemonitor-central.yaml
+new file mode 100644
+index 000000000..75fb908c5
+--- /dev/null
++++ b/ceilometer/templates/servicemonitor-central.yaml
+@@ -0,0 +1,37 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if and (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") .Values.manifests.servicemonitor_central .Values.manifests.service_central_metrics}}
++apiVersion: monitoring.coreos.com/v1
++kind: ServiceMonitor
++metadata:
++  name: {{ printf "%s-%s" .Release.Name "servicemonitor-central" | trunc 63 | trimSuffix "-" }}
++  namespace: {{ .Release.Namespace }}
++  labels:
++    app: ceilometer-central
++    job: ceilometer-central
++    release: {{ .Release.Name }}
++spec:
++  selector:
++    matchLabels:
++      app: ceilometer-central
++  namespaceSelector:
++    matchNames:
++      - {{ .Release.Namespace }}
++  endpoints:
++    - port: "metrics"
++      path: /metrics
++      interval: {{ .Values.servicemonitor.central.scrape_interval | default "30s" | quote }}
++      scrapeTimeout: {{ .Values.servicemonitor.central.scrape_timeout | default "10s" | quote }}
++{{- end }}
+diff --git a/ceilometer/templates/servicemonitor-compute.yaml b/ceilometer/templates/servicemonitor-compute.yaml
+new file mode 100644
+index 000000000..020d735e2
+--- /dev/null
++++ b/ceilometer/templates/servicemonitor-compute.yaml
+@@ -0,0 +1,37 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if and (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") .Values.manifests.servicemonitor_compute .Values.manifests.service_compute_metrics}}
++apiVersion: monitoring.coreos.com/v1
++kind: ServiceMonitor
++metadata:
++  name: {{ printf "%s-%s" .Release.Name "servicemonitor-compute" | trunc 63 | trimSuffix "-" }}
++  namespace: {{ .Release.Namespace }}
++  labels:
++    app: ceilometer-compute
++    job: ceilometer-compute
++    release: {{ .Release.Name }}
++spec:
++  selector:
++    matchLabels:
++      app: ceilometer-compute
++  namespaceSelector:
++    matchNames:
++      - {{ .Release.Namespace }}
++  endpoints:
++    - port: "metrics"
++      path: /metrics
++      interval: {{ .Values.servicemonitor.compute.scrape_interval | default "30s" | quote }}
++      scrapeTimeout: {{ .Values.servicemonitor.compute.scrape_timeout | default "10s" | quote }}
++{{- end }}
+diff --git a/ceilometer/values.yaml b/ceilometer/values.yaml
+index 1ebd7d21b..c7bbadee7 100644
+--- a/ceilometer/values.yaml
++++ b/ceilometer/values.yaml
+@@ -1630,6 +1630,14 @@ pod:
+           memory: "1024Mi"
+           cpu: "2000m"
+ 
++servicemonitor:
++  central:
++    scrape_interval: 30s
++    scrape_timeout: 10s
++  compute:
++    scrape_interval: 30s
++    scrape_timeout: 10s
++
+ manifests:
+   configmap_bin: true
+   configmap_etc: true
+@@ -1647,7 +1655,11 @@ manifests:
+   secret_rabbitmq: true
+   secret_registry: true
+   service_api: true
++  service_central_metrics: false
++  service_compute_metrics: false
+   service_ingress_api: true
++  servicemonitor_central: false
++  servicemonitor_compute: false
+ 
+ # -- Array of extra K8s manifests to deploy
+ ## Note: Supports use of custom Helm templates
+-- 
+2.34.1
+

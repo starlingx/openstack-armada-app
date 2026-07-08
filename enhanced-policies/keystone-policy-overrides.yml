@@ -39,7 +39,7 @@ conf:
         identity:create_role: rule:admin_required
         identity:create_service: rule:admin_required
         identity:create_service_provider: rule:admin_required
-        identity:create_trust: user_id:%(trust.trustor_user_id)s
+        identity:create_trust: user_id:%(target.trust.trustor_user_id)s
         identity:create_user: rule:admin_required
         identity:delete_access_token: rule:admin_required
         identity:delete_consumer: rule:admin_required

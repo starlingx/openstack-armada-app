@@ -84,16 +84,6 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                     'DEFAULT': {
                         'image_conversion_dir': tsc.IMAGE_CONVERSION_PATH}}},
             'endpoints': {
-                'volume': {
-                    'host_fqdn_override': {
-                        'public': {},
-                    },
-                },
-                'volumev2': {
-                    'host_fqdn_override': {
-                        'public': {},
-                    },
-                },
                 'volumev3': {
                     'host_fqdn_override': {
                         'public': {},
@@ -180,30 +170,6 @@ class CinderGetOverrideTest(CinderConversionTestCase,
                             'cacert': cinder.CinderHelm.get_ca_file(),
                             'password': mock.ANY,
                             'region_name': mock.ANY,
-                        },
-                    },
-                },
-                'volume': {
-                    'host_fqdn_override': {
-                        'public': {
-                            # 'host': mock.ANY,
-                            'tls': {
-                                'ca': 'fake',
-                                'crt': 'fake',
-                                'key': 'fake',
-                            },
-                        },
-                    },
-                },
-                'volumev2': {
-                    'host_fqdn_override': {
-                        'public': {
-                            # 'host': mock.ANY,
-                            'tls': {
-                                'ca': 'fake',
-                                'crt': 'fake',
-                                'key': 'fake',
-                            },
                         },
                     },
                 },

@@ -52,3 +52,4 @@
 0054-Set-nova-services-to-eventlet-mode.patch
 0055-Add-extraArgs-support-to-prometheus-openstack-exporter.patch
 0056-Add-Prometheus-support-to-Aodh.patch
+0057-Migrate-tenant_network_types-to-project_network_types.patch

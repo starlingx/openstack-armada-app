@@ -1,0 +1,47 @@
+From 2a1dab21c63314c14cd497b7f86d23843b62d05d Mon Sep 17 00:00:00 2001
+From: Amit Mahajan <Amit.Mahajan@windriver.com>
+Date: Thu, 9 Jul 2026 20:25:09 -0400
+Subject: [PATCH] Migrate tenant_network_types to project_network_types
+
+Neutron Gazpacho (2026.1) deprecated the tenant_network_types
+ML2 configuration option in favor of project_network_types,
+with removal planned for 2027.1.
+
+Update the chart default in values.yaml and the template
+conditional in configmap-etc.yaml to use the new option name.
+
+Signed-off-by: Amit Mahajan <Amit.Mahajan@windriver.com>
+---
+ neutron/templates/configmap-etc.yaml | 2 +-
+ neutron/values.yaml                  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/neutron/templates/configmap-etc.yaml b/neutron/templates/configmap-etc.yaml
+index 041e682d3..167ab15ff 100644
+--- a/neutron/templates/configmap-etc.yaml
++++ b/neutron/templates/configmap-etc.yaml
+@@ -129,7 +129,7 @@ limitations under the License.
+ {{- end -}}
+ 
+ {{- if empty $envAll.Values.conf.plugins.ml2_conf.ml2.mechanism_drivers -}}
+-{{- if (contains "vxlan" $envAll.Values.conf.plugins.ml2_conf.ml2.tenant_network_types) -}}
++{{- if (contains "vxlan" $envAll.Values.conf.plugins.ml2_conf.ml2.project_network_types) -}}
+ {{- $_ := set $envAll.Values "__mechanism_drivers" (append $envAll.Values.network.backend "l2population") -}}
+ {{- end -}}
+ {{- $_ := set $envAll.Values.conf.plugins.ml2_conf.ml2 "mechanism_drivers" ($envAll.Values.__mechanism_drivers | default $envAll.Values.network.backend | uniq) -}}
+diff --git a/neutron/values.yaml b/neutron/values.yaml
+index b96aa12f4..f43f9e7ed 100644
+--- a/neutron/values.yaml
++++ b/neutron/values.yaml
+@@ -2103,7 +2103,7 @@ conf:
+         # in 'network.backend' to sane defaults.
+         mechanism_drivers: null
+         type_drivers: flat,vlan,vxlan,local
+-        tenant_network_types: vxlan
++        project_network_types: vxlan
+       ml2_type_vxlan:
+         vni_ranges: 1:1000
+         vxlan_group: 239.1.1.1
+-- 
+2.43.0
+

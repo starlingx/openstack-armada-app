@@ -1,0 +1,88 @@
+From c0cbba63393c019a453801ff5d1640f70849ed6c Mon Sep 17 00:00:00 2001
+From: Amit Mahajan <Amit.Mahajan@windriver.com>
+Date: Mon, 13 Jul 2026 17:46:03 -0400
+Subject: [PATCH] Add terminationGracePeriodSeconds to Nova compute, conductor
+ and scheduler
+
+Nova Gazpacho (2026.1) introduced graceful shutdown support with a
+default graceful_shutdown_timeout of 180s for all Nova services.
+However, K8s terminationGracePeriodSeconds was only configured for
+nova-api (osapi) and nova-metadata deployments. The compute
+DaemonSet, conductor and scheduler deployments still default to
+K8s's 30s, meaning K8s will SIGKILL the pod before Nova's graceful
+shutdown can complete.
+
+Add terminationGracePeriodSeconds (configurable via
+pod.lifecycle.termination_grace_period.<service>.timeout) to:
+- daemonset-compute.yaml
+- deployment-conductor.yaml
+- deployment-scheduler.yaml
+- values.yaml (default declarations)
+
+The default remains 30s to match the K8s default when the value
+is not explicitly overridden via static or user overrides.
+
+Signed-off-by: Amit Mahajan <Amit.Mahajan@windriver.com>
+---
+ nova/templates/daemonset-compute.yaml    | 1 +
+ nova/templates/deployment-conductor.yaml | 1 +
+ nova/templates/deployment-scheduler.yaml | 1 +
+ nova/values.yaml                         | 6 ++++++
+ 4 files changed, 9 insertions(+)
+
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 156509a40..a6d0f7779 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -120,6 +120,7 @@ spec:
+       hostPID: true
+       hostIPC: true
+       dnsPolicy: ClusterFirstWithHostNet
++      terminationGracePeriodSeconds: {{ $envAll.Values.pod.lifecycle.termination_grace_period.compute.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "pod_dependency" $mounts_nova_compute_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+         - name: nova-compute-init
+diff --git a/nova/templates/deployment-conductor.yaml b/nova/templates/deployment-conductor.yaml
+index 71d4be317..829c1fe1b 100644
+--- a/nova/templates/deployment-conductor.yaml
++++ b/nova/templates/deployment-conductor.yaml
+@@ -90,6 +90,7 @@ spec:
+ {{ if $envAll.Values.pod.tolerations.nova.enabled }}
+ {{ tuple $envAll "nova" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
+ {{ end }}
++      terminationGracePeriodSeconds: {{ $envAll.Values.pod.lifecycle.termination_grace_period.conductor.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "conductor" $mounts_nova_conductor_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/nova/templates/deployment-scheduler.yaml b/nova/templates/deployment-scheduler.yaml
+index 035f1891e..857e30405 100644
+--- a/nova/templates/deployment-scheduler.yaml
++++ b/nova/templates/deployment-scheduler.yaml
+@@ -90,6 +90,7 @@ spec:
+ {{ if $envAll.Values.pod.tolerations.nova.enabled }}
+ {{ tuple $envAll "nova" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
+ {{ end }}
++      terminationGracePeriodSeconds: {{ $envAll.Values.pod.lifecycle.termination_grace_period.scheduler.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "scheduler" $mounts_nova_scheduler_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 62f52b5e3..2c77bf0dd 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -2531,6 +2531,12 @@ pod:
+         timeout: 30
+       osapi:
+         timeout: 30
++      compute:
++        timeout: 30
++      conductor:
++        timeout: 30
++      scheduler:
++        timeout: 30
+   resources:
+     enabled: false
+     compute:
+-- 
+2.43.0
+

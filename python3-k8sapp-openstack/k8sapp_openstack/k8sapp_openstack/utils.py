@@ -3622,6 +3622,46 @@ def is_vm_recovery_enabled() -> bool:
         override_name=app_constants.NOVA_RECOVERY_ENABLED_OVERRIDE)
 
 
+def is_nova_ephemeral_ceph_enabled() -> bool:
+    """Check if Ceph RBD is the effective Nova ephemeral storage backend.
+
+    Reads the Nova storage backend selections and priority list to
+    determine whether ceph is the highest-priority enabled backend,
+    and verifies that a Ceph storage backend is actually available
+    on the system.
+
+    Returns:
+        bool: True if ceph is the effective ephemeral backend and
+            a Ceph storage backend is available.
+    """
+    enabled_storage_backends = get_enabled_storage_backends_from_override(
+        chart_name=app_constants.HELM_CHART_NOVA,
+        override_name=app_constants.OVERRIDE_STORAGE_BACKENDS,
+        default_storage_backends=app_constants.DEFAULT_NOVA_STORAGE_BACKEND_SELECT
+    )
+    storage_backends_priority_list = get_storage_backends_priority_list(
+        app_constants.HELM_CHART_NOVA,
+        app_constants.OVERRIDE_STORAGE_PRIORITY,
+        app_constants.DEFAULT_NOVA_STORAGE_PRIORITY_LIST
+    )
+    ceph_selected = False
+    for backend in storage_backends_priority_list:
+        if backend in enabled_storage_backends:
+            ceph_selected = (backend == app_constants.NOVA_CEPH_BACKEND_NAME)
+            break
+
+    if not ceph_selected:
+        return False
+
+    # Verify that a Ceph backend is actually deployed on the system
+    ceph_available, _ = is_ceph_backend_available(
+        ceph_type=constants.SB_TYPE_CEPH)
+    rook_available, _ = is_ceph_backend_available(
+        ceph_type=constants.SB_TYPE_CEPH_ROOK)
+
+    return ceph_available or rook_available
+
+
 def recover_error_servers(conductor_obj):
     """Recover all servers in ERROR state via reset-state/stop/shelve/unshelve.
 

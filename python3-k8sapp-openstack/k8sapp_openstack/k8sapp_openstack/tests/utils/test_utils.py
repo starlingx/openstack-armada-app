@@ -1855,7 +1855,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             default_storage_backends=custom_default
         )
 
-        assert enabled_backends == ["host-path", "nfs", "pvc"]
+        assert enabled_backends == ["host-path", "nfs", "pvc", "ceph"]
         mock_get_values.assert_called_once_with(
             default_value=custom_default,
             chart_name=chart,
@@ -3406,3 +3406,78 @@ class TestGetBackendProtocol(dbbase.ControllerHostTestCase):
             {"name": "netapp-fc-tef", "protocol": "fcp"},
         ]
         self.assertEqual(app_utils.get_backend_protocol("netapp-fc-tef"), "fcp")
+
+    @mock.patch('k8sapp_openstack.utils.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_is_nova_ephemeral_ceph_enabled_returns_false_when_not_priority(
+        self, mock_enabled, mock_priority
+    ):
+        mock_enabled.return_value = [
+            app_constants.HOST_PATH_BACKEND_NAME,
+            app_constants.NOVA_CEPH_BACKEND_NAME,
+        ]
+        mock_priority.return_value = [
+            app_constants.HOST_PATH_BACKEND_NAME,
+            app_constants.NOVA_CEPH_BACKEND_NAME,
+        ]
+
+        result = app_utils.is_nova_ephemeral_ceph_enabled()
+
+        self.assertFalse(result)
+
+    @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available',
+                return_value=(True, ''))
+    @mock.patch('k8sapp_openstack.utils.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_is_nova_ephemeral_ceph_enabled_returns_true_when_highest_priority(
+        self, mock_enabled, mock_priority, mock_ceph_available
+    ):
+        mock_enabled.return_value = [
+            app_constants.HOST_PATH_BACKEND_NAME,
+            app_constants.NOVA_CEPH_BACKEND_NAME,
+        ]
+        mock_priority.return_value = [
+            app_constants.NOVA_CEPH_BACKEND_NAME,
+            app_constants.HOST_PATH_BACKEND_NAME,
+        ]
+
+        result = app_utils.is_nova_ephemeral_ceph_enabled()
+
+        self.assertTrue(result)
+
+    @mock.patch('k8sapp_openstack.utils.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_is_nova_ephemeral_ceph_enabled_returns_false_when_not_enabled(
+        self, mock_enabled, mock_priority
+    ):
+        mock_enabled.return_value = [
+            app_constants.HOST_PATH_BACKEND_NAME,
+        ]
+        mock_priority.return_value = [
+            app_constants.NOVA_CEPH_BACKEND_NAME,
+            app_constants.HOST_PATH_BACKEND_NAME,
+        ]
+
+        result = app_utils.is_nova_ephemeral_ceph_enabled()
+
+        self.assertFalse(result)
+
+    @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available',
+                return_value=(False, 'No ceph backend available'))
+    @mock.patch('k8sapp_openstack.utils.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_is_nova_ephemeral_ceph_enabled_returns_false_when_ceph_not_deployed(
+        self, mock_enabled, mock_priority, mock_ceph_available
+    ):
+        mock_enabled.return_value = [
+            app_constants.HOST_PATH_BACKEND_NAME,
+            app_constants.NOVA_CEPH_BACKEND_NAME,
+        ]
+        mock_priority.return_value = [
+            app_constants.NOVA_CEPH_BACKEND_NAME,
+            app_constants.HOST_PATH_BACKEND_NAME,
+        ]
+
+        result = app_utils.is_nova_ephemeral_ceph_enabled()
+
+        self.assertFalse(result)

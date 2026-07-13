@@ -39,6 +39,12 @@ class NovaGetOverrideTest(NovaHelmTestCase,
         )
         pvc_resolution_patcher.start()
         self.addCleanup(pvc_resolution_patcher.stop)
+        ceph_resolution_patcher = mock.patch(
+            'k8sapp_openstack.helm.nova.is_nova_ephemeral_ceph_enabled',
+            return_value=False
+        )
+        ceph_resolution_patcher.start()
+        self.addCleanup(ceph_resolution_patcher.stop)
         self.worker = self._create_test_host(
             personality=constants.WORKER,
             administrative=constants.ADMIN_LOCKED)
@@ -395,6 +401,86 @@ class NovaGetOverrideTest(NovaHelmTestCase,
         self.assertEqual(
             overrides['conf']['nova']['libvirt']['rbd_secret_uuid'],
             '89bd29e9-c505-4170-a097-04dc8e43c897')
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.helm.nova.NovaHelm._resolve_nova_pvc_overrides',
+        return_value={}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.nova.is_nova_ephemeral_ceph_enabled',
+        return_value=True
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.nova.NovaHelm._get_rbd_ephemeral_storage',
+        return_value={
+            'type': 'rbd',
+            'rbd_pools': [{
+                'rbd_pool_name': 'ephemeral',
+                'rbd_user': 'cinder',
+                'rbd_crush_rule': 'storage_tier_ruleset',
+                'rbd_replication': 2,
+                'rbd_chunk_size': 256,
+            }]
+        }
+    )
+    def test_nova_overrides_resolves_ceph_backend(
+        self,
+        mock_get_rbd_ephemeral_storage,
+        mock_is_nova_ephemeral_ceph_enabled,
+        *_
+    ):
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK
+        )
+
+        self.assertEqual(
+            overrides['conf']['nova']['libvirt']['images_type'],
+            'rbd'
+        )
+        self.assertEqual(
+            overrides['conf']['nova']['libvirt']['images_rbd_pool'],
+            'ephemeral'
+        )
+        self.assertEqual(
+            overrides['rbd_pool']['replication'],
+            2
+        )
+        self.assertEqual(
+            overrides['rbd_pool']['crush_rule'],
+            'storage_tier_ruleset'
+        )
+        self.assertEqual(
+            overrides['rbd_pool']['app_name'],
+            app_constants.CEPH_POOL_EPHEMERAL_NAME
+        )
+        mock_is_nova_ephemeral_ceph_enabled.assert_called_once_with()
+        mock_get_rbd_ephemeral_storage.assert_called()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.helm.nova.NovaHelm._resolve_nova_pvc_overrides',
+        return_value={}
+    )
+    @mock.patch(
+        'k8sapp_openstack.helm.nova.is_nova_ephemeral_ceph_enabled',
+        return_value=False
+    )
+    def test_nova_overrides_skips_ceph_when_not_selected(
+        self,
+        mock_is_nova_ephemeral_ceph_enabled,
+        *_
+    ):
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK
+        )
+
+        self.assertNotIn('rbd_pool', overrides)
+        mock_is_nova_ephemeral_ceph_enabled.assert_called_once_with()
 
 
 class TestEnableMultipath(testtools.TestCase):

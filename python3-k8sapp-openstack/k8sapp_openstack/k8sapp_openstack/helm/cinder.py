@@ -19,6 +19,7 @@ from k8sapp_openstack.utils import _get_value_from_application
 from k8sapp_openstack.utils import discover_netapp_configs
 from k8sapp_openstack.utils import discover_netapp_credentials
 from k8sapp_openstack.utils import get_available_volume_backends
+from k8sapp_openstack.utils import get_backend_protocol
 from k8sapp_openstack.utils import get_backends_conf
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_image_rook_ceph
@@ -45,9 +46,30 @@ class CinderHelm(openstack.OpenstackBaseHelm):
     SERVICE_USERS = ['glance', 'nova', 'swift', 'service']
 
     def _get_backup_driver_name(self, backend_name=app_constants.BACKEND_DEFAULT_BACKEND_NAME):
-        return app_constants.BACKUP_BACKEND_DRIVER_MAP.get(
-            backend_name, app_constants.BACKUP_DEFAULT_DRIVER
-        )
+        """Resolve backup driver for a backend.
+
+        Strict backends use BACKUP_BACKEND_DRIVER_MAP. ESB backends resolve
+        via protocol: nfs->NFSBackupDriver, iscsi/fcp->PosixBackupDriver,
+        local->None (operator must configure).
+        """
+        driver = app_constants.BACKUP_BACKEND_DRIVER_MAP.get(backend_name)
+        if driver:
+            return driver
+
+        conf_entry = getattr(self, '_backends_conf', None) or {}
+        entry = conf_entry.get(backend_name, {})
+        protocol = entry.get('protocol') if entry else None
+        if not protocol:
+            protocol = get_backend_protocol(backend_name)
+
+        if protocol == 'nfs':
+            return app_constants.NETAPP_NFS_BACKUP_DRIVER
+        elif protocol in ('iscsi', 'fcp'):
+            return app_constants.NETAPP_ISCSI_BACKUP_DRIVER
+        elif protocol == 'local':
+            return None
+
+        return app_constants.BACKUP_DEFAULT_DRIVER
 
     def _get_mount_overrides(self):
         overrides = {
@@ -199,7 +221,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 self.default_backup_driver = self._get_backup_driver_name(priority)
                 self.default_backup_type = priority
                 break
-        cinder_overrides['DEFAULT']['backup_driver'] = self.default_backup_driver
+        if self.default_backup_driver:
+            cinder_overrides['DEFAULT']['backup_driver'] = self.default_backup_driver
 
         backup_replicas = self._num_provisioned_controllers()
         if self.default_backup_type in [app_constants.NETAPP_ISCSI_BACKEND_NAME, app_constants.NETAPP_FC_BACKEND_NAME]:
@@ -610,7 +633,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
     def _get_backup_overrides(self):
         backup_overrides = dict()
         class_name = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
-        if "PosixBackupDriver" in self.default_backup_driver:
+        if self.default_backup_driver and "PosixBackupDriver" in self.default_backup_driver:
             class_name = self.available_backends.get(
                 self.default_backup_type,
                 app_constants.BACKEND_DEFAULT_STORAGE_CLASS

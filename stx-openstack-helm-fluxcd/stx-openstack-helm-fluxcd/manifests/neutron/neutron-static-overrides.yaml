@@ -2120,7 +2120,6 @@ conf:
         # in 'network.backend' to sane defaults.
         mechanism_drivers: openvswitch,sriovnicswitch,l2population
         type_drivers: flat,vlan,vxlan
-        tenant_network_types: vlan,vxlan
         project_network_types: vlan,vxlan
         path_mtu: 0
       ml2_type_vxlan:

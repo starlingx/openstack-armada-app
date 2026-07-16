@@ -585,7 +585,7 @@ conf:
     oslo_middleware:
       enable_proxy_headers_parsing: true
     oslo_concurrency:
-      lock_path: /var/lock
+      lock_path: /var/lib/oslo-lock
     oslo_policy:
       policy_file: /etc/keystone/policy.yaml
     security_compliance:

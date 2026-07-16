@@ -367,7 +367,7 @@ conf:
     oslo_messaging_rabbit:
       rabbit_ha_queues: True
     oslo_concurrency:
-      lock_path: /var/lock
+      lock_path: /var/lib/oslo-lock
     oslo_policy:
       policy_file: /etc/heat/policy.yaml
   api_audit_map:

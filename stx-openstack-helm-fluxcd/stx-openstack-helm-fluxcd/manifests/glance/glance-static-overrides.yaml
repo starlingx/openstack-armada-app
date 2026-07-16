@@ -328,7 +328,7 @@ conf:
       max_retries: -1
       connection: ""
     oslo_concurrency:
-      lock_path: /var/lock
+      lock_path: /var/lib/oslo-lock
     oslo_messaging_notifications:
       driver: messagingv2
     oslo_messaging_rabbit:

@@ -1998,7 +1998,7 @@ conf:
       agent_down_time: 180
       bind_host: "::"
     oslo_concurrency:
-      lock_path: /var/lock
+      lock_path: /var/lib/oslo-lock
     database:
       max_retries: -1
       connection: ""

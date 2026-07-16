@@ -461,7 +461,7 @@ conf:
     oslo_policy:
       policy_file: /etc/aodh/policy.yaml
     oslo_concurrency:
-      lock_path: /var/lock
+      lock_path: /var/lib/oslo-lock
     database:
       alarm_history_time_to_live: 86400
       max_retries: -1

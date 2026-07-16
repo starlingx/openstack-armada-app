@@ -1079,6 +1079,8 @@ manifests:
   secret_rabbitmq: true
   secret_registry: true
   service_api: false
+  service_central_metrics: true
+  service_compute_metrics: true
   service_ingress_api: false
   servicemonitor_central: true
   servicemonitor_compute: true

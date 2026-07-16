@@ -1,0 +1,51 @@
+From 1bffb0f0ba87ea687029ece303781675ce629ba1 Mon Sep 17 00:00:00 2001
+From: Amit Mahajan <Amit.Mahajan@windriver.com>
+Date: Thu, 16 Jul 2026 11:21:57 -0400
+Subject: [PATCH] Add nf_tables fallback for OVS agent kernel module init
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The neutron-openvswitch-agent-kernel-modules init container runs
+modprobe ip6_tables before starting the OVS agent. On kernels that
+have moved to nftables-only (6.18.15+deb13-amd64 on Debian Trixie),
+the ip6_tables module does not exist — neither as a loadable module
+nor as built-in. This causes the init container to fail under
+set -ex, triggering CrashLoopBackOff and blocking the entire
+libvirt/nova-compute dependency chain, resulting in application
+apply failure.
+
+The ip6_tables kernel module is not required on nftables-only
+kernels:
+- The iptables/ip6tables userspace commands still function via
+  the nft_compat kernel module and nf_tables backend
+- nf_tables is the unified netfilter framework for both IPv4
+  and IPv6
+
+Add a fallback to modprobe nf_tables if ip6_tables is not
+available. This maintains backward compatibility with older
+kernels (where ip6_tables exists) while supporting newer
+nftables-only kernels. If neither module can be loaded, the
+script fails fast under set -ex.
+
+Signed-off-by: Amit Mahajan <Amit.Mahajan@windriver.com>
+---
+ .../bin/_neutron-openvswitch-agent-init-modules.sh.tpl          | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/neutron/templates/bin/_neutron-openvswitch-agent-init-modules.sh.tpl b/neutron/templates/bin/_neutron-openvswitch-agent-init-modules.sh.tpl
+index a243867aa..bf868b04a 100644
+--- a/neutron/templates/bin/_neutron-openvswitch-agent-init-modules.sh.tpl
++++ b/neutron/templates/bin/_neutron-openvswitch-agent-init-modules.sh.tpl
+@@ -15,7 +15,7 @@ limitations under the License.
+ */}}
+ 
+ set -ex
+-chroot /mnt/host-rootfs modprobe ip6_tables
++chroot /mnt/host-rootfs modprobe ip6_tables || chroot /mnt/host-rootfs modprobe nf_tables
+ 
+ {{- if .Values.conf.ovs_dpdk.enabled }}
+ chroot /mnt/host-rootfs modprobe {{ .Values.conf.ovs_dpdk.driver | quote }}
+-- 
+2.43.0
+

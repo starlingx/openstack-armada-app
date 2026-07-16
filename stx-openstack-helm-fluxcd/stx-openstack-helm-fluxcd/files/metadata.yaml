@@ -4,7 +4,6 @@ maintain_user_overrides: true
 class: optional
 
 disabled_charts:
-- aodh
 - barbican
 - ceph-rgw
 - dcdbsync

@@ -29,7 +29,7 @@ spec:
   upgrade:
     disableHooks: false
   dependsOn:
-    - name: horizon
+    - name: ceilometer
       namespace: openstack
   valuesFrom:
     - kind: Secret

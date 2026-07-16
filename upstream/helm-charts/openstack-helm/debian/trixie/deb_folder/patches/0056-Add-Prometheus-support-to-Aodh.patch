@@ -1,4 +1,4 @@
-From 44c1d0920541c3dacad88ccf61574c9bc81acb92 Mon Sep 17 00:00:00 2001
+From e5c95cbd8d349c40a9badc894b7e038e17216765 Mon Sep 17 00:00:00 2001
 From: cfigueir <carlos.figueiredofelipe@windriver.com>
 Date: Tue, 30 Jun 2026 11:54:41 -0300
 Subject: [PATCH] Add Prometheus support to Aodh
@@ -16,11 +16,27 @@ conf:
 `
 
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[Fix Aodh cron-job-alarms-cleaner volume reference]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
- aodh/templates/deployment-evaluator.yaml | 5 +++++
- aodh/values.yaml                         | 3 +++
- 2 files changed, 8 insertions(+)
+ aodh/templates/cron-job-alarms-cleaner.yaml | 2 +-
+ aodh/templates/deployment-evaluator.yaml    | 5 +++++
+ aodh/values.yaml                            | 3 +++
+ 3 files changed, 9 insertions(+), 1 deletion(-)
 
+diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
+index aeb3b9356..dfeef549d 100644
+--- a/aodh/templates/cron-job-alarms-cleaner.yaml
++++ b/aodh/templates/cron-job-alarms-cleaner.yaml
+@@ -96,7 +96,7 @@ spec:
+               secret:
+                 secretName: aodh-etc
+                 defaultMode: 0444
+-            - name: aodh-et-etc-snippets
++            - name: aodh-etc-snippets
+ {{- if $etcSources }}
+               projected:
+                 sources:
 diff --git a/aodh/templates/deployment-evaluator.yaml b/aodh/templates/deployment-evaluator.yaml
 index 662063880..17e70e088 100644
 --- a/aodh/templates/deployment-evaluator.yaml

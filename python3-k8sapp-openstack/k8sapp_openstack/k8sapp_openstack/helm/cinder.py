@@ -63,8 +63,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             protocol = get_backend_protocol(backend_name)
 
         if protocol == 'nfs':
-            return app_constants.NETAPP_NFS_BACKUP_DRIVER
-        elif protocol in ('iscsi', 'fcp'):
+            return app_constants.NFS_BACKUP_DRIVER
+        elif protocol in app_constants.MULTIPATH_PROTOCOLS:
             return app_constants.NETAPP_ISCSI_BACKUP_DRIVER
         elif protocol == 'local':
             return None

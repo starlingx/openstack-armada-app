@@ -982,7 +982,7 @@ class TestGetBackupDriverName(testtools.TestCase):
     def test_strict_netapp_nfs_returns_nfs_driver(self):
         ch = self._make_helm()
         result = ch._get_backup_driver_name(app_constants.NETAPP_NFS_BACKEND_NAME)
-        self.assertEqual(result, app_constants.NETAPP_NFS_BACKUP_DRIVER)
+        self.assertEqual(result, app_constants.NFS_BACKUP_DRIVER)
 
     def test_strict_netapp_iscsi_returns_posix_driver(self):
         ch = self._make_helm()
@@ -999,7 +999,7 @@ class TestGetBackupDriverName(testtools.TestCase):
             'dell-nfs': {'name': 'dell-nfs', 'protocol': 'nfs'}
         })
         result = ch._get_backup_driver_name('dell-nfs')
-        self.assertEqual(result, app_constants.NETAPP_NFS_BACKUP_DRIVER)
+        self.assertEqual(result, app_constants.NFS_BACKUP_DRIVER)
 
     def test_esb_iscsi_returns_posix_driver(self):
         ch = self._make_helm(backends_conf={
@@ -1113,7 +1113,7 @@ class TestBackupDriverEmission(testtools.TestCase):
         overrides = self._resolve_backup(ch)
         self.assertEqual(
             overrides['DEFAULT']['backup_driver'],
-            app_constants.NETAPP_NFS_BACKUP_DRIVER
+            app_constants.NFS_BACKUP_DRIVER
         )
 
     def test_iscsi_protocol_backup_driver_emitted(self):

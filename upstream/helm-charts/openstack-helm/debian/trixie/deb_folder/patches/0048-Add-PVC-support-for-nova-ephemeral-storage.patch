@@ -1,4 +1,4 @@
-From 815e7a1b4abec4073f730dd1c7eb2f63cdea82f7 Mon Sep 17 00:00:00 2001
+From b780b5dda62b544685f8fc16a8f8316e32d9137c Mon Sep 17 00:00:00 2001
 From: Luis Henrique Silva Cazuriaga
  <LuisHenrique.SilvaCazuriaga@windriver.com>
 Date: Tue, 10 Mar 2026 15:19:43 -0300
@@ -17,17 +17,19 @@ PVC name, size, access modes, and storage class are read from storage_conf.pvc.*
 Change-Id: I3311e53ee2a97e87c40af7b79b1d230efe34a5af
 [ Adapt OSH patches to Gazpacho release ]
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Add a comment for storage_class_priority ]
+Signed-off-by: Raghu Sarangapani <raghu.sarangapani@windriver.com>
 ---
  libvirt/templates/daemonset-libvirt.yaml | 10 ++++++++++
  libvirt/values.yaml                      |  4 ++++
  nova/templates/daemonset-compute.yaml    | 19 +++++++++++++++++++
  nova/templates/pvc-nova-ephemeral.yaml   | 23 +++++++++++++++++++++++
- nova/values.yaml                         | 18 +++++++++++++++++-
- 5 files changed, 73 insertions(+), 1 deletion(-)
+ nova/values.yaml                         | 22 +++++++++++++++++++++-
+ 5 files changed, 77 insertions(+), 1 deletion(-)
  create mode 100644 nova/templates/pvc-nova-ephemeral.yaml
 
 diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
-index 6e8be3557..8a65c141e 100644
+index 12edfde..a482571 100644
 --- a/libvirt/templates/daemonset-libvirt.yaml
 +++ b/libvirt/templates/daemonset-libvirt.yaml
 @@ -33,6 +33,9 @@ exec:
@@ -40,7 +42,7 @@ index 6e8be3557..8a65c141e 100644
  
  ---
  apiVersion: apps/v1
-@@ -276,6 +279,9 @@ spec:
+@@ -280,6 +283,9 @@ spec:
              {{- if .Values.storage_conf.nfs_shares.enabled }}
              - name: nfsnovainstances
                mountPath: {{ .Values.storage_conf.nfs_shares.instances_path }}
@@ -50,7 +52,7 @@ index 6e8be3557..8a65c141e 100644
              {{- end }}
              - name: run
                mountPath: /run
-@@ -367,6 +373,10 @@ spec:
+@@ -371,6 +377,10 @@ spec:
            nfs:
              server: {{ .Values.storage_conf.nfs_shares.server }}
              path: {{ .Values.storage_conf.nfs_shares.path }}
@@ -62,10 +64,10 @@ index 6e8be3557..8a65c141e 100644
          - name: run
            hostPath:
 diff --git a/libvirt/values.yaml b/libvirt/values.yaml
-index 709fb23c7..a8641e513 100644
+index b70d987..5dba35e 100644
 --- a/libvirt/values.yaml
 +++ b/libvirt/values.yaml
-@@ -401,6 +401,10 @@ storage_conf:
+@@ -405,6 +405,10 @@ storage_conf:
      server: 127.0.0.1
      path: /openstack_instances
      instances_path: /var/lib/instances
@@ -77,7 +79,7 @@ index 709fb23c7..a8641e513 100644
  manifests:
    configmap_bin: true
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 4655a2615..156509a40 100644
+index 4655a26..156509a 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
 @@ -73,6 +73,9 @@ exec:
@@ -143,7 +145,7 @@ index 4655a2615..156509a40 100644
            hostPath:
 diff --git a/nova/templates/pvc-nova-ephemeral.yaml b/nova/templates/pvc-nova-ephemeral.yaml
 new file mode 100644
-index 000000000..bfc7924b2
+index 0000000..bfc7924
 --- /dev/null
 +++ b/nova/templates/pvc-nova-ephemeral.yaml
 @@ -0,0 +1,23 @@
@@ -171,10 +173,10 @@ index 000000000..bfc7924b2
 +  storageClassName: {{ $pvcVolume.class_name | quote }}
 +{{- end }}
 diff --git a/nova/values.yaml b/nova/values.yaml
-index ed38915a7..fd987c51a 100644
+index a4a5b91..e907cb0 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -2719,19 +2719,35 @@ tls:
+@@ -2718,19 +2718,39 @@ tls:
    oslo_db: false
  
  storage_conf:
@@ -206,11 +208,15 @@ index ed38915a7..fd987c51a 100644
 +    storage_backends:
 +      - name: netapp-nfs
 +        enabled: true
++    # Ordered list of backend names to use when selecting a storage class for
++    # PVC provisioning. Accepts arbitrary backend name strings matching entries
++    # in storage_backends above — not limited to netapp-nfs. Defaults to
++    # [netapp-nfs] for backward compatibility.
 +    storage_class_priority:
 +      - netapp-nfs
  
  manifests:
    certificates: false
 -- 
-2.34.1
+2.43.0
 

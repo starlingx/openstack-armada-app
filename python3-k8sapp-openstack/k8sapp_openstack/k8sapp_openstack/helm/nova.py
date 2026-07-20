@@ -19,6 +19,7 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import check_netapp_backends
+from k8sapp_openstack.utils import get_backends_conf
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_hosts_uuids
 from k8sapp_openstack.utils import get_image_rook_ceph
@@ -909,15 +910,23 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         Check whether multipath should be enabled.
 
         This method verifies whether iSCSI and/or Fibre Channel (FC)
-        storage backends are available and enabled.
+        storage backends are available and enabled. ESB backends are
+        checked first; if any active ESB entry declares protocol: iscsi
+        or protocol: fcp, multipath is enabled immediately. Otherwise
+        falls back to checking the strict NetApp iSCSI/FC backends.
 
         Returns:
-            bool: True if at least one backend (iSCSI or FC) is available and enabled.
-                  False if no compatible backend is available.
+            bool: True if at least one iSCSI or FC backend is active.
+                  False if no compatible backend is found.
         """
+        # Check ESB backends first
+        backends_conf = get_backends_conf()
+        for entry in backends_conf.values():
+            if entry.get('protocol', '') in app_constants.MULTIPATH_PROTOCOLS:
+                return True
 
+        # Fall back to strict NetApp backends
         backends = check_netapp_backends()
-
         self._iscsi_enabled = backends.get("netapp-iscsi", False)
         self._fc_enabled = backends.get("netapp-fc", False)
 

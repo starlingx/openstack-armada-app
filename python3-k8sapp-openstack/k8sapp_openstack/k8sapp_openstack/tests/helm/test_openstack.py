@@ -471,6 +471,35 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         result = self.helm._get_service_default_dns_name(app_constants.HELM_CHART_KEYSTONE)
         self.assertIn(app_constants.HELM_CHART_KEYSTONE, result)
 
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_default_dns_name',
+        return_value='rabbitmq.openstack.svc.cluster.local')
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_common_password',
+        return_value='fake-pass')
+    def test_get_rabbit_notification_url(self, *_):
+        """Tests the rabbitmq notification URL construction for a vhost,
+        using the rabbitmq-admin credential and the rabbitmq service
+        DNS name."""
+        result = self.helm._get_rabbit_notification_url('/ceilometer')
+        self.assertEqual(
+            'rabbit://rabbitmq-admin:fake-pass@'
+            'rabbitmq.openstack.svc.cluster.local:5672/ceilometer',
+            result)
+
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_default_dns_name',
+        return_value='rabbitmq.openstack.svc.cluster.local')
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_common_password',
+        return_value=b'fake-pass')
+    def test_get_rabbit_notification_url_decodes_bytes_password(self, *_):
+        """Asserts that a bytes password from _get_common_password is
+        decoded to str in the resulting URL."""
+        result = self.helm._get_rabbit_notification_url('/ceilometer')
+        self.assertIn('fake-pass', result)
+        self.assertNotIn("b'", result)
+
     @mock.patch("k8sapp_openstack.helm.openstack.app_utils.is_ceph_backend_available", return_value=(True, ""))
     def test_get_ceph_client_overrides_rook(self, *_):
         """Matches the default backend user secret name."""

@@ -607,6 +607,35 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         return "{}.{}.svc.{}".format(service, common.HELM_NS_OPENSTACK,
                                      constants.DEFAULT_DNS_SERVICE_DOMAIN)
 
+    def _get_rabbit_notification_url(self, rabbit_path):
+        """Build a rabbitmq notification transport URL for a vhost.
+
+        Uses the rabbitmq-admin credential (which has cross-vhost
+        access) and the rabbitmq service DNS name, so the result is
+        agnostic to IPv4/IPv6/dualstack deployments.
+
+        Args:
+            rabbit_path (str): The target vhost path, e.g. '/ceilometer'.
+
+        Returns:
+            str: A 'rabbit://user:pass@host:port/vhost' transport URL.
+
+        Example:
+            >>> self._get_rabbit_notification_url('/ceilometer')
+            'rabbit://rabbitmq-admin:<pass>@rabbitmq.openstack.svc.
+            cluster.local:5672/ceilometer'
+        """
+        rabbit_user = 'rabbitmq-admin'
+        rabbit_pass = self._get_common_password(rabbit_user)
+        if isinstance(rabbit_pass, bytes):
+            rabbit_pass = rabbit_pass.decode()
+        rabbit_host = self._get_service_default_dns_name(
+            app_constants.HELM_CHART_RABBITMQ)
+        rabbit_port = 5672
+
+        return 'rabbit://%s:%s@%s:%d%s' % (
+            rabbit_user, rabbit_pass, rabbit_host, rabbit_port, rabbit_path)
+
     def _get_service_public_endpoint(self, service, path=None):
         """
         Return the public endpoint URL for an OpenStack service.

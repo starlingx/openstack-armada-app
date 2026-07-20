@@ -76,21 +76,11 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
         return {'ceilometer': ceilometer_conf}
 
     def _get_notification_messaging_urls(self):
-        rabbit_user = 'rabbitmq-admin'
-        rabbit_pass = self._get_common_password(rabbit_user)
-        if isinstance(rabbit_pass, bytes):
-            rabbit_pass = rabbit_pass.decode()
-        rabbit_host = self._get_service_default_dns_name(
-            app_constants.HELM_CHART_RABBITMQ)
-        rabbit_port = 5672
         rabbit_paths = ['/ceilometer', '/cinder', '/glance', '/nova',
                         '/keystone', '/neutron', '/heat']
 
-        LOG.debug("Ceilometer notification messaging host: %s", rabbit_host)
-
         return [
-            'rabbit://%s:%s@%s:%d%s' %
-            (rabbit_user, rabbit_pass, rabbit_host, rabbit_port, rabbit_path)
+            self._get_rabbit_notification_url(rabbit_path)
             for rabbit_path in rabbit_paths
         ]
 

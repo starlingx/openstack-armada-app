@@ -141,3 +141,69 @@ class AodhGetOverrideTest(AodhHelmTestCase,
         result_service_conf = overrides[common.HELM_NS_OPENSTACK]['conf'][app_constants.HELM_CHART_AODH]
         result_region_name = result_service_conf['service_credentials']['region_name']
         self.assertEqual('regionA', result_region_name)
+
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_rabbit_notification_url',
+        return_value=(
+            'rabbit://rabbitmq-admin:fake-pass@'
+            'rabbitmq.openstack.svc.cluster.local:5672/ceilometer'))
+    def test_aodh_overrides_notification_transport_url(self, mock_get_url, *_):
+        """
+        Asserts that the Aodh notification transport_url is set from the
+        shared rabbitmq notification URL helper, using the ceilometer
+        vhost.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_AODH,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        transport_url = overrides['conf']['aodh'][
+            'oslo_messaging_notifications']['transport_url']
+        self.assertEqual(
+            'rabbit://rabbitmq-admin:fake-pass@'
+            'rabbitmq.openstack.svc.cluster.local:5672/ceilometer',
+            transport_url)
+        mock_get_url.assert_called_once_with('/ceilometer')
+
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_aodh_overrides_no_default_transport_url(self, *_):
+        """
+        Asserts that the plugin does not emit conf.aodh.DEFAULT, leaving
+        the chart's OSH-generated /aodh transport_url fallback untouched.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_AODH,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        self.assertNotIn('DEFAULT', overrides['conf']['aodh'])
+
+    @mock.patch('os.path.exists', return_value=True)
+    @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
+        return_value='/etc/ssl/private/openstack/ca-cert.pem'
+    )
+    @mock.patch(
+        'k8sapp_openstack.utils.get_openstack_certificate_values',
+        return_value={
+            app_constants.OPENSTACK_CERT: 'fake',
+            app_constants.OPENSTACK_CERT_KEY: 'fake',
+            app_constants.OPENSTACK_CERT_CA: 'fake'
+        }
+    )
+    def test_aodh_overrides_https_enabled_has_notification_transport_url(
+            self, *_):
+        """
+        Asserts that the notification transport_url override coexists
+        with the keystone_authtoken.cafile override when HTTPS is
+        enabled.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_AODH,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        transport_url = overrides['conf']['aodh'][
+            'oslo_messaging_notifications']['transport_url']
+        self.assertIn('/ceilometer', transport_url)
+        self.assertEqual(
+            overrides['conf']['aodh']['keystone_authtoken']['cafile'],
+            aodh.AodhHelm.get_ca_file())

@@ -54,3 +54,4 @@
 0056-Add-Prometheus-support-to-Aodh.patch
 0057-Migrate-tenant_network_types-to-project_network_types.patch
 0058-Add-nf_tables-fallback-for-modprobe-in-OVS-agent-init.patch
+0059-Add-terminationGracePeriodSeconds-to-Nova-services.patch

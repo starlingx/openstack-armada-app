@@ -97,6 +97,71 @@ class CeilometerGetOverrideTest(CeilometerHelmTestCase,
         self.assertNotIn('metering', overrides['endpoints'])
 
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_ceilometer_overrides_servicemonitor_defaults_not_overridden(self, *_):
+        """
+        Asserts that servicemonitor_central, servicemonitor_compute,
+        service_central_metrics, and service_compute_metrics are NOT
+        present in manifests overrides by default, allowing chart-level
+        defaults (via static-overrides) to take effect.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CEILOMETER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        manifests = overrides['manifests']
+        self.assertNotIn('servicemonitor_central', manifests)
+        self.assertNotIn('servicemonitor_compute', manifests)
+        self.assertNotIn('service_central_metrics', manifests)
+        self.assertNotIn('service_compute_metrics', manifests)
+        # daemonset_ipmi must still be present
+        self.assertFalse(manifests['daemonset_ipmi'])
+
+    @mock.patch(
+        'k8sapp_openstack.helm.ceilometer.CeilometerHelm'
+        '._is_servicemonitor_disabled',
+        return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_ceilometer_overrides_servicemonitor_disabled(self, *_):
+        """
+        Asserts that when _is_servicemonitor_disabled() returns True,
+        only the ServiceMonitor toggles are explicitly set to False in
+        manifests overrides, while the metrics Service toggles are left
+        untouched (independent axis).
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CEILOMETER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        manifests = overrides['manifests']
+        self.assertFalse(manifests['servicemonitor_central'])
+        self.assertFalse(manifests['servicemonitor_compute'])
+        self.assertNotIn('service_central_metrics', manifests)
+        self.assertNotIn('service_compute_metrics', manifests)
+        # daemonset_ipmi must still be present
+        self.assertFalse(manifests['daemonset_ipmi'])
+
+    @mock.patch(
+        'k8sapp_openstack.helm.ceilometer.CeilometerHelm'
+        '._is_metrics_service_disabled',
+        return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_ceilometer_overrides_metrics_service_disabled(self, *_):
+        """
+        Asserts that when _is_metrics_service_disabled() returns True,
+        the metrics Service toggles AND the ServiceMonitor toggles are
+        explicitly set to False in manifests overrides, since
+        ServiceMonitors depend on the metrics Services.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CEILOMETER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        manifests = overrides['manifests']
+        self.assertFalse(manifests['service_central_metrics'])
+        self.assertFalse(manifests['service_compute_metrics'])
+        self.assertFalse(manifests['servicemonitor_central'])
+        self.assertFalse(manifests['servicemonitor_compute'])
+        # daemonset_ipmi must still be present
+        self.assertFalse(manifests['daemonset_ipmi'])
+
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_ceilometer_overrides_invalid_namespace(self, *_):
         """
         Asserts that an exception is raised if an invalid namespace

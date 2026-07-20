@@ -1,0 +1,176 @@
+From 071e92b60d220039999086899e887e2de96b498b Mon Sep 17 00:00:00 2001
+From: Pedro <pedro.portoramalho@windriver.com>
+Date: Fri, 17 Jul 2026 11:16:44 -0300
+Subject: [PATCH] Skip Prometheus samples with counter_volume=None
+
+The Prometheus exporter (prom_exporter.py) collect_metrics calls
+gauge.set(sample['counter_volume']) without checking for null values,
+which at a certain point (inside prometheus_client/metrics.py) calls
+float(value) which raises TypeError: float() argument must be a string
+or a real number, not 'NoneType'. When a pollster gathers a sample whose
+counter_volume is None and triggers this error, the remaining samples in
+that poll batch are lost.
+
+This was observed when a Glance image, in 'queued' state with null size,
+was returned to ImageSizePollster, and then prometheus_client evaluates
+float(None) and raises TypeError. The samples for remaining images were
+lost and their meter series were never created.
+
+Add a null/None guard that skips the sample that would
+raise an error, logs it, and keeps exporting the rest of the series of
+that batch normally.
+
+Add one unit test covering a poll batch that mixes a queued image
+(counter_volume None) with a valid active image, asserting the queued
+one is skipped while the active one is still exported as expected.
+
+Change-Id: Ie72bae9a29f59adc5170674b08af55c4687fb8a7
+Signed-off-by: Pedro <pedro.portoramalho@windriver.com>
+---
+ ceilometer/polling/prom_exporter.py         | 10 +++
+ ceilometer/tests/unit/test_prom_exporter.py | 92 +++++++++++++++++++++
+ 2 files changed, 102 insertions(+)
+
+diff --git a/ceilometer/polling/prom_exporter.py b/ceilometer/polling/prom_exporter.py
+index 6bd2f2cd2..dc31d0e6e 100644
+--- a/ceilometer/polling/prom_exporter.py
++++ b/ceilometer/polling/prom_exporter.py
+@@ -14,8 +14,11 @@
+ # License for the specific language governing permissions and limitations
+ # under the License.
+ 
++from oslo_log import log
+ import prometheus_client as prom
+ 
++LOG = log.getLogger(__name__)
++
+ CEILOMETER_REGISTRY = prom.CollectorRegistry()
+ 
+ 
+@@ -30,6 +33,13 @@ def export(prom_iface, prom_port, tls_cert=None, tls_key=None):
+ def collect_metrics(samples):
+     for sample in samples:
+         name = "ceilometer_" + sample['counter_name'].replace('.', '_')
++
++        if sample['counter_volume'] is None:
++            LOG.warning("Skipping sample for metric %s with no "
++                        "counter_volume (resource: %s).",
++                        name, sample.get('resource_id'))
++            continue
++
+         labels = _gen_labels(sample)
+ 
+         metric = CEILOMETER_REGISTRY._names_to_collectors.get(name, None)
+diff --git a/ceilometer/tests/unit/test_prom_exporter.py b/ceilometer/tests/unit/test_prom_exporter.py
+index a08607ee2..d1e6b9590 100644
+--- a/ceilometer/tests/unit/test_prom_exporter.py
++++ b/ceilometer/tests/unit/test_prom_exporter.py
+@@ -222,6 +222,71 @@ class TestPromExporter(base.BaseTestCase):
+         }
+     ]
+ 
++    test_image_size_queued = [
++        {
++            'source': 'openstack',
++            'counter_name': 'image.size',
++            'counter_type': 'gauge',
++            'counter_unit': 'B',
++            'counter_volume': None,
++            'user_id': None,
++            'user_name': None,
++            'project_id': 'abd178778aa64cba96e1397475a2c0ed',
++            'project_name': None,
++            'resource_id': '62bd7745-db96-4274-9966-405d314e364b',
++            'timestamp': '2026-07-15T20:01:56.000000',
++            'resource_metadata': {
++                'status': 'queued',
++                'visibility': 'shared',
++                'name': 'cirros_queued_image',
++                'container_format': 'bare',
++                'created_at': '2026-07-15T20:01:24Z',
++                'disk_format': 'qcow2',
++                'updated_at': '2026-07-15T20:01:56Z',
++                'min_disk': 1,
++                'is_protected': False,
++                'checksum': None,
++                'min_ram': 1,
++                'tags': [],
++                'virtual_size': None
++            },
++            'message_id': '19f8f78a-2ee9-11ef-a95f-bd45e2085de4',
++            'monotonic_time': None,
++            'message_signature': 'f8d9a411b0cd0cb0d34e83'
++        },
++        {
++            'source': 'openstack',
++            'counter_name': 'image.size',
++            'counter_type': 'gauge',
++            'counter_unit': 'B',
++            'counter_volume': 21692416,
++            'user_id': None,
++            'user_name': None,
++            'project_id': 'abd178778aa64cba96e1397475a2c0ed',
++            'project_name': None,
++            'resource_id': '73278fe8-de27-43ca-956e-f450b2d14bad',
++            'timestamp': '2026-07-13T21:43:17.000000',
++            'resource_metadata': {
++                'status': 'active',
++                'visibility': 'shared',
++                'name': 'cirros',
++                'container_format': 'bare',
++                'created_at': '2026-07-13T21:43:16Z',
++                'disk_format': 'qcow2',
++                'updated_at': '2026-07-13T21:43:17Z',
++                'min_disk': 0,
++                'is_protected': False,
++                'checksum': '87617e24a5e30cb3b87fda8c0764838f',
++                'min_ram': 0,
++                'tags': [],
++                'virtual_size': 117440512
++            },
++            'message_id': '19f8f78a-2ee9-11ef-a95f-bd45e2085de5',
++            'monotonic_time': None,
++            'message_signature': 'f8d9a411b0cd0cb0d34e83'
++        }
++    ]
++
+     @mock.patch('ceilometer.polling.prom_exporter.export')
+     def test_prom_disabled(self, export):
+         CONF = service.prepare_service([], [])
+@@ -363,6 +428,33 @@ class TestPromExporter(base.BaseTestCase):
+                              'ceilometer_disk_device_read_latency',
+                              sample_dict_3))
+ 
++    @mock.patch.object(prom_exporter.LOG, 'warning')
++    def test_collect_metrics_null_counter_volume(self, mock_warning):
++        prom_exporter.collect_metrics(self.test_image_size_queued)
++
++        image_size_series = {}
++        for metric in prom_exporter.CEILOMETER_REGISTRY.collect():
++            if metric.name == 'ceilometer_image_size':
++                for sample in metric.samples:
++                    resource_id = sample.labels['resource']
++                    image_size_series[resource_id] = sample.value
++
++        queued_image_id = '62bd7745-db96-4274-9966-405d314e364b'
++        self.assertNotIn(queued_image_id,
++                         image_size_series)
++
++        active_image_id = '73278fe8-de27-43ca-956e-f450b2d14bad'
++        self.assertIn(active_image_id,
++                      image_size_series)
++        self.assertEqual(
++            21692416,
++            image_size_series[active_image_id])
++
++        mock_warning.assert_called_once_with(
++            "Skipping sample for metric %s with no "
++            "counter_volume (resource: %s).",
++            'ceilometer_image_size', queued_image_id)
++
+     def test_gen_labels(self):
+         slabels1 = dict(keys=[], values=[])
+         slabels1['keys'] = ['disk', 'publisher', 'type', 'counter',
+-- 
+2.43.0
+

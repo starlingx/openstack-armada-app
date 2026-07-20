@@ -4,6 +4,7 @@ upstream/helm-charts/openstack-helm
 upstream/helm-charts/ingress-nginx-helm
 upstream/openstack/openstack-pkg-tools
 upstream/openstack/python-aodhclient
+upstream/openstack/python-ceilometer
 upstream/openstack/python-cinderclient
 upstream/openstack/python-glanceclient
 upstream/openstack/python-heatclient

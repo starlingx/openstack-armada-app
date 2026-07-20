@@ -281,6 +281,7 @@ VOLUME_BACKEND_TO_GLANCE_BACKEND = {
     NETAPP_ISCSI_BACKEND_NAME: GLANCE_BACKEND_PVC,
     NETAPP_FC_BACKEND_NAME: GLANCE_BACKEND_PVC,
     GLANCE_BACKEND_CINDER: GLANCE_BACKEND_CINDER,
+    GLANCE_BACKEND_PVC: GLANCE_BACKEND_PVC,
 }
 
 GLANCE_BACKEND_TO_IMAGE_STORE = {
@@ -323,9 +324,7 @@ DEFAULT_VOLUME_PRIORITY_LIST = [
 ]
 DEFAULT_IMAGE_PRIORITY_LIST = [
     CEPH_BACKEND_NAME,
-    NETAPP_NFS_BACKEND_NAME,
-    NETAPP_ISCSI_BACKEND_NAME,
-    NETAPP_FC_BACKEND_NAME,
+    GLANCE_BACKEND_PVC,
     GLANCE_BACKEND_CINDER
 ]
 
@@ -360,6 +359,28 @@ OVERRIDE_NOVA_PVC_STORAGE_PRIORITY = "storage_conf.pvc.storage_class_priority"
 DEFAULT_NOVA_PVC_PRIORITY_LIST = [
     NETAPP_NFS_BACKEND_NAME,
 ]
+
+# Legacy Glance netapp-* entries in volume_storage_class_priority.
+# Used by _migrate_legacy_priority_list() for runtime schema migration.
+# Deprecated in 26.09. Planned removal in 27.03.
+GLANCE_LEGACY_NETAPP_BACKENDS = frozenset([
+    NETAPP_NFS_BACKEND_NAME,
+    NETAPP_ISCSI_BACKEND_NAME,
+    NETAPP_FC_BACKEND_NAME,
+])
+
+# Glance PVC overrides
+OVERRIDE_GLANCE_PVC_STORAGE_BACKENDS = "storage_conf.pvc.storage_backends"
+OVERRIDE_GLANCE_PVC_STORAGE_PRIORITY = "storage_conf.pvc.storage_class_priority"
+DEFAULT_GLANCE_PVC_PRIORITY_LIST = [
+    NETAPP_NFS_BACKEND_NAME,
+    NETAPP_ISCSI_BACKEND_NAME,
+    NETAPP_FC_BACKEND_NAME,
+]
+OVERRIDE_GLANCE_PVC_VOLUME_SIZE = "storage_conf.pvc.volume.size"
+DEFAULT_GLANCE_PVC_VOLUME_SIZE = "2Gi"
+OVERRIDE_GLANCE_PVC_VOLUME_ACCESS_MODES = "storage_conf.pvc.volume.access_modes"
+DEFAULT_GLANCE_PVC_VOLUME_ACCESS_MODES = ["ReadWriteOnce"]
 
 # Valid ESB protocol values that operators can declare in backends_conf.
 # rbd is excluded — it is internal-only, representing the ceph strict

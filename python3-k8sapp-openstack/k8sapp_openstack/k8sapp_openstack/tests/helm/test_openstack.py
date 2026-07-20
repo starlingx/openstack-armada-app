@@ -1160,17 +1160,19 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         _mock_pvc_name,
         _mock_pvc_path,
     ):
-        """An ESB backend with k8s_storage_class: none must be skipped;
-        the resolver falls through to the default storage class."""
+        """An ESB backend with k8s_storage_class: none contributes no
+        StorageClass. There is no fallback, so resolution returns None."""
         mock_priority_list.side_effect = [
             [app_constants.PVC_BACKEND_NAME],
             ['dell-iscsi'],  # pvc_priority_list
         ]
 
-        result = self.helm._resolve_nova_pvc_overrides()
+        with mock.patch('k8sapp_openstack.helm.openstack.LOG.error') as mock_log:
+            result = self.helm._resolve_nova_pvc_overrides()
 
-        # Falls back to the default storage class, not the empty ESB value
-        self.assertEqual(result['storage_class'], app_constants.BACKEND_DEFAULT_STORAGE_CLASS)
+        mock_log.assert_called_once()
+        self.assertTrue(result['enabled'])
+        self.assertIsNone(result['storage_class'])
 
     @mock.patch('k8sapp_openstack.helm.openstack.app_utils.get_nova_pvc_instances_path',
                 return_value='/var/lib/nova/instances')

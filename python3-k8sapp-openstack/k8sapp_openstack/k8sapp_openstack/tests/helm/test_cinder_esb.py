@@ -611,9 +611,13 @@ class TestCinderESBOverridesIntegration(CinderESBTestCase,
         'k8sapp_openstack.helm.cinder.get_storage_backends_priority_list',
         return_value=['dell-iscsi']
     )
+    # Backup priority is empty: an iSCSI backend with k8s_storage_class: none
+    # cannot back the Posix backup driver, so it must not be used as the backup
+    # target (fail-fast). This test focuses on volume emission and
+    # pod security context.
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_storage_backup_priority_list',
-        return_value=['dell-iscsi']
+        return_value=[]
     )
     @mock.patch(
         'k8sapp_openstack.helm.cinder.get_available_volume_backends',
@@ -1134,6 +1138,27 @@ class TestBackupDriverEmission(testtools.TestCase):
             overrides['DEFAULT']['backup_driver'],
             app_constants.NETAPP_ISCSI_BACKUP_DRIVER
         )
+
+    def test_posix_backup_without_storage_class_logs_error(self):
+        ch = self._make_helm(
+            available_backends={'dell-iscsi': ''},
+            backends_conf={
+                'dell-iscsi': {
+                    'name': 'dell-iscsi',
+                    'protocol': 'iscsi',
+                    'k8s_storage_class': 'none',
+                    'volume_backend': {}
+                }
+            },
+            backup_priority=['dell-iscsi']
+        )
+        self._resolve_backup(ch)
+
+        with mock.patch.object(cinder.LOG, 'error') as mock_log:
+            overrides = ch._get_backup_overrides()
+
+        mock_log.assert_called_once()
+        self.assertEqual(overrides['posix']['volume']['class_name'], '')
 
     def test_strict_ceph_backup_driver_emitted(self):
         ch = self._make_helm(

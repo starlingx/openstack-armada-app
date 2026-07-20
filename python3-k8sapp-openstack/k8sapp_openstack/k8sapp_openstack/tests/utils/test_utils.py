@@ -3693,3 +3693,388 @@ class TestAodhRestNotifierCACert(dbbase.ControllerHostTestCase):
             app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
             app_constants.HELM_NS_OPENSTACK
         )
+
+
+class TestResolveBackendStorageClass(dbbase.ControllerHostTestCase):
+    """Tests for resolve_backend_storage_class()."""
+
+    def test_returns_first_available_in_priority_order(self):
+        """Resolves to the first priority entry with a non-empty StorageClass."""
+        priority_list = ["ceph", "netapp-nfs", "netapp-iscsi"]
+        available_backends = {
+            "ceph": "",
+            "netapp-nfs": "netapp-nas-backend",
+            "netapp-iscsi": "netapp-iscsi-backend",
+        }
+        self.assertEqual(
+            app_utils.resolve_backend_storage_class(
+                priority_list, available_backends, backends_conf={}),
+            "netapp-nas-backend",
+        )
+
+    def test_returns_none_when_nothing_resolves(self):
+        """No silent 'general' fallback: returns None when nothing resolves."""
+        priority_list = ["unknown-1", "unknown-2"]
+        available_backends = {"ceph": "general"}
+        self.assertIsNone(
+            app_utils.resolve_backend_storage_class(
+                priority_list, available_backends, backends_conf={})
+        )
+
+    def test_returns_none_when_all_available_are_empty(self):
+        """Backends present but all with empty StorageClass resolve to None."""
+        priority_list = ["netapp-iscsi", "netapp-fc"]
+        available_backends = {"netapp-iscsi": "", "netapp-fc": ""}
+        self.assertIsNone(
+            app_utils.resolve_backend_storage_class(
+                priority_list, available_backends, backends_conf={})
+        )
+
+    def test_empty_priority_list_returns_none(self):
+        """An empty priority list resolves to None."""
+        self.assertIsNone(
+            app_utils.resolve_backend_storage_class(
+                [], {"ceph": "general"}, backends_conf={})
+        )
+
+    def test_returns_available_backend_storage_class(self):
+        """Strict or already-materialized backends resolve from available_backends."""
+        self.assertEqual(
+            app_utils.resolve_backend_storage_class(
+                ["ceph"],
+                {"ceph": "general"},
+                backends_conf={},
+            ),
+            "general",
+        )
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    def test_available_backend_does_not_load_backends_conf(self, mock_get_backends_conf):
+        """A resolved backend does not need the extended backend registry."""
+        self.assertEqual(
+            app_utils.resolve_backend_storage_class(
+                ["ceph"],
+                {"ceph": "general"},
+            ),
+            "general",
+        )
+        mock_get_backends_conf.assert_not_called()
+
+    def test_returns_extended_backend_storage_class(self):
+        """Extended backends resolve from the Cinder backends_conf registry."""
+        self.assertEqual(
+            app_utils.resolve_backend_storage_class(
+                ["dell-nfs"],
+                {},
+                backends_conf={
+                    "dell-nfs": {
+                        "k8s_storage_class": "dell-nfs-sc",
+                    },
+                },
+            ),
+            "dell-nfs-sc",
+        )
+
+    def test_missing_backend_conf_entry_returns_none(self):
+        """A missing registry entry is treated as unresolved."""
+        self.assertIsNone(
+            app_utils.resolve_backend_storage_class(
+                ["dell-nfs"],
+                {},
+                backends_conf={},
+            )
+        )
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    def test_missing_backends_conf_registry_returns_none(self, mock_get_backends_conf):
+        """A missing extended backend registry is treated as unresolved."""
+        mock_get_backends_conf.side_effect = exception.HelmOverrideNotFound(
+            name="cinder",
+            namespace="openstack",
+        )
+
+        self.assertIsNone(
+            app_utils.resolve_backend_storage_class(["dell-nfs"], {})
+        )
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    def test_missing_openstack_app_returns_none(self, mock_get_backends_conf):
+        """A missing OpenStack app registry is treated as unresolved."""
+        mock_get_backends_conf.side_effect = exception.KubeAppNotFound(
+            name="endswith 'openstack'",
+        )
+
+        self.assertIsNone(
+            app_utils.resolve_backend_storage_class(["dell-nfs"], {})
+        )
+
+    def test_none_backend_conf_entry_returns_none(self):
+        """A registry entry explicitly set to None is treated as unresolved."""
+        self.assertIsNone(
+            app_utils.resolve_backend_storage_class(
+                ["dell-nfs"],
+                {},
+                backends_conf={"dell-nfs": None},
+            )
+        )
+
+    def test_missing_k8s_storage_class_returns_none(self):
+        """A registry entry without k8s_storage_class is treated as unresolved."""
+        self.assertIsNone(
+            app_utils.resolve_backend_storage_class(
+                ["dell-nfs"],
+                {},
+                backends_conf={"dell-nfs": {"protocol": "nfs"}},
+            )
+        )
+
+    def test_none_k8s_storage_class_returns_none(self):
+        """The string 'none' means the backend has no StorageClass."""
+        self.assertIsNone(
+            app_utils.resolve_backend_storage_class(
+                ["dell-iscsi"],
+                {},
+                backends_conf={
+                    "dell-iscsi": {
+                        "k8s_storage_class": "none",
+                    },
+                },
+            )
+        )
+
+
+class TestCheckStorageclassChangeUnresolved(dbbase.ControllerHostTestCase):
+    """Regression tests for check_storageclass_change() empty-input hardening."""
+
+    def test_unresolvable_priority_list_does_not_raise(self):
+        """Previously raised IndexError; now returns (False, None)."""
+        priority_list = ["unknown-1", "unknown-2"]
+        available_backends = {"ceph": "general"}
+        changed, new_sc = app_utils.check_storageclass_change(
+            priority_list, available_backends, "general"
+        )
+        self.assertFalse(changed)
+        self.assertIsNone(new_sc)
+
+    def test_all_empty_available_does_not_raise(self):
+        """Backends present but empty StorageClass returns (False, None)."""
+        priority_list = ["netapp-iscsi"]
+        available_backends = {"netapp-iscsi": ""}
+        changed, new_sc = app_utils.check_storageclass_change(
+            priority_list, available_backends, "general"
+        )
+        self.assertFalse(changed)
+        self.assertIsNone(new_sc)
+
+
+class TestGetPvcStorageclassRequirements(dbbase.ControllerHostTestCase):
+    """Tests for get_pvc_storageclass_requirements()."""
+
+    @mock.patch("k8sapp_openstack.utils._resolve_cinder_backup_requirement",
+                return_value=None)
+    @mock.patch("k8sapp_openstack.utils._resolve_nova_pvc_requirement",
+                return_value=None)
+    @mock.patch("k8sapp_openstack.utils._resolve_glance_pvc_requirement",
+                return_value=None)
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_mariadb_rabbitmq_always_included_and_resolved(
+        self,
+        mock_priority,
+        mock_available,
+        *_,
+    ):
+        """MariaDB and RabbitMQ are always present and resolved."""
+        mock_priority.return_value = ["ceph"]
+        mock_available.return_value = {"ceph": "general"}
+
+        requirements = app_utils.get_pvc_storageclass_requirements()
+
+        charts = [r["chart"] for r in requirements]
+        self.assertIn(app_constants.HELM_CHART_MARIADB, charts)
+        self.assertIn(app_constants.HELM_CHART_RABBITMQ, charts)
+        for req in requirements:
+            self.assertEqual(req["storage_class"], "general")
+
+    @mock.patch("k8sapp_openstack.utils._resolve_cinder_backup_requirement",
+                return_value=None)
+    @mock.patch("k8sapp_openstack.utils._resolve_nova_pvc_requirement",
+                return_value=None)
+    @mock.patch("k8sapp_openstack.utils._resolve_glance_pvc_requirement",
+                return_value=None)
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_unresolvable_mariadb_yields_none_storage_class(
+        self,
+        mock_priority,
+        mock_available,
+        *_,
+    ):
+        """When nothing resolves, storage_class is None (no 'general' fallback)."""
+        mock_priority.return_value = ["unknown-backend"]
+        mock_available.return_value = {"ceph": "general"}
+
+        requirements = app_utils.get_pvc_storageclass_requirements()
+
+        for req in requirements:
+            self.assertIsNone(req["storage_class"])
+
+    @mock.patch("k8sapp_openstack.utils._resolve_cinder_backup_requirement")
+    @mock.patch("k8sapp_openstack.utils._resolve_nova_pvc_requirement")
+    @mock.patch("k8sapp_openstack.utils._resolve_glance_pvc_requirement")
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_conditional_requirements_appended_when_present(
+        self,
+        mock_priority,
+        mock_available,
+        mock_glance,
+        mock_nova,
+        mock_backup,
+    ):
+        """Glance/Nova/Cinder-backup requirements are appended when applicable."""
+        mock_priority.return_value = ["ceph"]
+        mock_available.return_value = {"ceph": "general"}
+        mock_glance.return_value = {
+            'chart': 'glance (PVC image store)',
+            'priority_list': ['pvc'],
+            'storage_class': 'dell-nfs',
+        }
+        mock_nova.return_value = {
+            'chart': 'nova (ephemeral PVC)',
+            'priority_list': ['dell-nfs'],
+            'storage_class': None,
+        }
+        mock_backup.return_value = {
+            'chart': 'cinder (backup)',
+            'priority_list': ['dell-iscsi'],
+            'storage_class': None,
+        }
+
+        requirements = app_utils.get_pvc_storageclass_requirements()
+
+        charts = [r["chart"] for r in requirements]
+        self.assertIn('glance (PVC image store)', charts)
+        self.assertIn('nova (ephemeral PVC)', charts)
+        self.assertIn('cinder (backup)', charts)
+
+
+class TestResolveConditionalPvcRequirements(dbbase.ControllerHostTestCase):
+    """Tests for the conditional PVC-requirement resolvers."""
+
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_required_when_first_backend_maps_to_pvc(
+        self, mock_priority, mock_available
+    ):
+        """Glance PVC requirement returned when highest-priority backend is pvc-backed."""
+        mock_priority.return_value = [app_constants.NETAPP_NFS_BACKEND_NAME, "cinder"]
+        mock_available.return_value = {
+            app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+        }
+        requirement = app_utils._resolve_glance_pvc_requirement()
+        self.assertIsNotNone(requirement)
+        self.assertEqual(requirement["storage_class"], "netapp-nas-backend")
+
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_not_required_when_cinder_selected(
+        self, mock_priority, mock_available
+    ):
+        """Glance resolving to cinder (not pvc) requires no PVC."""
+        mock_priority.return_value = ["cinder"]
+        mock_available.return_value = {}
+        self.assertIsNone(app_utils._resolve_glance_pvc_requirement())
+
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_not_required_when_ceph_selected(
+        self, mock_priority, mock_available
+    ):
+        """Glance resolving to rbd (ceph) requires no PVC."""
+        mock_priority.return_value = [app_constants.CEPH_BACKEND_NAME, "cinder"]
+        mock_available.return_value = {app_constants.CEPH_BACKEND_NAME: "ceph-rbd"}
+        self.assertIsNone(app_utils._resolve_glance_pvc_requirement())
+
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override")
+    def test_nova_pvc_not_required_when_pvc_backend_not_selected(
+        self, mock_enabled, mock_priority, mock_available
+    ):
+        """Nova with host-path selected (not pvc) requires no PVC."""
+        mock_enabled.return_value = [app_constants.HOST_PATH_BACKEND_NAME]
+        mock_priority.return_value = [
+            app_constants.HOST_PATH_BACKEND_NAME,
+            app_constants.PVC_BACKEND_NAME,
+        ]
+        self.assertIsNone(app_utils._resolve_nova_pvc_requirement())
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override")
+    def test_nova_pvc_required_and_resolved(
+        self, mock_enabled, mock_priority, mock_available, _
+    ):
+        """Nova PVC requirement returned and resolved when pvc backend is selected."""
+        mock_enabled.return_value = [app_constants.PVC_BACKEND_NAME]
+        # First call: storage_backends priority; second: pvc priority list.
+        mock_priority.side_effect = [
+            [app_constants.PVC_BACKEND_NAME],
+            ["dell-nfs"],
+        ]
+        mock_available.return_value = {"dell-nfs": "dell-nfs-sc"}
+        requirement = app_utils._resolve_nova_pvc_requirement()
+        self.assertIsNotNone(requirement)
+        self.assertEqual(requirement["storage_class"], "dell-nfs-sc")
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backup_priority_list")
+    def test_cinder_backup_not_required_for_nfs(
+        self, mock_backup_priority, mock_available, _
+    ):
+        """NFS backup uses a backup_share, not a PVC: no requirement."""
+        mock_backup_priority.return_value = [app_constants.NETAPP_NFS_BACKEND_NAME]
+        mock_available.return_value = {
+            app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+        }
+        self.assertIsNone(app_utils._resolve_cinder_backup_requirement())
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backup_priority_list")
+    def test_cinder_backup_required_for_strict_iscsi(
+        self, mock_backup_priority, mock_available, _
+    ):
+        """Strict netapp-iscsi backup uses the Posix driver: PVC required."""
+        mock_backup_priority.return_value = [app_constants.NETAPP_ISCSI_BACKEND_NAME]
+        mock_available.return_value = {
+            app_constants.NETAPP_ISCSI_BACKEND_NAME: "netapp-iscsi-sc",
+        }
+        requirement = app_utils._resolve_cinder_backup_requirement()
+        self.assertIsNotNone(requirement)
+        self.assertEqual(requirement["storage_class"], "netapp-iscsi-sc")
+
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backup_priority_list")
+    def test_cinder_backup_esb_iscsi_none_unresolved(
+        self, mock_backup_priority, mock_available
+    ):
+        """ESB iscsi backup with k8s_storage_class none resolves to None (blocked)."""
+        mock_backup_priority.return_value = ["dell-iscsi"]
+        mock_available.return_value = {"dell-iscsi": ""}
+        with mock.patch(
+            "k8sapp_openstack.utils.get_backends_conf",
+            return_value={
+                "dell-iscsi": {
+                    "name": "dell-iscsi",
+                    "protocol": "iscsi",
+                    "k8s_storage_class": "none",
+                }
+            },
+        ):
+            requirement = app_utils._resolve_cinder_backup_requirement()
+        self.assertIsNotNone(requirement)
+        self.assertIsNone(requirement["storage_class"])

@@ -775,6 +775,60 @@ def check_if_pvc_exists_in_a_namespace(namespace) -> bool:
                   f" namespace: {e}")
 
 
+def resolve_backend_storage_class(
+    priority_list: list[str],
+    available_backends: dict[str, str],
+    backends_conf: dict[str, dict] = None,
+) -> str:
+    """Resolve the first StorageClass from a backend priority list.
+
+    Backends already materialized by the caller are resolved from
+    ``available_backends``. For non-strict backends with no value there, the
+    Cinder ``backends_conf`` registry is consulted and ``k8s_storage_class`` is
+    used when present. Missing registry entries, missing ``k8s_storage_class``
+    keys, and a value of ``none`` are treated as unresolved. No fallback is
+    applied; an unresolved priority list returns ``None``.
+
+    Args:
+        priority_list: Ordered list of backend identifiers, where a lower index
+                       means higher priority.
+        available_backends: Mapping of backend identifier to its StorageClass.
+                            A falsy value (``""`` or ``None``) means the backend
+                            has not resolved a StorageClass.
+        backends_conf: Optional Cinder backend registry used to resolve
+                       non-strict/extended backends.
+
+    Returns:
+        The resolved StorageClass name, or ``None`` when nothing resolves.
+    """
+    available_backends = available_backends or {}
+    backends_conf_loaded = backends_conf is not None
+    backends_conf = backends_conf or {}
+
+    for backend in priority_list:
+        storage_class = available_backends.get(backend)
+        if not storage_class and not is_strict_backend(backend):
+            if not backends_conf_loaded:
+                try:
+                    backends_conf = get_backends_conf()
+                except (exception.HelmOverrideNotFound,
+                        exception.KubeAppNotFound):
+                    backends_conf = {}
+                backends_conf = backends_conf or {}
+                backends_conf_loaded = True
+            entry = backends_conf.get(backend) or {}
+            if not isinstance(entry, dict):
+                entry = {}
+            k8s_storage_class = entry.get('k8s_storage_class')
+            if isinstance(k8s_storage_class, str):
+                k8s_storage_class = k8s_storage_class.strip()
+                if k8s_storage_class.lower() != 'none':
+                    storage_class = k8s_storage_class
+        if storage_class:
+            return storage_class
+    return None
+
+
 def check_storageclass_change(
     priority_list: list[str],
     available_backends: dict[str, str],
@@ -792,16 +846,17 @@ def check_storageclass_change(
                                         (keys), and their corresponding storage classes
                                         (values).
     Returns:
-        bool: 'True' if the StorageClass didn't change, 'False' otherwise.
-        str: Reference new StorageClass priority.
+        bool: 'True' if the StorageClass changed, 'False' otherwise.
+        str: Reference new StorageClass priority (``None`` when the priority
+             list resolves to no available backend).
     """
-    ordered_available = {
-        k: available_backends[k]
-        for k in priority_list
-        if available_backends.get(k)
-    }
+    value = resolve_backend_storage_class(
+        priority_list, available_backends, backends_conf={})
 
-    value = list(ordered_available.values())[0]
+    # When the priority list resolves to nothing there is no new StorageClass to
+    # compare against. Treat it as "no change" so a direct call does not raise.
+    if value is None:
+        return False, None
 
     if current_storage_class and current_storage_class != value:
         return True, value
@@ -3928,3 +3983,189 @@ def delete_aodh_rest_notifier_ca_cert_secret():
                      f"Skipping deletion.")
     except Exception as e:
         LOG.error(f"Error deleting rest notifier CA certificate secret: {e}")
+
+
+def _resolve_glance_pvc_requirement() -> dict:
+    """Build the Glance StorageClass resolution requirement, if applicable.
+
+    Glance requires a PVC-backed StorageClass only when its
+    volume_storage_class_priority resolves to the ``pvc`` Glance backend (i.e.
+    the highest-priority available backend maps to GLANCE_BACKEND_PVC). When
+    Glance resolves to ``rbd`` (Ceph) or ``cinder``, no PVC is required.
+
+    Returns:
+        dict|None: A requirement descriptor
+            {'chart': <label>, 'priority_list': [...], 'storage_class': <str|None>}
+            or None when Glance does not require a PVC in the current config.
+    """
+    priority_list = get_storage_backends_priority_list(
+        app_constants.HELM_CHART_GLANCE,
+        app_constants.OVERRIDE_STORAGE_PRIORITY,
+        app_constants.DEFAULT_IMAGE_PRIORITY_LIST,
+    )
+    available_backends = get_available_volume_backends(
+        chart_name=app_constants.HELM_CHART_GLANCE
+    )
+    available_backends[app_constants.GLANCE_BACKEND_CINDER] = \
+        app_constants.GLANCE_BACKEND_CINDER
+
+    for backend in priority_list:
+        storage_class = available_backends.get(backend)
+        if not storage_class:
+            continue
+        glance_backend = app_constants.VOLUME_BACKEND_TO_GLANCE_BACKEND.get(backend)
+        if glance_backend == app_constants.GLANCE_BACKEND_PVC:
+            return {
+                'chart': f"{app_constants.HELM_CHART_GLANCE} (PVC image store)",
+                'priority_list': priority_list,
+                'storage_class': storage_class,
+            }
+        # First available backend is not PVC-backed (rbd/cinder): no PVC needed.
+        return None
+    return None
+
+
+def _resolve_nova_pvc_requirement() -> dict:
+    """Build the Nova ephemeral StorageClass resolution requirement, if applicable.
+
+    Nova requires a PVC-backed StorageClass only when
+    storage_conf.volume_storage_class_priority resolves to the ``pvc`` backend.
+    Mirrors OpenstackBaseHelm._resolve_nova_pvc_overrides() selection logic.
+
+    Returns:
+        dict|None: A requirement descriptor or None when Nova does not require
+            a PVC in the current config.
+    """
+    enabled_storage_backends = get_enabled_storage_backends_from_override(
+        chart_name=app_constants.HELM_CHART_NOVA,
+        override_name=app_constants.OVERRIDE_STORAGE_BACKENDS,
+        default_storage_backends=app_constants.DEFAULT_NOVA_STORAGE_BACKEND_SELECT,
+    )
+    storage_backends_priority_list = get_storage_backends_priority_list(
+        app_constants.HELM_CHART_NOVA,
+        app_constants.OVERRIDE_STORAGE_PRIORITY,
+        app_constants.DEFAULT_NOVA_STORAGE_PRIORITY_LIST,
+    )
+    pvc_backend_selected = False
+    for backend in storage_backends_priority_list:
+        if backend in enabled_storage_backends:
+            pvc_backend_selected = (backend == app_constants.PVC_BACKEND_NAME)
+            break
+
+    if not pvc_backend_selected:
+        return None
+
+    pvc_available_backend = get_available_volume_backends(
+        app_constants.HELM_CHART_NOVA,
+        app_constants.OVERRIDE_NOVA_PVC_STORAGE_BACKENDS,
+    )
+    pvc_priority_list = get_storage_backends_priority_list(
+        app_constants.HELM_CHART_NOVA,
+        app_constants.OVERRIDE_NOVA_PVC_STORAGE_PRIORITY,
+        app_constants.DEFAULT_NOVA_PVC_PRIORITY_LIST,
+    )
+    return {
+        'chart': f"{app_constants.HELM_CHART_NOVA} (ephemeral PVC)",
+        'priority_list': pvc_priority_list,
+        'storage_class': resolve_backend_storage_class(
+            pvc_priority_list, pvc_available_backend),
+    }
+
+
+def _resolve_cinder_backup_requirement() -> dict:
+    """Build the Cinder backup StorageClass resolution requirement, if applicable.
+
+    Cinder backup requires a PVC only when the highest-priority available backup
+    backend uses the Posix backup driver (protocol iscsi/fcp, including strict
+    netapp-iscsi/netapp-fc). NFS backups use a backup_share and Ceph/RBD backups
+    use the RBD driver — neither needs a PVC-backed StorageClass.
+
+    Returns:
+        dict|None: A requirement descriptor or None when Cinder backup does not
+            require a PVC in the current config.
+    """
+    backup_priority_list = get_storage_backup_priority_list(
+        app_constants.HELM_CHART_CINDER)
+    available_backends = get_available_volume_backends(
+        chart_name=app_constants.HELM_CHART_CINDER)
+    backends_conf = get_backends_conf(app_constants.HELM_CHART_CINDER)
+
+    for backend in backup_priority_list:
+        if is_strict_backend(backend):
+            available = bool(available_backends.get(backend))
+        else:
+            conf_entry = backends_conf.get(backend)
+            available = (
+                backend in available_backends
+                and bool(conf_entry)
+                and conf_entry.get('protocol', '') in app_constants.VALID_ESB_PROTOCOLS
+            )
+        if not available:
+            continue
+
+        protocol = get_backend_protocol(backend)
+        if protocol in ('iscsi', 'fcp'):
+            # Posix backup driver requires a PVC. For an ESB iscsi/fcp backend
+            # with k8s_storage_class: none the StorageClass value is empty, so
+            # resolution fails here and apply is blocked with a clear error.
+            return {
+                'chart': f"{app_constants.HELM_CHART_CINDER} (backup)",
+                'priority_list': backup_priority_list,
+                'storage_class': available_backends.get(backend) or None,
+            }
+        # First available backup backend is not PVC-backed: no PVC required.
+        return None
+    return None
+
+
+def get_pvc_storageclass_requirements() -> list:
+    """Build the list of PVC StorageClass resolution requirements.
+
+    Determines, for the current application configuration, every chart that
+    requires a PVC-backed Kubernetes StorageClass and resolves the StorageClass
+    from its configured priority list.
+
+    Per-chart PVC-required logic (HLD Section 5.1):
+        - MariaDB / RabbitMQ: always.
+        - Glance: only when its volume_storage_class_priority resolves to pvc.
+        - Nova ephemeral: only when storage_conf.volume_storage_class_priority
+          resolves to pvc.
+        - Cinder backup: only when the backup priority list resolves to a
+          PVC-backed (Posix driver) backend.
+
+    Returns:
+        list[dict]: Each entry is
+            {'chart': <label>, 'priority_list': [...], 'storage_class': <str|None>}.
+            A ``storage_class`` of None means the priority list did not resolve
+            to any available backend.
+    """
+    requirements = [
+        {
+            'chart': app_constants.HELM_CHART_MARIADB,
+            'priority_list': get_storage_backends_priority_list(
+                app_constants.HELM_CHART_MARIADB),
+            'storage_class': None,
+        },
+        {
+            'chart': app_constants.HELM_CHART_RABBITMQ,
+            'priority_list': get_storage_backends_priority_list(
+                app_constants.HELM_CHART_RABBITMQ),
+            'storage_class': None,
+        },
+    ]
+    for req in requirements:
+        req['storage_class'] = resolve_backend_storage_class(
+            req['priority_list'],
+            get_available_volume_backends(chart_name=req['chart']),
+        )
+
+    for resolver in (
+        _resolve_glance_pvc_requirement,
+        _resolve_nova_pvc_requirement,
+        _resolve_cinder_backup_requirement,
+    ):
+        requirement = resolver()
+        if requirement is not None:
+            requirements.append(requirement)
+
+    return requirements

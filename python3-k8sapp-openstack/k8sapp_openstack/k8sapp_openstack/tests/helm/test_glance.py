@@ -56,6 +56,7 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
             'bootstrap': {},
             'ceph_client': {},
         })
+        self.assertNotIn('volume', overrides)
 
     @mock.patch(
         'k8sapp_openstack.helm.glance._get_value_from_application',

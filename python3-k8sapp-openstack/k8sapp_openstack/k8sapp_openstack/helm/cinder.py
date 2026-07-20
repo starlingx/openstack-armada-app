@@ -674,12 +674,17 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
     def _get_backup_overrides(self):
         backup_overrides = dict()
-        class_name = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
         if self.default_backup_driver and "PosixBackupDriver" in self.default_backup_driver:
-            class_name = self.available_backends.get(
-                self.default_backup_type,
-                app_constants.BACKEND_DEFAULT_STORAGE_CLASS
-            )
+            class_name = self.available_backends.get(self.default_backup_type)
+            if not class_name:
+                LOG.error(
+                    f"Unable to resolve a StorageClass for the "
+                    f"{app_constants.HELM_CHART_CINDER} backup: the selected "
+                    f"backup backend \"{self.default_backup_type}\" uses the "
+                    f"Posix backup driver but does not resolve to an available "
+                    f"StorageClass. Set a valid k8s_storage_class for the "
+                    f"backup backend or override conf.cinder.DEFAULT.backup_driver."
+                )
             backup_overrides = {
                 'posix': {
                     'volume': {

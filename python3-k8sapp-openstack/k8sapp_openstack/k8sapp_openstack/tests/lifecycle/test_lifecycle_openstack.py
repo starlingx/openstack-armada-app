@@ -1781,10 +1781,10 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_check_if_pvc_exists,
         mock_check_if_namespace_exists,
     ):
-        """Test if _semantic_check_backend_storageclass returns when there is no namespace"""
+        """Test if _check_storageclass_immutability returns when there is no namespace"""
         mock_check_if_namespace_exists.return_value = False
 
-        self.lifecycle._semantic_check_backend_storageclass()
+        self.lifecycle._check_storageclass_immutability()
 
         mock_check_if_pvc_exists.assert_not_called()
 
@@ -1797,11 +1797,11 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_check_if_pvc_exists_in_a_namespace,
         mock_log,
     ):
-        """Test if _semantic_check_backend_storageclass returns when there is no pvc in the namespace"""
+        """Test if _check_storageclass_immutability returns when there is no pvc in the namespace"""
         mock_check_if_namespace_exists.return_value = True
         mock_check_if_pvc_exists_in_a_namespace.return_value = False
 
-        self.assertIsNone(self.lifecycle._semantic_check_backend_storageclass())
+        self.assertIsNone(self.lifecycle._check_storageclass_immutability())
         msg = mock_log.info.call_args[0][0]
         mock_log.info.assert_called_once()
         self.assertIn("no PVCs", msg)
@@ -1839,7 +1839,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             "general",
         ]
 
-        self.assertIsNone(self.lifecycle._semantic_check_backend_storageclass())
+        self.assertIsNone(self.lifecycle._check_storageclass_immutability())
         self.assertEqual(
             [
                 mock.call(chart_name=app_constants.HELM_CHART_MARIADB),
@@ -1880,7 +1880,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         ]
 
         try:
-            self.lifecycle._semantic_check_backend_storageclass()
+            self.lifecycle._check_storageclass_immutability()
         except exception.LifecycleSemanticCheckException as e:
             self.assertIn("mariadb", str(e).lower())
 
@@ -1916,9 +1916,102 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         ]
 
         try:
-            self.lifecycle._semantic_check_backend_storageclass()
+            self.lifecycle._check_storageclass_immutability()
         except exception.LifecycleSemanticCheckException as e:
             self.assertIn("rabbitmq", str(e).lower())
+
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass_requirements")
+    def test_check_storageclass_resolution_pass(
+        self,
+        mock_get_requirements,
+    ):
+        """Resolution check passes when every requirement resolves a StorageClass."""
+        mock_get_requirements.return_value = [
+            {'chart': 'mariadb', 'priority_list': ['ceph'], 'storage_class': 'general'},
+            {'chart': 'rabbitmq', 'priority_list': ['ceph'], 'storage_class': 'general'},
+        ]
+        self.assertIsNone(self.lifecycle._check_storageclass_resolution())
+
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass_requirements")
+    def test_check_storageclass_resolution_mariadb_unresolved_raises(
+        self,
+        mock_get_requirements,
+    ):
+        """Resolution check blocks apply and names the chart + priority list."""
+        mock_get_requirements.return_value = [
+            {
+                'chart': 'mariadb',
+                'priority_list': ['unknown-backend'],
+                'storage_class': None,
+            },
+        ]
+        try:
+            self.lifecycle._check_storageclass_resolution()
+            self.fail("Expected LifecycleSemanticCheckException")
+        except exception.LifecycleSemanticCheckException as e:
+            msg = str(e).lower()
+            self.assertIn("mariadb", msg)
+            self.assertIn("unknown-backend", msg)
+
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass_requirements")
+    def test_check_storageclass_resolution_glance_pvc_unresolved_raises(
+        self,
+        mock_get_requirements,
+    ):
+        """Glance PVC-mode with an unresolvable priority list blocks apply."""
+        mock_get_requirements.return_value = [
+            {'chart': 'mariadb', 'priority_list': ['ceph'], 'storage_class': 'general'},
+            {'chart': 'rabbitmq', 'priority_list': ['ceph'], 'storage_class': 'general'},
+            {
+                'chart': 'glance (PVC image store)',
+                'priority_list': ['dell-nfs'],
+                'storage_class': None,
+            },
+        ]
+        try:
+            self.lifecycle._check_storageclass_resolution()
+            self.fail("Expected LifecycleSemanticCheckException")
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("glance", str(e).lower())
+
+    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass_requirements")
+    def test_check_storageclass_resolution_cinder_backup_unresolved_raises(
+        self,
+        mock_get_requirements,
+    ):
+        """Cinder backup requiring a PVC with no resolution blocks apply."""
+        mock_get_requirements.return_value = [
+            {'chart': 'mariadb', 'priority_list': ['ceph'], 'storage_class': 'general'},
+            {'chart': 'rabbitmq', 'priority_list': ['ceph'], 'storage_class': 'general'},
+            {
+                'chart': 'cinder (backup)',
+                'priority_list': ['dell-iscsi'],
+                'storage_class': None,
+            },
+        ]
+        try:
+            self.lifecycle._check_storageclass_resolution()
+            self.fail("Expected LifecycleSemanticCheckException")
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("cinder", str(e).lower())
+
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack.OpenstackAppLifecycleOperator."
+        "_check_storageclass_immutability"
+    )
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack.OpenstackAppLifecycleOperator."
+        "_check_storageclass_resolution"
+    )
+    def test_semantic_check_backend_storageclass_orchestrates_both(
+        self,
+        mock_resolution,
+        mock_immutability,
+    ):
+        """The orchestrator runs resolution first, then immutability."""
+        self.lifecycle._semantic_check_backend_storageclass()
+        mock_resolution.assert_called_once()
+        mock_immutability.assert_called_once()
 
     @mock.patch('k8sapp_openstack.helpers.ldap.add_group', return_value=True)
     @mock.patch('k8sapp_openstack.helpers.ldap.check_group', return_value=False)

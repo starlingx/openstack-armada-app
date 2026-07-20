@@ -30,6 +30,7 @@ from k8sapp_openstack.utils import check_storageclass_change
 from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_endpoint_domain
 from k8sapp_openstack.utils import get_pvc_storageclass
+from k8sapp_openstack.utils import get_pvc_storageclass_requirements
 from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_dex_enabled
@@ -930,6 +931,59 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             )
 
     def _semantic_check_backend_storageclass(self):
+        """Validate StorageClass resolution and immutability for app PVCs.
+
+        Orchestrates two focused sub-checks (Single Responsibility principle):
+
+        - ``_check_storageclass_resolution()`` runs on every application-apply
+          (fresh install and re-apply). It fails fast when a PVC-requiring
+          chart's priority list resolves to no available backend, replacing the
+          previous silent fallback to the hardcoded ``general`` StorageClass.
+
+        - ``_check_storageclass_immutability()`` runs only when PVCs already
+          exist in the openstack namespace. It blocks in-place StorageClass
+          migration for the MariaDB and RabbitMQ PVCs.
+
+        Raises:
+            LifecycleSemanticCheckException:
+                - If a chart's priority list resolves to no available backend.
+                - If a StorageClass change is detected on an existing PVC.
+        """
+        self._check_storageclass_resolution()
+        self._check_storageclass_immutability()
+
+    def _check_storageclass_resolution(self):
+        """Fail fast when a required PVC StorageClass cannot be resolved.
+
+        Runs on every application-apply. For each chart that requires a
+        PVC-backed StorageClass in the current configuration (MariaDB, RabbitMQ,
+        Glance in PVC mode, Nova ephemeral PVC, and Cinder backup when it uses a
+        PVC-backed driver), verifies that its configured priority list resolves
+        to at least one available backend with a non-``none`` StorageClass.
+
+        Replaces the previous silent fallback to the hardcoded ``general``
+        StorageClass: if a priority list resolves to nothing, apply is blocked
+        with a clear error identifying the chart and the configured priority
+        list.
+
+        Raises:
+            LifecycleSemanticCheckException:
+                - If any required chart's priority list resolves to no
+                  available backend with a valid StorageClass.
+        """
+        for requirement in get_pvc_storageclass_requirements():
+            if not requirement['storage_class']:
+                raise exception.LifecycleSemanticCheckException(
+                    f"Unable to resolve a Kubernetes StorageClass for the "
+                    f"\"{requirement['chart']}\" chart: none of the backends in "
+                    f"the configured priority list {requirement['priority_list']} "
+                    f"resolve to an available backend with a valid "
+                    f"k8s_storage_class. Update the priority list to reference a "
+                    f"backend that maps to an existing StorageClass, or provision "
+                    f"the required StorageClass before applying the application."
+                )
+
+    def _check_storageclass_immutability(self):
         """Enforce StorageClass immutability for application PVCs.
 
         This semantic check ensures that app PVC's remain bound to the StorageClass

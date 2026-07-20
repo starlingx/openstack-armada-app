@@ -346,23 +346,18 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             app_constants.OVERRIDE_NOVA_PVC_STORAGE_PRIORITY,
             app_constants.DEFAULT_NOVA_PVC_PRIORITY_LIST
         )
+        pvc_priority_storage_class = app_utils.resolve_backend_storage_class(
+            pvc_priority_list, pvc_available_backend)
 
-        pvc_priority_storage_class = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
-        cinder_backends_conf = app_utils.get_backends_conf()
-
-        for priority in pvc_priority_list:
-            backend_storage_class = pvc_available_backend.get(priority)
-            if not backend_storage_class and not app_utils.is_strict_backend(priority):
-                # ESB — resolve storage class from Cinder backends_conf
-                backend_conf_entry = cinder_backends_conf.get(priority, {})
-                k8s_storage_class = backend_conf_entry.get('k8s_storage_class')
-                if isinstance(k8s_storage_class, str) and k8s_storage_class.lower() != 'none':
-                    backend_storage_class = k8s_storage_class
-                    LOG.info(f"ESB backend: {priority}, storage class: {backend_storage_class}")
-
-            if backend_storage_class:
-                pvc_priority_storage_class = backend_storage_class
-                break
+        if not pvc_priority_storage_class:
+            LOG.error(
+                f"Unable to resolve a StorageClass for the "
+                f"{app_constants.HELM_CHART_NOVA} ephemeral PVC: none of the "
+                f"backends in the configured priority list {pvc_priority_list} "
+                f"resolve to an available StorageClass. Update "
+                f"storage_conf.pvc.storage_class_priority to reference a "
+                f"backend with a valid k8s_storage_class."
+            )
 
         return {
             'enabled': True,

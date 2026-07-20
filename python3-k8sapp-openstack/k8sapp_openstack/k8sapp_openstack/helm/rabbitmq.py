@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from oslo_log import log as logging
 from sysinv.common import exception
 from sysinv.helm import common
 
@@ -11,6 +12,10 @@ from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_storage_backends_priority_list
+from k8sapp_openstack.utils import resolve_backend_storage_class
+
+
+LOG = logging.getLogger(__name__)
 
 
 class RabbitmqHelm(openstack.OpenstackBaseHelm):
@@ -31,12 +36,17 @@ class RabbitmqHelm(openstack.OpenstackBaseHelm):
 
         available_backend = get_available_volume_backends(app_constants.HELM_CHART_RABBITMQ)
         default_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_RABBITMQ)
-        priority_storage_class = app_constants.BACKEND_DEFAULT_STORAGE_CLASS
-
-        for priority in default_priority_list:
-            if available_backend.get(priority, ""):
-                priority_storage_class = available_backend.get(priority)
-                break
+        priority_storage_class = resolve_backend_storage_class(
+            default_priority_list, available_backend)
+        if not priority_storage_class:
+            LOG.error(
+                f"Unable to resolve a StorageClass for the "
+                f"{app_constants.HELM_CHART_RABBITMQ} chart: none of the backends "
+                f"in the configured priority list {default_priority_list} "
+                f"resolve to an available StorageClass. Update "
+                f"storage_conf.volume_storage_class_priority to reference a "
+                f"backend with a valid k8s_storage_class."
+            )
 
         overrides = {
             common.HELM_NS_OPENSTACK: {

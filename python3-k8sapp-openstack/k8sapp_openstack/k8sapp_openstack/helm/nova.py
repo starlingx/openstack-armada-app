@@ -128,6 +128,13 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         }
 
         if pvc_resolution:
+            if not pvc_resolution.get('storage_class'):
+                LOG.error(
+                    f"The {app_constants.HELM_CHART_NOVA} ephemeral PVC backend "
+                    f"is selected but no Kubernetes StorageClass could be "
+                    f"resolved. Update storage_conf.pvc.storage_class_priority "
+                    f"to reference a backend with a valid k8s_storage_class."
+                )
             pvc_instances_path = pvc_resolution.get(
                 'instances_path',
                 app_constants.DEFAULT_NOVA_PVC_INSTANCES_PATH
@@ -147,10 +154,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                             'enabled': pvc_resolution.get('enabled', False),
                             'name': pvc_resolution.get('name', app_constants.DEFAULT_NOVA_PVC_NAME),
                             'volume': {
-                                'class_name': pvc_resolution.get(
-                                    'storage_class',
-                                    app_constants.BACKEND_DEFAULT_STORAGE_CLASS,
-                                ),
+                                'class_name': pvc_resolution.get('storage_class'),
                             }
                         }
                     }

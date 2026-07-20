@@ -398,8 +398,10 @@ class RabbitmqGetOverridesTest(RabbitmqHelmTestCase,
             - all volume backends are available and matches a storage class in the prioritylist
             - not all volume backends are available, but still matches a storage class from the
             priority list
-            - even with available backends, can't match a storage classe in the list, returns
-            'general" as it is the default storage class value
+
+        Fail-fast: when no backend in the priority list resolves to
+        an available StorageClass, get_overrides raises instead of silently
+        falling back to the "general" StorageClass.
         """
 
         cases = [
@@ -422,16 +424,6 @@ class RabbitmqGetOverridesTest(RabbitmqHelmTestCase,
                 },
                 "backends_priority_list": ["ceph", "netapp-nfs", "netapp-iscsi", "nestapp-fc"],
                 "expected_override": "netapp-nas-backend"
-            },
-            {
-                "available_backends": {
-                    "ceph": "ceph-rbd",
-                    "netapp-nfs": "netapp-nas-backend",
-                    "netapp-iscsi": "netapp-nas-backend",
-                    "netapp-fc": "netapp-fc-backend"
-                },
-                "backends_priority_list": ["ramdom-backend-1", "ramdom-backend-2"],
-                "expected_override": "general"
             },
         ]
 
@@ -465,3 +457,41 @@ class RabbitmqGetOverridesTest(RabbitmqHelmTestCase,
                 except AssertionError as e:  # pragma: no cover
                     self.fail(
                         f"Failed in {index}th case(values = {case}): {e}")  # pragma: no cover
+
+    @mock.patch('k8sapp_openstack.helm.rabbitmq.RabbitmqHelm._get_platform_res_limit',
+                return_value=Dummy.GET_PLATFORM_RES_LIMIT_RETURN)
+    @mock.patch('k8sapp_openstack.helm.rabbitmq.RabbitmqHelm._num_provisioned_controllers',
+                return_value=Dummy.NUM_PROVISIONED_CONTOLLERS_RETURN)
+    @mock.patch('k8sapp_openstack.helm.rabbitmq.RabbitmqHelm.'
+                '_get_endpoints_oslo_messaging_overrides',
+                return_value=Dummy.GET_ENDPOINTS_OSLO_MESSAGING_OVERRIDES)
+    @mock.patch('k8sapp_openstack.helm.rabbitmq.RabbitmqHelm._is_ipv6_cluster_service',
+                return_value=Dummy.IS_IPV6_RETURN)
+    def test_rabbitmq_get_overrides_unresolvable_priority_list_logs(self, *_):
+        """Unresolvable priority list is logged instead of falling back."""
+        available_backends = {
+            "ceph": "ceph-rbd",
+            "netapp-nfs": "netapp-nas-backend",
+            "netapp-iscsi": "netapp-nas-backend",
+            "netapp-fc": "netapp-fc-backend",
+        }
+        unresolvable_priority_list = ["ramdom-backend-1", "ramdom-backend-2"]
+
+        with mock.patch.object(
+            rabbitmq,
+            'get_available_volume_backends',
+            return_value=available_backends), \
+            mock.patch.object(
+                rabbitmq,
+                'get_storage_backends_priority_list',
+                return_value=unresolvable_priority_list):
+
+            with mock.patch.object(rabbitmq.LOG, 'error') as mock_log:
+                overrides = self.operator.get_helm_chart_overrides(
+                    app_constants.HELM_CHART_RABBITMQ,
+                )
+
+            mock_log.assert_called_once()
+            self.assertIsNone(
+                overrides[common.HELM_NS_OPENSTACK]['volume']['class_name']
+            )

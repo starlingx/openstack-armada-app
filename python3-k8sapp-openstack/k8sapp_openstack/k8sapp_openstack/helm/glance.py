@@ -101,23 +101,29 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                 'conf': self._get_conf_overrides(),
                 'bootstrap': self._get_bootstrap_overrides(),
                 'ceph_client': self._get_ceph_client_overrides(),
-                'volume': {
-                    'class_name': (
-                        self._storage_class
-                        if self._storage_class
-                        else app_constants.BACKEND_DEFAULT_STORAGE_CLASS
-                    )
-                }
             }
         }
 
-        if (self._backend == app_constants.GLANCE_BACKEND_PVC
-                and self._storage_class ==
+        if self._backend == app_constants.GLANCE_BACKEND_PVC:
+            if not self._storage_class:
+                LOG.error(
+                    f"The {app_constants.HELM_CHART_GLANCE} chart resolved to "
+                    f"the \"{app_constants.GLANCE_BACKEND_PVC}\" image store "
+                    f"but no Kubernetes StorageClass could be resolved from "
+                    f"the configured priority list {self._priority_list}. "
+                    f"Update storage_conf.volume_storage_class_priority to "
+                    f"reference a backend with a valid k8s_storage_class."
+                )
+            overrides[common.HELM_NS_OPENSTACK]['volume'] = {
+                'class_name': self._storage_class
+            }
+
+            if (self._storage_class ==
                     self._available_backends.get(app_constants.NETAPP_NFS_BACKEND_NAME)):
-            # NetApp NFS PVCs support ReadWriteMany access mode. This allows
-            # multiple glance-api replicas to access the same PVC, which is
-            # required for high availability.
-            overrides[common.HELM_NS_OPENSTACK]["volume"]["accessModes"] = ["ReadWriteMany"]
+                # NetApp NFS PVCs support ReadWriteMany access mode. This allows
+                # multiple glance-api replicas to access the same PVC, which is
+                # required for high availability.
+                overrides[common.HELM_NS_OPENSTACK]["volume"]["accessModes"] = ["ReadWriteMany"]
 
         if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = \

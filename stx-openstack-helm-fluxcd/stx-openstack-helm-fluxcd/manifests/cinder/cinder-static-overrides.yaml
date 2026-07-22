@@ -866,7 +866,7 @@ conf:
     oslo_policy:
       policy_file: /etc/cinder/policy.yaml
     oslo_concurrency:
-      lock_path: /var/lock
+      lock_path: /var/lib/oslo-lock
     oslo_messaging_notifications:
       driver: messagingv2
     oslo_middleware:

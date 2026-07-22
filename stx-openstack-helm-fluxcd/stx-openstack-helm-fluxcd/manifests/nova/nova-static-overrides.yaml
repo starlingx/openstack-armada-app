@@ -1483,7 +1483,7 @@ conf:
     oslo_policy:
       policy_file: /etc/nova/policy.yaml
     oslo_concurrency:
-      lock_path: /var/lock
+      lock_path: /var/lib/oslo-lock
     oslo_middleware:
       enable_proxy_headers_parsing: true
     glance:

@@ -83,7 +83,7 @@ conf:
       topics:
         - notifications
     oslo_concurrency:
-      lock_path: /var/lock
+      lock_path: /var/lib/oslo-lock
     cache:
       enabled: true
       backend: dogpile.cache.memcached

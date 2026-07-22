@@ -60,6 +60,9 @@ class AodhHelm(openstack.OpenstackBaseHelm):
             'aodh': {
                 'service_credentials': {
                     'region_name': self.get_region_name()
+                },
+                'oslo_messaging_notifications': {
+                    'transport_url': self._get_notification_transport_url()
                 }
             }
         }
@@ -73,6 +76,9 @@ class AodhHelm(openstack.OpenstackBaseHelm):
             })
 
         return conf_overrides
+
+    def _get_notification_transport_url(self):
+        return self._get_rabbit_notification_url('/ceilometer')
 
     def _get_endpoints_overrides(self):
         alarming_endpoints = {

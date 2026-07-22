@@ -25,7 +25,10 @@ class CeilometerHelmTestCase(test_plugins.K8SAppOpenstackAppMixin,
 class CeilometerGetOverrideTest(CeilometerHelmTestCase,
                                 dbbase.ControllerHostTestCase):
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
-    def test_ceilometer_overrides(self, *_):
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_rabbit_notification_url',
+        side_effect=lambda rabbit_path: 'rabbit://fake%s' % rabbit_path)
+    def test_ceilometer_overrides(self, mock_get_url, *_):
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_CEILOMETER,
             cnamespace=common.HELM_NS_OPENSTACK)
@@ -54,9 +57,19 @@ class CeilometerGetOverrideTest(CeilometerHelmTestCase,
         })
         messaging_urls = overrides['conf']['ceilometer'][
             'notification']['messaging_urls']['values']
-        for url in messaging_urls:
-            self.assertIn('rabbitmq.openstack.svc.cluster.local:5672', url)
-            self.assertNotIn("b'", url)
+        self.assertEqual(
+            ['rabbit://fake/ceilometer', 'rabbit://fake/cinder',
+             'rabbit://fake/glance', 'rabbit://fake/nova',
+             'rabbit://fake/keystone', 'rabbit://fake/neutron',
+             'rabbit://fake/heat'],
+            messaging_urls)
+        mock_get_url.assert_any_call('/ceilometer')
+        mock_get_url.assert_any_call('/cinder')
+        mock_get_url.assert_any_call('/glance')
+        mock_get_url.assert_any_call('/nova')
+        mock_get_url.assert_any_call('/keystone')
+        mock_get_url.assert_any_call('/neutron')
+        mock_get_url.assert_any_call('/heat')
         self.assertNotIn('metering', overrides['endpoints'])
         self.assertNotIn('polling', overrides['conf']['ceilometer'])
         self.assertNotIn(

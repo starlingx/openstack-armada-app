@@ -25,6 +25,7 @@ from k8sapp_openstack.utils import get_hosts_uuids
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_services_fqdn_pattern
 from k8sapp_openstack.utils import is_ceph_backend_available
+from k8sapp_openstack.utils import is_nova_ephemeral_ceph_enabled
 
 LOG = logging.getLogger(__name__)
 
@@ -56,9 +57,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.ifdatanets_by_ifaceid = {}
         self.datanets_by_netuuid = {}
         self.rbd_config = {}
+        self.nova_ephemeral_ceph_enabled = False
 
     def get_overrides(self, namespace=None):
         pvc_resolution = self._resolve_nova_pvc_overrides()
+        self.nova_ephemeral_ceph_enabled = is_nova_ephemeral_ceph_enabled()
 
         cinder_backends = self._get_cinder_volumes_backends()
         self._ceph_enabled = app_constants.CEPH_BACKEND_NAME in cinder_backends
@@ -152,6 +155,12 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                         }
                     }
                 }
+            )
+
+        if self.nova_ephemeral_ceph_enabled:
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                self._get_nova_ephemeral_ceph_overrides()
             )
 
         # https://bugs.launchpad.net/starlingx/+bug/1956229
@@ -477,7 +486,56 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         if multistring is not None:
             pci_config.update(multistring)
 
+    def _get_nova_ephemeral_ceph_overrides(self):
+        """Compute Nova overrides for Ceph RBD ephemeral storage.
+
+        Returns a dict of overrides to merge into the Nova chart when
+        ceph is the effective ephemeral storage backend.
+
+        Returns:
+            dict: Overrides including conf.nova.libvirt RBD settings
+                and rbd_pool parameters. Empty dict if ephemeral
+                storage config is unavailable.
+        """
+        ephemeral_storage = self._get_rbd_ephemeral_storage()
+        if not ephemeral_storage:
+            return {}
+
+        rbd_pool = ephemeral_storage.get('rbd_pools', [{}])[0]
+        return {
+            'conf': {
+                'nova': {
+                    'libvirt': {
+                        'images_type': 'rbd',
+                        'images_rbd_pool':
+                            rbd_pool.get('rbd_pool_name',
+                                         app_constants.CEPH_POOL_EPHEMERAL_NAME),
+                        'images_rbd_ceph_conf':
+                            self.rbd_config.get('rbd_ceph_conf',
+                                               '/etc/ceph/ceph.conf'),
+                        'rbd_user':
+                            rbd_pool.get('rbd_user',
+                                         app_constants.CEPH_RBD_POOL_USER_CINDER),
+                    }
+                }
+            },
+            'rbd_pool': {
+                'replication': rbd_pool.get('rbd_replication', 2),
+                'crush_rule': rbd_pool.get('rbd_crush_rule',
+                                           'replicated_rule'),
+                'chunk_size': rbd_pool.get('rbd_chunk_size',
+                                           app_constants.CEPH_POOL_EPHEMERAL_CHUNK_SIZE),
+                'app_name': app_constants.CEPH_POOL_EPHEMERAL_NAME,
+            }
+        }
+
     def _update_host_storage(self, host, default_config, libvirt_config):
+        if self.nova_ephemeral_ceph_enabled:
+            libvirt_config.update({'images_type': 'rbd',
+                                   'images_rbd_pool': self.rbd_config.get('rbd_pool'),
+                                   'images_rbd_ceph_conf': self.rbd_config.get('rbd_ceph_conf')})
+            return
+
         remote_storage = False
         for label in self.labels_by_hostid.get(host.id, []):
             if (label.label_key == common.LABEL_REMOTE_STORAGE and

@@ -2807,10 +2807,13 @@ storage_conf:
       enabled: true
     - name: pvc
       enabled: true
+    - name: ceph
+      enabled: true
   volume_storage_class_priority:
     - host-path
     - nfs
     - pvc
+    - ceph
   nfs_shares:
     enabled: false
     server: 127.0.0.1

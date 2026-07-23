@@ -12,7 +12,7 @@ images:
     prometheus_create_mysql_user: null
     prometheus_mysql_exporter: null
     prometheus_mysql_exporter_helm_tests: null
-    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:7a6a594d2efec8b402ad970d18906863b2f04d4f-ubuntu_noble
     image_repo_sync: null
     mariadb_backup: null
     ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@

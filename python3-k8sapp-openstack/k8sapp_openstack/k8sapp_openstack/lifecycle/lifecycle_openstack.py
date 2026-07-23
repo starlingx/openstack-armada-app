@@ -237,6 +237,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         lifecycle_utils.delete_configmap(app_op, common.HELM_NS_OPENSTACK, self.APP_OPENSTACK_RESOURCE_CONFIG_MAP)
         app_utils.delete_dex_secret()
         app_utils.delete_storage_ca_cert_secret()
+        app_utils.delete_aodh_rest_notifier_ca_cert_secret()
         lifecycle_utils.delete_namespace(app_op, common.HELM_NS_OPENSTACK)
 
         # Perform post remove LDAP-related actions.
@@ -277,6 +278,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # Upgrade compatibility: copy legacy netapp-ca-cert before creating storage-ca-cert.
             app_utils.migrate_legacy_netapp_ca_cert_secret(kube)
             app_utils.create_storage_ca_cert_secret(kube)
+
+            # Setup user provided Aodh notifier certificates
+            app_utils.create_aodh_rest_notifier_ca_cert_secret(kube)
         except Exception as e:
             LOG.error(e)
             raise

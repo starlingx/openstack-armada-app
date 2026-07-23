@@ -2695,6 +2695,52 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         self.assertFalse(result)
         mock_log_error.error.assert_called_once()
 
+    @mock.patch('os.path.isfile', return_value=True)
+    @mock.patch('builtins.open', mock.mock_open(read_data='test-certificate-content'))
+    def test_create_host_ca_cert_secret(self, *_):
+        """Test creation and update of host CA certificate secret."""
+        mock_kube = mock.Mock()
+        host_cert = '/var/opt/openstack/certs/storage.pem'
+        secret_name = 'secret-ca-cert'
+        secret_key = "ca.crt"
+
+        # Test create new secret
+        mock_kube.kube_get_secret.return_value = None
+        app_utils.create_host_ca_cert_secret(mock_kube, host_cert, secret_name, secret_key)
+        mock_kube.kube_create_secret.assert_called_once()
+        secret_body = mock_kube.kube_create_secret.call_args[0][1]
+        self.assertEqual(secret_body['metadata']['name'], secret_name)
+
+        # Test update existing secret
+        mock_kube.reset_mock()
+        mock_kube.kube_get_secret.return_value = mock.Mock()
+        app_utils.create_host_ca_cert_secret(mock_kube, host_cert, secret_name, secret_key)
+        mock_kube.kube_patch_secret.assert_called_once()
+        mock_kube.kube_create_secret.assert_not_called()
+
+    def test_create_host_ca_cert_secret_secret_skipped(self):
+        """Test secret not created when cert file is missing, empty, or not configured."""
+        mock_kube = mock.Mock()
+        host_cert = '/var/opt/openstack/certs/storage.pem'
+        secret_name = 'secret-ca-cert'
+        secret_key = "ca.crt"
+
+        # Test: no host cert configured
+        with mock.patch('os.path.isfile', return_value=True):
+            app_utils.create_host_ca_cert_secret(mock_kube, '', secret_name, secret_key)
+            mock_kube.kube_create_secret.assert_not_called()
+
+        # Test: file not found
+        with mock.patch('os.path.isfile', return_value=False):
+            app_utils.create_host_ca_cert_secret(mock_kube, host_cert, secret_name, secret_key)
+            mock_kube.kube_create_secret.assert_not_called()
+
+        # Test: empty file
+        with mock.patch('os.path.isfile', return_value=True):
+            with mock.patch('builtins.open', mock.mock_open(read_data='')):
+                app_utils.create_host_ca_cert_secret(mock_kube, host_cert, secret_name, secret_key)
+                mock_kube.kube_create_secret.assert_not_called()
+
 
 class StorageCACertSecretTest(dbbase.ControllerHostTestCase):
     """Tests for storage CA certificate secret management functions."""
@@ -2702,27 +2748,19 @@ class StorageCACertSecretTest(dbbase.ControllerHostTestCase):
     def setUp(self):
         super(StorageCACertSecretTest, self).setUp()
 
-    @mock.patch('k8sapp_openstack.utils.get_storage_tls_host_cert',
-                return_value='/var/opt/openstack/certs/storage.pem')
-    @mock.patch('os.path.isfile', return_value=True)
-    @mock.patch('builtins.open', mock.mock_open(read_data='test-certificate-content'))
-    def test_create_storage_ca_cert_secret(self, *_):
-        """Test creation and update of storage CA certificate secret."""
+    @mock.patch('k8sapp_openstack.utils.create_host_ca_cert_secret')
+    @mock.patch('k8sapp_openstack.utils.get_storage_tls_host_cert')
+    def test_create_storage_ca_cert_secret(self, mock_host_cert, mock_create_secret):
+        """Tests the driver function for creation of storage CA certificate secret."""
+        host_cert = "/fake/path/ca.crt"
+        mock_host_cert.return_value = host_cert
         mock_kube = mock.Mock()
-
-        # Test create new secret
-        mock_kube.kube_get_secret.return_value = None
         app_utils.create_storage_ca_cert_secret(mock_kube)
-        mock_kube.kube_create_secret.assert_called_once()
-        secret_body = mock_kube.kube_create_secret.call_args[0][1]
-        self.assertEqual(secret_body['metadata']['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
-
-        # Test update existing secret
-        mock_kube.reset_mock()
-        mock_kube.kube_get_secret.return_value = mock.Mock()
-        app_utils.create_storage_ca_cert_secret(mock_kube)
-        mock_kube.kube_patch_secret.assert_called_once()
-        mock_kube.kube_create_secret.assert_not_called()
+        mock_create_secret.assert_called_with(
+            mock_kube, host_cert,
+            app_constants.STORAGE_CA_CERT_SECRET_NAME,
+            app_constants.STORAGE_CA_CERT_SECRET_KEY
+        )
 
     @mock.patch('k8sapp_openstack.utils.create_storage_ca_cert_secret')
     def test_create_netapp_ca_cert_secret_deprecated_wrapper(self, mock_create_storage_secret):
@@ -2732,30 +2770,6 @@ class StorageCACertSecretTest(dbbase.ControllerHostTestCase):
         app_utils.create_netapp_ca_cert_secret(mock_kube)
 
         mock_create_storage_secret.assert_called_once_with(mock_kube)
-
-    def test_create_storage_ca_cert_secret_skipped(self):
-        """Test secret not created when cert file is missing, empty, or not configured."""
-        mock_kube = mock.Mock()
-
-        # Test: no host cert configured
-        with mock.patch('k8sapp_openstack.utils.get_storage_tls_host_cert', return_value=None):
-            app_utils.create_storage_ca_cert_secret(mock_kube)
-            mock_kube.kube_create_secret.assert_not_called()
-
-        # Test: file not found
-        with mock.patch('k8sapp_openstack.utils.get_storage_tls_host_cert',
-                        return_value='/path/to/cert.pem'):
-            with mock.patch('os.path.isfile', return_value=False):
-                app_utils.create_storage_ca_cert_secret(mock_kube)
-                mock_kube.kube_create_secret.assert_not_called()
-
-        # Test: empty file
-        with mock.patch('k8sapp_openstack.utils.get_storage_tls_host_cert',
-                        return_value='/path/to/cert.pem'):
-            with mock.patch('os.path.isfile', return_value=True):
-                with mock.patch('builtins.open', mock.mock_open(read_data='')):
-                    app_utils.create_storage_ca_cert_secret(mock_kube)
-                    mock_kube.kube_create_secret.assert_not_called()
 
     def test_migrate_legacy_netapp_ca_cert_secret(self):
         """Test migration from legacy netapp-ca-cert to storage-ca-cert."""
@@ -3583,3 +3597,99 @@ class ResolveSecretRefTest(dbbase.ControllerHostTestCase):
             'keys': {'field': 'k'},
         })
         self.assertEqual(result, {})
+
+
+class TestAodhRestNotifierCACert(dbbase.ControllerHostTestCase):
+    """Tests the management of the Aodh rest notifier certificate secret lifecycle."""
+
+    @mock.patch('os.path.isfile', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_is_aodh_rest_notifier_tls_enabled(self,
+                                               mock_get_value,
+                                               mock_op,
+                                               *_):
+        """Tests the guard verification of Aodh rest notifier host cert configuration."""
+        mock_secret = mock.Mock()
+        mock_kube = mock.Mock()
+        mock_op.return_value = mock_kube
+        test_table = [
+            ('/fake/path/ca.crt', mock_secret, True),
+            (None, mock_secret, True),
+            ('/fake/path/ca.crt', None, True),
+            (None, None, False),
+        ]
+        for entry in test_table:
+            mock_get_value.reset_mock()
+            mock_get_value.return_value = entry[0]
+            mock_kube.reset_mock()
+            mock_kube.kube_get_secret.return_value = entry[1]
+            self.assertEqual(
+                app_utils.is_aodh_rest_notifier_tls_enabled(),
+                entry[2],
+                f"host_cert={entry[0]} secret={entry[1]}"
+            )
+            mock_get_value.assert_called_once_with(
+                default_value=app_constants.AODH_REST_NOTIFIER_CA_CERT_DEFAULT_PATH,
+                chart_name=app_constants.HELM_CHART_AODH,
+                override_name=app_constants.AODH_REST_NOTIFIER_CA_CERT_TLS_OVERRIDE
+            )
+            mock_kube.kube_get_secret.assert_called_once_with(
+                app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+                app_constants.HELM_NS_OPENSTACK,
+            )
+
+    @mock.patch("k8sapp_openstack.utils.create_host_ca_cert_secret")
+    @mock.patch("k8sapp_openstack.utils._get_value_from_application")
+    def test_create_aodh_rest_notifier_ca_cert_secret(self,
+                                                      mock_get_value,
+                                                      mock_create_secret):
+        """Tests the driver function for certificate holder secret creation."""
+        mock_get_value.return_value = "/fake/path/ca.crt"
+        mock_kube = mock.Mock()
+        app_utils.create_aodh_rest_notifier_ca_cert_secret(mock_kube)
+        mock_get_value.assert_called_once_with(
+            default_value=app_constants.AODH_REST_NOTIFIER_CA_CERT_DEFAULT_PATH,
+            chart_name=app_constants.HELM_CHART_AODH,
+            override_name=app_constants.AODH_REST_NOTIFIER_CA_CERT_TLS_OVERRIDE
+        )
+        mock_create_secret.assert_called_once_with(
+            mock_kube,
+            mock_get_value.return_value,
+            app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+            app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY
+        )
+
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_delete_aodh_rest_notifier_ca_cert_secret_missing(self, mock_op):
+        """Tests when the deletion of Aodh rest notifier certificate secret should be skipped."""
+        mock_kube = mock.Mock()
+        mock_op.return_value = mock_kube
+
+        mock_kube.kube_get_secret.return_value = None
+        mock_kube.kube_delete_secret = mock.Mock()
+        app_utils.delete_aodh_rest_notifier_ca_cert_secret()
+        mock_kube.kube_get_secret.assert_called_with(
+            app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+            app_constants.HELM_NS_OPENSTACK
+        )
+        mock_kube.kube_delete_secret.assert_not_called()
+
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_delete_aodh_rest_notifier_ca_cert_secret(self, mock_op):
+        """Test the deletion of Aodh notifier certificate holder secret."""
+        mock_kube = mock.Mock()
+        mock_secret = mock.Mock()
+        mock_op.return_value = mock_kube
+
+        mock_kube.kube_get_secret.return_value = mock_secret
+        mock_kube.kube_delete_secret = mock.Mock()
+        app_utils.delete_aodh_rest_notifier_ca_cert_secret()
+        mock_kube.kube_get_secret.assert_called_with(
+            app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+            app_constants.HELM_NS_OPENSTACK
+        )
+        mock_kube.kube_delete_secret.assert_called_with(
+            app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+            app_constants.HELM_NS_OPENSTACK
+        )

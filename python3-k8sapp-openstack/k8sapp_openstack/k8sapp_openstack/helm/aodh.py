@@ -10,6 +10,7 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import is_aodh_rest_notifier_tls_enabled
 
 LOG = logging.getLogger(__name__)
 
@@ -51,13 +52,51 @@ class AodhHelm(openstack.OpenstackBaseHelm):
                 'evaluator': self._num_provisioned_controllers(),
                 'listener': self._num_provisioned_controllers(),
                 'notifier': self._num_provisioned_controllers()
-            }
+            },
+            'mounts': self._get_mount_overrides()
         }
         return overrides
+
+    def _get_mount_overrides(self):
+        mount_overrides = {
+            'aodh_notifier': {
+                'aodh_notifier': {
+                    'volumes': [],
+                    'volumeMounts': []
+                }
+            }
+        }
+
+        if is_aodh_rest_notifier_tls_enabled():
+            # Mount Aodh REST Notifier CA certificate from Kubernetes secret.
+            # The secret is created or migrated during the pre-apply lifecycle hook
+            # (which runs after overrides but before helm install). These mounts are
+            # added to the notifier pods when the cert secret is present in namespace
+            # even if cert files cannot be found in the host since the files might be
+            # temporarily missing during a controller migration.
+            mount_overrides['aodh_notifier']['aodh_notifier']['volumes'].append({
+                'name': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+                'secret': {
+                    'secretName': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+                    'items': [{
+                        'key': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY,
+                        'path': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY
+                    }]
+                }
+            })
+            mount_overrides['aodh_notifier']['aodh_notifier']['volumeMounts'].append({
+                'name': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+                'mountPath': app_constants.AODH_REST_NOTIFIER_CA_CERT_MOUNT_PATH,
+                'subPath': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY,
+                'readOnly': True
+            })
+
+        return mount_overrides
 
     def _get_conf_overrides(self):
         conf_overrides = {
             'aodh': {
+                'DEFAULT': {},
                 'service_credentials': {
                     'region_name': self.get_region_name()
                 },
@@ -74,6 +113,12 @@ class AodhHelm(openstack.OpenstackBaseHelm):
                     }
                 }
             })
+
+        if is_aodh_rest_notifier_tls_enabled():
+            # we need to inject the certificate mounted path into aodh.conf
+            # enabling the use of the provided cert file mounted in the pod
+            conf_overrides['aodh']['DEFAULT']['rest_notifier_ca_bundle_certificate_path'] = \
+                app_constants.AODH_REST_NOTIFIER_CA_CERT_MOUNT_PATH
 
         return conf_overrides
 

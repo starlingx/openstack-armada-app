@@ -443,3 +443,10 @@ KEYSTONE_OIDC_CLIENT_ID_OVERRIDE = "conf.federation.wsgi.OIDCClientID"
 # Dex IDP chart
 DEX_IDP_OVERRIDE = "conf.federation.dex_idp.enabled"
 DEX_DEFAULT_IDP_OVERRIDE = False
+
+# Aodh notifier certificates overrides
+AODH_REST_NOTIFIER_CA_CERT_TLS_OVERRIDE = 'aodh_notifier.tls.host_cert'
+AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME = 'aodh-rest-notifier-ca-cert'
+AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY = 'ca.crt'
+AODH_REST_NOTIFIER_CA_CERT_DEFAULT_PATH = '/var/opt/openstack/certs/aodh-rest-notifier.pem'
+AODH_REST_NOTIFIER_CA_CERT_MOUNT_PATH = '/var/lib/openstack/certs/aodh-rest-notifier-ca.crt'

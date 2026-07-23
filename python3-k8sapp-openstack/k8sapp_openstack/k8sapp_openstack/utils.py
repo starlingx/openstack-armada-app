@@ -3177,40 +3177,30 @@ def migrate_legacy_netapp_ca_cert_secret(kube):
     LOG.info(f"Secret {old_secret_name} migrated to {new_secret_name}")
 
 
-def create_storage_ca_cert_secret(kube):
+def create_host_ca_cert_secret(kube, host_cert_path, secret_name, secret_key,
+                                      namespace=app_constants.HELM_NS_OPENSTACK):
+    """Manages the creation of certificate secrets from provided host paths.
+    If a secret resource with the same name already exists it will be patched
+    with the certificate file contents. Secret creation is skipped if the
+    host path does not exist or is empty.
     """
-    Create or update a Kubernetes secret containing the storage CA certificate.
-
-    Reads the certificate from the host filesystem and stores it as a K8s secret,
-    making it available across all controllers without requiring the file on each.
-
-    Args:
-        kube: Kubernetes operator instance.
-
-    """
-    host_cert = get_storage_tls_host_cert()
-
-    if not host_cert or not os.path.isfile(host_cert):
+    if not host_cert_path or not os.path.isfile(host_cert_path):
         LOG.info(
-            f"Storage CA certificate not found at '{host_cert}'. "
+            f"Secret '{secret_name}' not found at '{host_cert_path}'. "
             "Secret will not be created."
         )
         return
 
     try:
-        with open(host_cert, 'r') as cert_file:
+        with open(host_cert_path, 'r') as cert_file:
             cert_content = cert_file.read()
     except IOError as e:
-        LOG.warning(f"Failed to read storage CA certificate from '{host_cert}': {e}")
+        LOG.warning(f"Failed to read secret '{secret_name}' from '{host_cert_path}': {e}")
         return
 
     if not cert_content.strip():
-        LOG.warning(f"Storage CA certificate at '{host_cert}' is empty. Skipping secret creation.")
+        LOG.warning(f"Certificate at '{host_cert_path}' is empty. Skipping secret '{secret_name}' creation.")
         return
-
-    secret_name = app_constants.STORAGE_CA_CERT_SECRET_NAME
-    secret_key = app_constants.STORAGE_CA_CERT_SECRET_KEY
-    namespace = app_constants.HELM_NS_OPENSTACK
 
     secret_exists = kube.kube_get_secret(secret_name, namespace)
 
@@ -3230,12 +3220,30 @@ def create_storage_ca_cert_secret(kube):
     try:
         if secret_exists:
             kube.kube_patch_secret(secret_name, namespace, secret_body)
-            LOG.info(f"Secret {secret_name} updated with storage CA certificate")
+            LOG.info(f"Secret {secret_name} updated from host path certificate: {host_cert_path}")
         else:
             kube.kube_create_secret(namespace, secret_body)
-            LOG.info(f"Secret {secret_name} created with storage CA certificate")
+            LOG.info(f"Secret {secret_name} created from host path certificate: {host_cert_path}")
     except Exception as e:
-        LOG.error(f"Failed to create/update storage CA certificate secret: {e}")
+        LOG.error(f"Failed to create/update secret {secret_name} from host path certificate: {host_cert_path}: {e}")
+
+
+def create_storage_ca_cert_secret(kube):
+    """
+    Create or update a Kubernetes secret containing the storage CA certificate.
+
+    Reads the certificate from the host filesystem and stores it as a K8s secret,
+    making it available across all controllers without requiring the file on each.
+
+    Args:
+        kube: Kubernetes operator instance.
+
+    """
+    host_cert = get_storage_tls_host_cert()
+
+    create_host_ca_cert_secret(kube, host_cert,
+                               app_constants.STORAGE_CA_CERT_SECRET_NAME,
+                               app_constants.STORAGE_CA_CERT_SECRET_KEY)
 
 
 def create_netapp_ca_cert_secret(kube):
@@ -3858,3 +3866,65 @@ def get_backend_protocol(name: str):
 
     entry = get_backends_conf().get(name)
     return entry.get("protocol") if entry else None
+
+
+def is_aodh_rest_notifier_tls_enabled() -> bool:
+    """Checks wheter a custom certificate should be used when the Aodh notifier
+    performs the host verification of webhook HTTPS endpoints.
+    """
+    host_cert = _get_value_from_application(
+        default_value=app_constants.AODH_REST_NOTIFIER_CA_CERT_DEFAULT_PATH,
+        chart_name=app_constants.HELM_CHART_AODH,
+        override_name=app_constants.AODH_REST_NOTIFIER_CA_CERT_TLS_OVERRIDE
+    )
+
+    kube = kubernetes.KubeOperator()
+    secret_name = app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME
+    namespace = app_constants.HELM_NS_OPENSTACK
+    secret_available = False
+    try:
+        secret_available = bool(
+            kube.kube_get_secret(secret_name, namespace))
+    except Exception as e:
+        LOG.error(
+            f"Failed looking up Aodh notifier secret {secret_name} in namespace {namespace}: {e}"
+        )
+
+    return (host_cert and os.path.isfile(host_cert)) or secret_available
+
+
+def create_aodh_rest_notifier_ca_cert_secret(kube):
+    """Manages the creation and update of the holder secret of Aodh rest notifier
+    certificate used for host verification.
+    """
+    host_cert = _get_value_from_application(
+        default_value=app_constants.AODH_REST_NOTIFIER_CA_CERT_DEFAULT_PATH,
+        chart_name=app_constants.HELM_CHART_AODH,
+        override_name=app_constants.AODH_REST_NOTIFIER_CA_CERT_TLS_OVERRIDE
+    )
+
+    create_host_ca_cert_secret(kube, host_cert,
+                               app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+                               app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY)
+
+
+def delete_aodh_rest_notifier_ca_cert_secret():
+    """Will delete the secret holding the custom certificate used by
+    Aodh rest notifier for host verification according to app lifecycle.
+    """
+    namespace = app_constants.HELM_NS_OPENSTACK
+    secret_name = app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME
+
+    kube = kubernetes.KubeOperator()
+
+    try:
+        secret = kube.kube_get_secret(secret_name, namespace)
+        if secret:
+            kube.kube_delete_secret(secret_name, namespace)
+            LOG.info(f"Secret {secret_name} deleted from {namespace} namespace")
+        else:
+            LOG.info(f"Aodh rest notifier CA certificate secret {secret_name} "
+                     f"is not present in {namespace} namespace. "
+                     f"Skipping deletion.")
+    except Exception as e:
+        LOG.error(f"Error deleting rest notifier CA certificate secret: {e}")

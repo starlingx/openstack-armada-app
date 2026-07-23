@@ -543,6 +543,9 @@ conf:
   prometheus:
     host: kube-prometheus-stack-prometheus.monitoring.svc.cluster.local
     port: 9090
+aodh_notifier:
+  tls:
+    host_cert: "/var/opt/openstack/certs/aodh-rest-notifier.pem"
 secrets:
   identity:
     admin: aodh-keystone-admin

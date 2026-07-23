@@ -1105,6 +1105,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             app_constants.NETAPP_FC_BACKEND_NAME: ""
         }
     )
+    @mock.patch('k8sapp_openstack.utils.create_aodh_rest_notifier_ca_cert_secret')
     @mock.patch('k8sapp_openstack.helpers.ldap.check_group', return_value=False)
     @mock.patch('k8sapp_openstack.helpers.ldap.add_group', return_value=True)
     @mock.patch('k8sapp_openstack.utils.create_clients_working_directory', return_value=True)
@@ -1125,6 +1126,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_create_dir,
         mock_add_group,
         mock_check_group,
+        mock_create_aodh_rest_notifier_ca_cert_secret,
         *_
     ):
         """ Test the pre-apply actions for creating app-specific resources. """
@@ -1141,12 +1143,14 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_create_dex_credentials_secret.assert_called_once()
         mock_migrate_legacy_netapp_ca_cert_secret.assert_called_once()
         mock_create_storage_ca_cert_secret.assert_called_once()
+        mock_create_aodh_rest_notifier_ca_cert_secret.assert_called_once()
         mock_create_local_registry_secrets.assert_called_once()
         mock_kube.kube_delete_config_map.assert_called_once()
         mock_check_group.assert_called_once()
         mock_add_group.assert_called_once()
         mock_create_dir.assert_called_once_with(path='/custom/path')
 
+    @mock.patch('k8sapp_openstack.utils.create_aodh_rest_notifier_ca_cert_secret')
     @mock.patch('k8sapp_openstack.helpers.ldap.check_group', return_value=False)
     @mock.patch('k8sapp_openstack.helpers.ldap.add_group', return_value=True)
     @mock.patch('k8sapp_openstack.utils.create_clients_working_directory', return_value=True)
@@ -1160,7 +1164,8 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             mock_get_working_dir,
             mock_create_dir,
             mock_add_group,
-            mock_check_group):
+            mock_check_group,
+            mock_create_aodh_rest_notifier_ca_cert_secret):
         """ Test the pre-apply actions for creating app-specific resources with a failure. """
 
         mock_kube = mock_kube_operator.return_value
@@ -1313,6 +1318,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         assert fake_configmap.metadata.namespace == common.HELM_NS_OPENSTACK
         assert fake_configmap.metadata.name == self.lifecycle.APP_OPENSTACK_RESOURCE_CONFIG_MAP
 
+    @mock.patch('k8sapp_openstack.utils.delete_aodh_rest_notifier_ca_cert_secret')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.lifecycle_utils')
     @mock.patch('k8sapp_openstack.utils.delete_storage_ca_cert_secret')
     @mock.patch('k8sapp_openstack.utils.delete_dex_secret')
@@ -1324,7 +1330,8 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             mock_post_remove_ldap_actions,
             mock_delete_dex_secret,
             mock_delete_storage_ca_cert_secret,
-            mock_lifecycle_utils):
+            mock_lifecycle_utils,
+            mock_delete_aodh_rest_notifier_ca_cert_secret):
         """ Test the post-remove actions for deleting app-specific resources. """
 
         app_op = mock.Mock()
@@ -1338,6 +1345,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_lifecycle_utils.delete_configmap.assert_called_once()
         mock_delete_dex_secret.assert_called_once()
         mock_delete_storage_ca_cert_secret.assert_called_once()
+        mock_delete_aodh_rest_notifier_ca_cert_secret.assert_called_once()
         mock_lifecycle_utils.delete_namespace.assert_called_once()
         mock_post_remove_ldap_actions.assert_called_once()
 

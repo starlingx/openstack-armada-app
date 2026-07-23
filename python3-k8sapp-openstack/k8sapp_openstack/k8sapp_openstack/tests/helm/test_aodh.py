@@ -25,6 +25,7 @@ class AodhHelmTestCase(test_plugins.K8SAppOpenstackAppMixin,
 
 class AodhGetOverrideTest(AodhHelmTestCase,
                           dbbase.ControllerHostTestCase):
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_aodh_overrides(self, *_):
         overrides = self.operator.get_helm_chart_overrides(
@@ -44,6 +45,7 @@ class AodhGetOverrideTest(AodhHelmTestCase,
 
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
     @mock.patch(
         'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
@@ -105,6 +107,7 @@ class AodhGetOverrideTest(AodhHelmTestCase,
             },
         })
 
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_aodh_overrides_invalid_namespace(self, *_):
         """
@@ -116,6 +119,7 @@ class AodhGetOverrideTest(AodhHelmTestCase,
                           app_constants.HELM_CHART_AODH,
                           cnamespace=common.HELM_NS_DEFAULT)
 
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_aodh_overrides_missing_namespace(self, *_):
         """
@@ -127,6 +131,7 @@ class AodhGetOverrideTest(AodhHelmTestCase,
         self.assertIsInstance(overrides, dict)
         self.assertIn(common.HELM_NS_OPENSTACK, overrides)
 
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service_region_name')
     def test_aodh_get_region_name(self, mock_get_region, *_):
@@ -142,6 +147,7 @@ class AodhGetOverrideTest(AodhHelmTestCase,
         result_region_name = result_service_conf['service_credentials']['region_name']
         self.assertEqual('regionA', result_region_name)
 
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     @mock.patch(
         'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_rabbit_notification_url',
@@ -165,6 +171,7 @@ class AodhGetOverrideTest(AodhHelmTestCase,
             transport_url)
         mock_get_url.assert_called_once_with('/ceilometer')
 
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_aodh_overrides_no_default_transport_url(self, *_):
         """
@@ -174,10 +181,11 @@ class AodhGetOverrideTest(AodhHelmTestCase,
         overrides = self.operator.get_helm_chart_overrides(
             app_constants.HELM_CHART_AODH,
             cnamespace=common.HELM_NS_OPENSTACK)
-        self.assertNotIn('DEFAULT', overrides['conf']['aodh'])
+        self.assertNotIn('transport_url', overrides['conf']['aodh']['DEFAULT'])
 
     @mock.patch('os.path.exists', return_value=True)
     @mock.patch('six.moves.builtins.open', mock.mock_open(read_data="fake"))
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
     @mock.patch(
         'k8sapp_openstack.helm.openstack.OpenstackBaseHelm.get_ca_file',
@@ -207,3 +215,61 @@ class AodhGetOverrideTest(AodhHelmTestCase,
         self.assertEqual(
             overrides['conf']['aodh']['keystone_authtoken']['cafile'],
             aodh.AodhHelm.get_ca_file())
+
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_aodh_overrides_rest_notifier_host_cert_disabled(self, *_):
+        """Tests that Aodh rest notifier certificate configuration
+        is not injected when it has not been enabled.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_AODH,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        self.assertIn('DEFAULT', overrides['conf']['aodh'])
+        defaults = overrides['conf']['aodh']['DEFAULT']
+        self.assertNotIn('rest_notifier_ca_bundle_certificate_path', defaults)
+        notifier_pod = overrides['pod']['mounts']['aodh_notifier']['aodh_notifier']
+        self.assertEqual(len(notifier_pod['volumes']), 0)
+        self.assertEqual(len(notifier_pod['volumeMounts']), 0)
+
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_aodh_overrides_rest_notifier_host_cert_enabled_conf(self, *_):
+        """Tests that the proper aodh.conf key is set to enabled custom
+        host verification certificate for Aodh rest notifier requests."""
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_AODH,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        self.assertIn('DEFAULT', overrides['conf']['aodh'])
+        defaults = overrides['conf']['aodh']['DEFAULT']
+        self.assertIn('rest_notifier_ca_bundle_certificate_path', defaults)
+        self.assertEqual(defaults['rest_notifier_ca_bundle_certificate_path'],
+                         app_constants.AODH_REST_NOTIFIER_CA_CERT_MOUNT_PATH)
+
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_aodh_overrides_rest_notifier_host_cert_enabled_mounts(self, *_):
+        """Tests that the volume mounts are injected into the Aodh notifier
+        pod bound to the holder secret of host certificate."""
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_AODH,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        notifier_pod = overrides['pod']['mounts']['aodh_notifier']['aodh_notifier']
+        self.assertEqual(len(notifier_pod['volumes']), 1)
+        self.assertEqual(len(notifier_pod['volumeMounts']), 1)
+        self.assertEqual(notifier_pod['volumes'][0], {
+                    'name': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+                    'secret': {
+                        'secretName': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+                        'items': [{
+                            'key': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY,
+                            'path': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY
+                        }]
+                    }
+                })
+        self.assertEqual(notifier_pod['volumeMounts'][0], {
+                    'name': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME,
+                    'mountPath': app_constants.AODH_REST_NOTIFIER_CA_CERT_MOUNT_PATH,
+                    'subPath': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY,
+                    'readOnly': True
+                })

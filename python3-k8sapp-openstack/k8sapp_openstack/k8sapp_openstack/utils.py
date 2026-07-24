@@ -1646,6 +1646,75 @@ def get_backends_conf(
     return {entry['name']: entry for entry in backends_conf_list if 'name' in entry}
 
 
+def resolve_secret_ref(secret_ref: dict) -> dict:
+    """Resolve an ESB secretRef into cinder.conf credential fields.
+
+    Reads the Kubernetes Secret referenced by secret_ref and maps its keys
+    into target cinder.conf field names. Namespace is optional and the default
+    value is 'openstack'.
+
+    Args:
+        secret_ref: dict from 'backends_conf' entry. It
+            has the shape::
+
+                {
+                    "name": "<k8s-secret-name>",
+                    "namespace": "<namespace>",   # optional, default openstack
+                    "keys": {
+                        "<cinder_conf_field>": "<secret_data_key>",
+                        ...
+                    }
+                }
+
+    Returns:
+        dict: Mapping of target cinder.conf field name to the decoded Secret
+              value. Returns an empty dict when secret_ref is empty/absent
+    """
+    resolved = dict()
+
+    if not secret_ref:
+        return resolved
+
+    secret_name = secret_ref.get('name')
+    keys = secret_ref.get('keys') or {}
+
+    if not secret_name or not keys:
+        LOG.warning("resolve_secret_ref: secretRef is missing 'name' or "
+                    "'keys'; skipping credential resolution.")
+        return resolved
+
+    namespace = secret_ref.get('namespace') or app_constants.HELM_NS_OPENSTACK
+    if secret_ref.get('namespace'):
+        LOG.info(f"resolve_secret_ref: using explicit namespace {namespace!r}")
+    else:
+        LOG.info(f"resolve_secret_ref: no namespace declared; defaulting to "
+                 f"{namespace!r}")
+    try:
+        LOG.info(f"resolve_secret_ref: reading Secret {secret_name!r} from "
+                 f"namespace {namespace!r} via KubeOperator")
+        kube = kubernetes.KubeOperator()
+        secret = kube.kube_get_secret(name=secret_name, namespace=namespace)
+        data = getattr(secret, 'data', None) if secret else None
+        if not data:
+            LOG.error(f"resolve_secret_ref: Secret {secret_name!r} not found "
+                      f"or has no data in namespace {namespace!r}.")
+            return resolved
+
+        for target_field, secret_key in keys.items():
+            if secret_key not in data:
+                LOG.warning(f"resolve_secret_ref: Secret key {secret_key!r} not "
+                          f"found in Secret {secret_name!r} (namespace "
+                          f"{namespace!r}). Skipping field {target_field!r}.")
+                continue
+            resolved[target_field] = base64.decode_as_text(data[secret_key])
+
+    except Exception as e:
+        LOG.error(f"resolve_secret_ref: error resolving secretRef "
+                  f"{secret_name!r} in namespace {namespace!r}: {e}")
+
+    return resolved
+
+
 def get_storage_backends_priority_list(
     chart: str,
     override_name: str = app_constants.OVERRIDE_STORAGE_PRIORITY,

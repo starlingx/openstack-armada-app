@@ -1165,3 +1165,209 @@ class TestBackupDriverEmission(testtools.TestCase):
             overrides['DEFAULT']['backup_driver'],
             app_constants.CEPH_BACKUP_DRIVER
         )
+
+
+class TestESBSecretRefInjection(testtools.TestCase):
+    """Unit tests for secretRef credential injection into ESB backends.
+
+    Exercise CinderHelm._get_conf_esb_cinder_overrides /
+    _resolve_esb_volume_backend with resolve_secret_ref mocked, focusing on
+    how resolved credentials merge into the emitted cinder.conf backend
+    section. Secret reading itself is covered by
+    test_utils.ResolveSecretRefTest.
+    """
+
+    def _make_helm(self, available_backends, backends_conf, volume_priority):
+        ch = cinder.CinderHelm(None)
+        ch.available_backends = available_backends
+        ch._backends_conf = backends_conf
+        ch.VOLUME_PRIORITY_LIST = volume_priority
+        return ch
+
+    @staticmethod
+    def _run(ch):
+        cinder_overrides = {'DEFAULT': {}}
+        backend_overrides = {}
+        return ch._get_conf_esb_cinder_overrides(
+            cinder_overrides, backend_overrides)
+
+    @mock.patch('k8sapp_openstack.helm.cinder.resolve_secret_ref')
+    def test_section_emitted_under_conf_backends(self, mock_resolve):
+        """The ESB backend section is emitted under conf.backends """
+        mock_resolve.return_value = {'san_login': 'admin'}
+        ch = self._make_helm(
+            available_backends={'dell-iscsi': ''},
+            backends_conf={
+                'dell-iscsi': {
+                    'name': 'dell-iscsi',
+                    'protocol': 'iscsi',
+                    'k8s_storage_class': 'none',
+                    'secretRef': {'name': 'c', 'keys': {'san_login': 'username'}},
+                    'volume_backend': {'volume_backend_name': 'dell-iscsi',
+                                       'san_ip': '10.0.0.1'},
+                }
+            },
+            volume_priority=['dell-iscsi'],
+        )
+        cinder_overrides, backend_overrides = self._run(ch)
+
+        expected = {'volume_backend_name': 'dell-iscsi',
+                    'san_ip': '10.0.0.1', 'san_login': 'admin'}
+        self.assertEqual(backend_overrides['dell-iscsi'], expected)
+        self.assertIn('dell-iscsi',
+                      cinder_overrides['DEFAULT']['enabled_backends'].split(','))
+
+    @mock.patch('k8sapp_openstack.helm.cinder.resolve_secret_ref')
+    def test_secret_ref_injected_into_backend_section(self, mock_resolve):
+        """Resolved credentials are merged into the emitted backend section."""
+        mock_resolve.return_value = {'san_login': 'admin', 'san_password': 'pw'}
+        ch = self._make_helm(
+            available_backends={'dell-iscsi': ''},
+            backends_conf={
+                'dell-iscsi': {
+                    'name': 'dell-iscsi',
+                    'protocol': 'iscsi',
+                    'k8s_storage_class': 'none',
+                    'secretRef': {
+                        'name': 'dell-creds',
+                        'keys': {'san_login': 'username',
+                                 'san_password': 'password'},
+                    },
+                    'volume_backend': {
+                        'volume_backend_name': 'dell-iscsi',
+                        'san_ip': '10.0.0.1',
+                    },
+                }
+            },
+            volume_priority=['dell-iscsi'],
+        )
+        _, backend_overrides = self._run(ch)
+
+        self.assertEqual(backend_overrides['dell-iscsi'], {
+            'volume_backend_name': 'dell-iscsi',
+            'san_ip': '10.0.0.1',
+            'san_login': 'admin',
+            'san_password': 'pw',
+        })
+        mock_resolve.assert_called_once_with({
+            'name': 'dell-creds',
+            'keys': {'san_login': 'username', 'san_password': 'password'},
+        })
+
+    @mock.patch('k8sapp_openstack.helm.cinder.resolve_secret_ref')
+    def test_literal_volume_backend_wins_on_collision(self, mock_resolve):
+        """On collision the explicit literal volume_backend value wins.
+
+        When secretRef.keys declares a target field that is also present as a
+        literal in volume_backend, the operator's explicit literal value takes
+        precedence; the secret-resolved value is ignored for that field.
+        Non-colliding secret fields are still injected.
+        """
+        mock_resolve.return_value = {
+            'san_password': 'from-secret',
+            'san_login': 'admin-from-secret',
+        }
+        ch = self._make_helm(
+            available_backends={'dell-iscsi': ''},
+            backends_conf={
+                'dell-iscsi': {
+                    'name': 'dell-iscsi',
+                    'protocol': 'iscsi',
+                    'k8s_storage_class': 'none',
+                    'secretRef': {'name': 'c',
+                                  'keys': {'san_password': 'password',
+                                           'san_login': 'username'}},
+                    'volume_backend': {'san_password': 'LITERAL-PW'},
+                }
+            },
+            volume_priority=['dell-iscsi'],
+        )
+        _, backend_overrides = self._run(ch)
+        self.assertEqual(
+            backend_overrides['dell-iscsi']['san_password'], 'LITERAL-PW')
+        self.assertEqual(
+            backend_overrides['dell-iscsi']['san_login'], 'admin-from-secret')
+
+    @mock.patch('k8sapp_openstack.helm.cinder.resolve_secret_ref')
+    def test_empty_secret_ref_no_injection(self, mock_resolve):
+        """secretRef: {} -> no resolution attempted; section unchanged."""
+        ch = self._make_helm(
+            available_backends={'dell-nfs': 'dell-sc'},
+            backends_conf={
+                'dell-nfs': {
+                    'name': 'dell-nfs',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'dell-sc',
+                    'secretRef': {},
+                    'volume_backend': {
+                        'nfs_shares_config': '/etc/cinder/nfs.shares'},
+                }
+            },
+            volume_priority=['dell-nfs'],
+        )
+        _, backend_overrides = self._run(ch)
+        self.assertEqual(backend_overrides['dell-nfs'],
+                         {'nfs_shares_config': '/etc/cinder/nfs.shares'})
+        mock_resolve.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.helm.cinder.resolve_secret_ref')
+    def test_absent_secret_ref_no_injection(self, mock_resolve):
+        """secretRef absent -> no resolution attempted; section unchanged."""
+        ch = self._make_helm(
+            available_backends={'dell-nfs': 'dell-sc'},
+            backends_conf={
+                'dell-nfs': {
+                    'name': 'dell-nfs',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'dell-sc',
+                    'volume_backend': {
+                        'nfs_shares_config': '/etc/cinder/nfs.shares'},
+                }
+            },
+            volume_priority=['dell-nfs'],
+        )
+        _, backend_overrides = self._run(ch)
+        self.assertEqual(backend_overrides['dell-nfs'],
+                         {'nfs_shares_config': '/etc/cinder/nfs.shares'})
+        mock_resolve.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.helm.cinder.resolve_secret_ref')
+    def test_secret_ref_with_empty_volume_backend(self, mock_resolve):
+        """Credentials are injected even when volume_backend is empty/absent."""
+        mock_resolve.return_value = {'san_login': 'admin'}
+        ch = self._make_helm(
+            available_backends={'dell-iscsi': ''},
+            backends_conf={
+                'dell-iscsi': {
+                    'name': 'dell-iscsi',
+                    'protocol': 'iscsi',
+                    'k8s_storage_class': 'none',
+                    'secretRef': {'name': 'c', 'keys': {'san_login': 'username'}},
+                }
+            },
+            volume_priority=['dell-iscsi'],
+        )
+        _, backend_overrides = self._run(ch)
+        self.assertEqual(backend_overrides['dell-iscsi'], {'san_login': 'admin'})
+
+    @mock.patch('k8sapp_openstack.helm.cinder.resolve_secret_ref')
+    def test_secret_ref_resolves_to_empty_leaves_section_unchanged(
+            self, mock_resolve):
+        """If resolution yields nothing, the section keeps its literal fields."""
+        mock_resolve.return_value = {}
+        ch = self._make_helm(
+            available_backends={'dell-iscsi': ''},
+            backends_conf={
+                'dell-iscsi': {
+                    'name': 'dell-iscsi',
+                    'protocol': 'iscsi',
+                    'k8s_storage_class': 'none',
+                    'secretRef': {'name': 'c', 'keys': {'san_login': 'username'}},
+                    'volume_backend': {'san_ip': '10.0.0.1'},
+                }
+            },
+            volume_priority=['dell-iscsi'],
+        )
+        _, backend_overrides = self._run(ch)
+        self.assertEqual(backend_overrides['dell-iscsi'], {'san_ip': '10.0.0.1'})
+        mock_resolve.assert_called_once()

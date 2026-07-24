@@ -55,8 +55,31 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
         }
 
     def _get_manifests_overrides(self):
+        manifests = {}
+
         # IPMI agent is not included in the image; keep its daemonset disabled.
-        return {'daemonset_ipmi': False}
+        manifests['daemonset_ipmi'] = False
+
+        if self._is_servicemonitor_disabled():
+            manifests['servicemonitor_central'] = False
+            manifests['servicemonitor_compute'] = False
+
+        if self._is_metrics_service_disabled():
+            manifests['service_central_metrics'] = False
+            manifests['service_compute_metrics'] = False
+            # Service Monitors depend on Metrics Services
+            manifests['servicemonitor_central'] = False
+            manifests['servicemonitor_compute'] = False
+
+        return manifests
+
+    def _is_servicemonitor_disabled(self):
+        """Return True to disable the ServiceMonitor manifests."""
+        return False
+
+    def _is_metrics_service_disabled(self):
+        """Return True to disable the metrics Services."""
+        return False
 
     def _get_conf_overrides(self):
         ceilometer_conf = {

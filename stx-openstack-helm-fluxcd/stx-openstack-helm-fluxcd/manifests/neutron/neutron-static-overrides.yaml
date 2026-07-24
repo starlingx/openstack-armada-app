@@ -1978,7 +1978,6 @@ conf:
       idle_timeout: 60
       rpc_response_max_timeout: 60
       router_status_managed: true
-      vlan_transparent: true
       wsgi_default_pool_size: 100
       notify_nova_on_port_data_changes: true
       notify_nova_on_port_status_changes: true

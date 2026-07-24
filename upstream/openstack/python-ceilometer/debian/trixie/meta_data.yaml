@@ -1,0 +1,13 @@
+---
+debname: ceilometer
+debver: 1:26.0.0-3
+dl_path:
+  name: ceilometer-debian-26.0.0-3.tar.gz
+  url: https://salsa.debian.org/openstack-team/services/ceilometer/-/archive/debian/26.0.0-3/ceilometer-debian-26.0.0-3.tar.gz
+  md5sum: c5cef096fbba9efb294640c1504b2391
+  sha256sum: 00b6bc89022314378dce53758a74553d3559db94804ec0be56eefd974581e9e8
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 0ddfe90cd61104d6e3e8ad17976e2c92dd6a3b31
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-ceilometer

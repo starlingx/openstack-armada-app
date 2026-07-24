@@ -8,7 +8,7 @@
 images:
   tags:
     prometheus_openstack_exporter: ghcr.io/openstack-exporter/openstack-exporter:1.7.0
-    dep_check: quay.io/airshipit/kubernetes-entrypoint:9ff5d2e488ad18187bccc48e9595f197d27110c4-ubuntu_jammy
+    dep_check: quay.io/airshipit/kubernetes-entrypoint:7a6a594d2efec8b402ad970d18906863b2f04d4f-ubuntu_noble
     image_repo_sync: null
     ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@

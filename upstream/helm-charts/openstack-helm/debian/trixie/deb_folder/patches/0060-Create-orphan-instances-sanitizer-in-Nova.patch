@@ -36,19 +36,21 @@ Notes on intentional deviations from CronJob conventions:
 
 Change-Id: I13b33c9eae6385d785ba005617536a88e7b2f59c
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
----
- .../bin/_orphan-instances-sanitizer.sh.tpl    | 71 ++++++++++++++++
- nova/templates/configmap-bin.yaml             |  2 +
- .../cron-job-instances-sanitizer.yaml         | 84 +++++++++++++++++++
- nova/templates/daemonset-compute.yaml         | 19 ++++
- nova/values.yaml                              | 48 +++++++++++
- 5 files changed, 224 insertions(+)
+[Patch rebase to OpenStack-Helm@2026.1]
+Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+--
+ .../bin/_orphan-instances-sanitizer.sh.tpl    | 71 +++++++++++++++
+ nova/templates/configmap-bin.yaml             |  4 +
+ .../cron-job-instances-sanitizer.yaml         | 91 +++++++++++++++++++
+ nova/templates/daemonset-compute.yaml         | 21 +++++
+ nova/values.yaml                              | 50 ++++++++++
+ 5 files changed, 237 insertions(+)
  create mode 100644 nova/templates/bin/_orphan-instances-sanitizer.sh.tpl
  create mode 100644 nova/templates/cron-job-instances-sanitizer.yaml
 
 diff --git a/nova/templates/bin/_orphan-instances-sanitizer.sh.tpl b/nova/templates/bin/_orphan-instances-sanitizer.sh.tpl
 new file mode 100644
-index 000000000..14329bfb8
+index 000000000..b27aac691
 --- /dev/null
 +++ b/nova/templates/bin/_orphan-instances-sanitizer.sh.tpl
 @@ -0,0 +1,71 @@
@@ -124,10 +126,10 @@ index 000000000..14329bfb8
 +
 +echo "Orphan servers cleanup completed successfully"
 diff --git a/nova/templates/configmap-bin.yaml b/nova/templates/configmap-bin.yaml
-index 564c23094..728e604f5 100644
+index e7f4ffd1d..e09dc5ffb 100644
 --- a/nova/templates/configmap-bin.yaml
 +++ b/nova/templates/configmap-bin.yaml
-@@ -105,6 +105,8 @@ data:
+@@ -105,4 +105,8 @@ data:
  {{- include "helm-toolkit.scripts.rabbit_init" . | indent 4 }}
    wait-for-computes-init.sh: |
  {{ tuple "bin/_wait-for-computes-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
@@ -135,15 +137,13 @@ index 564c23094..728e604f5 100644
 +  orphan-instances-sanitizer.sh: |
 +{{ tuple "bin/_orphan-instances-sanitizer.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
 +{{- end }}
- {{- if ( has "tungstenfabric" .Values.network.backend ) }}
-   tf-plugin.pth: |
-     /opt/plugin/site-packages
+ {{- end }}
 diff --git a/nova/templates/cron-job-instances-sanitizer.yaml b/nova/templates/cron-job-instances-sanitizer.yaml
 new file mode 100644
-index 000000000..af882ed17
+index 000000000..a26af6663
 --- /dev/null
 +++ b/nova/templates/cron-job-instances-sanitizer.yaml
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,91 @@
 +{{/*
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -235,11 +235,12 @@ index 000000000..af882ed17
 +              hostPath:
 +                path: /run
 +{{- end }}
+\ No newline at end of file
 diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
-index 00928f35a..0905da746 100644
+index a6d0f7779..c9fb4772a 100644
 --- a/nova/templates/daemonset-compute.yaml
 +++ b/nova/templates/daemonset-compute.yaml
-@@ -290,6 +290,25 @@ spec:
+@@ -312,6 +312,27 @@ spec:
                readOnly: true
  {{ if $mounts_nova_compute.volumeMounts }}{{ toYaml $mounts_nova_compute.volumeMounts | indent 12 }}{{ end }}
          {{- end }}
@@ -268,16 +269,16 @@ index 00928f35a..0905da746 100644
          - name: nova-compute
  {{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
 diff --git a/nova/values.yaml b/nova/values.yaml
-index fa5edee76..4f57d4e94 100644
+index 9d970a849..8da03c995 100644
 --- a/nova/values.yaml
 +++ b/nova/values.yaml
-@@ -76,6 +76,7 @@ images:
-     nova_db_sync: quay.io/airshipit/nova:2024.1-ubuntu_jammy
-     nova_novncproxy: quay.io/airshipit/nova:2024.1-ubuntu_jammy
-     nova_novncproxy_assets: 'docker.io/kolla/ubuntu-source-nova-novncproxy:wallaby'
+@@ -77,6 +77,7 @@ images:
+     nova_db_sync: quay.io/airshipit/nova:2025.1-ubuntu_noble
+     nova_novncproxy: quay.io/airshipit/nova:2025.1-ubuntu_noble
+     nova_novncproxy_assets: quay.io/airshipit/nova:2025.1-ubuntu_noble
 +    nova_sanitizer: docker.io/openstackhelm/nova:2024.1-ubuntu_jammy
-     nova_scheduler: quay.io/airshipit/nova:2024.1-ubuntu_jammy
-     nova_storage_init: 'docker.io/openstackhelm/ceph-config-helper:latest-ubuntu_jammy'
+     nova_scheduler: quay.io/airshipit/nova:2025.1-ubuntu_noble
+     nova_storage_init: quay.io/airshipit/ceph-config-helper:latest-ubuntu_jammy
      # NOTE(portdirect): we simply use the ceph config helper here,
 @@ -109,6 +110,12 @@ jobs:
        iteration: 3
@@ -292,7 +293,7 @@ index fa5edee76..4f57d4e94 100644
    service_cleaner:
      cron: "0 */1 * * *"
      starting_deadline: 600
-@@ -375,6 +382,24 @@ dependencies:
+@@ -383,6 +390,24 @@ dependencies:
            labels:
              application: nova
              component: compute
@@ -317,7 +318,7 @@ index fa5edee76..4f57d4e94 100644
      service_cleaner:
        jobs:
          - nova-db-sync
-@@ -394,6 +419,10 @@ dependencies:
+@@ -402,6 +427,10 @@ dependencies:
            labels:
              application: libvirt
              component: libvirt
@@ -328,7 +329,7 @@ index fa5edee76..4f57d4e94 100644
        jobs:
          - nova-db-sync
          - nova-rabbit-init
-@@ -2267,6 +2296,10 @@ pod:
+@@ -2326,6 +2355,11 @@ pod:
          nova_novncproxy:
            readOnlyRootFilesystem: true
            allowPrivilegeEscalation: false
@@ -340,7 +341,7 @@ index fa5edee76..4f57d4e94 100644
          nova_scheduler:
            readOnlyRootFilesystem: true
            allowPrivilegeEscalation: false
-@@ -2325,6 +2358,13 @@ pod:
+@@ -2384,6 +2418,13 @@ pod:
          nova_cell_setup:
            readOnlyRootFilesystem: true
            allowPrivilegeEscalation: false
@@ -354,7 +355,7 @@ index fa5edee76..4f57d4e94 100644
      service_cleaner:
        pod:
          runAsUser: 42424
-@@ -2490,6 +2530,13 @@ pod:
+@@ -2574,6 +2615,13 @@ pod:
        limits:
          memory: "1024Mi"
          cpu: "2000m"
@@ -368,7 +369,7 @@ index fa5edee76..4f57d4e94 100644
      scheduler:
        requests:
          memory: "128Mi"
-@@ -2654,6 +2701,7 @@ manifests:
+@@ -2769,6 +2817,8 @@ manifests:
    cron_job_cell_setup: true
    cron_job_service_cleaner: true
    cron_job_archive_deleted_rows: false
@@ -378,4 +379,4 @@ index fa5edee76..4f57d4e94 100644
    deployment_api_metadata: true
    deployment_api_osapi: true
 -- 
-2.34.1
+2.43.0

@@ -56,3 +56,4 @@
 0056-Add-nf_tables-fallback-for-modprobe-in-OVS-agent-init.patch
 0057-Add-terminationGracePeriodSeconds-to-Nova-services.patch
 0058-Create-orphan-instances-sanitizer-in-Nova.patch
+0059-Fix-rabbitmq-inconsistent_cluster-on-rejoin.patch

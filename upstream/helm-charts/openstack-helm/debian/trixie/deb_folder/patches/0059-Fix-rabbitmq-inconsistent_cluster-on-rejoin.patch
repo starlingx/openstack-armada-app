@@ -1,0 +1,99 @@
+From c1d0336314b95028b77e1fba26128b6b5072c972 Mon Sep 17 00:00:00 2001
+From: Amit Mahajan <Amit.Mahajan@windriver.com>
+Date: Fri, 24 Jul 2026 13:38:00 -0400
+Subject: [PATCH] Fix rabbitmq inconsistent_cluster on rejoin
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When an application-apply is interrupted (e.g. active controller
+reboots during apply) and re-applied from the surviving controller,
+the cluster-wait job may remove this node from the cluster via
+forget_cluster_node, or pod-0 may force_boot as a standalone node.
+In either case, the non-primary pod's PVC retains stale Mnesia data
+that still references the old cluster membership. When this pod
+restarts, RabbitMQ detects the mismatch and fails with
+inconsistent_cluster error, entering CrashLoopBackOff indefinitely.
+
+Fix this by adding a cluster membership verification step in the
+startup script for non-primary pods that have existing Mnesia data.
+Before starting rabbitmq-server, the script attempts to reach the
+primary node (pod-0) for up to 60 seconds, then queries its cluster
+status. If the primary positively confirms this node is no longer a
+member, the stale Mnesia data is removed and the container exits.
+On restart, the existing fresh-join logic activates and the node
+rejoins the cluster cleanly.
+
+If the primary is unreachable or returns an empty response, the
+check is skipped and normal startup proceeds — preserving existing
+behavior for simultaneous restarts and avoiding false-positive
+wipes from transient network issues.
+
+Change-Id: Ib7168ac3cbb4d30e273ba4ac7783fb554709633f
+---
+ rabbitmq/templates/bin/_rabbitmq-start.sh.tpl | 49 +++++++++++++++++++
+ 1 file changed, 49 insertions(+)
+
+diff --git a/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl b/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl
+index 4ef849fd1..04524bd7c 100644
+--- a/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl
++++ b/rabbitmq/templates/bin/_rabbitmq-start.sh.tpl
+@@ -94,6 +94,55 @@ if ! [ "${POD_INCREMENT}" -eq "0" ] && ! [ -d "/var/lib/rabbitmq/mnesia" ] ; the
+   rm -fv /tmp/rabbit-disable-readiness /tmp/rabbit-disable-liveness-probe
+ fi
+ 
++# Handle inconsistent_cluster for non-zero pods with existing Mnesia data.
++#
++# When this node has been removed from the cluster by the primary (e.g. via
++# the cluster-wait job's forget_cluster_node during an application-apply, or
++# after pod-0 force_boots as a standalone node following a scale-down), but
++# the PVC retains stale Mnesia data referencing the old cluster membership,
++# RabbitMQ will fail to boot with inconsistent_cluster error.
++#
++# To handle this, query the primary node's cluster status before starting.
++# If the primary positively confirms this node is not a member, wipe Mnesia
++# so the container restarts and takes the fresh-join path above.
++# If the primary is unreachable, skip the check and let RabbitMQ attempt
++# normal startup — preserving existing behavior for simultaneous restarts.
++if ! [ "${POD_INCREMENT}" -eq "0" ] && [ -d "/var/lib/rabbitmq/mnesia" ] ; then
++  # Disable liveness probe during verification to prevent Kubernetes from
++  # killing the container while we check cluster membership.
++  touch /tmp/rabbit-disable-liveness-probe
++  echo "Non-primary pod with existing Mnesia data, verifying cluster membership"
++
++  # Try to reach the primary node for up to 60 seconds (12 retries x 5s).
++  RETRIES=12
++  while ! check_rabbit_node_ready "0"; do
++    sleep 5
++    RETRIES=$((RETRIES - 1))
++    if [ "${RETRIES}" -eq 0 ]; then
++      echo "Primary pod not ready, proceeding with normal startup"
++      break
++    fi
++  done
++
++  # Query the primary's cluster status. Only act on a positive response —
++  # if the command fails or returns empty (primary unreachable), skip the
++  # check to avoid false-positive wipes from transient network issues.
++  PRIMARY_NODE="$(get_node_name 0)"
++  CLUSTER_STATUS=$(rabbitmqctl -l -n "${PRIMARY_NODE}" -q cluster_status 2>/dev/null) || CLUSTER_STATUS=""
++  if [ -z "${CLUSTER_STATUS}" ]; then
++    echo "Primary unreachable, skipping cluster membership verification"
++  elif echo "${CLUSTER_STATUS}" | grep -q "${RABBITMQ_NODENAME}"; then
++    echo "This node is recognized by the primary, proceeding normally"
++  else
++    echo "WARNING: This node is NOT in the primary's cluster membership"
++    echo "Removing stale Mnesia data to allow fresh rejoin on next start"
++    find /var/lib/rabbitmq/* ! -name 'definitions.json' ! -name '.erlang.cookie' -exec rm -rf {} +
++    rm -f /tmp/rabbit-disable-liveness-probe
++    exit 1
++  fi
++  rm -f /tmp/rabbit-disable-liveness-probe
++fi
++
+ {{- if .Values.forceBoot.enabled }}
+ if [ "${POD_INCREMENT}" -eq "0" ] && [ -d "/var/lib/rabbitmq/mnesia/${RABBITMQ_NODENAME}" ]; then rabbitmqctl force_boot; fi
+ {{- end}}
+-- 
+2.43.0
+

@@ -34,3 +34,8 @@ behavior:
       - type: host-delete
         filters:
           - openstack_worker: True
+
+dependent_apps:
+  - name: prometheus
+    version: ^26\.10.*
+    action: ignore

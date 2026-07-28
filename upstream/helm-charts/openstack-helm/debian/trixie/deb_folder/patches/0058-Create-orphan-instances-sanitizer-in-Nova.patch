@@ -43,8 +43,8 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  nova/templates/configmap-bin.yaml             |  4 +
  .../cron-job-instances-sanitizer.yaml         | 91 +++++++++++++++++++
  nova/templates/daemonset-compute.yaml         | 21 +++++
- nova/values.yaml                              | 50 ++++++++++
- 5 files changed, 237 insertions(+)
+ nova/values.yaml                              | 54 ++++++++++
+ 5 files changed, 241 insertions(+)
  create mode 100644 nova/templates/bin/_orphan-instances-sanitizer.sh.tpl
  create mode 100644 nova/templates/cron-job-instances-sanitizer.yaml
 
@@ -171,7 +171,6 @@ index 000000000..a26af6663
 +  annotations:
 +    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
 +spec:
-+  ttlSecondsAfterFinished: 120
 +  schedule: {{ .Values.jobs.instances_sanitizer.cron | quote }}
 +  successfulJobsHistoryLimit: {{ .Values.jobs.instances_sanitizer.history.success }}
 +  failedJobsHistoryLimit: {{ .Values.jobs.instances_sanitizer.history.failed }}
@@ -184,6 +183,7 @@ index 000000000..a26af6663
 +      labels:
 +{{ tuple $envAll "nova" "instances-sanitizer" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
 +    spec:
++      ttlSecondsAfterFinished: 120
 +      template:
 +        metadata:
 +          labels:
@@ -194,8 +194,8 @@ index 000000000..a26af6663
 +        spec:
 +          serviceAccountName: {{ $serviceAccountName }}
 +{{ dict "envAll" $envAll "application" "instances_sanitizer" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 10 }}
-+{{ dict "envAll" $envAll "application" "instances_sanitizer" | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 10 }}
-+{{ dict "envAll" $envAll "application" "instances_sanitizer" | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 10 }}
++{{ tuple "instances_sanitizer" $envAll | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 10 }}
++{{ tuple "instances_sanitizer" $envAll | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 10 }}
 +          restartPolicy: OnFailure
 +          nodeSelector:
 +            {{ .Values.labels.agent.compute.node_selector_key }}: {{ .Values.labels.agent.compute.node_selector_value }}
@@ -293,7 +293,7 @@ index 9d970a849..8da03c995 100644
    service_cleaner:
      cron: "0 */1 * * *"
      starting_deadline: 600
-@@ -383,6 +390,24 @@ dependencies:
+@@ -383,6 +390,28 @@ dependencies:
            labels:
              application: nova
              component: compute
@@ -311,6 +311,10 @@ index 9d970a849..8da03c995 100644
 +        - endpoint: internal
 +          service: compute
 +      pod:
++        - requireSameNode: true
++          labels:
++            application: libvirt
++            component: libvirt
 +        - requireSameNode: false
 +          labels:
 +            application: nova
@@ -322,7 +326,7 @@ index 9d970a849..8da03c995 100644
            labels:
              application: libvirt
              component: libvirt
-+        - requireSameNode: true
++        - requireSameNode: false
 +          labels:
 +            application: nova
 +            component: conductor

@@ -1450,7 +1450,7 @@ conf:
       # Pin concurrency options to Epoxy defaults to avoid behavioral
       # changes introduced in Gazpacho.
       max_concurrent_live_migrations: 1
-      sync_power_state_pool_size: 5
+      sync_power_state_pool_size: 1000
       max_concurrent_builds: 10
       max_concurrent_snapshots: 5
       state_path: /var/lib/nova

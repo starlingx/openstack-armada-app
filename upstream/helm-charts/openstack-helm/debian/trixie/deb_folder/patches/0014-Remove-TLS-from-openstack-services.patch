@@ -34,16 +34,18 @@ Signed-off-by: Raghu Sarangapani <raghu.sarangapani@windriver.com>
 Removed heat job-ks-user-trustee.yaml hunk and
 added cinder cron-job-cinder-db-purge.yaml hunk.
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Fix REQUESTS_CA_BUNDLE to use /etc/ssl/certs/openstack-helm.crt ]
+Signed-off-by: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
 ---
  cinder/templates/bin/_cinder-api.sh.tpl       | 36 ---------
  cinder/templates/certificates.yaml            | 17 -----
  cinder/templates/configmap-etc.yaml           |  8 --
  .../templates/cron-job-cinder-db-purge.yaml   |  8 +-
  .../cron-job-cinder-volume-usage-audit.yaml   |  8 +-
- cinder/templates/deployment-api.yaml          | 33 ++------
+ cinder/templates/deployment-api.yaml          | 35 +++------
  cinder/templates/deployment-backup.yaml       |  4 -
  cinder/templates/deployment-scheduler.yaml    |  8 +-
- cinder/templates/deployment-volume.yaml       | 10 +--
+ cinder/templates/deployment-volume.yaml       | 12 +--
  cinder/templates/ingress-api.yaml             |  7 +-
  cinder/templates/job-bootstrap.yaml           |  2 +-
  .../templates/job-create-internal-tenant.yaml |  4 +-
@@ -59,7 +61,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  cinder/templates/secret-rabbitmq.yaml         |  3 -
  glance/templates/certificates.yaml            | 17 -----
  glance/templates/configmap-etc.yaml           |  4 -
- glance/templates/deployment-api.yaml          | 57 +-------------
+ glance/templates/deployment-api.yaml          | 59 +-------------
  glance/templates/ingress-api.yaml             |  7 +-
  glance/templates/job-bootstrap.yaml           |  2 +-
  glance/templates/job-db-drop.yaml             |  3 -
@@ -80,9 +82,9 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  heat/templates/configmap-etc.yaml             |  4 -
  heat/templates/cron-job-engine-cleaner.yaml   |  2 -
  heat/templates/cron-job-purge-deleted.yaml    |  2 -
- heat/templates/deployment-api.yaml            | 15 +---
- heat/templates/deployment-cfn.yaml            | 14 +---
- heat/templates/deployment-engine.yaml         |  8 +-
+ heat/templates/deployment-api.yaml            | 17 +---
+ heat/templates/deployment-cfn.yaml            | 16 +---
+ heat/templates/deployment-engine.yaml         | 10 +--
  heat/templates/ingress-api.yaml               |  4 -
  heat/templates/ingress-cfn.yaml               |  4 -
  heat/templates/job-bootstrap.yaml             |  2 +-
@@ -140,8 +142,8 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  neutron/templates/daemonset-ovs-agent.yaml    |  2 -
  neutron/templates/daemonset-sriov-agent.yaml  |  2 -
  .../templates/deployment-ironic-agent.yaml    |  2 -
- neutron/templates/deployment-rpc_server.yaml  |  8 +-
- neutron/templates/deployment-server.yaml      | 76 +------------------
+ neutron/templates/deployment-rpc_server.yaml  | 10 +--
+ neutron/templates/deployment-server.yaml      | 78 +------------------
  neutron/templates/ingress-server.yaml         |  4 -
  neutron/templates/job-bootstrap.yaml          |  2 +-
  neutron/templates/job-db-drop.yaml            |  3 -
@@ -163,8 +165,8 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  nova/templates/cron-job-cell-setup.yaml       |  2 -
  nova/templates/cron-job-service-cleaner.yaml  |  4 +-
  nova/templates/daemonset-compute.yaml         | 12 ++-
- nova/templates/deployment-api-metadata.yaml   | 16 +---
- nova/templates/deployment-api-osapi.yaml      | 18 +----
+ nova/templates/deployment-api-metadata.yaml   | 18 +----
+ nova/templates/deployment-api-osapi.yaml      | 20 +----
  nova/templates/deployment-conductor.yaml      | 10 +--
  nova/templates/deployment-novncproxy.yaml     |  8 +-
  nova/templates/deployment-scheduler.yaml      | 10 +--
@@ -173,7 +175,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  nova/templates/ingress-novncproxy.yaml        |  4 -
  nova/templates/ingress-osapi.yaml             |  4 -
  nova/templates/job-bootstrap.yaml             |  4 +-
- nova/templates/job-cell-setup.yaml            |  8 +-
+ nova/templates/job-cell-setup.yaml            | 10 +--
  nova/templates/job-db-drop.yaml               |  3 -
  nova/templates/job-db-init.yaml               |  3 -
  nova/templates/job-db-sync.yaml               |  3 -
@@ -188,7 +190,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  nova/templates/secret-rabbitmq.yaml           |  3 -
  placement/templates/certificates.yaml         | 17 -----
  placement/templates/configmap-etc.yaml        |  4 -
- placement/templates/deployment.yaml           |  6 +-
+ placement/templates/deployment.yaml           |  8 +-
  placement/templates/ingress.yaml              |  4 -
  placement/templates/job-db-drop.yaml          |  3 -
  placement/templates/job-db-init.yaml          |  3 -
@@ -197,7 +199,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  placement/templates/job-ks-service.yaml       |  2 +-
  placement/templates/job-ks-user.yaml          |  2 +-
  placement/templates/secret-db.yaml            |  4 -
- 162 files changed, 139 insertions(+), 1073 deletions(-)
+ 162 files changed, 151 insertions(+), 1086 deletions(-)
  delete mode 100644 cinder/templates/certificates.yaml
  delete mode 100644 glance/templates/certificates.yaml
  delete mode 100644 heat/templates/certificates.yaml
@@ -361,7 +363,7 @@ index f844ecf4d..ebc1074a0 100644
  {{ if $mounts_cinder_volume_usage_audit.volumes }}{{ toYaml $mounts_cinder_volume_usage_audit.volumes | indent 12 }}{{ end }}
  {{- end }}
 diff --git a/cinder/templates/deployment-api.yaml b/cinder/templates/deployment-api.yaml
-index f645943cd..2f4ab2f21 100644
+index f645943cd..a9b938cc3 100644
 --- a/cinder/templates/deployment-api.yaml
 +++ b/cinder/templates/deployment-api.yaml
 @@ -99,14 +99,17 @@ spec:
@@ -377,7 +379,8 @@ index f645943cd..2f4ab2f21 100644
 +{{- end }}
  {{- if or .Values.manifests.certificates .Values.tls.identity }}
              - name: REQUESTS_CA_BUNDLE
-               value: "/etc/cinder/certs/ca.crt"
+-              value: "/etc/cinder/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
  {{- end }}
 +          command:
 +            - /tmp/cinder-api.sh
@@ -473,7 +476,7 @@ index 5dd8de70d..3abc589a6 100644
  {{ if $mounts_cinder_scheduler.volumes }}{{ toYaml $mounts_cinder_scheduler.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
-index 77e192301..4cb969a1c 100644
+index 77e192301..7c0e8a534 100644
 --- a/cinder/templates/deployment-volume.yaml
 +++ b/cinder/templates/deployment-volume.yaml
 @@ -138,7 +138,7 @@ spec:
@@ -485,6 +488,15 @@ index 77e192301..4cb969a1c 100644
            env:
  {{- with $env := dict "ksUserSecret" .Values.secrets.identity.admin "useCA" (or .Values.manifests.certificates .Values.tls.identity) }}
  {{- include "helm-toolkit.snippets.keystone_openrc_env_vars" $env | indent 12 }}
+@@ -160,7 +160,7 @@ spec:
+           env:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/cinder/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           terminationMessagePath: /var/log/termination-log
+           volumeMounts:
 @@ -297,9 +297,7 @@ spec:
                mountPropagation: HostToContainer
                {{- end }}
@@ -751,7 +763,7 @@ index 2bf327ccf..30c71c0bf 100644
  {{- if empty .Values.conf.glance.DEFAULT.transport_url -}}
  {{- $_ := tuple "oslo_messaging" "internal" "glance" "amqp" . | include "helm-toolkit.endpoints.authenticated_transport_endpoint_uri_lookup" | set .Values.conf.glance.DEFAULT "transport_url" -}}
 diff --git a/glance/templates/deployment-api.yaml b/glance/templates/deployment-api.yaml
-index f6d89b02e..4cfcfeca5 100644
+index f6d89b02e..4316bb6f4 100644
 --- a/glance/templates/deployment-api.yaml
 +++ b/glance/templates/deployment-api.yaml
 @@ -15,19 +15,11 @@ limitations under the License.
@@ -822,6 +834,15 @@ index f6d89b02e..4cfcfeca5 100644
          - name: glance-api
  {{ tuple $envAll "glance_api" | include "helm-toolkit.snippets.image" | indent 10 }}
  {{ tuple $envAll $envAll.Values.pod.resources.api | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+@@ -177,7 +128,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/glance/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           lifecycle:
+             preStop:
 @@ -317,9 +268,7 @@ spec:
                subPath: key
                readOnly: true
@@ -1243,9 +1264,18 @@ index cb7f32d6a..7876c2245 100644
                configMap:
                  name: heat-bin
 diff --git a/heat/templates/deployment-api.yaml b/heat/templates/deployment-api.yaml
-index be913ee7b..e2416aeab 100644
+index be913ee7b..467cc3f85 100644
 --- a/heat/templates/deployment-api.yaml
 +++ b/heat/templates/deployment-api.yaml
+@@ -70,7 +70,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/heat/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           command:
+             - /tmp/heat-api.sh
 @@ -140,18 +140,7 @@ spec:
                mountPath: /etc/heat/api_audit_map.conf
                subPath: api_audit_map.conf
@@ -1276,9 +1306,18 @@ index be913ee7b..e2416aeab 100644
  {{ if $mounts_heat_api.volumes }}{{ toYaml $mounts_heat_api.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/heat/templates/deployment-cfn.yaml b/heat/templates/deployment-cfn.yaml
-index c88900d24..24d90ff5a 100644
+index c88900d24..87b2b5471 100644
 --- a/heat/templates/deployment-cfn.yaml
 +++ b/heat/templates/deployment-cfn.yaml
+@@ -70,7 +70,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/heat/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           command:
+             - /tmp/heat-cfn.sh
 @@ -139,17 +139,7 @@ spec:
                mountPath: /etc/heat/api_audit_map.conf
                subPath: api_audit_map.conf
@@ -1307,9 +1346,18 @@ index c88900d24..24d90ff5a 100644
  {{ if $mounts_heat_cfn.volumes }}{{ toYaml $mounts_heat_cfn.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/heat/templates/deployment-engine.yaml b/heat/templates/deployment-engine.yaml
-index 06366562a..6d51b496c 100644
+index 06366562a..8a8982983 100644
 --- a/heat/templates/deployment-engine.yaml
 +++ b/heat/templates/deployment-engine.yaml
+@@ -78,7 +78,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/heat/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           command:
+             - /tmp/heat-engine.sh
 @@ -117,9 +117,7 @@ spec:
                mountPath: /etc/heat/policy.yaml
                subPath: policy.yaml
@@ -2216,10 +2264,10 @@ index 6f35e12ea..57967a616 100644
  {{- $_ := set $dbInitJob "tolerationsEnabled" true -}}
  {{- end -}}
 diff --git a/keystone/templates/job-db-sync.yaml b/keystone/templates/job-db-sync.yaml
-index 4fe25bf8d..cb461b869 100644
+index 8f2b3ea8a..78074447e 100644
 --- a/keystone/templates/job-db-sync.yaml
 +++ b/keystone/templates/job-db-sync.yaml
-@@ -45,12 +45,6 @@ volumeMounts:
+@@ -37,12 +37,6 @@ volumeMounts:
    - name: keystone-fernet-keys
      mountPath: {{ $envAll.Values.conf.keystone.fernet_tokens.key_repository }}
      readOnly: true
@@ -2232,7 +2280,7 @@ index 4fe25bf8d..cb461b869 100644
  {{- end }}
  
  {{- define "keystone.templates._job_db_sync.pod_vols" -}}
-@@ -59,12 +53,6 @@ volumes:
+@@ -51,12 +45,6 @@ volumes:
    - name: keystone-fernet-keys
      secret:
        secretName: keystone-fernet-keys
@@ -2592,9 +2640,18 @@ index a57f8e26c..f1ed55d80 100644
  {{ if $mounts_neutron_ironic_agent.volumes }}{{ toYaml $mounts_neutron_ironic_agent.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/neutron/templates/deployment-rpc_server.yaml b/neutron/templates/deployment-rpc_server.yaml
-index 7444ae779..43576928b 100644
+index 7444ae779..3ac01c2f5 100644
 --- a/neutron/templates/deployment-rpc_server.yaml
 +++ b/neutron/templates/deployment-rpc_server.yaml
+@@ -90,7 +90,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/neutron/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           lifecycle:
+             preStop:
 @@ -165,9 +165,7 @@ spec:
                mountPath: /etc/neutron/policy.yaml
                subPath: policy.yaml
@@ -2617,7 +2674,7 @@ index 7444ae779..43576928b 100644
  {{ if $mounts_neutron_rpc_server.volumes }}{{ toYaml $mounts_neutron_rpc_server.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/neutron/templates/deployment-server.yaml b/neutron/templates/deployment-server.yaml
-index c71a2f955..256c3c70e 100644
+index c71a2f955..fa4388cf4 100644
 --- a/neutron/templates/deployment-server.yaml
 +++ b/neutron/templates/deployment-server.yaml
 @@ -13,29 +13,12 @@ limitations under the License.
@@ -2711,6 +2768,15 @@ index c71a2f955..256c3c70e 100644
          - name: neutron-server
  {{ tuple $envAll "neutron_server" | include "helm-toolkit.snippets.image" | indent 10 }}
  {{ tuple $envAll $envAll.Values.pod.resources.server | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+@@ -174,7 +110,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/neutron/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           lifecycle:
+             preStop:
 @@ -261,9 +197,7 @@ spec:
                subPath: neutron_ovn_vpn_agent.ini
                readOnly: true
@@ -3232,9 +3298,18 @@ index 43dc9c3f0..91b745b72 100644
  {{- end }}
  {{- end }}
 diff --git a/nova/templates/deployment-api-metadata.yaml b/nova/templates/deployment-api-metadata.yaml
-index 8739f80de..df789f38a 100644
+index 8739f80de..2882b0891 100644
 --- a/nova/templates/deployment-api-metadata.yaml
 +++ b/nova/templates/deployment-api-metadata.yaml
+@@ -108,7 +108,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/nova/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           command:
+             - /tmp/nova-api-metadata.sh
 @@ -197,18 +197,7 @@ spec:
              - name: pod-shared
                mountPath: /tmp/pod-shared
@@ -3265,9 +3340,18 @@ index 8739f80de..df789f38a 100644
  {{ if $mounts_nova_api_metadata.volumes }}{{ toYaml $mounts_nova_api_metadata.volumes | indent 8 }}{{ end }}
  {{- end }}
 diff --git a/nova/templates/deployment-api-osapi.yaml b/nova/templates/deployment-api-osapi.yaml
-index 125b28b66..226cbe208 100644
+index 125b28b66..4a6bb1140 100644
 --- a/nova/templates/deployment-api-osapi.yaml
 +++ b/nova/templates/deployment-api-osapi.yaml
+@@ -86,7 +86,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/nova/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           command:
+             - /tmp/nova-api.sh
 @@ -142,19 +142,7 @@ spec:
                mountPath: /etc/nova/api_audit_map.conf
                subPath: api_audit_map.conf
@@ -3478,7 +3562,7 @@ index 30a03bf07..4a5ecde05 100644
  kind: ClusterRole
  apiVersion: rbac.authorization.k8s.io/v1
 diff --git a/nova/templates/job-cell-setup.yaml b/nova/templates/job-cell-setup.yaml
-index b26d46299..847ce50c4 100644
+index b26d46299..3dae4fe81 100644
 --- a/nova/templates/job-cell-setup.yaml
 +++ b/nova/templates/job-cell-setup.yaml
 @@ -81,7 +81,7 @@ spec:
@@ -3490,6 +3574,15 @@ index b26d46299..847ce50c4 100644
        containers:
          - name: nova-cell-setup
  {{ tuple $envAll "nova_cell_setup" | include "helm-toolkit.snippets.image" | indent 10 }}
+@@ -90,7 +90,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/nova/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           command:
+             - /tmp/cell-setup.sh
 @@ -120,8 +120,7 @@ spec:
                mountPath: /etc/nova/policy.yaml
                subPath: policy.yaml
@@ -3735,9 +3828,18 @@ index 721244241..9406e8a01 100644
  {{- if empty .Values.conf.placement.keystone_authtoken.auth_uri -}}
  {{- $_ := tuple "identity" "internal" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_uri_lookup" | set .Values.conf.placement.keystone_authtoken "auth_uri" -}}
 diff --git a/placement/templates/deployment.yaml b/placement/templates/deployment.yaml
-index 4015e12fb..a2147f555 100644
+index 4015e12fb..b422f24ca 100644
 --- a/placement/templates/deployment.yaml
 +++ b/placement/templates/deployment.yaml
+@@ -87,7 +87,7 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+           env:
+             - name: REQUESTS_CA_BUNDLE
+-              value: "/etc/placement/certs/ca.crt"
++              value: "/etc/ssl/certs/openstack-helm.crt"
+ {{- end }}
+           command:
+             - /tmp/placement-api.sh
 @@ -159,8 +159,7 @@ spec:
              - name: log
                mountPath: {{ .Values.conf.placement.DEFAULT.log_dir }}

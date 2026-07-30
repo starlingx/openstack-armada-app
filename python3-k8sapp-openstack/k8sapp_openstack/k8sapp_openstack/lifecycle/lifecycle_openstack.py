@@ -431,8 +431,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # Check system type
         self._semantic_check_dc_system_type(app)
 
-        # Check storage backends
-        self._semantic_check_storage_backend_available()
+        # Check storage backends: availability, ESB required-field validation,
+        # ESB secretRef resolvability, ESB backup StorageClass, and StorageClass
+        # resolution/immutability.
+        self._semantic_check_storage_backends()
 
         # Check vswitch configuration
         self._semantic_check_vswitch_config(conductor_obj.dbapi)
@@ -442,9 +444,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         # Check OIDC configuration when the feature is enabled
         self._semantic_check_oidc_config(conductor_obj.dbapi)
-
-        # Check if StorageClass match with the backend priority list
-        self._semantic_check_backend_storageclass()
 
     def _pre_remove_check(self, conductor_obj, app, hook_info):
         """Semantic check for evaluating app manual remove
@@ -469,13 +468,56 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 "There are OpenStack instances created in the system."
                 " Please delete all Openstack instances before removing the application")
 
-    def _semantic_check_storage_backend_available(self):
-        """Checks if at least one of the supported storage backends
-        is available and ready for openstack deployment
+    def _semantic_check_storage_backends(self):
+        """Pre-apply semantic checks for all storage backends.
+
+        Generic orchestrator for every storage-backend validator (strict and
+        ESB). Strict backend availability is probed once via
+        ``_is_strict_backend_available()`` and shared with the availability
+        sub-check.
+
+        Sub-checks, in order:
+
+        - ``_semantic_check_storage_backend_available()`` verifies that at least
+          one storage backend (strict or ESB) is available and ready, and
+          validates the required fields (``protocol``) of every enabled
+          non-strict ESB backend.
+        - ``_semantic_check_secretref()`` verifies that every non-empty
+          ``secretRef`` references an existing Kubernetes Secret and that every
+          declared Secret key exists.
+        - ``_semantic_check_backend_storageclass()`` validates StorageClass
+          resolution (fail-fast) and immutability for PVC-backed charts.
+
+        Blocking rules:
+        - Availability / required-field failures block only when no strict
+          backend independently satisfies availability (a valid strict backend
+          downgrades invalid ESB entries to a log).
+        - secretRef and ESB backup StorageClass failures always block when they
+          occur (i.e. when an ESB backend is in use), regardless of strict
+          backend availability.
+        - StorageClass resolution/immutability failures always block.
 
         Raises:
-            LifecycleSemanticCheckException: no storage backend available for
-                                             openstack deployment.
+            LifecycleSemanticCheckException: If any sub-check fails per the
+                blocking rules above.
+        """
+        strict_available, status = self._is_strict_backend_available()
+        self._semantic_check_storage_backend_available(strict_available, status)
+        self._semantic_check_secretref()
+        self._semantic_check_backend_storageclass()
+
+    def _is_strict_backend_available(self):
+        """Probe strict (native) storage backend availability.
+
+        Centralizes availability detection for the strict backends (Host-based
+        Ceph, Rook Ceph with fsid + manager API, and NetApp NFS/iSCSI/FC) so the
+        orchestrator can compute it once and share it with every ESB sub-check.
+
+        Returns:
+            tuple[bool, str]: ``(available, status)`` where ``available`` is True
+            when at least one strict backend is available and ready, and
+            ``status`` is a human-readable summary of the probes (reused in the
+            "no storage backends available" error message).
         """
         status = ""
         fsid_available = False
@@ -523,11 +565,217 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         elif netapp_fc_available:
             backend_available = True
 
+        return backend_available, status
+
+    def _semantic_check_storage_backend_available(self, strict_available,
+                                                  status):
+        """Checks if at least one of the supported storage backends
+        is available and ready for openstack deployment.
+
+        Extended for ESB: each enabled non-strict storage_backends entry must
+        have a matching backends_conf entry with a valid protocol.
+        A valid ESB entry counts as an available backend.
+        When no backend is available the apply is blocked and the ESB validation
+        errors are appended to the message. When a valid backend is available,
+        invalid ESB entries are logged but do not block apply.
+
+        Args:
+            strict_available: Whether a strict backend is available (probed once
+                by ``_is_strict_backend_available()``).
+            status: Human-readable strict backend probe summary.
+
+        Raises:
+            LifecycleSemanticCheckException: no storage backend available for
+                                             openstack deployment.
+        """
+        esb_available, esb_errors = self._validate_esb_backend_configs()
+        backend_available = strict_available or esb_available
+
         if not backend_available:
             err_msg = "No storage backends available and ready for openstack " \
                       f"deployment. status: {status}"
+            if esb_errors:
+                err_msg += " ESB backend validation errors: " + \
+                    "; ".join(esb_errors)
             LOG.error(f"{err_msg}")
             raise exception.LifecycleSemanticCheckException(err_msg)
+
+        # A valid backend is available: ESB validation errors (if any) are
+        # logged but do not block apply, since strict or other ESB backends
+        for esb_error in esb_errors:
+            LOG.error(
+                "Ignoring invalid ESB backend configuration because a valid "
+                f"storage backend is available: {esb_error}")
+
+    def _validate_esb_backend_configs(self):
+        """Validate enabled non-strict (ESB) storage_backends entries.
+
+        For each enabled entry in ``storage_conf.storage_backends`` whose name is
+        not a strict-backend name, looks up the matching
+        ``storage_conf.backends_conf`` entry and validates its required fields.
+        The ``volume_backend`` dict is treated as an opaque pass-through and its
+        contents are not validated.
+
+
+        Returns:
+            tuple[bool, list[str]]: ``(available, errors)`` where ``available``
+            is True when at least one enabled ESB backend passed validation, and
+            ``errors`` is the list of human-readable validation errors for the
+            enabled ESB backends that failed.
+        """
+        errors = []
+        available = False
+
+        enabled_backends = app_utils.get_enabled_storage_backends_from_override()
+        backends_conf = app_utils.get_backends_conf()
+
+        for name in enabled_backends:
+            if app_utils.is_strict_backend(name):
+                # Strict backends use their own auto-detection logic; any
+                # matching backends_conf entry is silently ignored.
+                continue
+
+            entry = backends_conf.get(name)
+            if not entry:
+                errors.append(
+                    f"ESB [{name}]: no matching storage_conf.backends_conf "
+                    "entry found. Every non-strict backend enabled in "
+                    "storage_conf.storage_backends requires a backends_conf "
+                    "entry declaring at least a supported 'protocol'")
+                continue
+
+            entry_errors = self._validate_esb_entry(name, entry)
+            if entry_errors:
+                errors.extend(entry_errors)
+            else:
+                available = True
+
+        return available, errors
+
+    def _validate_esb_entry(self, name, entry):
+        """Validate the required fields of a single ESB backends_conf entry.
+
+        Args:
+            name: The backend name (matches the storage_backends entry).
+            entry: The backends_conf entry dict.
+
+        Returns:
+            list[str]: Validation errors for this entry (empty when valid).
+        """
+        errors = []
+        valid_protocols = sorted(app_constants.VALID_ESB_PROTOCOLS)
+
+        protocol = entry.get("protocol")
+        if not protocol:
+            errors.append(
+                f"ESB [{name}]: missing required field 'protocol' "
+                f"(one of {valid_protocols}).")
+        elif protocol == "rbd":
+            # rbd is internal-only: it represents the ceph strict backend's
+            # contribution to active_protocols and cannot be declared by
+            # operators in backends_conf.
+            errors.append(
+                f"ESB [{name}]: protocol 'rbd' is internal-only and cannot be "
+                f"declared by operators. Valid protocols: {valid_protocols}.")
+        elif protocol not in app_constants.VALID_ESB_PROTOCOLS:
+            errors.append(
+                f"ESB [{name}]: invalid protocol '{protocol}'. "
+                f"Valid protocols: {valid_protocols}.")
+
+        # k8s_storage_class is intentionally NOT required here. A missing (or
+        # 'none') value simply means the backend does not provision PVCs, which
+        # is valid for a pure Cinder volume backend (e.g. iSCSI/FC over the
+        # network). When a StorageClass is actually needed, the failure is
+        # raised by the context that needs it:
+        #   - PVC provisioning (MariaDB/RabbitMQ/Glance-PVC/Nova-PVC) ->
+        #     _check_storageclass_resolution()
+
+        return errors
+
+    def _semantic_check_secretref(self):
+        """Validate ESB credential injection via secretRef.
+
+        For each enabled non-strict backend whose backends_conf entry declares a
+        non-empty ``secretRef``, verifies that:
+
+        - ``secretRef.name`` references an existing Kubernetes Secret in the
+          namespace given by ``secretRef.namespace`` (defaulting to the
+          openstack namespace when omitted), and
+        - every right-hand-side key declared in ``secretRef.keys`` exists in the
+          referenced Secret.
+
+        A secretRef is only declared on an ESB backend that is in use, so any
+        failure here always blocks apply, regardless of whether a strict backend
+        is also available.
+
+        Raises:
+            LifecycleSemanticCheckException: If a referenced Secret does not
+                exist or a declared key is missing.
+        """
+        enabled_backends = app_utils.get_enabled_storage_backends_from_override()
+        backends_conf = app_utils.get_backends_conf()
+
+        errors = []
+        kube = None
+        for name in enabled_backends:
+            if app_utils.is_strict_backend(name):
+                continue
+
+            entry = backends_conf.get(name)
+            if not entry:
+                # Missing backends_conf entry is reported by the availability
+                # check; nothing to validate here.
+                continue
+
+            secret_ref = entry.get("secretRef")
+            if not secret_ref:
+                # secretRef is optional and may be {} / absent.
+                continue
+
+            secret_name = secret_ref.get("name")
+            keys = secret_ref.get("keys") or {}
+            namespace = (secret_ref.get("namespace")
+                         or app_constants.HELM_NS_OPENSTACK)
+
+            if not secret_name:
+                errors.append(
+                    f"ESB [{name}]: secretRef is declared but is missing the "
+                    "required 'name' field.")
+                continue
+
+            if kube is None:
+                kube = kubernetes.KubeOperator()
+
+            try:
+                secret = kube.kube_get_secret(secret_name, namespace)
+            except Exception as e:
+                errors.append(
+                    f"ESB [{name}]: unable to read Secret '{secret_name}' in "
+                    f"namespace '{namespace}': {e}")
+                continue
+
+            if secret is None:
+                errors.append(
+                    f"ESB [{name}]: Secret '{secret_name}' not found in "
+                    f"namespace '{namespace}'. Create the Secret before "
+                    "applying the application.")
+                continue
+
+            # Report missing keys in a incomplete or empty Secret
+            secret_data = getattr(secret, "data", None) or {}
+
+            missing_keys = sorted(
+                {secret_key for secret_key in keys.values()
+                 if secret_key not in secret_data}
+            )
+            if missing_keys:
+                errors.append(
+                    f"ESB [{name}]: Secret '{secret_name}' in namespace "
+                    f"'{namespace}' is missing required key(s): "
+                    f"{', '.join(missing_keys)}.")
+
+        if errors:
+            raise exception.LifecycleSemanticCheckException("; ".join(errors))
 
     def _semantic_check_oidc_config(self, dbapi):
         """Validate Dex enablement, endpoint domain availability,

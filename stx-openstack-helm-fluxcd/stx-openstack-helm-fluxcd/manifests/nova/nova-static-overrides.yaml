@@ -1446,6 +1446,7 @@ conf:
     - cell0_database
   nova:
     DEFAULT:
+      control_exchange: nova
       log_config_append: /etc/nova/logging.conf
       default_ephemeral_format: ext4
       ram_allocation_ratio: 1.0

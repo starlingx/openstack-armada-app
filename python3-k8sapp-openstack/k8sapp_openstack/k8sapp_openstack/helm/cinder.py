@@ -750,6 +750,10 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 'os_region_name': self.get_region_name(),
                 'state_path': app_constants.CINDER_STATE_PATH,
             },
+            'oslo_messaging_notifications': {
+                'transport_url':
+                    self._get_rabbit_notification_url('/cinder')
+            },
         }
 
         if self._is_openstack_https_ready(self.SERVICE_NAME):

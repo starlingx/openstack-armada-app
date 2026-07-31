@@ -168,7 +168,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
         overrides.update(self._get_password_rule())
         return overrides
 
-    def _get_conf_keystone_overrides(self):
+    def _get_conf_keystone_overrides(self, dex_enabled):
         overrides = {
             'DEFAULT': self._get_conf_keystone_default_overrides(),
             'database': self._get_conf_keystone_database_overrides(),
@@ -179,10 +179,14 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             'security_compliance': self._get_conf_keystone_security_compliance_overrides(),
         }
 
-        # Only include these sections if DEX integration is enabled
-        if is_dex_enabled():
+        # Only include these sections if DEX integration is enabled. The
+        # enablement decision is made once in _get_conf_overrides() and passed
+        # in so the apache OIDC block and these keystone.conf sections always
+        # agree within a single apply.
+        if dex_enabled:
             overrides['auth'] = self._get_keystone_auth_methods()
-            overrides['federation'] = self._get_keystone_trusted_dashboard()
+            overrides['federation'] = self._get_keystone_trusted_dashboard(
+                dex_enabled)
 
         return overrides
 
@@ -237,16 +241,29 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
         }
 
     def _get_conf_overrides(self):
+        # Evaluate DEX enablement once per apply and reuse the result for
+        # every DEX-dependent section below. auto_config_dex_federation()
+        # runs a live DEX health probe, so calling it more than once in a
+        # single apply could return inconsistent results and leave the
+        # apache OIDC block enabled while the keystone.conf auth methods and
+        # trusted_dashboard are skipped (or vice versa).
+        #
+        # Explicit user enable wins; auto-detection is the fallback. This
+        # keeps auto-enabled deployments (e.g. DC subclouds, which never
+        # store an explicit conf.federation.dex_idp.enabled override) in sync
+        # with standalone deployments where the operator sets it by hand.
+        dex_enabled = is_dex_enabled() or auto_config_dex_federation()
+
         overrides = {
-            'keystone': self._get_conf_keystone_overrides(),
+            'keystone': self._get_conf_keystone_overrides(dex_enabled),
             'policy': self._get_conf_policy_overrides(),
             'federation': {
-                **self._get_oidc_overrides(),
-                **self._get_external_federation_urls()
+                **self._get_oidc_overrides(dex_enabled),
+                **self._get_external_federation_urls(dex_enabled)
             }
         }
 
-        if auto_config_dex_federation():
+        if dex_enabled:
             overrides['federation'].setdefault('dex_idp', {})['enabled'] = True
 
         return overrides
@@ -345,7 +362,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             }
         }
 
-    def _get_oidc_overrides(self):
+    def _get_oidc_overrides(self, dex_enabled):
         """
         Generate OIDC override values for Dex integration.
 
@@ -363,9 +380,10 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
                 }
         """
         db = dbapi.get_instance()
-        dex_enabled = is_dex_enabled()
-        # Because this will only be used if dex_idp.enabled is true, it can be ammended to the
-        # overrides even if oidc is not applied
+        # dex_enabled is evaluated once in _get_conf_overrides() and passed in
+        # so every DEX-dependent section agrees within a single apply. Because
+        # this is only consumed when dex_idp.enabled is true, it can be added
+        # to the overrides even if oidc is not applied.
         return {
             'dex_idp': {
                 'provider_remote_id': get_dex_issuer_url(db, dex_enabled)
@@ -374,22 +392,35 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
 
     def _get_keystone_auth_methods(self):
         """
-        Return Keystone authentication methods based on DEX configuration.
+        Return Keystone authentication methods with the DEX methods added.
 
-        If DEX integration is enabled, include `mapped` and `openid` in the list
-        of supported authentication methods. Otherwise, return the standard
-        Keystone methods.
+        The DEX methods (`mapped`, `openid`) are appended to Keystone's
+        built-in default method set rather than replacing it, so no default
+        method is dropped. Methods already present are not duplicated and
+        existing order is preserved.
+
+        This method is only consulted when DEX is enabled (see
+        `_get_conf_keystone_overrides`), so it always appends the DEX methods.
 
         Returns:
             dict: A dictionary containing a single key `'methods'`, whose value
-                is a comma-separated string of enabled authentication methods.
-                Example: `{'methods': 'external,password,token,mapped,openid'}`
+                is a comma-separated string of authentication methods.
+                Example:
+                `{'methods':
+                'external,password,token,oauth1,application_credential,'
+                'mapped,openid'}`
         """
-        methods = ['external', 'password', 'token', 'mapped', 'openid']
+        methods = [
+            m.strip()
+            for m in app_constants.KEYSTONE_DEFAULT_AUTH_METHODS.split(',')
+            if m.strip()]
+        for dex_method in app_constants.DEX_AUTH_METHODS:
+            if dex_method not in methods:
+                methods.append(dex_method)
 
         return {'methods': ','.join(methods)}
 
-    def _get_keystone_trusted_dashboard(self):
+    def _get_keystone_trusted_dashboard(self, dex_enabled):
         """
         Generate the Keystone federation configuration section containing
         the `trusted_dashboard` parameter.
@@ -401,7 +432,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             dict: A multistring type formatted dictionary override containing
             Horizon WebSSO URL.
         """
-        urls = self._get_external_federation_urls()
+        urls = self._get_external_federation_urls(dex_enabled)
         horizon_url = urls['external']['horizon']
 
         # Extract the base URL without the protocol
@@ -420,7 +451,7 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             values=[https_url, http_url]
         )
 
-    def _get_external_federation_urls(self):
+    def _get_external_federation_urls(self, dex_enabled):
         """
         Discover and return external URLs for federation/WebSSO configuration.
 
@@ -440,7 +471,8 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
                 }
         """
         db = dbapi.get_instance()
-        dex_enabled = is_dex_enabled()
+        # dex_enabled is evaluated once in _get_conf_overrides() and passed in
+        # to keep the same enablement decision across all federation sections.
         https_ready = self._is_openstack_https_ready()
 
         # Discover external URLs

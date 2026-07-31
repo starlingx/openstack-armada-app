@@ -932,6 +932,13 @@ conf:
         OIDCClientID {{ .Values.conf.federation.wsgi.OIDCClientID }}
         OIDCClientSecret {{ $dexPassword }}
 
+        # Trust reverse-proxy headers when reconstructing the request URL.
+        # Required behind the FQDN/TLS ingress so mod_auth_openidc builds
+        # redirect URLs from the external host/proto instead of the internal
+        # pod address. Keystone-side complement to Horizon's
+        # SECURE_PROXY_SSL_HEADER.
+        OIDCXForwardedHeaders X-Forwarded-Host X-Forwarded-Port X-Forwarded-Proto
+
         # Redirect URIs for WebSSO flows
         OIDCRedirectURI {{ .Values.conf.federation.external.keystone }}/v3/auth/OS-FEDERATION/websso/redirect
         OIDCRedirectURI {{ .Values.conf.federation.external.keystone }}/v3/auth/OS-FEDERATION/identity_providers/dex/protocols/openid/websso/redirect

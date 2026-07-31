@@ -17,11 +17,10 @@ limitations under the License.
 {{- $http_port := .Values.global_network_policy.ingress.destination.http_port}}
 {{- $https_port := .Values.global_network_policy.ingress.destination.https_port}}
 ---
-apiVersion: "crd.projectcalico.org/v1"
+apiVersion: projectcalico.org/v3
 kind: GlobalNetworkPolicy
 metadata:
   name: gnp-for-nginx-ports
-  namespace: openstack
 spec:
   selector: "has(iftype) && iftype == 'oam'"
   order: 100

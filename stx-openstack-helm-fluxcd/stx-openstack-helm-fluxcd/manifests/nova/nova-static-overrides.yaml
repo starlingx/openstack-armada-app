@@ -1580,7 +1580,7 @@ conf:
       cpu_mode: host-model
       live_migration_completion_timeout: 180
       live_migration_permit_auto_converge: true
-      mem_stats_period_seconds: 0
+      mem_stats_period_seconds: 10
       # Allow up to 1 day for resize conf
       remove_unused_resized_minimum_age_seconds: 86400
       live_migration_inbound_addr: "::"

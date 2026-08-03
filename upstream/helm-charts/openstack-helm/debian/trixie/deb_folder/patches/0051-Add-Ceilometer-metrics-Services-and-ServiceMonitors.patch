@@ -1,6 +1,6 @@
-From 525e71775d7f124f35dcfd8d8abf8c10e72b112a Mon Sep 17 00:00:00 2001
+From b22e11ebdde5cc726846a6cbc1ac706200a58bc6 Mon Sep 17 00:00:00 2001
 From: kgoncalv <kayo.goncalvesdacosta@windriver.com>
-Date: Thu, 16 Jul 2026 09:33:23 -0300
+Date: Wed, 5 Aug 2026 13:58:19 -0300
 Subject: [PATCH] Add Ceilometer metrics Services and ServiceMonitors
 
 Expose Ceilometer central and compute agent metrics to a
@@ -21,7 +21,6 @@ Metrics Services:
   - Select pods via application=ceilometer with component
     central/compute
   - Gated on manifest toggles
-
 ServiceMonitors:
   - monitoring.coreos.com/v1 ServiceMonitor CRDs selecting
     Services labeled app=ceilometer-central/compute
@@ -43,19 +42,28 @@ values.yaml additions:
       scrape_interval: 30s
       scrape_timeout: 10s
   manifests:
-    service_central_metrics: true
-    service_compute_metrics: true
-    servicemonitor_central: true
-    servicemonitor_compute: true
+    service_central_metrics: false
+    service_compute_metrics: false
+    servicemonitor_central: false
+    servicemonitor_compute: false
+
 Co-authored-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+Signed-off-by: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+
+[Patch Update: Add internalTrafficPolicy: Local to Compute agent]
+
+The ceilometer compute metrics Service is changed from headless
+(clusterIP: None) to a ClusterIP Service with internalTrafficPolicy:
+Local, so compute metrics scraping stays node-local.
+
 Signed-off-by: kgoncalv <kayo.goncalvesdacosta@windriver.com>
 ---
  .../templates/service-central-metrics.yaml    | 33 +++++++++++++++++
- .../templates/service-compute-metrics.yaml    | 33 +++++++++++++++++
+ .../templates/service-compute-metrics.yaml    | 35 ++++++++++++++++++
  .../templates/servicemonitor-central.yaml     | 37 +++++++++++++++++++
  .../templates/servicemonitor-compute.yaml     | 37 +++++++++++++++++++
  ceilometer/values.yaml                        | 12 ++++++
- 5 files changed, 152 insertions(+)
+ 5 files changed, 154 insertions(+)
  create mode 100644 ceilometer/templates/service-central-metrics.yaml
  create mode 100644 ceilometer/templates/service-compute-metrics.yaml
  create mode 100644 ceilometer/templates/servicemonitor-central.yaml
@@ -102,10 +110,10 @@ index 000000000..0a5b1c42a
 +{{- end }}
 diff --git a/ceilometer/templates/service-compute-metrics.yaml b/ceilometer/templates/service-compute-metrics.yaml
 new file mode 100644
-index 000000000..a13389d0b
+index 000000000..22a91d058
 --- /dev/null
 +++ b/ceilometer/templates/service-compute-metrics.yaml
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,35 @@
 +{{/*
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -129,7 +137,9 @@ index 000000000..a13389d0b
 +  labels:
 +    app: ceilometer-compute
 +spec:
-+  clusterIP: None        # headless — avoids load-balancing, lists all endpoints
++  # ClusterIP + Local: only reach the same-node agent, else fail (no cross-node
++  # routing). ServiceMonitor is unaffected (scrapes pod endpoints directly).
++  internalTrafficPolicy: Local
 +  selector:
 +    application: ceilometer
 +    component: compute

@@ -26,6 +26,7 @@ from k8sapp_openstack.helpers import ldap
 from k8sapp_openstack.utils import check_dex_healthy
 from k8sapp_openstack.utils import check_if_namespace_exists
 from k8sapp_openstack.utils import check_if_pvc_exists_in_a_namespace
+from k8sapp_openstack.utils import check_netapp_backends
 from k8sapp_openstack.utils import check_storageclass_change
 from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_endpoint_domain
@@ -444,6 +445,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         # Check OIDC configuration when the feature is enabled
         self._semantic_check_oidc_config(conductor_obj.dbapi)
+
+        # Check NetApp dual-SAN StorageClass sanType configuration
+        self._semantic_check_netapp_san_storageclasses()
 
     def _pre_remove_check(self, conductor_obj, app, hook_info):
         """Semantic check for evaluating app manual remove
@@ -1299,4 +1303,83 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 f"StorageClass:\"{rabbitmq_current_storageclass}\" while is trying to reapply "
                 f"with StorageClass:\"{rabbitmq_new_storageclass}\" and migration is not supported. "
                 "Please backup your data and remove/apply the application to modify the current StorageClass."
+            )
+
+    def _semantic_check_netapp_san_storageclasses(self):
+        """Check that NetApp SAN StorageClasses define parameters.sanType when
+        both iSCSI and FC backends are enabled simultaneously.
+
+        When only one SAN backend is enabled, a single StorageClass with only
+        ``parameters.backendType: ontap-san`` is sufficient — the driver picks
+        it up unambiguously. When both backends are active, each StorageClass
+        must additionally declare ``parameters.sanType`` (``iscsi`` or ``fcp``)
+        so that the override generator can correctly associate each StorageClass
+        with its backend. Without ``sanType``, both backends resolve to the same
+        StorageClass (whichever kubectl returns first), which causes incorrect
+        volume provisioning at runtime.
+
+        The check is skipped when fewer than two SAN backends are enabled or
+        when no StorageClasses with ``backendType: ontap-san`` exist.
+
+        Raises:
+            LifecycleSemanticCheckException: if both iSCSI and FC are enabled
+                and none of the matching StorageClasses define ``sanType``.
+        """
+        backends = check_netapp_backends()
+        iscsi_enabled = backends.get(app_constants.NETAPP_ISCSI_BACKEND_NAME, False)
+        fc_enabled = backends.get(app_constants.NETAPP_FC_BACKEND_NAME, False)
+
+        if not (iscsi_enabled and fc_enabled):
+            # Single-SAN or no SAN — sanType is not required
+            return
+
+        # Query all StorageClasses for the ontap-san backendType, emitting
+        # name and sanType per line (empty string when sanType is absent).
+        driver = app_constants.BACKEND_TYPE_NETAPP_ISCSI  # "ontap-san" — same for FC
+        jsonpath = (
+            f"{{range .items[?(@.parameters.backendType==\"{driver}\")]}}"
+            r"{.metadata.name}"
+            "{\"\t\"}"
+            r"{.parameters.sanType}"
+            "{\"\\n\"}"
+            r"{end}"
+        )
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "get", "storageclass",
+            "-o", f"jsonpath={jsonpath}",
+        ]
+        try:
+            output = app_utils.send_cmd_read_response(cmd, log=False)
+        except Exception as e:
+            LOG.warning(
+                f"Unable to query StorageClasses for sanType check: {e}. "
+                "Skipping check."
+            )
+            return
+
+        if not output:
+            # No ontap-san StorageClasses present — nothing to validate
+            return
+
+        san_types_found = {
+            line.partition("\t")[2].strip()
+            for line in output.splitlines()
+            if line.strip()
+        }
+        required_san_types = {
+            app_constants.NETAPP_ISCSI_SAN_TYPE,  # "iscsi"
+            app_constants.NETAPP_FC_SAN_TYPE,      # "fcp"
+        }
+        missing = required_san_types - san_types_found
+
+        if missing:
+            raise exception.LifecycleSemanticCheckException(
+                "Both NetApp iSCSI and FC backends are enabled but the following "
+                f"sanType values are not declared on any StorageClass with "
+                f"backendType '{driver}': {sorted(missing)}. "
+                "When both SAN backends are active, each StorageClass must "
+                "declare parameters.sanType ('iscsi' or 'fcp') so that each "
+                "backend resolves to the correct StorageClass. "
+                "Please update your StorageClass definitions before applying."
             )

@@ -344,13 +344,13 @@ conf:
       # NOTE(portdirect): the bind port should not be defined, and is manipulated
       # via the endpoints section.
       bind_port: null
-      workers: 1
+      workers: 2
       bind_host: "::"
     heat_api_cfn:
       # NOTE(portdirect): the bind port should not be defined, and is manipulated
       # via the endpoints section.
       bind_port: null
-      workers: 1
+      workers: 2
       bind_host: "::"
     paste_deploy:
       api_paste_config: /etc/heat/api-paste.ini

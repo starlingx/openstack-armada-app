@@ -820,7 +820,7 @@ conf:
       use_syslog: false
       use_stderr: true
       volume_name_template: "%s"
-      osapi_volume_workers: 1
+      osapi_volume_workers: 2
       glance_api_version: 2
       os_region_name: RegionOne
       host: cinder-volume-worker

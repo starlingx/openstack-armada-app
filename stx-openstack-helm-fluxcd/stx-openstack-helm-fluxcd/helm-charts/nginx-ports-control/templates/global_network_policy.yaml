@@ -13,11 +13,26 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */}}
-{{- if .Values.manifests.global_network_policy -}}
+
+{{/*
+Select the Calico API group served by the cluster. Platforms deploying Calico
+through the operator serve the user-facing projectcalico.org/v3 API, while
+earlier platforms only expose the internal crd.projectcalico.org/v1 CRDs.
+When neither is present Calico is not the CNI and the policy is skipped so
+the chart still installs.
+*/}}
+{{- $gnpApiVersion := "" -}}
+{{- if .Capabilities.APIVersions.Has "projectcalico.org/v3" -}}
+{{- $gnpApiVersion = "projectcalico.org/v3" -}}
+{{- else if .Capabilities.APIVersions.Has "crd.projectcalico.org/v1" -}}
+{{- $gnpApiVersion = "crd.projectcalico.org/v1" -}}
+{{- end -}}
+
+{{- if and .Values.manifests.global_network_policy $gnpApiVersion -}}
 {{- $http_port := .Values.global_network_policy.ingress.destination.http_port}}
 {{- $https_port := .Values.global_network_policy.ingress.destination.https_port}}
 ---
-apiVersion: projectcalico.org/v3
+apiVersion: {{ $gnpApiVersion }}
 kind: GlobalNetworkPolicy
 metadata:
   name: gnp-for-nginx-ports

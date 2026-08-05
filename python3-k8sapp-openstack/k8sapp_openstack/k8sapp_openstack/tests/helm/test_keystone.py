@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2024 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -142,3 +142,35 @@ class KeystoneGetOverrideTest(KeystoneHelmTestCase,
             app_constants.HELM_CHART_KEYSTONE)
         self.assertIsInstance(overrides, dict)
         self.assertIn(common.HELM_NS_OPENSTACK, overrides)
+
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_external_federation_urls', return_value={})
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
+    def test_delete_project_policy_includes_domain_manager_and_protection(self, *_):
+        """Verify delete_project policy has domain manager grant and protection guard."""
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_KEYSTONE,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        policy = overrides['conf']['policy']
+        rule = policy['identity:delete_project']
+        self.assertIn('role:manager', rule)
+        self.assertIn('domain_id:%(target.project.domain_id)s', rule)
+        self.assertIn('not None:%(target.project.domain_id)s', rule)
+        self.assertIn('not rule:protected_projects', rule)
+
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_external_federation_urls', return_value={})
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value=False)
+    def test_delete_user_policy_includes_domain_manager_and_protection(self, *_):
+        """Verify delete_user policy has domain manager grant and protection guard."""
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_KEYSTONE,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        policy = overrides['conf']['policy']
+        rule = policy['identity:delete_user']
+        self.assertIn('role:manager', rule)
+        self.assertIn('token.domain.id:%(target.user.domain_id)s', rule)
+        self.assertIn('rule:protected_admins', rule)
+        self.assertIn('rule:protected_services', rule)

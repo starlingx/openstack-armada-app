@@ -1,3 +1,10 @@
+ingress-nginx-helm (4.15-1) unstable; urgency=medium
+
+  * Upversion chart to 4.15.1 (controller v1.15.1) to address container
+    vulnerabilities in ingress-nginx/controller v1.12.1
+
+ -- Sravan Sajeev <sravan.sajeev@windriver.com>  Wed, 29 Jul 2026 10:27:38 -0400
+
 ingress-nginx-helm (4.15-0) unstable; urgency=medium
 
   * App upversion

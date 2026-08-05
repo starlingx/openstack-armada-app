@@ -25,6 +25,9 @@ disabled by default upstream for these):
 [2] - https://docs.openstack.org/nova/latest/admin/concurrency.html
 
 Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+
+[ Fix REQUESTS_CA_BUNDLE path to use platform CA cert ]
+Signed-off-by: Sridhar Kumar Ettkepalli <sridharkumar.ettkepalli@windriver.com>
 ---
  nova/templates/deployment-api-metadata.yaml | 4 +++-
  nova/templates/deployment-api-osapi.yaml    | 4 +++-
@@ -46,7 +49,7 @@ index 691c18402..c93c41bc7 100644
 +              value: "{{ .Values.conf.nova_concurrency.disable_eventlet_patching }}"
 +{{- if or .Values.manifests.certificates .Values.tls.identity }}
              - name: REQUESTS_CA_BUNDLE
-               value: "/etc/nova/certs/ca.crt"
+               value: "/etc/ssl/certs/openstack-helm.crt"
  {{- end }}
 diff --git a/nova/templates/deployment-api-osapi.yaml b/nova/templates/deployment-api-osapi.yaml
 index 8e12ceaa7..65671c4d7 100644
@@ -62,7 +65,7 @@ index 8e12ceaa7..65671c4d7 100644
 +              value: "{{ .Values.conf.nova_concurrency.disable_eventlet_patching }}"
 +{{- if or .Values.manifests.certificates .Values.tls.identity }}
              - name: REQUESTS_CA_BUNDLE
-               value: "/etc/nova/certs/ca.crt"
+               value: "/etc/ssl/certs/openstack-helm.crt"
  {{- end }}
 diff --git a/nova/templates/deployment-scheduler.yaml b/nova/templates/deployment-scheduler.yaml
 index c1ae4fb0d..618036159 100644

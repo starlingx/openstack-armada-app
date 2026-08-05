@@ -42,19 +42,20 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid',
                 return_value='aa8c8da0-47de-4fad-8b5d-2c06be236fc8')
     @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
-    def test_semantic_check_storage_backend_available_rook(
+    def test_is_strict_backend_available_rook(
         self,
         mock_is_ceph_backend_available,
         mock_get_ceph_fsid,
         mock_is_rook_ceph_api_available,
         mock_check_netapp_backends
     ):
-        """ Test _semantic_check_storage_backend_available for rook ceph
-        backend, api and fsid available.
+        """ Test _is_strict_backend_available for rook ceph backend, api and
+        fsid available.
         """
         mock_is_ceph_backend_available.side_effect = \
             self._rook_ceph_backend_available
-        self.lifecycle._semantic_check_storage_backend_available()
+        available, _ = self.lifecycle._is_strict_backend_available()
+        self.assertTrue(available)
         mock_is_ceph_backend_available.assert_called()
         mock_check_netapp_backends.assert_called()
         mock_get_ceph_fsid.assert_called()
@@ -67,18 +68,19 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid',
                 return_value='aa8c8da0-47de-4fad-8b5d-2c06be236fc8')
     @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
-    def test_semantic_check_storage_backend_available_ceph(
+    def test_is_strict_backend_available_ceph(
         self,
         mock_is_ceph_backend_available,
         mock_get_ceph_fsid,
         mock_check_netapp_backends
     ):
-        """ Test _semantic_check_storage_backend_available for host ceph
-        backend and fsid available.
+        """ Test _is_strict_backend_available for host ceph backend and fsid
+        available.
         """
         mock_is_ceph_backend_available.side_effect = \
             self._ceph_backend_available
-        self.lifecycle._semantic_check_storage_backend_available()
+        available, _ = self.lifecycle._is_strict_backend_available()
+        self.assertTrue(available)
         mock_is_ceph_backend_available.assert_called()
         mock_check_netapp_backends.assert_called()
         mock_get_ceph_fsid.assert_called()
@@ -89,22 +91,25 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
                               app_constants.NETAPP_FC_BACKEND_NAME: False})
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid', return_value=None)
     @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
-    def test_semantic_check_storage_backend_available_netapp_nfs(
+    def test_is_strict_backend_available_netapp_nfs(
         self,
         mock_is_ceph_backend_available,
         mock_get_ceph_fsid,
         mock_check_netapp_backends,
     ):
-        """ Test _semantic_check_storage_backend_available for netapp backend
-        backend available.
+        """ Test _is_strict_backend_available for netapp nfs backend available.
         """
         mock_is_ceph_backend_available.side_effect = \
             self._ceph_backend_available
-        self.lifecycle._semantic_check_storage_backend_available()
+        available, _ = self.lifecycle._is_strict_backend_available()
+        self.assertTrue(available)
         mock_is_ceph_backend_available.assert_called()
         mock_check_netapp_backends.assert_called()
         mock_get_ceph_fsid.assert_called()
 
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf', return_value={})
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override',
+                return_value=[])
     @mock.patch('k8sapp_openstack.utils.check_netapp_backends',
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
@@ -116,21 +121,27 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_is_ceph_backend_available,
         mock_get_ceph_fsid,
         mock_check_netapp_backends,
+        mock_get_enabled_backends,
+        mock_get_backends_conf,
     ):
-        """ Test _semantic_check_storage_backend_available for host ceph
-        available and fsid unavailable.
+        """ Test that apply is blocked when host ceph is available but fsid is
+        unavailable and there is no ESB backend.
         """
         mock_is_ceph_backend_available.side_effect = \
             self._ceph_backend_available
-        try:
-            self.lifecycle._semantic_check_storage_backend_available()
-        except exception.LifecycleSemanticCheckException:
-            pass  # the exception is the expected result
-        else:
-            self.fail("LifecycleSemanticCheckException was not raised")
+        strict_available, status = \
+            self.lifecycle._is_strict_backend_available()
+        self.assertFalse(strict_available)
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_storage_backend_available,
+            strict_available, status)
         mock_get_ceph_fsid.assert_called()
         mock_check_netapp_backends.assert_called()
 
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf', return_value={})
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override',
+                return_value=[])
     @mock.patch('k8sapp_openstack.utils.check_netapp_backends',
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
@@ -138,16 +149,24 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid', return_value=None)
     @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available',
                 side_effect=[(False, ""), (False, "")])
-    def test_semantic_check_storage_backend_available_no_backends(self, *_):
-        """ Test _semantic_check_storage_backend_available for both ceph
-        backends not available.
+    def test_semantic_check_storage_backend_available_no_backends(
+        self,
+        mock_is_ceph_backend_available,
+        mock_get_ceph_fsid,
+        mock_check_netapp_backends,
+        mock_get_enabled_backends,
+        mock_get_backends_conf,
+    ):
+        """ Test that apply is blocked when no strict backend and no ESB
+        backend are available.
         """
-        try:
-            self.lifecycle._semantic_check_storage_backend_available()
-        except exception.LifecycleSemanticCheckException:
-            pass  # the exception is the expected result
-        else:
-            self.fail("LifecycleSemanticCheckException was not raised")
+        strict_available, status = \
+            self.lifecycle._is_strict_backend_available()
+        self.assertFalse(strict_available)
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_storage_backend_available,
+            strict_available, status)
 
     @mock.patch("k8sapp_openstack.utils.get_server_list")
     def test_semantic_check_openstack_vms_created_no_servers(self, mock_get_server_list):
@@ -2081,3 +2100,368 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_add_group.assert_called_once_with(
             app_constants.CLIENTS_WORKING_DIR_GROUP
         )
+
+
+class OpenstackAppLifecycleEsbSemanticCheckTest(dbbase.BaseHostTestCase):
+    """Unit tests for the ESB pre-apply semantic checks"""
+
+    def setUp(self):
+        super(OpenstackAppLifecycleEsbSemanticCheckTest, self).setUp()
+        self.lifecycle = lifecycle_openstack.OpenstackAppLifecycleOperator()
+
+    # ------------------------------------------------------------------
+    # _validate_esb_entry (required-field validation for a single entry)
+    # ------------------------------------------------------------------
+    def test_validate_esb_entry_valid_iscsi_none(self):
+        """A valid iSCSI entry with k8s_storage_class 'none' produces no error."""
+        entry = {"name": "dell-iscsi", "protocol": "iscsi",
+                 "k8s_storage_class": "none", "volume_backend": {}}
+        self.assertEqual(
+            self.lifecycle._validate_esb_entry("dell-iscsi", entry), [])
+
+    def test_validate_esb_entry_valid_local(self):
+        """protocol 'local' is accepted (experimental/internal)."""
+        entry = {"name": "cns", "protocol": "local", "k8s_storage_class": "none"}
+        self.assertEqual(self.lifecycle._validate_esb_entry("cns", entry), [])
+
+    def test_validate_esb_entry_missing_protocol(self):
+        """Missing protocol is reported with the backend name and field."""
+        entry = {"name": "dell-iscsi", "k8s_storage_class": "none"}
+        errors = self.lifecycle._validate_esb_entry("dell-iscsi", entry)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("dell-iscsi", errors[0])
+        self.assertIn("protocol", errors[0])
+
+    def test_validate_esb_entry_invalid_protocol_fc(self):
+        """An invalid protocol value (fc) is reported with the invalid value."""
+        entry = {"name": "dell-fc", "protocol": "fc",
+                 "k8s_storage_class": "none"}
+        errors = self.lifecycle._validate_esb_entry("dell-fc", entry)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("dell-fc", errors[0])
+        self.assertIn("fc", errors[0])
+
+    def test_validate_esb_entry_rbd_rejected(self):
+        """protocol 'rbd' is rejected as internal-only."""
+        entry = {"name": "myrbd", "protocol": "rbd",
+                 "k8s_storage_class": "none"}
+        errors = self.lifecycle._validate_esb_entry("myrbd", entry)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("rbd", errors[0])
+        self.assertIn("internal-only", errors[0])
+
+    def test_validate_esb_entry_missing_k8s_storage_class_not_required(self):
+        """Missing k8s_storage_class is NOT an entry error (only protocol is
+        required). Necessity is enforced by the resolution/backup checks."""
+        entry = {"name": "dell-iscsi", "protocol": "iscsi"}
+        self.assertEqual(
+            self.lifecycle._validate_esb_entry("dell-iscsi", entry), [])
+
+    def test_validate_esb_entry_volume_backend_not_validated(self):
+        """volume_backend contents are not validated (opaque pass-through)."""
+        entry = {"name": "dell-iscsi", "protocol": "iscsi",
+                 "k8s_storage_class": "dell-sc", "volume_backend": {}}
+        self.assertEqual(
+            self.lifecycle._validate_esb_entry("dell-iscsi", entry), [])
+
+    # ------------------------------------------------------------------
+    # _validate_esb_backend_configs (enabled non-strict entries)
+    # ------------------------------------------------------------------
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_validate_esb_backend_configs_strict_ignored(
+        self, mock_enabled, mock_backends_conf
+    ):
+        """Strict names are skipped; a matching backends_conf entry is ignored."""
+        mock_enabled.return_value = [app_constants.CEPH_BACKEND_NAME,
+                                     "dell-iscsi"]
+        mock_backends_conf.return_value = {
+            # A backends_conf entry matching a strict name is silently ignored.
+            app_constants.CEPH_BACKEND_NAME: {"name": "ceph",
+                                              "protocol": "rbd"},
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none"},
+        }
+        available, errors = self.lifecycle._validate_esb_backend_configs()
+        self.assertTrue(available)
+        self.assertEqual(errors, [])
+
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf', return_value={})
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_validate_esb_backend_configs_orphan_name(
+        self, mock_enabled, mock_backends_conf
+    ):
+        """An enabled ESB name with no backends_conf entry is an error."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        available, errors = self.lifecycle._validate_esb_backend_configs()
+        self.assertFalse(available)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("dell-iscsi", errors[0])
+        self.assertIn("no matching", errors[0])
+
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_validate_esb_backend_configs_only_strict_conf_ignored(
+        self, mock_enabled, mock_backends_conf
+    ):
+        """Only strict backends enabled: no ESB availability, no errors."""
+        mock_enabled.return_value = [app_constants.CEPH_BACKEND_NAME]
+        mock_backends_conf.return_value = {
+            app_constants.CEPH_BACKEND_NAME: {"name": "ceph",
+                                              "protocol": "rbd"},
+        }
+        available, errors = self.lifecycle._validate_esb_backend_configs()
+        self.assertFalse(available)
+        self.assertEqual(errors, [])
+
+    # ------------------------------------------------------------------
+    # _semantic_check_storage_backend_available (ESB-only + hybrid)
+    # ------------------------------------------------------------------
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_storage_backend_available_esb_only_valid_proceeds(
+        self, mock_enabled, mock_backends_conf
+    ):
+        """A valid ESB backend satisfies availability when no strict backend."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none"},
+        }
+        # strict_available=False, but a valid ESB entry is present -> no raise.
+        self.lifecycle._semantic_check_storage_backend_available(False, "")
+
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_storage_backend_available_esb_only_invalid_blocked(
+        self, mock_enabled, mock_backends_conf
+    ):
+        """An invalid ESB backend with no strict backend blocks apply."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi",
+                           "k8s_storage_class": "none"},  # missing protocol
+        }
+        try:
+            self.lifecycle._semantic_check_storage_backend_available(False, "")
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("protocol", str(e))
+            self.assertIn("dell-iscsi", str(e))
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_storage_backend_available_invalid_esb_logged_when_strict_available(
+        self, mock_enabled, mock_backends_conf
+    ):
+        """Invalid ESB entries are logged (not blocking) when strict is up."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi",
+                           "k8s_storage_class": "none"},  # missing protocol
+        }
+        # strict_available=True -> invalid ESB entry logged, no raise.
+        self.lifecycle._semantic_check_storage_backend_available(True, "")
+
+    # ------------------------------------------------------------------
+    # _semantic_check_secretref
+    # ------------------------------------------------------------------
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_secretref_valid(self, mock_enabled, mock_backends_conf, mock_kube):
+        """A secretRef whose Secret exists with all declared keys passes."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none",
+                           "secretRef": {"name": "esb-creds",
+                                         "keys": {"san_login": "username",
+                                                  "san_password": "password"}}},
+        }
+        secret = mock.Mock()
+        secret.data = {"username": "YWRtaW4=", "password": "czNjcmV0"}
+        mock_kube.return_value.kube_get_secret.return_value = secret
+        # Should not raise.
+        self.lifecycle._semantic_check_secretref()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_secretref_no_secretref_skipped(
+        self, mock_enabled, mock_backends_conf, mock_kube
+    ):
+        """A backend without secretRef requires no Secret lookup."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none"},
+        }
+        self.lifecycle._semantic_check_secretref()
+        mock_kube.return_value.kube_get_secret.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_secretref_missing_secret_blocked(
+        self, mock_enabled, mock_backends_conf, mock_kube
+    ):
+        """A secretRef to a non-existent Secret blocks (ESB-only)."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none",
+                           "secretRef": {"name": "does-not-exist",
+                                         "keys": {"san_login": "username"}}},
+        }
+        mock_kube.return_value.kube_get_secret.return_value = None
+        try:
+            self.lifecycle._semantic_check_secretref()
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("does-not-exist", str(e))
+            self.assertIn("not found", str(e))
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_secretref_missing_key_blocked(
+        self, mock_enabled, mock_backends_conf, mock_kube
+    ):
+        """A secretRef whose Secret lacks a declared key blocks (ESB-only)."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none",
+                           "secretRef": {"name": "esb-creds",
+                                         "keys": {"san_login": "username",
+                                                  "san_password": "password"}}},
+        }
+        secret = mock.Mock()
+        secret.data = {"username": "YWRtaW4="}  # missing 'password'
+        mock_kube.return_value.kube_get_secret.return_value = secret
+        try:
+            self.lifecycle._semantic_check_secretref()
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("password", str(e))
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_secretref_empty_secret_reports_missing_keys(
+        self, mock_enabled, mock_backends_conf, mock_kube
+    ):
+        """An existing but empty Secret (data is None) reports the missing
+        keys instead of misreporting the Secret as 'not found'."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none",
+                           "secretRef": {"name": "my-secret",
+                                         "keys": {"san_login": "username",
+                                                  "san_password": "password"}}},
+        }
+        secret = mock.Mock()
+        secret.data = None  # Secret exists but has no data.
+        mock_kube.return_value.kube_get_secret.return_value = secret
+        try:
+            self.lifecycle._semantic_check_secretref()
+        except exception.LifecycleSemanticCheckException as e:
+            msg = str(e)
+            self.assertNotIn("not found", msg)
+            self.assertIn("missing required key(s)", msg)
+            self.assertIn("password", msg)
+            self.assertIn("username", msg)
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_secretref_custom_namespace(
+        self, mock_enabled, mock_backends_conf, mock_kube
+    ):
+        """A custom secretRef.namespace is honored on the Secret lookup."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none",
+                           "secretRef": {"name": "esb-creds",
+                                         "namespace": "custom-ns",
+                                         "keys": {"san_login": "username"}}},
+        }
+        secret = mock.Mock()
+        secret.data = {"username": "YWRtaW4="}
+        mock_kube.return_value.kube_get_secret.return_value = secret
+        self.lifecycle._semantic_check_secretref()
+        mock_kube.return_value.kube_get_secret.assert_called_once_with(
+            "esb-creds", "custom-ns")
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_secretref_missing_name_blocked(
+        self, mock_enabled, mock_backends_conf, mock_kube
+    ):
+        """A secretRef without a 'name' field blocks (ESB-only)."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none",
+                           "secretRef": {"keys": {"san_login": "username"}}},
+        }
+        try:
+            self.lifecycle._semantic_check_secretref()
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("name", str(e))
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.get_backends_conf')
+    @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override')
+    def test_secretref_blocks_even_with_strict_available(
+        self, mock_enabled, mock_backends_conf, mock_kube
+    ):
+        """secretRef failures always block, regardless of strict availability
+        (the check no longer takes a strict flag)."""
+        mock_enabled.return_value = ["dell-iscsi"]
+        mock_backends_conf.return_value = {
+            "dell-iscsi": {"name": "dell-iscsi", "protocol": "iscsi",
+                           "k8s_storage_class": "none",
+                           "secretRef": {"name": "does-not-exist",
+                                         "keys": {"san_login": "username"}}},
+        }
+        mock_kube.return_value.kube_get_secret.return_value = None
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_secretref)
+
+    # ------------------------------------------------------------------
+    # _semantic_check_storage_backends (generic orchestrator)
+    # ------------------------------------------------------------------
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_semantic_check_backend_storageclass')
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_semantic_check_secretref')
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_semantic_check_storage_backend_available')
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_is_strict_backend_available')
+    def test_storage_backends_orchestrates_all_subchecks(
+        self, mock_probe, mock_available, mock_secretref,
+        mock_storageclass
+    ):
+        """The generic orchestrator probes strict availability once, shares it
+        with the availability check, and runs every storage-backend sub-check
+        (including StorageClass resolution/immutability)."""
+        mock_probe.return_value = (True, "status-str")
+        self.lifecycle._semantic_check_storage_backends()
+        mock_probe.assert_called_once_with()
+        mock_available.assert_called_once_with(True, "status-str")
+        mock_secretref.assert_called_once_with()
+        mock_storageclass.assert_called_once_with()

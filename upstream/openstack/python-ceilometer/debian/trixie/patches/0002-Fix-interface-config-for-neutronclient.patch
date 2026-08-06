@@ -1,0 +1,60 @@
+From 9c85ecb79e5e0c9860241a14d0c02c0afe61e77e Mon Sep 17 00:00:00 2001
+From: Mathieu Gagne <mgagne@calavera.ca>
+Date: Wed, 6 May 2026 21:09:55 +0000
+Subject: [PATCH] Fix interface config for neutronclient
+
+endpoint_type is not recognized by openstacksdk.
+
+[Bugfix cherry-picked from Ceilometer master branch]
+
+neutron_client.py passes 'endpoint_type' when building the openstacksdk
+Connection. Supplied directly as a kwarg it is silently discarded, and
+the adapter falls back to the SDK default interface 'public', ignoring
+service_credentials.interface = internal from ceilometer.conf.
+
+As a result every pollster that reaches the Neutron API through
+neutron_client.py targets the public endpoint, which does not resolve
+from inside the pod network namespace, and is skipped on every polling
+cycle:
+
+  ip.floating
+  network.services.vpn
+  network.services.vpn.connections
+  network.services.firewall
+  network.services.firewall.policy
+
+The per-instance interface counters (network.incoming.bytes and the
+like) are unaffected, since the compute agent collects them via libvirt
+without going through the Neutron API. The failure is independent of
+TLS: it is an endpoint interface selection issue and affects both HTTP
+and HTTPS deployments.
+
+Cherry-pick of the upstream fix, merged to ceilometer master only and not
+backported to stable/2026.1, so it is absent from the 26.0.0 (2026.1)
+release. It is expected to ship in ceilometer 27.0.0 (2026.2), and this
+patch should be retired once a version containing it is consumed.
+
+  https://opendev.org/openstack/ceilometer/commit/9c85ecb79e5e0c9860241a14d0c02c0afe61e77e
+
+Change-Id: If29c2cdb1c225f9f9c1e1422c4eacb82e5fa46fa
+Signed-off-by: cbohlhal <Caique.BohlhalterdeSouza@windriver.com>
+---
+ ceilometer/neutron_client.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ceilometer/neutron_client.py b/ceilometer/neutron_client.py
+index 7cf0fe480..087e691b8 100644
+--- a/ceilometer/neutron_client.py
++++ b/ceilometer/neutron_client.py
+@@ -61,7 +61,7 @@ class Client:
+         creds = conf.service_credentials
+         params = {
+             'session': keystone_client.get_session(conf),
+-            'endpoint_type': creds.interface,
++            'interface': creds.interface,
+             'region_name': creds.region_name,
+             'service_type': conf.service_types.neutron,
+         }
+-- 
+2.43.0
+

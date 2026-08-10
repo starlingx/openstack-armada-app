@@ -24,6 +24,14 @@ class HeatHelm(openstack.OpenstackBaseHelm):
         overrides = {
             common.HELM_NS_OPENSTACK: {
                 'pod': self._get_pod_overrides(),
+                'conf': {
+                    'heat': {
+                        'oslo_messaging_notifications': {
+                            'transport_url':
+                                self._get_rabbit_notification_url('/heat')
+                        },
+                    },
+                },
                 'endpoints': self._get_endpoints_overrides(),
             }
         }

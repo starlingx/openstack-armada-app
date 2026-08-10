@@ -552,6 +552,7 @@ conf:
       a2dismod: null
   keystone:
     DEFAULT:
+      control_exchange: keystone
       log_config_append: /etc/keystone/logging.conf
       max_token_size: 255
       # NOTE(rk760n): if you need auth notifications to be sent, uncomment it

@@ -173,6 +173,10 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             'DEFAULT': self._get_conf_keystone_default_overrides(),
             'database': self._get_conf_keystone_database_overrides(),
             'oslo_middleware': self._get_conf_keystone_oslo_middleware_overrides(),
+            'oslo_messaging_notifications': {
+                'transport_url':
+                    self._get_rabbit_notification_url('/keystone')
+            },
             'token': self._get_conf_keystone_token_overrides(),
             'identity': self._get_conf_keystone_identity_overrides(),
             'assignment': self._get_conf_keystone_assignment_overrides(),

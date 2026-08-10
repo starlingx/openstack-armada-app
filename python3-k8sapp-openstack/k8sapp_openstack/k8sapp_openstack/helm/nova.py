@@ -891,6 +891,10 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 'vnc': {
                     'novncproxy_base_url': self._get_novncproxy_base_url(),
                 },
+                'oslo_messaging_notifications': {
+                    'transport_url':
+                        self._get_rabbit_notification_url('/nova')
+                },
             },
             'overrides': {
                 'nova_compute': {

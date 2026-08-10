@@ -284,6 +284,10 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     'show_multiple_locations': False,
                     'enabled_backends': f"{self._image_store}:{self._image_store}"
                 },
+                'oslo_messaging_notifications': {
+                    'transport_url':
+                        self._get_rabbit_notification_url('/glance')
+                },
                 'cinder': {
                     'cinder_api_insecure': not self._is_openstack_https_ready(self.SERVICE_NAME),
                     'cinder_catalog_info': app_constants.GLANCE_CINDER_CATALOG_INFO,

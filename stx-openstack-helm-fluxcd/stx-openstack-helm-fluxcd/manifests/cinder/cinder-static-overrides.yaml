@@ -812,6 +812,7 @@ conf:
         app_name: cinder-volume
   cinder:
     DEFAULT:
+      control_exchange: cinder
       state_path: /var/lib/cinder
       volume_usage_audit_period: hour
       resource_query_filters_file: /etc/cinder/resource_filters.json

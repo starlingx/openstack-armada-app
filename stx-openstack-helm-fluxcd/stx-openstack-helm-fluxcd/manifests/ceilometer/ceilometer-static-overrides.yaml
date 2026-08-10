@@ -695,16 +695,8 @@ conf:
         meters:
           - "*"
   pipeline:
-    sinks:
-      - name: meter_sink
-        publishers:
-          - notifier://
-    sources:
-      - meters:
-          - "*"
-        name: meter_source
-        sinks:
-          - meter_sink
+    sinks: []
+    sources: []
 
 dependencies:
   dynamic:

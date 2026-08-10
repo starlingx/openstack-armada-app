@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -223,9 +223,15 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             ],
             "identity:delete_service": "rule:admin_required and not rule:protected_services",
             "identity:delete_domain": "rule:admin_required and not rule:protected_domains",
-            "identity:delete_project": "rule:admin_required and not rule:protected_projects",
+            "identity:delete_project":
+                "((rule:admin_required) or "
+                "(role:manager and domain_id:%(target.project.domain_id)s "
+                "and not None:%(target.project.domain_id)s)) "
+                "and not rule:protected_projects",
             "identity:delete_user":
-                "rule:admin_required and not (rule:protected_admins or rule:protected_services)",
+                "((rule:admin_required) or "
+                "(role:manager and token.domain.id:%(target.user.domain_id)s)) "
+                "and not (rule:protected_admins or rule:protected_services)",
             "identity:change_password": "rule:admin_or_owner and not rule:protected_services",
             "identity:delete_role": "rule:admin_required and not rule:protected_roles",
         }

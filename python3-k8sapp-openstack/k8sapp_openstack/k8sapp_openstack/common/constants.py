@@ -449,3 +449,11 @@ AODH_REST_NOTIFIER_CA_CERT_SECRET_NAME = 'aodh-rest-notifier-ca-cert'
 AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY = 'ca.crt'
 AODH_REST_NOTIFIER_CA_CERT_DEFAULT_PATH = '/var/opt/openstack/certs/aodh-rest-notifier.pem'
 AODH_REST_NOTIFIER_CA_CERT_MOUNT_PATH = '/var/lib/openstack/certs/aodh-rest-notifier-ca.crt'
+
+# Keystone's built-in default auth method set. It already includes
+# "mapped", so when DEX is enabled only "openid" needs to be appended.
+KEYSTONE_DEFAULT_AUTH_METHODS = (
+    "external,password,token,oauth1,mapped,application_credential"
+)
+# Auth methods that DEX requires beyond the default set.
+DEX_AUTH_METHODS = ("openid",)

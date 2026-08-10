@@ -2465,3 +2465,145 @@ class OpenstackAppLifecycleEsbSemanticCheckTest(dbbase.BaseHostTestCase):
         mock_available.assert_called_once_with(True, "status-str")
         mock_secretref.assert_called_once_with()
         mock_storageclass.assert_called_once_with()
+
+
+class TestSemanticCheckNetappSanStorageclasses(
+        OpenstackAppLifecycleOperatorTest):
+    """Tests for _semantic_check_netapp_san_storageclasses."""
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _both_san_enabled(self):
+        return {
+            app_constants.NETAPP_NFS_BACKEND_NAME: False,
+            app_constants.NETAPP_ISCSI_BACKEND_NAME: True,
+            app_constants.NETAPP_FC_BACKEND_NAME: True,
+        }
+
+    def _iscsi_only(self):
+        return {
+            app_constants.NETAPP_NFS_BACKEND_NAME: False,
+            app_constants.NETAPP_ISCSI_BACKEND_NAME: True,
+            app_constants.NETAPP_FC_BACKEND_NAME: False,
+        }
+
+    def _fc_only(self):
+        return {
+            app_constants.NETAPP_NFS_BACKEND_NAME: False,
+            app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+            app_constants.NETAPP_FC_BACKEND_NAME: True,
+        }
+
+    def _no_san(self):
+        return {
+            app_constants.NETAPP_NFS_BACKEND_NAME: True,
+            app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
+            app_constants.NETAPP_FC_BACKEND_NAME: False,
+        }
+
+    # ------------------------------------------------------------------
+    # Short-circuit cases (check should pass without kubectl)
+    # ------------------------------------------------------------------
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_netapp_backends')
+    def test_only_iscsi_enabled_skips_check(self, mock_backends):
+        """Single iSCSI backend — sanType not required, no kubectl call."""
+        mock_backends.return_value = self._iscsi_only()
+        with mock.patch(
+            'k8sapp_openstack.utils.send_cmd_read_response'
+        ) as mock_cmd:
+            self.lifecycle._semantic_check_netapp_san_storageclasses()
+            mock_cmd.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_netapp_backends')
+    def test_only_fc_enabled_skips_check(self, mock_backends):
+        """Single FC backend — sanType not required, no kubectl call."""
+        mock_backends.return_value = self._fc_only()
+        with mock.patch(
+            'k8sapp_openstack.utils.send_cmd_read_response'
+        ) as mock_cmd:
+            self.lifecycle._semantic_check_netapp_san_storageclasses()
+            mock_cmd.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_netapp_backends')
+    def test_no_san_backends_skips_check(self, mock_backends):
+        """No SAN backends enabled — check is skipped entirely."""
+        mock_backends.return_value = self._no_san()
+        with mock.patch(
+            'k8sapp_openstack.utils.send_cmd_read_response'
+        ) as mock_cmd:
+            self.lifecycle._semantic_check_netapp_san_storageclasses()
+            mock_cmd.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Both SAN enabled — kubectl output variations
+    # ------------------------------------------------------------------
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_netapp_backends')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response', return_value='')
+    def test_no_ontap_san_storageclasses_passes(self, mock_cmd, mock_backends):
+        """Both SAN enabled but no ontap-san StorageClasses — check passes."""
+        mock_backends.return_value = self._both_san_enabled()
+        self.lifecycle._semantic_check_netapp_san_storageclasses()
+        mock_cmd.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_netapp_backends')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value='netapp-iscsi\tiscsi\nnetapp-fc\tfcp\n')
+    def test_both_san_with_san_type_passes(self, mock_cmd, mock_backends):
+        """Both SAN enabled and StorageClasses have sanType — check passes."""
+        mock_backends.return_value = self._both_san_enabled()
+        self.lifecycle._semantic_check_netapp_san_storageclasses()
+        mock_cmd.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_netapp_backends')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value='netapp-iscsi\tiscsi\n')
+    def test_only_iscsi_san_type_missing_fc_raises(self, mock_cmd, mock_backends):
+        """FC sanType absent — both must be present, so raises."""
+        mock_backends.return_value = self._both_san_enabled()
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_netapp_san_storageclasses,
+        )
+        mock_cmd.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_netapp_backends')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value='netapp-fc\tfcp\n')
+    def test_only_fc_san_type_missing_iscsi_raises(self, mock_cmd, mock_backends):
+        """iSCSI sanType absent — both must be present, so raises."""
+        mock_backends.return_value = self._both_san_enabled()
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_netapp_san_storageclasses,
+        )
+        mock_cmd.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_netapp_backends')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                return_value='netapp-san\t\n')
+    def test_both_san_no_san_type_raises(self, mock_cmd, mock_backends):
+        """Both SAN enabled and no StorageClass defines sanType — raises."""
+        mock_backends.return_value = self._both_san_enabled()
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_netapp_san_storageclasses,
+        )
+        mock_cmd.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # kubectl failure — should warn and pass gracefully
+    # ------------------------------------------------------------------
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.check_netapp_backends')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response',
+                side_effect=Exception("kubectl unavailable"))
+    def test_kubectl_failure_skips_gracefully(self, mock_cmd, mock_backends):
+        """kubectl failure logs a warning and does not raise."""
+        mock_backends.return_value = self._both_san_enabled()
+        # Should not raise
+        self.lifecycle._semantic_check_netapp_san_storageclasses()
+        mock_cmd.assert_called_once()

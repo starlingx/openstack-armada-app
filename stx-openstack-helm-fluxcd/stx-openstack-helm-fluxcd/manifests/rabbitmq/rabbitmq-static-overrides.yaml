@@ -46,6 +46,13 @@ pod:
   probes:
     rabbitmq:
       rabbitmq:
+        startup:
+          enabled: true
+          params:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
         readiness:
           enabled: true
           params:

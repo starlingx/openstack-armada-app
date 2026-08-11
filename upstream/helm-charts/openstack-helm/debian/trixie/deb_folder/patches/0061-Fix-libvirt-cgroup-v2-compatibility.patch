@@ -1,0 +1,71 @@
+From 010df572f9432782aa1514cfa4138ca21c4aef94 Mon Sep 17 00:00:00 2001
+From: asyed1 <ahmed.syed@windriver.com>
+Date: Tue, 18 Aug 2026 09:38:51 -0400
+Subject: [PATCH] Fix libvirt cgroup v2 compatibility
+
+The libvirt startup script calls cgcreate and cgexec from
+libcgroup-tools to set up a dedicated cgroup for the libvirtd
+process. These tools only support the cgroup v1 filesystem layout
+and fail with "libcgroup initialization failed: Cgroup is not
+mounted" on pure cgroup v2 systems (kernel 6.18+, Debian Trixie).
+
+Detect the cgroup version at runtime. On v2, skip cgcreate/cgexec
+entirely: systemd-run --scope --slice=system already places
+libvirtd in system.slice outside kubepods, which is the v2
+equivalent of the v1 cgroup breakout. Also silence the grep that
+tests for available controllers (-q, 2>/dev/null).
+
+On v1 systems the existing cgcreate/cgexec path is preserved
+unchanged.
+
+Signed-off-by: asyed1 <ahmed.syed@windriver.com>
+---
+ libvirt/templates/bin/_libvirt.sh.tpl | 18 ++++++++++++++----
+ 1 file changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
+index 99f41c871..5e3235833 100644
+--- a/libvirt/templates/bin/_libvirt.sh.tpl
++++ b/libvirt/templates/bin/_libvirt.sh.tpl
+@@ -75,11 +75,21 @@ fi
+ #Setup Cgroups to use when breaking out of Kubernetes defined groups
+ CGROUPS=""
+ for CGROUP in {{ .Values.conf.kubernetes.cgroup_controllers | include "helm-toolkit.utils.joinListWithSpace"  }}; do
+-  if [ -d /sys/fs/cgroup/${CGROUP} ] || grep -w $CGROUP /sys/fs/cgroup/cgroup.controllers; then
++  if [ -d /sys/fs/cgroup/${CGROUP} ] || grep -qw $CGROUP /sys/fs/cgroup/cgroup.controllers 2>/dev/null; then
+     CGROUPS+="${CGROUP},"
+   fi
+ done
+-cgcreate -g ${CGROUPS%,}:/osh-libvirt
++
++if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
++  # cgroup v2: systemd-run --scope --slice=system places libvirtd in
++  # system.slice outside kubepods, which is the v2 equivalent of the
++  # v1 cgexec breakout. No cgcreate/cgexec needed.
++  CGROUP_EXEC=""
++else
++  # cgroup v1: use libcgroup-tools for explicit controller binding
++  cgcreate -g ${CGROUPS%,}:/osh-libvirt
++  CGROUP_EXEC="cgexec -g ${CGROUPS%,}:/osh-libvirt"
++fi
+ 
+ # We assume that if hugepage count > 0, then hugepages should be exposed to libvirt/qemu
+ hp_count="$(cat /proc/meminfo | grep HugePages_Total | tr -cd '[:digit:]')"
+@@ -105,7 +115,7 @@ fi
+ 
+ if [ -n "${LIBVIRT_CEPH_CINDER_SECRET_UUID}" ] || [ -n "${LIBVIRT_EXTERNAL_CEPH_CINDER_SECRET_UUID}" ] ; then
+ 
+-  cgexec -g ${CGROUPS%,}:/osh-libvirt systemd-run --scope --slice=system libvirtd --listen &
++  $CGROUP_EXEC systemd-run --scope --slice=system libvirtd --listen &
+ 
+   tmpsecret=$(mktemp --suffix .xml)
+   if [ -n "${LIBVIRT_EXTERNAL_CEPH_CINDER_SECRET_UUID}" ] ; then
+@@ -182,4 +192,4 @@ EOF
+ fi
+ 
+ # NOTE(vsaienko): changing CGROUP is required as restart of the pod will cause domains restarts
+-cgexec -g ${CGROUPS%,}:/osh-libvirt systemd-run --scope --slice=system libvirtd --listen -f /tmp/libvirtd.conf
++$CGROUP_EXEC systemd-run --scope --slice=system libvirtd --listen -f /tmp/libvirtd.conf
+-- 
+2.43.0
+

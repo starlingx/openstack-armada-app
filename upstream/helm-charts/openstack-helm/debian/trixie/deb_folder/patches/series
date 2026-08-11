@@ -58,3 +58,4 @@
 0058-Create-orphan-instances-sanitizer-in-Nova.patch
 0059-Fix-rabbitmq-inconsistent_cluster-on-rejoin.patch
 0060-Add-startupProbe-to-rabbitmq-statefulset.patch
+0061-Fix-libvirt-cgroup-v2-compatibility.patch

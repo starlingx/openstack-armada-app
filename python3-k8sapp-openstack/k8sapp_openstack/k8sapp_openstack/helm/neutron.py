@@ -276,6 +276,14 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                 flat_nets.append(str(datanetwork.name))
         return ",".join(flat_nets)
 
+    def _get_vlan_networks(self):
+        vlan_nets = []
+        datanetworks = self.dbapi.datanetworks_get_all()
+        for datanetwork in datanetworks:
+            if datanetwork.network_type == constants.DATANETWORK_TYPE_VLAN:
+                vlan_nets.append(str(datanetwork.name))
+        return ",".join(vlan_nets)
+
     def _get_neutron_ml2_config(self):
         ml2_config = {
             'ml2': {
@@ -283,6 +291,9 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
             },
             'ml2_type_flat': {
                 'flat_networks': self._get_flat_networks()
+            },
+            'ml2_type_vlan': {
+                'network_vlan_ranges': self._get_vlan_networks()
             }
         }
         LOG.info("_get_neutron_ml2_config=%s" % ml2_config)

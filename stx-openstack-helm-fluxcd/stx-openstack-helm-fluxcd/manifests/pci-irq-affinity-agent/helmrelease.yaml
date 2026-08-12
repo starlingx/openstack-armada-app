@@ -26,10 +26,10 @@ spec:
     enable: false
   install:
     disableHooks: false
-    disableWait: true
+    disableWait: false
   upgrade:
     disableHooks: false
-    disableWait: true
+    disableWait: false
   dependsOn:
     - name: nova
       namespace: openstack

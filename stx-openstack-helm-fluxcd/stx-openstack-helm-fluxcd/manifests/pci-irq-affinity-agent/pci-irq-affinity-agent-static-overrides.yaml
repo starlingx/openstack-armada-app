@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2024 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -25,4 +25,12 @@ tolerations:
 pod:
   labels:
     include_app_kubernetes_io: false
+  lifecycle:
+    upgrades:
+      daemonsets:
+        pod_replacement_strategy: RollingUpdate
+        pci_irq_affinity_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: "10%"
 ...

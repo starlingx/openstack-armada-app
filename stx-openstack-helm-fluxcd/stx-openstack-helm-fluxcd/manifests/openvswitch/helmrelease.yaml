@@ -24,6 +24,19 @@ spec:
   timeout: 30m
   test:
     enable: false
+  # This release keeps max_unavailable: 1 with disableWait: true, and the two go
+  # together. Replacing one node at a time makes this the longest rollout in the
+  # application, well past the timeout above, so the wait cannot be restored
+  # while the rollout stays serial.
+  #
+  # Scaling it would fit the timeout, but not on its own. This chart and neutron
+  # both place a pod on every compute node, and compressing this rollout makes
+  # it far more likely that a node has both replaced at nearly the same time,
+  # which interrupts instance connectivity there for much longer than either
+  # replacement alone. Ordering the two releases removes that interaction; see
+  # manifests/neutron/helmrelease.yaml. Scaling is deferred to that change.
+  #
+  # Tracked at https://bugs.launchpad.net/starlingx/+bug/2166535
   install:
     disableHooks: false
     disableWait: true

@@ -24,14 +24,40 @@ spec:
   timeout: 30m
   test:
     enable: false
+  # This release is deliberately left as it is, and both reasons are recorded so
+  # that a future change does not scale it without addressing them first.
+  #
+  # disableWait must stay true. nova-db-sync and nova-rabbit-init are
+  # post-install/post-upgrade Helm hooks, and nova-compute's init container lists
+  # both as kubernetes-entrypoint dependencies (nova/values.yaml, under
+  # dependencies.static.compute). Helm runs the readiness wait before the
+  # post-upgrade hook phase, so with disableWait: false the new nova-compute pods
+  # block on jobs Helm has not created yet while Helm blocks on those pods. The
+  # release then deadlocks until the timeout above. This is scale-independent and
+  # would deadlock on a single-node system.
+  #
+  # Tracked at https://bugs.launchpad.net/starlingx/+bug/2166534
+  #
+  # The libvirt dependency below is a separate matter and is not related to the
+  # hook ordering; see the comment above dependsOn.
   install:
     disableHooks: false
     disableWait: true
   upgrade:
     disableHooks: false
     disableWait: true
+  # libvirt is declared as a dependency because the chart already requires it.
+  # nova-compute's init container lists a same-host libvirt pod under
+  # dependencies.static.compute.pod with requireSameNode: true (nova/values.yaml),
+  # so a nova pod cannot start until the libvirt pod on its own node is ready.
+  # Without this edge the two releases are unordered siblings under placement and
+  # Flux reconciles them concurrently, so a nova pod can land on a node whose
+  # libvirt pod is mid-replacement and stall until it becomes ready. This makes
+  # the release graph express the dependency the charts actually have.
   dependsOn:
     - name: placement
+      namespace: openstack
+    - name: libvirt
       namespace: openstack
   valuesFrom:
     - kind: Secret

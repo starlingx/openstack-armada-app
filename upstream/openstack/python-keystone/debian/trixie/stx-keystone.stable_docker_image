@@ -8,8 +8,8 @@ PIP_PACKAGES="\
   ldappool \
   python-ldap
 "
-DIST_PACKAGES="libapache2-mod-auth-openidc"
-DIST_REPOS="OS"
+DIST_PACKAGES="libapache2-mod-auth-openidc libaprutil1t64 libaprutil1-ldap libaprutil1-dbd-sqlite3"
+DIST_REPOS="OS +openstack"
 PROFILES="fluent apache"
 CUSTOMIZATION="\
     ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \

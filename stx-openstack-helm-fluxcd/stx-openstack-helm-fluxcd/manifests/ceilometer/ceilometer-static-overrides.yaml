@@ -690,10 +690,65 @@ conf:
           - event_sink
   polling:
     sources:
-      - name: all_pollsters
+      - name: openstack_compute
         interval: 600
         meters:
-          - "*"
+          - memory
+          - memory.usage
+          - memory.resident
+          - cpu
+          - vcpus
+          - disk.device.read.requests
+          - disk.device.write.requests
+          - disk.device.read.bytes
+          - disk.device.write.bytes
+          - disk.root.size
+          - disk.ephemeral.size
+          - disk.device.capacity
+          - disk.device.allocation
+          - disk.device.usage
+          - network.incoming.bytes
+          - network.outgoing.bytes
+          - network.incoming.bytes.rate
+          - network.outgoing.bytes.rate
+          - network.incoming.bytes.delta
+          - network.outgoing.bytes.delta
+          - network.incoming.packets
+          - network.outgoing.packets
+          - perf.cpu.cycles
+          - perf.instructions
+          - perf.cache.references
+          - perf.cache.misses
+          - network.incoming.packets.drop
+          - network.outgoing.packets.drop
+          - network.incoming.packets.error
+          - network.outgoing.packets.error
+          - memory.swap.in
+          - memory.swap.out
+          - disk.device.read.latency
+          - disk.device.write.latency
+          - power.state
+          - memory.available
+      - name: openstack_image_service
+        interval: 600
+        meters:
+          - image.size
+      - name: openstack_block_storage
+        interval: 600
+        meters:
+          - volume.size
+          - volume.snapshot.size
+          - volume.backup.size
+          - volume.provider.pool.capacity.total
+          - volume.provider.pool.capacity.free
+          - volume.provider.pool.capacity.allocated
+          - volume.provider.pool.capacity.provisioned
+          - volume.provider.pool.capacity.virtual_free
+      - name: openstack_networking
+        interval: 600
+        meters:
+          - ip.floating
+
   pipeline:
     sinks: []
     sources: []

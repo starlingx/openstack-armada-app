@@ -49,6 +49,16 @@ spec:
       serviceAccountName: {{ $rcControllerName | quote }}
       affinity:
 {{ tuple $envAll "garbd" "server" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+{{- if and .Values.labels.server.node_selector_exclude_key .Values.labels.server.node_selector_exclude_value }}
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: {{ .Values.labels.server.node_selector_exclude_key }}
+                    operator: NotIn
+                    values:
+                      - {{ .Values.labels.server.node_selector_exclude_value | quote }}
+{{- end }}
 {{ if $envAll.Values.pod.tolerations.garbd.enabled }}
 {{ tuple $envAll "garbd" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
 {{ end }}

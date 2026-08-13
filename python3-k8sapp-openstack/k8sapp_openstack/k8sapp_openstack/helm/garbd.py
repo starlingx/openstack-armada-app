@@ -1,10 +1,11 @@
 #
-# Copyright (c) 2019-2025 Wind River Systems, Inc.
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
 from oslo_log import log as logging
+from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import utils
 from sysinv.helm import common
@@ -54,11 +55,31 @@ class GarbdHelm(openstack.OpenstackBaseHelm):
         enabled = super(GarbdHelm, self)._is_enabled(
             app_name, chart_name, namespace)
 
-        # If there are fewer than 2 controllers or we're on AIO-DX
-        # we'll use a single mariadb server and so we don't want to run garbd.
-        if enabled and (self._num_controllers() < 2 or
-                        utils.is_aio_duplex_system(self.dbapi)):
+        if not enabled:
+            return enabled
+
+        # Garbd requires at least 2 controllers (for 2 mariadb replicas).
+        if self._num_controllers() < 2:
             enabled = False
+        elif utils.is_aio_duplex_system(self.dbapi):
+            # On AIO-DX, enable garbd only when at least one OpenStack
+            # enabled dedicated worker is unlocked. AIO controllers
+            # are themselves reported as OpenStack enabled compute
+            # nodes since they carry the openstack-compute-node label
+            # and report the worker subfunction, so they are excluded
+            # by the personality check. Locked workers are excluded
+            # because garbd cannot be scheduled on a cordoned node.
+            labels_by_host = app_utils.get_labels_by_host(
+                self.dbapi.label_get_all())
+            compute_nodes = (
+                app_utils.get_openstack_enabled_compute_nodes(
+                    self.dbapi.ihost_get_list(), labels_by_host))
+            if not any(
+                h.personality == constants.WORKER
+                and h.administrative == constants.ADMIN_UNLOCKED
+                for h in compute_nodes
+            ):
+                enabled = False
         return enabled
 
     def execute_manifest_updates(self, operator):

@@ -273,6 +273,7 @@ conf:
       bind_host: "::"
       registry_host: glance-reg.openstack.svc.cluster.local
       registry_port: 80
+      enable_v1_api: false
     oslo_middleware:
       enable_proxy_headers_parsing: true
     keystone_authtoken:
@@ -464,6 +465,8 @@ conf:
     keystone_authtoken:
       auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+  cinder:
+    cinder_uses_ceph: false
 network:
   api:
     ingress:
@@ -593,6 +596,7 @@ secrets:
   oci_image_registry:
     glance: glance-oci-image-registry
 
+  rbd_cinder: cinder-volume-rbd-keyring
 # typically overridden by environmental
 # values, but should include all endpoints
 # required by this chart
@@ -1128,4 +1132,5 @@ manifests:
 # set keep_pvc: false when disallow helm resource-policy to keep for PVC.
 # This will allow helm to delete the PVC.
 keep_pvc: true
+extraObjects: []
 ...

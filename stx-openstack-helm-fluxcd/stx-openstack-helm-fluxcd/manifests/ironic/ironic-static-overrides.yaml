@@ -6,38 +6,7 @@
 
 ---
 release_group: osh-openstack-ironic
-pod:
-  labels:
-    include_app_kubernetes_io: false
-  replicas:
-    api: 2
-    conductor: 2
-  user:
-    ironic:
-      uid: 0
-  affinity:
-    anti:
-      type:
-        default: requiredDuringSchedulingIgnoredDuringExecution
-  tolerations:
-    ironic:
-      enabled: true
-      tolerations:
-        - key: node-role.kubernetes.io/master
-          operator: Exists
-          effect: NoSchedule
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
-          effect: NoSchedule
-        - key: openstack-compute-node
-          operator: Exists
-          effect: NoSchedule
-network:
-  api:
-    ingress:
-      classes:
-        namespace: "nginx-openstack"
-        cluster: "nginx"
+
 labels:
   isApplication: false
   api:
@@ -70,7 +39,53 @@ images:
     ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     rabbit_init: docker.io/library/rabbitmq:3.11.28-management
+  pull_policy: IfNotPresent
+  local_registry:
+    active: false
+    exclude:
+    - dep_check
+    - image_repo_sync
 conf:
+  paste:
+    override: null
+    append: null
+  policy: {}
+  tftp_map_file: |
+    re ^(/tftpboot/) /tftpboot/\2
+    re ^/tftpboot/ /tftpboot/
+    re ^(^/) /tftpboot/\1
+    re ^([^/]) /tftpboot/\1
+
+  nginx: |
+    user  nginx;
+    worker_processes  1;
+    error_log  /var/log/nginx/error.log warn;
+    pid        /var/run/nginx.pid;
+    events {
+        worker_connections  1024;
+    }
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+        log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                          '$status $body_bytes_sent "$http_referer" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+        access_log  /var/log/nginx/access.log  main;
+        sendfile        on;
+        #tcp_nopush     on;
+        keepalive_timeout  65;
+        #gzip  on;
+        server {
+          listen       OSH_PXE_IP:{{ tuple "baremetal" "internal" "pxe_http" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }};
+          server_name  localhost;
+          #charset koi8-r;
+          #access_log  /var/log/nginx/host.access.log  main;
+          location / {
+              root   /var/lib/openstack-helm/httpboot;
+          }
+        }
+    }
+
   ironic:
     DEFAULT:
       # enabled_drivers is deprecated in stein
@@ -87,34 +102,790 @@ conf:
       enabled_raid_interfaces: no-raid
       enabled_storage_interfaces: cinder,noop
       enabled_vendor_interfaces: ipmitool,no-vendor
-    keystone_authtoken:
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+      log_config_append: /etc/ironic/logging.conf
+      tempdir: /var/lib/openstack-helm/tmp
+    api:
+      port: 6385
+    conductor:
+      api_url: null
+    database:
+      connection: ''
+      max_retries: -1
+    deploy:
+      http_root: /var/lib/openstack-helm/httpboot
+    nova:
+      auth_type: password
+    cinder:
+      auth_type: password
     glance:
       glance_host: glance.openstack.svc.cluster.local
       glance_port: 80
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_type: password
+      swift_temp_url_duration: 86400
+      temp_url_endpoint_type: swift
+      swift_container: glance
+      swift_api_version: v1
+      auth_section: glance
     inspector:
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_type: password
+    keystone_authtoken:
+      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
+      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
+      service_token_roles: service
+      service_token_roles_required: true
+      auth_type: password
+      auth_version: v3
     neutron:
       url: http://neutron.openstack.svc.cluster.local:80/
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
-    api:
-      port: 6385
+      auth_type: password
     pxe:
       pxe_append_params: "nofb nomodeset vga=normal console=ttyS0,115200n8"
+      images_path: /var/lib/openstack-helm/ironic/images
+      instance_master_path: /var/lib/openstack-helm/ironic/master_images
+      pxe_config_template: $pybasedir/drivers/modules/ipxe_config.template
+      uefi_pxe_config_template: $pybasedir/drivers/modules/ipxe_config.template
+      tftp_root: /var/lib/openstack-helm/tftpboot
+      tftp_master_path: /var/lib/openstack-helm/tftpboot/master_images
+      pxe_bootfile_name: undionly.kpxe
+      uefi_pxe_bootfile_name: ipxe.efi
+      ipxe_enabled: true
+    service_catalog:
+      auth_type: password
+    service_user:
+      auth_type: password
+      send_service_user_token: true
+    swift:
+      auth_url: null
+    oslo_policy:
+      policy_file: /etc/ironic/policy.yaml
+    oslo_concurrency:
+      lock_path: /var/lock
     dhcp:
       dhcp_provider: neutron
+  logging:
+    loggers:
+      keys:
+      - root
+      - ironic
+    handlers:
+      keys:
+      - stdout
+      - stderr
+      - 'null'
+    formatters:
+      keys:
+      - context
+      - default
+    logger_root:
+      handlers: 'null'
+      level: WARNING
+    logger_ironic:
+      handlers:
+      - stdout
+      level: INFO
+      qualname: ironic
+    logger_amqp:
+      handlers: stderr
+      level: WARNING
+      qualname: amqp
+    logger_amqplib:
+      handlers: stderr
+      level: WARNING
+      qualname: amqplib
+    logger_eventletwsgi:
+      handlers: stderr
+      level: WARNING
+      qualname: eventlet.wsgi.server
+    logger_sqlalchemy:
+      handlers: stderr
+      level: WARNING
+      qualname: sqlalchemy
+    logger_boto:
+      handlers: stderr
+      level: WARNING
+      qualname: boto
+    handler_null:
+      args: ()
+      class: logging.NullHandler
+      formatter: default
+    handler_stdout:
+      args: (sys.stdout,)
+      class: StreamHandler
+      formatter: context
+    handler_stderr:
+      args: (sys.stderr,)
+      class: StreamHandler
+      formatter: context
+    formatter_context:
+      class: oslo_log.formatters.ContextFormatter
+      datefmt: '%Y-%m-%d %H:%M:%S'
+    formatter_default:
+      datefmt: '%Y-%m-%d %H:%M:%S'
+      format: '%(message)s'
+  ironic_api_uwsgi:
+    uwsgi:
+      add-header: 'Connection: close'
+      buffer-size: 65535
+      die-on-term: true
+      enable-threads: true
+      exit-on-reload: false
+      hook-master-start: unix_signal:15 gracefully_kill_them_all
+      lazy-apps: true
+      log-x-forwarded-for: true
+      master: true
+      module: ironic.wsgi:application
+      procname-prefix-spaced: 'ironic-api:'
+      route-user-agent: '^kube-probe.* donotlog:'
+      thunder-lock: true
+      worker-reload-mercy: 80
 # Disable ipa image downloading during bootstrap
+conductor:
+  extraContainers: []
+  initContainers: []
+  http:
+    enabled: true
+    init_script: |
+      #!/bin/bash
+      set -ex
+      if [ "x" == "x${PROVISIONER_INTERFACE}" ]; then
+        echo "Provisioner interface is not set"
+        exit 1
+      fi
+
+      function net_pxe_addr {
+       ip addr | awk "/inet / && /${PROVISIONER_INTERFACE}/{print \$2; exit }"
+      }
+      function net_pxe_ip {
+       echo $(net_pxe_addr) | awk -F '/' '{ print $1; exit }'
+      }
+      PXE_IP=$(net_pxe_ip)
+
+      if [ "x" == "x${PXE_IP}" ]; then
+        echo "Could not find IP for pxe to bind to"
+        exit 1
+      fi
+
+      sed "s|OSH_PXE_IP|${PXE_IP}|g" /etc/nginx/nginx.conf > /tmp/pod-shared/nginx.conf
+    script: |
+      #!/bin/bash
+      set -ex
+      mkdir -p /var/lib/openstack-helm/httpboot
+      cp -v /tmp/pod-shared/nginx.conf /etc/nginx/nginx.conf
+      exec nginx -g 'daemon off;'
+
+  pxe:
+    enabled: true
+    init_script: |
+      #!/bin/bash
+      set -ex
+      # default to Ubuntu path
+      FILEPATH=${FILEPATH:-/usr/lib/ipxe}
+
+      mkdir -p /var/lib/openstack-helm/tftpboot
+      mkdir -p /var/lib/openstack-helm/tftpboot/master_images
+
+      for FILE in undionly.kpxe ipxe.efi pxelinux.0 snponly.efi; do
+        # copy in default file
+        if [ -f $FILEPATH/$FILE ]; then
+          cp -v $FILEPATH/$FILE /var/lib/openstack-helm/tftpboot
+        fi
+
+      done
+    script: |
+      #!/bin/bash
+      set -ex
+      function net_pxe_addr {
+       ip addr | awk "/inet / && /${PROVISIONER_INTERFACE}/{print \$2; exit }"
+      }
+      function net_pxe_ip {
+       echo $(net_pxe_addr) | awk -F '/' '{ print $1; exit }'
+      }
+      PXE_IP=$(net_pxe_ip)
+
+      if [ "x" == "x${PXE_IP}" ]; then
+        echo "Could not find IP for pxe to bind to"
+        exit 1
+      fi
+
+      ln -s /var/lib/openstack-helm/tftpboot /tftpboot
+      exec /usr/sbin/in.tftpd \
+        --verbose \
+        --foreground \
+        --user root \
+        --address ${PXE_IP}:69 \
+        --map-file /tftp-map-file /tftpboot
+network:
+  pxe:
+    device: ironic-pxe
+    neutron_network_name: baremetal
+    neutron_provider_network: ironic
+    neutron_subnet_alloc_end: 172.24.6.200
+    neutron_subnet_alloc_start: 172.24.6.100
+    neutron_subnet_cidr: 172.24.6.0/24
+    neutron_subnet_dns_nameserver: 10.96.0.10
+    neutron_subnet_gateway: 172.24.6.1/24
+    neutron_subnet_name: baremetal
+  api:
+    ingress:
+      classes:
+        namespace: "nginx-openstack"
+        cluster: "nginx"
+      public: true
+      annotations:
+        haproxy.org/path-rewrite: /
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    node_port:
+      enabled: false
+      port: 30511
 bootstrap:
   image:
     enabled: false
-endpoints:
+    openstack:
+      enabled: true
+      ks_user: ironic
+    source_base: http://tarballs.openstack.org/ironic-python-agent/tinyipa/files
+    structured:
+      ironic-agent.initramfs:
+        container_format: ari
+        disk_format: ari
+        source: tinyipa-stable-2025.1.gz
+      ironic-agent.kernel:
+        container_format: aki
+        disk_format: aki
+        source: tinyipa-stable-2025.1.vmlinuz
+  object_store:
+    enabled: true
+    openstack:
+      enabled: true
+dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+        - ironic-image-repo-sync
+        services:
+        - endpoint: node
+          service: local_image_registry
+  static:
+    api:
+      jobs:
+      - ironic-db-sync
+      - ironic-ks-user
+      - ironic-ks-endpoints
+      - ironic-manage-cleaning-network
+      - ironic-rabbit-init
+      services:
+      - endpoint: internal
+        service: oslo_db
+      - endpoint: internal
+        service: identity
+      - endpoint: internal
+        service: oslo_messaging
+    bootstrap:
+      jobs: null
+      services:
+      - endpoint: internal
+        service: identity
+      - endpoint: internal
+        service: image
+      - endpoint: internal
+        service: baremetal
+    conductor:
+      jobs:
+      - ironic-db-sync
+      - ironic-ks-user
+      - ironic-ks-endpoints
+      - ironic-manage-cleaning-network
+      - ironic-rabbit-init
+      services:
+      - endpoint: internal
+        service: oslo_db
+      - endpoint: internal
+        service: identity
+      - endpoint: internal
+        service: baremetal
+      - endpoint: internal
+        service: oslo_messaging
+    db_drop:
+      services:
+      - endpoint: internal
+        service: oslo_db
+    db_init:
+      services:
+      - endpoint: internal
+        service: oslo_db
+    db_sync:
+      jobs:
+      - ironic-db-init
+      services:
+      - endpoint: internal
+        service: oslo_db
+    image_repo_sync:
+      services:
+      - endpoint: internal
+        service: local_image_registry
+    ks_endpoints:
+      jobs:
+      - ironic-ks-service
+      services:
+      - endpoint: internal
+        service: identity
+    ks_service:
+      services:
+      - endpoint: internal
+        service: identity
+    ks_user:
+      services:
+      - endpoint: internal
+        service: identity
+    manage_cleaning_network:
+      services:
+      - endpoint: internal
+        service: network
+    rabbit_init:
+      services:
+      - endpoint: internal
+        service: oslo_messaging
+secrets:
+  identity:
+    admin: ironic-keystone-admin
+    glance: ironic-glance-keystone-user
+    ironic: ironic-keystone-user
+  oslo_db:
+    admin: ironic-db-admin
+    ironic: ironic-db-user
   oslo_messaging:
-    statefulset:
-      name: osh-openstack-rabbitmq-rabbitmq
+    admin: ironic-rabbitmq-admin
+    ironic: ironic-rabbitmq-user
+  oci_image_registry:
+    ironic: ironic-oci-image-registry
+  tls:
+    baremetal:
+      api:
+        internal: ironic-tls-api
+        public: ironic-tls-public
+endpoints:
+  cluster_domain_suffix: cluster.local
+  local_image_registry:
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    name: docker-registry
+    namespace: docker-registry
+    port:
+      registry:
+        node: 5000
+  oci_image_registry:
+    auth:
+      enabled: false
+      ironic:
+        password: password
+        username: ironic
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: localhost
+    name: oci-image-registry
+    namespace: oci-image-registry
+    port:
+      registry:
+        default: null
+  identity:
+    auth:
+      admin:
+        password: password
+        project_domain_name: default
+        project_name: admin
+        region_name: RegionOne
+        user_domain_name: default
+        username: admin
+      glance:
+        password: password
+        project_domain_name: service
+        project_name: service
+        region_name: RegionOne
+        role: admin,service
+        user_domain_name: service
+        username: glance
+      ironic:
+        password: password
+        project_domain_name: service
+        project_name: service
+        region_name: RegionOne
+        role: admin,service
+        user_domain_name: service
+        username: ironic
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: keystone
+      internal: keystone-api
+    name: keystone
+    path:
+      default: /v3
+    port:
+      api:
+        default: 80
+        internal: 5000
+    scheme:
+      default: http
   baremetal:
     port:
       pxe_http:
         default: 28080
+      api:
+        default: 6385
+        public: 80
+    name: ironic
+    hosts:
+      default: ironic-api
+      public: ironic
+    host_fqdn_override:
+      default: null
+    path:
+      default: null
+    scheme:
+      default: http
+  volumev3:
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: cinder-api
+      public: cinder
+    name: cinderv3
+    path:
+      default: /v3/%(tenant_id)s
+      healthcheck: /healthcheck
+    port:
+      api:
+        default: 8776
+        public: 80
+    scheme:
+      default: http
+  compute:
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: nova-api
+      public: nova
+    name: nova
+    path:
+      default: /v2.1/%(tenant_id)s
+    port:
+      api:
+        default: 8774
+        public: 80
+      novncproxy:
+        default: 6080
+    scheme:
+      default: http
+  image:
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: glance-api
+      public: glance
+    name: glance
+    path:
+      default: null
+    port:
+      api:
+        default: 9292
+        public: 80
+    scheme:
+      default: http
+  oslo_db:
+    auth:
+      admin:
+        password: password
+        username: root
+      ironic:
+        password: password
+        username: ironic
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: mariadb
+    path: /ironic
+    port:
+      mysql:
+        default: 3306
+    scheme: mysql+pymysql
+  oslo_cache:
+    auth:
+      memcache_secret_key: null
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: memcached
+    port:
+      memcache:
+        default: 11211
+  oslo_messaging:
+    statefulset:
+      name: osh-openstack-rabbitmq-rabbitmq
+      replicas: 2
+    auth:
+      admin:
+        password: password
+        username: rabbitmq
+      ironic:
+        password: password
+        username: ironic
+    hosts:
+      default: rabbitmq
+    host_fqdn_override:
+      default: null
+    path: /ironic
+    scheme: rabbit
+    port:
+      amqp:
+        default: 5672
+      http:
+        default: 15672
+  network:
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: neutron-server
+      public: neutron
+    name: neutron
+    path:
+      default: null
+    port:
+      api:
+        default: 9696
+        public: 80
+    scheme:
+      default: http
+
+  object_store:
+    auth:
+      glance:
+        tmpurlkey: supersecret
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: ceph-rgw
+    name: swift
+    namespace: ceph
+    path:
+      default: /swift/v1/KEY_$(tenant_id)s
+    port:
+      api:
+        default: 8088
+    scheme:
+      default: http
+  fluentd:
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: fluentd-logging
+    name: fluentd
+    namespace: null
+    path:
+      default: null
+    port:
+      metrics:
+        default: 24220
+      service:
+        default: 24224
+    scheme: http
+pod:
+  affinity:
+    anti:
+      type:
+        default: requiredDuringSchedulingIgnoredDuringExecution
+      topologyKey:
+        default: kubernetes.io/hostname
+      weight:
+        default: 10
+  tolerations:
+    ironic:
+      enabled: true
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: openstack-compute-node
+          operator: Exists
+          effect: NoSchedule
+  mounts:
+    ironic_api:
+      init_container: null
+      ironic_api:
+        volumeMounts: null
+        volumes: null
+    ironic_bootstrap:
+      init_container: null
+      ironic_bootstrap:
+        volumeMounts: null
+        volumes: null
+    ironic_conductor:
+      init_container: null
+      ironic_conductor:
+        volumeMounts: null
+        volumes: null
+    ironic_db_sync:
+      ironic_db_sync:
+        volumeMounts: null
+        volumes: null
+  etcSources:
+    ironic_api: []
+    ironic_conductor: []
+    ironic_db_sync: []
+  replicas:
+    api: 2
+    conductor: 2
+  lifecycle:
+    disruption_budget:
+      api:
+        min_available: 0
+    termination_grace_period:
+      api:
+        timeout: 30
+    upgrades:
+      deployments:
+        pod_replacement_strategy: RollingUpdate
+        revision_history: 3
+        rolling_update:
+          max_surge: 3
+          max_unavailable: 1
+  resources:
+    api:
+      limits:
+        cpu: 2000m
+        memory: 1024Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    conductor:
+      limits:
+        cpu: 2000m
+        memory: 1024Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    enabled: false
+    jobs:
+      bootstrap:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      db_drop:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      db_init:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      db_sync:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      image_repo_sync:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      ks_endpoints:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      ks_service:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      ks_user:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      rabbit_init:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      tests:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+  useHostNetwork:
+    conductor: true
+  useHostIPC:
+    conductor: false
+  labels:
+    include_app_kubernetes_io: false
+  user:
+    ironic:
+      uid: 0
+network_policy:
+  ironic:
+    egress:
+    - {}
+    ingress:
+    - {}
+manifests:
+  configmap_bin: true
+  configmap_etc: true
+  deployment_api: true
+  ingress_api: true
+  job_pre_apply_cleanup: true
+  job_bootstrap: true
+  job_db_drop: false
+  job_db_init: true
+  job_db_sync: true
+  job_image_repo_sync: true
+  job_ks_endpoints: true
+  job_ks_service: true
+  job_ks_user: true
+  job_manage_cleaning_network: true
+  job_rabbit_init: true
+  pdb_api: true
+  network_policy: false
+  secret_db: true
+  secret_keystone: true
+  secret_rabbitmq: true
+  secret_registry: true
+  service_api: true
+  service_ingress_api: true
+  statefulset_conductor: true
+extraObjects: []
 ...

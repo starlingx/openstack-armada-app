@@ -409,4 +409,5 @@ secrets:
 libvirt:
   listen_addr: "::"
   extraContainers: []
+extraObjects: []
 ...

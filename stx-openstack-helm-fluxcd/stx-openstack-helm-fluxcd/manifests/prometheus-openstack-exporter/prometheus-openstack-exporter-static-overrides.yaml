@@ -148,7 +148,7 @@ conf:
     OS_POLLING_INTERVAL: 30
     TIMEOUT_SECONDS: 20
     OS_RETRIES: 1
-
+    extra_args: []
 secrets:
   identity:
     admin: prometheus-openstack-exporter-keystone-admin
@@ -162,7 +162,6 @@ secrets:
         # secret will be used in these charts
         #
         internal: keystone-tls-api
-
 
 endpoints:
   cluster_domain_suffix: cluster.local

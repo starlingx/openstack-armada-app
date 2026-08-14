@@ -432,4 +432,5 @@ manifests:
   service_ingress_management: true
   service: true
   statefulset: true
+extraObjects: []
 ...

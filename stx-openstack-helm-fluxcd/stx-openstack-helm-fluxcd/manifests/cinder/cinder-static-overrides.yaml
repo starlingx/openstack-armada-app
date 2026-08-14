@@ -401,6 +401,13 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
 
+      db_purge:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
 bootstrap:
   enabled: true
   ks_user: admin
@@ -593,7 +600,6 @@ conf:
         vgs_fdwarn: EnvFilter, env, root, LC_ALL=C, LVM_SUPPRESS_FD_WARNINGS=, vgs
         lvs_fdwarn: EnvFilter, env, root, LC_ALL=C, LVM_SUPPRESS_FD_WARNINGS=, lvs
         lvdisplay_fdwarn: EnvFilter, env, root, LC_ALL=C, LVM_SUPPRESS_FD_WARNINGS=, lvdisplay
-
 
         # -LVM related show commands conf var
         pvs_lvmconf: EnvFilter, env, root, LVM_SYSTEM_DIR=, LC_ALL=C, pvs
@@ -1045,6 +1051,7 @@ conf:
   db_purge:
     before: 30
 
+  enable_iscsi: false
 backup:
   external_ceph_rbd:
     enabled: false
@@ -1308,6 +1315,22 @@ endpoints:
         project_name: test
         user_domain_name: service
         project_domain_name: service
+      glance:
+        password: password
+        project_domain_name: service
+        project_name: service
+        region_name: RegionOne
+        role: admin,service
+        user_domain_name: service
+        username: glance
+      swift:
+        password: password
+        project_domain_name: service
+        project_name: service
+        region_name: RegionOne
+        role: admin,service
+        user_domain_name: service
+        username: cinder_swift
     hosts:
       default: keystone
       internal: keystone-api
@@ -1549,4 +1572,5 @@ manifests:
   secret_registry: true
   service_api: true
   service_ingress_api: true
+extraObjects: []
 ...

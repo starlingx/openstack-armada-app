@@ -7,6 +7,7 @@
 from sysinv.common import exception
 from sysinv.helm import common
 
+from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 
@@ -19,6 +20,33 @@ class PrometheusOpenstackExporterHelm(openstack.OpenstackBaseHelm):
 
     SERVICE_NAME = app_constants.HELM_CHART_PROMETHEUS_OPENSTACK_EXPORTER
     AUTH_USERS = ['user']
+
+    def _is_enabled(self, app_name, chart_name, namespace):
+        """Determine whether this chart should be enabled.
+
+        For Central Cloud (SystemController), this function ensures that the
+        chart is always considered enabled. This is required so that all
+        container images are included during the download the charts, allowing
+        subclouds to deploy .
+
+        Args:
+            app_name (str): Name of the application (e.g., 'stx-openstack').
+            chart_name (str): Helm chart name.
+            namespace (str): Kubernetes namespace where the chart
+                would be deployed.
+
+        Returns:
+            bool: Always "True" for Central Cloud to ensure images are
+            downloaded. For other environments, may defer to default logic.
+        """
+        # First, check if system's distributed cloud role is System Controller.
+        # Chart must be enabled during "application-upload --images" if it is.
+        if app_utils.is_central_cloud():
+            return True
+
+        # See if this chart is enabled by the user
+        return super(PrometheusOpenstackExporterHelm, self)._is_enabled(
+            app_name, chart_name, namespace)
 
     def get_overrides(self, namespace=None):
         overrides = {

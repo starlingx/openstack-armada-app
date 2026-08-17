@@ -1086,10 +1086,18 @@ tls:
 storage_conf:
   volume_storage_class_priority:
     - ceph
-    - netapp-nfs
-    - netapp-iscsi
-    - netapp-fc
+    - pvc
     - cinder
+  pvc:
+    storage_class_priority:
+      - netapp-nfs
+      - netapp-iscsi
+      - netapp-fc
+    volume:
+      class_name: general
+      size: 2Gi
+      access_modes:
+        - ReadWriteOnce
 
 manifests:
   certificates: false

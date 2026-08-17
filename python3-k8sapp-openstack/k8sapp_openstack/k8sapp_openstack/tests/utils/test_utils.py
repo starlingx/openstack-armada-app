@@ -3996,6 +3996,181 @@ class TestResolveConditionalPvcRequirements(dbbase.ControllerHostTestCase):
         mock_available.return_value = {app_constants.CEPH_BACKEND_NAME: "ceph-rbd"}
         self.assertIsNone(app_utils._resolve_glance_pvc_requirement())
 
+    # ------------------------------------------------------------------
+    # Glance 'pvc' meta-entry tests
+    # ------------------------------------------------------------------
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend")
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_required_via_pvc_meta_entry_resolved(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """Glance PVC required when 'pvc' meta-entry resolves via secondary list."""
+        # First call: Glance volume_storage_class_priority
+        # Second call: Glance pvc.storage_class_priority (secondary resolution)
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_PVC],
+            ["dell-nfs"],
+        ]
+        # First call: available_backends for Glance (outer loop)
+        # Second call: available_backends for PVC resolution
+        mock_available.side_effect = [
+            {},
+            {"dell-nfs": "dell-nfs-sc"},
+        ]
+        mock_strict.return_value = False
+        mock_backends_conf.return_value = {}
+
+        requirement = app_utils._resolve_glance_pvc_requirement()
+        self.assertIsNotNone(requirement)
+        self.assertEqual(requirement["storage_class"], "dell-nfs-sc")
+        self.assertIn("PVC image store", requirement["chart"])
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend")
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_meta_entry_fails_sole_entry_returns_none_class(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """[pvc] alone with failed resolution returns requirement with None class.
+
+        This triggers the pre-apply fail-fast check to block deployment.
+        """
+        # First call: Glance volume_storage_class_priority
+        # Second call: pvc.storage_class_priority (secondary - for resolution)
+        # Third call: pvc.storage_class_priority (for the requirement descriptor)
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_PVC],
+            ["unavailable-backend"],
+            ["unavailable-backend"],
+        ]
+        mock_available.side_effect = [
+            {},  # outer available_backends
+            {},  # PVC resolution available_backends
+        ]
+        mock_strict.return_value = False
+        mock_backends_conf.return_value = {}
+
+        requirement = app_utils._resolve_glance_pvc_requirement()
+        self.assertIsNotNone(requirement)
+        self.assertIsNone(requirement["storage_class"])
+        self.assertIn("PVC image store", requirement["chart"])
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend")
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_meta_entry_fails_with_cinder_alternative(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """[pvc, cinder] with failed PVC resolution falls through to cinder.
+
+        Cinder does not map to PVC, so no PVC requirement is returned.
+        """
+        # First call: Glance volume_storage_class_priority
+        # Second call: pvc.storage_class_priority (secondary resolution)
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_PVC, app_constants.GLANCE_BACKEND_CINDER],
+            ["unavailable-backend"],
+        ]
+        mock_available.side_effect = [
+            {},  # outer available_backends (cinder added manually in function)
+            {},  # PVC resolution available_backends
+        ]
+        mock_strict.return_value = False
+        mock_backends_conf.return_value = {}
+
+        requirement = app_utils._resolve_glance_pvc_requirement()
+        # Cinder is not PVC-backed, so no PVC requirement.
+        self.assertIsNone(requirement)
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend")
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_meta_entry_fails_with_legacy_nfs_alternative(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """[pvc, netapp-nfs] with failed PVC resolution falls to legacy NFS.
+
+        Legacy netapp-nfs maps to GLANCE_BACKEND_PVC, so a PVC requirement
+        is returned with the netapp-nfs StorageClass.
+        """
+        # First call: Glance volume_storage_class_priority
+        # Second call: pvc.storage_class_priority (secondary - fails)
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_PVC, app_constants.NETAPP_NFS_BACKEND_NAME],
+            ["unavailable-backend"],
+        ]
+        mock_available.side_effect = [
+            {app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nfs-sc"},
+            {},  # PVC resolution available_backends (fails)
+        ]
+        mock_strict.return_value = False
+        mock_backends_conf.return_value = {}
+
+        requirement = app_utils._resolve_glance_pvc_requirement()
+        # Falls through to netapp-nfs which maps to PVC.
+        self.assertIsNotNone(requirement)
+        self.assertEqual(requirement["storage_class"], "netapp-nfs-sc")
+
+    # ------------------------------------------------------------------
+    # _resolve_glance_pvc_storage_class() standalone tests (utils.py)
+    # ------------------------------------------------------------------
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend")
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_resolve_glance_pvc_sc_strict_backend(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """Strict backend in PVC priority list resolves via available_backends."""
+        mock_priority.return_value = [app_constants.NETAPP_NFS_BACKEND_NAME]
+        mock_available.return_value = {
+            app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nfs-sc"
+        }
+        mock_strict.return_value = True
+        mock_backends_conf.return_value = {}
+
+        result = app_utils._resolve_glance_pvc_storage_class()
+        self.assertEqual(result, "netapp-nfs-sc")
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend")
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_resolve_glance_pvc_sc_esb_backend(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """ESB backend in PVC priority list resolves via backends_conf."""
+        mock_priority.return_value = ["dell-nfs"]
+        mock_available.return_value = {}
+        mock_strict.return_value = False
+        mock_backends_conf.return_value = {
+            "dell-nfs": {"k8s_storage_class": "dell-nfs-sc"}
+        }
+
+        result = app_utils._resolve_glance_pvc_storage_class()
+        self.assertEqual(result, "dell-nfs-sc")
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend")
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_resolve_glance_pvc_sc_nothing_resolves(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """Returns None when no backend in PVC priority list resolves."""
+        mock_priority.return_value = ["unavailable-backend"]
+        mock_available.return_value = {}
+        mock_strict.return_value = False
+        mock_backends_conf.return_value = {}
+
+        result = app_utils._resolve_glance_pvc_storage_class()
+        self.assertIsNone(result)
+
     @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
     @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
     @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override")
@@ -4078,3 +4253,194 @@ class TestResolveConditionalPvcRequirements(dbbase.ControllerHostTestCase):
             requirement = app_utils._resolve_cinder_backup_requirement()
         self.assertIsNotNone(requirement)
         self.assertIsNone(requirement["storage_class"])
+
+
+class TestResolveGlancePvcMetaEntry(dbbase.ControllerHostTestCase):
+    """Tests for _resolve_glance_pvc_requirement() with the 'pvc' meta-entry.
+
+    Validates the lifecycle pre-apply check integration: the 'pvc' meta-entry
+    in Glance's volume_storage_class_priority triggers secondary resolution
+    via storage_conf.pvc.storage_class_priority.
+    """
+
+    # ------------------------------------------------------------------
+    # _resolve_glance_pvc_requirement() — pvc meta-entry scenarios
+    # ------------------------------------------------------------------
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend", return_value=True)
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_required_via_pvc_meta_entry_resolved(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """pvc meta-entry resolves via secondary list — returns requirement."""
+        # First call: glance volume_storage_class_priority
+        # Second call: glance pvc.storage_class_priority (secondary)
+        # Third call: also pvc.storage_class_priority (for available_backends)
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_PVC],
+            [app_constants.NETAPP_NFS_BACKEND_NAME],
+        ]
+        # First call: glance available_backends (main priority walk)
+        # Second call: pvc available_backends (secondary resolution)
+        mock_available.side_effect = [
+            {},  # 'pvc' not in available_backends (it's a meta-entry)
+            {app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nfs-sc"},
+        ]
+
+        requirement = app_utils._resolve_glance_pvc_requirement()
+
+        self.assertIsNotNone(requirement)
+        self.assertEqual(requirement["storage_class"], "netapp-nfs-sc")
+        self.assertIn("PVC image store", requirement["chart"])
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend", return_value=True)
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_meta_entry_fails_sole_entry_returns_none_class(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """pvc is sole entry, resolution fails — returns requirement with None.
+
+        This triggers _check_storageclass_resolution() to block deployment.
+        """
+        # First call: glance volume_storage_class_priority (sole entry)
+        # Second call: pvc.storage_class_priority (secondary)
+        # Third call: pvc.storage_class_priority for the fail-fast path
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_PVC],
+            ["unavailable-backend"],
+            ["unavailable-backend"],
+        ]
+        mock_available.side_effect = [
+            {},  # main walk: 'pvc' not in available_backends
+            {},  # secondary resolution: nothing available
+        ]
+        mock_strict.return_value = False
+
+        requirement = app_utils._resolve_glance_pvc_requirement()
+
+        self.assertIsNotNone(requirement)
+        self.assertIsNone(requirement["storage_class"])
+        self.assertIn("PVC image store", requirement["chart"])
+        self.assertEqual(requirement["priority_list"], ["unavailable-backend"])
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend", return_value=False)
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_meta_entry_fails_with_alternatives_falls_through(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """pvc resolution fails, cinder follows — returns None (no PVC needed).
+
+        The operator declared [pvc, cinder]. PVC can't resolve, so Glance
+        falls through to cinder. Cinder doesn't need a PVC.
+        """
+        # First call: glance volume_storage_class_priority
+        # Second call: pvc.storage_class_priority (secondary resolution)
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_PVC, app_constants.GLANCE_BACKEND_CINDER],
+            ["unavailable-backend"],
+        ]
+        mock_available.side_effect = [
+            {app_constants.GLANCE_BACKEND_CINDER: app_constants.GLANCE_BACKEND_CINDER},
+            {},  # secondary: nothing resolves
+        ]
+
+        requirement = app_utils._resolve_glance_pvc_requirement()
+
+        # cinder is not PVC-backed, so no PVC requirement
+        self.assertIsNone(requirement)
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend", return_value=True)
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_glance_pvc_meta_entry_fails_with_legacy_alternative(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """pvc resolution fails, netapp-nfs follows — returns legacy PVC requirement.
+
+        The operator declared [pvc, netapp-nfs]. PVC can't resolve via
+        secondary list, but netapp-nfs is available and maps to GLANCE_BACKEND_PVC.
+        """
+        # First call: glance volume_storage_class_priority
+        # Second call: pvc.storage_class_priority (secondary resolution — fails)
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_PVC, app_constants.NETAPP_NFS_BACKEND_NAME],
+            ["unavailable-backend"],
+        ]
+        mock_available.side_effect = [
+            {app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nfs-sc"},
+            {},  # secondary: nothing resolves
+        ]
+
+        requirement = app_utils._resolve_glance_pvc_requirement()
+
+        self.assertIsNotNone(requirement)
+        self.assertEqual(requirement["storage_class"], "netapp-nfs-sc")
+        self.assertIn("PVC image store", requirement["chart"])
+
+    # ------------------------------------------------------------------
+    # _resolve_glance_pvc_storage_class() — module-level helper
+    # ------------------------------------------------------------------
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend", return_value=True)
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_resolve_glance_pvc_storage_class_strict_backend(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """Strict backend in pvc priority list resolves to its StorageClass."""
+        mock_priority.return_value = [app_constants.NETAPP_NFS_BACKEND_NAME]
+        mock_available.return_value = {
+            app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nfs-sc",
+        }
+
+        result = app_utils._resolve_glance_pvc_storage_class()
+
+        self.assertEqual(result, "netapp-nfs-sc")
+
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_resolve_glance_pvc_storage_class_esb_backend(
+        self, mock_priority, mock_available
+    ):
+        """ESB backend resolved via backends_conf k8s_storage_class."""
+        mock_priority.return_value = ["dell-nfs"]
+        mock_available.return_value = {}  # not in strict available backends
+
+        with mock.patch(
+            "k8sapp_openstack.utils.is_strict_backend", return_value=False
+        ), mock.patch(
+            "k8sapp_openstack.utils.get_backends_conf",
+            return_value={
+                "dell-nfs": {
+                    "name": "dell-nfs",
+                    "protocol": "nfs",
+                    "k8s_storage_class": "dell-nfs-sc",
+                }
+            },
+        ):
+            result = app_utils._resolve_glance_pvc_storage_class()
+
+        self.assertEqual(result, "dell-nfs-sc")
+
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
+    @mock.patch("k8sapp_openstack.utils.is_strict_backend", return_value=False)
+    @mock.patch("k8sapp_openstack.utils.get_available_volume_backends",
+                return_value={})
+    @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
+    def test_resolve_glance_pvc_storage_class_none_when_empty(
+        self, mock_priority, mock_available, mock_strict, mock_backends_conf
+    ):
+        """Nothing in pvc priority list resolves — returns None."""
+        mock_priority.return_value = ["nonexistent-backend"]
+
+        result = app_utils._resolve_glance_pvc_storage_class()
+
+        self.assertIsNone(result)

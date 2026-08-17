@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+from typing import Optional
+
 from oslo_log import log as logging
 from sysinv.common import constants
 from sysinv.common import exception
@@ -15,11 +17,14 @@ from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import _get_value_from_application
 from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_backend_protocol
+from k8sapp_openstack.utils import get_backends_conf
 from k8sapp_openstack.utils import get_external_service_url
 from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_strict_backend
+from k8sapp_openstack.utils import is_user_overrides_available
+from k8sapp_openstack.utils import resolve_backend_storage_class
 
 LOG = logging.getLogger(__name__)
 
@@ -43,6 +48,12 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             override_name=app_constants.OVERRIDE_STORAGE_PRIORITY,
             default_value=app_constants.DEFAULT_IMAGE_PRIORITY_LIST
         )
+        self._migrated_pvc_priority = None  # Reset each run
+
+        # Runtime migration: netapp-* → pvc
+        self._migrate_legacy_priority_list()
+
+        # From this point, only the new schema exists in self._priority_list
         self._available_backends = get_available_volume_backends(
             chart_name=app_constants.HELM_CHART_GLANCE,
             override_name=app_constants.OVERRIDE_STORAGE_BACKENDS
@@ -114,16 +125,18 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     f"Update storage_conf.volume_storage_class_priority to "
                     f"reference a backend with a valid k8s_storage_class."
                 )
-            overrides[common.HELM_NS_OPENSTACK]['volume'] = {
-                'class_name': self._storage_class
-            }
 
-            if (self._storage_class ==
-                    self._available_backends.get(app_constants.NETAPP_NFS_BACKEND_NAME)):
-                # NetApp NFS PVCs support ReadWriteMany access mode. This allows
-                # multiple glance-api replicas to access the same PVC, which is
-                # required for high availability.
-                overrides[common.HELM_NS_OPENSTACK]["volume"]["accessModes"] = ["ReadWriteMany"]
+            volume_size = _get_value_from_application(
+                chart_name=self.CHART,
+                override_name=app_constants.OVERRIDE_GLANCE_PVC_VOLUME_SIZE,
+                default_value=app_constants.DEFAULT_GLANCE_PVC_VOLUME_SIZE,
+            )
+            access_modes = self._get_pvc_access_modes()
+            overrides[common.HELM_NS_OPENSTACK]['volume'] = {
+                'class_name': self._storage_class,
+                'size': volume_size,
+                'accessModes': access_modes,
+            }
 
         if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = \
@@ -147,13 +160,47 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         else:
             return overrides
 
+    def _get_pvc_access_modes(self):
+        """Get PVC access modes while preserving legacy NFS semantics.
+
+        The 26.03 NetApp NFS backend always rendered ReadWriteMany. A legacy
+        priority migrated to the generic PVC schema has no access_modes
+        override, so using the new ReadWriteOnce default would attempt an
+        immutable change to an existing claim during application-update.
+
+        Only the migration path inherits ReadWriteMany. New generic PVC
+        configurations retain the ReadWriteOnce default, and an explicit
+        operator access_modes override always takes precedence.
+        """
+        default_access_modes = (
+            app_constants.DEFAULT_GLANCE_PVC_VOLUME_ACCESS_MODES
+        )
+        netapp_nfs_storage_class = getattr(
+            self, "_available_backends", {}
+        ).get(
+            app_constants.NETAPP_NFS_BACKEND_NAME
+        )
+        if (getattr(self, "_migrated_pvc_priority", None) and
+                netapp_nfs_storage_class and
+                self._storage_class == netapp_nfs_storage_class):
+            default_access_modes = ["ReadWriteMany"]
+
+        return _get_value_from_application(
+            chart_name=self.CHART,
+            override_name=(
+                app_constants.OVERRIDE_GLANCE_PVC_VOLUME_ACCESS_MODES
+            ),
+            default_value=default_access_modes,
+        )
+
     def _get_pod_overrides(self):
-        if (self._backend == app_constants.GLANCE_BACKEND_PVC and
-            (self._storage_class ==
-             self._available_backends.get(app_constants.NETAPP_ISCSI_BACKEND_NAME) or
-                self._storage_class ==
-                    self._available_backends.get(app_constants.NETAPP_FC_BACKEND_NAME))):
-            replicas_count = 1
+        if self._backend == app_constants.GLANCE_BACKEND_PVC:
+            # Access modes drive replica count
+            access_modes = self._get_pvc_access_modes()
+            if "ReadWriteMany" not in access_modes:
+                replicas_count = 1
+            else:
+                replicas_count = self._num_provisioned_controllers()
         else:
             replicas_count = self._num_provisioned_controllers()
 
@@ -371,15 +418,128 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
 
         return backend
 
-    def _get_storage(self) -> tuple[str, str]:
+    def _migrate_legacy_priority_list(self):
+        """Runtime migration: rewrite netapp-* entries into the generic
+        pvc backend.
+
+        26.03 schema:
+            volume_storage_class_priority:
+                [ceph, netapp-nfs, netapp-iscsi, netapp-fc, cinder]
+
+        26.09 schema:
+            volume_storage_class_priority: [ceph, pvc, cinder]
+            storage_conf.pvc.storage_class_priority:
+                [netapp-nfs, netapp-iscsi, netapp-fc]
+
+        When legacy netapp-* entries are detected in self._priority_list,
+        they are replaced with a single 'pvc' meta-entry (at the position
+        of the first one). The extracted entries become the PVC
+        sub-priority if the operator hasn't explicitly configured
+        storage_conf.pvc.storage_class_priority.
+
+        Deprecated in 26.09. Planned removal in 27.03.
         """
-        Get the glance backend and storage class based on available backends and
-        their priorities.
+        legacy_entries = [
+            p for p in self._priority_list
+            if p in app_constants.GLANCE_LEGACY_NETAPP_BACKENDS
+        ]
+        if not legacy_entries:
+            return
+
+        # Replace netapp-* entries with a single 'pvc' entry
+        migrated = []
+        pvc_inserted = False
+        for p in self._priority_list:
+            if p in app_constants.GLANCE_LEGACY_NETAPP_BACKENDS:
+                if not pvc_inserted:
+                    migrated.append(app_constants.GLANCE_BACKEND_PVC)
+                    pvc_inserted = True
+                # Drop individual netapp-* entry
+            else:
+                migrated.append(p)
+        self._priority_list = migrated
+
+        # If operator hasn't explicitly set pvc.storage_class_priority,
+        # use the extracted legacy entries as the PVC sub-priority
+        has_explicit_pvc_priority = is_user_overrides_available(
+            chart_name=app_constants.HELM_CHART_GLANCE,
+            override_name=(
+                app_constants.OVERRIDE_GLANCE_PVC_STORAGE_PRIORITY
+            ),
+        )
+        if not has_explicit_pvc_priority:
+            self._migrated_pvc_priority = legacy_entries
+
+        LOG.info(
+            "Glance legacy migration: rewrote %s into generic pvc "
+            "backend. Priority list is now: %s",
+            legacy_entries, self._priority_list
+        )
+
+    def _resolve_glance_pvc_storage_class(self) -> Optional[str]:
+        """Resolve the StorageClass for the Glance PVC backend.
+
+        Reads storage_conf.pvc.storage_class_priority (Glance-owned list)
+        and resolves each entry to its k8s_storage_class via
+        get_available_volume_backends(), keyed by backend name.
+
+        When runtime migration has populated self._migrated_pvc_priority
+        (legacy netapp-* entries detected in the top-level priority list),
+        that migrated list is used instead of reading from user overrides.
+
+        Storage class resolution follows this priority order:
+        1. Strict backends returned by get_available_volume_backends()
+           (Ceph, NetApp NFS/iSCSI/FC).
+        2. ESB backends from the Cinder chart's backends_conf, identified
+           by their k8s_storage_class field (skipped when set to 'none').
+
+        Delegates to the shared resolve_backend_storage_class() utility to
+        keep resolution logic consistent with Nova and the pre-apply
+        semantic checks.
 
         Returns:
-            tuple[str, str]: A tuple containing the glance backend name and
-            corresponding storage class name for `GLANCE_BACKEND_PVC`. For other
-            backends, the storage class name will be an empty string.
+            str | None: The resolved StorageClass name, or None if no
+                backend in the priority list resolves to an available
+                StorageClass.
+        """
+        pvc_available_backends = get_available_volume_backends(
+            chart_name=app_constants.HELM_CHART_GLANCE,
+            override_name=app_constants.OVERRIDE_GLANCE_PVC_STORAGE_BACKENDS,
+        )
+
+        # Use migrated priority if available (legacy schema detected),
+        # otherwise read from user overrides / defaults
+        if self._migrated_pvc_priority:
+            pvc_priority_list = self._migrated_pvc_priority
+        else:
+            pvc_priority_list = get_storage_backends_priority_list(
+                app_constants.HELM_CHART_GLANCE,
+                app_constants.OVERRIDE_GLANCE_PVC_STORAGE_PRIORITY,
+                app_constants.DEFAULT_GLANCE_PVC_PRIORITY_LIST,
+            )
+
+        cinder_backends_conf = get_backends_conf()
+
+        return resolve_backend_storage_class(
+            priority_list=pvc_priority_list,
+            available_backends=pvc_available_backends,
+            backends_conf=cinder_backends_conf,
+        )
+
+    def _get_storage(self) -> tuple[str, str]:
+        """
+        Get the glance backend and storage class based on available backends
+        and their priorities.
+
+        After runtime migration (_migrate_legacy_priority_list), the priority
+        list only contains canonical entries: 'ceph', 'pvc', 'cinder'.
+        The generic 'pvc' entry triggers secondary resolution via
+        storage_conf.pvc.storage_class_priority (Glance-owned list).
+
+        Returns:
+            tuple[str, str]: A tuple containing:
+                - The glance backend name.
+                - The corresponding storage class name (empty for non-PVC).
 
         Example:
             >>> backend, storage_class = self._get_storage()
@@ -387,20 +547,36 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             pvc general
             >>> backend, storage_class = self._get_storage()
             >>> print(backend, storage_class)
-            rbd ""
+            rbd
             >>> backend, storage_class = self._get_storage()
             >>> print(backend, storage_class)
-            cinder ""
+            cinder
         """
         backend = app_constants.GLANCE_DEFAULT_BACKEND
         storage_class = ""
         for priority in self._priority_list:
-            if self._available_backends.get(priority, ""):
+            if priority == app_constants.GLANCE_BACKEND_PVC:
+                # Generic PVC backend: resolve via Glance-owned
+                # storage_conf.pvc.storage_class_priority.
+                resolved_class = self._resolve_glance_pvc_storage_class()
+                if resolved_class:
+                    backend = app_constants.GLANCE_BACKEND_PVC
+                    storage_class = resolved_class
+                    break
+                # Resolution failed. If 'pvc' is the only entry (no
+                # fallback declared), select it anyway so that
+                # get_overrides() logs an error and the pre-apply
+                # semantic check blocks deployment with a clear message.
+                # If other entries follow, honor the priority-list
+                # fallback semantics — the operator declared alternatives.
+                if len(self._priority_list) == 1:
+                    backend = app_constants.GLANCE_BACKEND_PVC
+                    break
+                # Otherwise, fall through to the next priority entry.
+            elif self._available_backends.get(priority, ""):
                 backend = app_constants.VOLUME_BACKEND_TO_GLANCE_BACKEND[
                     priority
                 ]
-                if backend == app_constants.GLANCE_BACKEND_PVC:
-                    storage_class = self._available_backends.get(priority, "")
                 break
         return backend, storage_class
 

@@ -3993,6 +3993,12 @@ def _resolve_glance_pvc_requirement() -> dict:
     the highest-priority available backend maps to GLANCE_BACKEND_PVC). When
     Glance resolves to ``rbd`` (Ceph) or ``cinder``, no PVC is required.
 
+    The ``pvc`` meta-entry in the priority list triggers a secondary
+    resolution via storage_conf.pvc.storage_class_priority (Glance-owned).
+    When ``pvc`` is the sole entry and resolution fails, a requirement with
+    storage_class=None is returned so that the pre-apply check blocks
+    deployment.
+
     Returns:
         dict|None: A requirement descriptor
             {'chart': <label>, 'priority_list': [...], 'storage_class': <str|None>}
@@ -4010,6 +4016,32 @@ def _resolve_glance_pvc_requirement() -> dict:
         app_constants.GLANCE_BACKEND_CINDER
 
     for backend in priority_list:
+        if backend == app_constants.GLANCE_BACKEND_PVC:
+            # Generic PVC meta-entry: resolve via Glance-owned
+            # storage_conf.pvc.storage_class_priority.
+            pvc_storage_class = _resolve_glance_pvc_storage_class()
+            if pvc_storage_class:
+                return {
+                    'chart': f"{app_constants.HELM_CHART_GLANCE} (PVC image store)",
+                    'priority_list': priority_list,
+                    'storage_class': pvc_storage_class,
+                }
+            # Resolution failed. If 'pvc' is the only entry, return a
+            # requirement with None to trigger the fail-fast check.
+            if len(priority_list) == 1:
+                pvc_priority = get_storage_backends_priority_list(
+                    app_constants.HELM_CHART_GLANCE,
+                    app_constants.OVERRIDE_GLANCE_PVC_STORAGE_PRIORITY,
+                    app_constants.DEFAULT_GLANCE_PVC_PRIORITY_LIST,
+                )
+                return {
+                    'chart': f"{app_constants.HELM_CHART_GLANCE} (PVC image store)",
+                    'priority_list': pvc_priority,
+                    'storage_class': None,
+                }
+            # Alternatives follow — fall through to next entry.
+            continue
+
         storage_class = available_backends.get(backend)
         if not storage_class:
             continue
@@ -4022,6 +4054,43 @@ def _resolve_glance_pvc_requirement() -> dict:
             }
         # First available backend is not PVC-backed (rbd/cinder): no PVC needed.
         return None
+    return None
+
+
+def _resolve_glance_pvc_storage_class():
+    """Resolve the StorageClass for the Glance generic PVC backend.
+
+    Reads storage_conf.pvc.storage_class_priority (Glance-owned list)
+    and resolves each entry to its k8s_storage_class via
+    get_available_volume_backends(), keyed by backend name. Falls back
+    to ESB backends_conf for non-strict entries.
+
+    Returns:
+        str | None: The resolved StorageClass name, or None if no backend
+            in the priority list resolves.
+    """
+    pvc_available_backends = get_available_volume_backends(
+        chart_name=app_constants.HELM_CHART_GLANCE,
+        override_name=app_constants.OVERRIDE_GLANCE_PVC_STORAGE_BACKENDS,
+    )
+    pvc_priority_list = get_storage_backends_priority_list(
+        app_constants.HELM_CHART_GLANCE,
+        app_constants.OVERRIDE_GLANCE_PVC_STORAGE_PRIORITY,
+        app_constants.DEFAULT_GLANCE_PVC_PRIORITY_LIST,
+    )
+    cinder_backends_conf = get_backends_conf()
+
+    for priority in pvc_priority_list:
+        backend_storage_class = pvc_available_backends.get(priority)
+        if not backend_storage_class and not is_strict_backend(priority):
+            backend_conf_entry = cinder_backends_conf.get(priority, {})
+            k8s_storage_class = backend_conf_entry.get('k8s_storage_class')
+            if isinstance(k8s_storage_class, str) \
+                    and k8s_storage_class.lower() != 'none':
+                backend_storage_class = k8s_storage_class
+        if backend_storage_class:
+            return backend_storage_class
+
     return None
 
 

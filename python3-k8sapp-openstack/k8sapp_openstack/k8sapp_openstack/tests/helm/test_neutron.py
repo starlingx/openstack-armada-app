@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2025 Wind River Systems, Inc.
+# Copyright (c) 2020-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -377,4 +377,58 @@ class NeutronGetPerHostOverrideTest(NeutronHelmTestCase,
         self.assertEqual(
             ['worker-1', 'worker-3'],
             overrides[1]['name']
+        )
+
+
+class NeutronMl2ConfigTest(NeutronHelmTestCase,
+                           dbbase.ControllerHostTestCase):
+
+    def setUp(self):
+        super(NeutronMl2ConfigTest, self).setUp()
+        self.operator = helm.HelmOperator(self.dbapi)
+        self.neutron_helm = neutron.NeutronHelm(self.operator)
+
+    def _create_datanetwork(self, name, network_type):
+        return dbutils.create_test_datanetwork(name=name,
+                                               network_type=network_type,
+                                               mtu=1500)
+
+    def test_get_vlan_networks(self):
+        """
+        Test _get_vlan_networks to ensure VLAN data networks are registered
+        and the other types are left out. The base fixture already provides
+        data0 and data1, both VLAN.
+        """
+        self._create_datanetwork('dn-flat', constants.DATANETWORK_TYPE_FLAT)
+        self._create_datanetwork('dn-vlan', constants.DATANETWORK_TYPE_VLAN)
+
+        self.assertEqual(
+            'data0,data1,dn-vlan',
+            self.neutron_helm._get_vlan_networks()
+        )
+
+    def test_get_vlan_networks_without_vlan_datanetworks(self):
+        """
+        Test _get_vlan_networks to ensure an empty value is returned when no
+        VLAN data network is provisioned.
+        """
+        for datanetwork in self.datanetworks:
+            self.dbapi.datanetwork_destroy(datanetwork.uuid)
+        self._create_datanetwork('dn-flat', constants.DATANETWORK_TYPE_FLAT)
+
+        self.assertEqual(
+            '',
+            self.neutron_helm._get_vlan_networks()
+        )
+
+    def test_get_neutron_ml2_config_vlan_ranges(self):
+        """
+        Test _get_neutron_ml2_config to ensure the VLAN data networks reach
+        ml2_type_vlan.network_vlan_ranges.
+        """
+        ml2_config = self.neutron_helm._get_neutron_ml2_config()
+
+        self.assertEqual(
+            'data0,data1',
+            ml2_config['ml2_type_vlan']['network_vlan_ranges']
         )

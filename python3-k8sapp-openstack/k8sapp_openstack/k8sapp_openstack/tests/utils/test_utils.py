@@ -1445,7 +1445,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
     @staticmethod
     def _override_timeout_only(default_value, *_, **kwargs):
         if kwargs.get('override_name') == "conf.federation.dex_conf.timeout":
-            return 10
+            return 20
         return default_value
 
     @staticmethod
@@ -1480,7 +1480,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         mock_get_value.side_effect = self._override_timeout_only
 
         expected_config = {
-            "timeout": 10,
+            "timeout": 20,
             "retries": app_constants.DEX_HEALTH_CHECK_DEFAULT_RETRIES,
             "verify": app_constants.DEX_HEALTH_CHECK_DEFAULT_VERIFY,
             "endpoint": app_constants.DEX_HEALTH_CHECK_DEFAULT_ENDPOINT,
@@ -1606,6 +1606,62 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         mock_requests_get.assert_called_once_with(
             "https://dex.example/probe", timeout=3, verify=False
         )
+
+    @mock.patch('k8sapp_openstack.utils.get_dex_health_check_config',
+                return_value={"timeout": 10, "retries": 3, "verify": False, "endpoint": "/healthz"})
+    @mock.patch('k8sapp_openstack.utils.get_dex_issuer_url',
+                return_value="https://dex.example")
+    @mock.patch('k8sapp_openstack.utils.requests.get')
+    def test_check_dex_healthy_recovers_after_transient_timeout(
+        self, mock_requests_get, mock_get_dex_issuer_url, _
+    ):
+        """Ensure health check succeeds when initial attempts time out.
+
+        This validates the fix for the intermittent failure where DEX is
+        healthy but the probe times out under system load during initial
+        apply.  With retries=3, a transient timeout on attempts 1 and 2
+        is tolerated as long as attempt 3 succeeds.
+        """
+        import requests as real_requests
+
+        success_response = mock.MagicMock()
+        success_response.status_code = app_constants.DEX_HEALTHY_STATUS_CODE
+        success_response.ok = True
+
+        # First two attempts time out, third succeeds
+        mock_requests_get.side_effect = [
+            real_requests.exceptions.ReadTimeout("Read timed out. (read timeout=10)"),
+            real_requests.exceptions.ReadTimeout("Read timed out. (read timeout=10)"),
+            success_response,
+        ]
+
+        result = app_utils.check_dex_healthy(mock.MagicMock(), dex_enabled=True)
+
+        self.assertTrue(result)
+        self.assertEqual(mock_requests_get.call_count, 3)
+
+    @mock.patch('k8sapp_openstack.utils.get_dex_health_check_config',
+                return_value={"timeout": 10, "retries": 3, "verify": False, "endpoint": "/healthz"})
+    @mock.patch('k8sapp_openstack.utils.get_dex_issuer_url',
+                return_value="https://dex.example")
+    @mock.patch('k8sapp_openstack.utils.requests.get')
+    def test_check_dex_healthy_fails_after_all_retries_exhausted(
+        self, mock_requests_get, mock_get_dex_issuer_url, _
+    ):
+        """Ensure health check fails when ALL retry attempts time out.
+
+        With the increased retry count (3), all attempts must fail before
+        the function returns False.
+        """
+        import requests as real_requests
+
+        mock_requests_get.side_effect = real_requests.exceptions.ReadTimeout(
+            "Read timed out. (read timeout=10)")
+
+        result = app_utils.check_dex_healthy(mock.MagicMock(), dex_enabled=True)
+
+        self.assertFalse(result)
+        self.assertEqual(mock_requests_get.call_count, 3)
 
     @mock.patch('k8sapp_openstack.utils.get_services_fqdn_pattern')
     @mock.patch('k8sapp_openstack.utils.get_endpoint_domain')

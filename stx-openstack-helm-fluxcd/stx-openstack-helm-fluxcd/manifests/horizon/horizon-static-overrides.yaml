@@ -45,9 +45,9 @@ network:
         namespace: "nginx-openstack"
         cluster: "nginx"
       annotations:
-        nginx.ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/rewrite-target: null
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
-        haproxy.org/path-rewrite: /
+        haproxy.org/path-rewrite: null
   external_policy_local: false
   node_port:
     enabled: 'true'

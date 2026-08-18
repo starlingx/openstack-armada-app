@@ -606,10 +606,11 @@ conf:
       OIDCEnableMemcached: true
       # Delimiter for multi-valued claims (Keystone expects semicolon for groups)
       OIDCClaimDelimiter: ";"
+    # Values below must match DEX_HEALTH_CHECK_DEFAULT_* in constants.py
     dex_conf:
       verify: False
-      retries: 1
-      timeout: 5
+      retries: 3
+      timeout: 10
       probe_endpoint: "/healthz"
     dex_idp:
       # Enable DEX integration
@@ -620,6 +621,11 @@ conf:
       group_name: "federated_users"
       project_name: "federation"
       mapping_name: "dex_mapping"
+      # Bootstrap retry configuration for federation protocol creation.
+      # These control the retry loops in the bootstrap script that wait
+      # for Keystone API consistency after identity provider/mapping creation.
+      bootstrap_retries: 5       # minimum 1
+      bootstrap_retry_interval: 2
       # Horizon WebSSO configuration
       websso_label: "Login with DEX SSO"
       websso_initial_choice: "credentials"
@@ -677,7 +683,41 @@ conf:
           openstack identity provider create {{ .Values.conf.federation.dex_idp.provider_name }} --remote-id {{ .Values.conf.federation.dex_idp.provider_remote_id }} 2>/dev/null || true
           openstack mapping create --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }} 2>/dev/null || \
           openstack mapping set --rules /tmp/dex_mapping.json {{ .Values.conf.federation.dex_idp.mapping_name }}
-          openstack federation protocol create {{ .Values.conf.federation.dex_idp.protocol_name }} --identity-provider {{ .Values.conf.federation.dex_idp.provider_name }} --mapping {{ .Values.conf.federation.dex_idp.mapping_name }} 2>/dev/null || true
+          # Wait for identity provider and mapping to be queryable before
+          # creating the federation protocol (avoids transient API overload
+          # causing silent failure on the dependent command).
+          for i in $(seq 1 {{ max 1 (int .Values.conf.federation.dex_idp.bootstrap_retries) }}); do
+            openstack identity provider show {{ .Values.conf.federation.dex_idp.provider_name }} >/dev/null 2>&1 && \
+            openstack mapping show {{ .Values.conf.federation.dex_idp.mapping_name }} >/dev/null 2>&1 && break
+            sleep {{ .Values.conf.federation.dex_idp.bootstrap_retry_interval }}
+          done
+          # Use curl for protocol creation because openstacksdk 4.10.0 has a
+          # bug where FederationProtocol(name=X).id is None, causing
+          # InvalidRequest on the PUT URL construction. The REST API itself
+          # works fine -- only the client-side URL builder is broken.
+          # Ref: openstacksdk fix merged in 4.15.0 (commit 57c8964355).
+          KEYSTONE_URL="${OS_AUTH_URL%/v3*}/v3"
+          TOKEN=$(openstack token issue -c id -f value)
+          # Retry — accepts 201 (created) or 409 (already exists) as success.
+          RESULT=""
+          for i in $(seq 1 {{ max 1 (int .Values.conf.federation.dex_idp.bootstrap_retries) }}); do
+            RESPONSE=$(curl -s -w '\n%{http_code}' -X PUT \
+              "${KEYSTONE_URL}/OS-FEDERATION/identity_providers/{{ .Values.conf.federation.dex_idp.provider_name }}/protocols/{{ .Values.conf.federation.dex_idp.protocol_name }}" \
+              -H "X-Auth-Token: ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"protocol": {"mapping_id": "{{ .Values.conf.federation.dex_idp.mapping_name }}"}}')
+            RESULT=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+            [ "$RESULT" = "201" ] || [ "$RESULT" = "409" ] && break
+            sleep {{ .Values.conf.federation.dex_idp.bootstrap_retry_interval }}
+          done
+          if [ "$RESULT" = "201" ]; then
+            echo "Federation protocol '{{ .Values.conf.federation.dex_idp.protocol_name }}' created successfully."
+          elif [ "$RESULT" = "409" ]; then
+            echo "Federation protocol '{{ .Values.conf.federation.dex_idp.protocol_name }}' already exists."
+          else
+            echo "WARNING: Failed to create federation protocol '{{ .Values.conf.federation.dex_idp.protocol_name }}' (HTTP ${RESULT}). Response: ${BODY}"
+          fi
   # NOTE(lamt) We can leverage multiple domains with different
   # configurations as outlined in
   # https://docs.openstack.org/keystone/pike/admin/identity-domain-specific-config.html.

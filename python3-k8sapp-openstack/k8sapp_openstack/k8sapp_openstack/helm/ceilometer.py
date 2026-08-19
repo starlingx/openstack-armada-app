@@ -49,7 +49,7 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
     def _get_pod_overrides(self):
         return {
             'replicas': {
-                'central': self._num_provisioned_controllers(),
+                'central': 1,  # With more than one replica, duplicate data is generated
                 'notification': self._num_provisioned_controllers()
             }
         }

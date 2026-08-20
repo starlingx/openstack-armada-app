@@ -7,7 +7,7 @@ DIST_REPOS="OS"
 UPGRADE_PIP_PACKAGES=pip
 PROJECT_UID=42425
 PROJECT_GID=42425
-PIP_PACKAGES="aodhclient"
+PIP_PACKAGES="aodhclient pymemcache"
 PROFILES="apache"
 CUSTOMIZATION="\
     ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \

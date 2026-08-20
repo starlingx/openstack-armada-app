@@ -478,3 +478,6 @@ KEYSTONE_DEFAULT_AUTH_METHODS = (
 )
 # Auth methods that DEX requires beyond the default set.
 DEX_AUTH_METHODS = ("openid",)
+
+# Prometheus platform app name identifier
+PROMETHEUS_PLATFORM_APP_NAME = 'prometheus'

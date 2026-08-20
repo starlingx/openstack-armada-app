@@ -4238,3 +4238,53 @@ def get_pvc_storageclass_requirements() -> list:
             requirements.append(requirement)
 
     return requirements
+
+
+def get_platform_app_status(app_name):
+    """
+    Retrieves the status of a given platform app.
+
+    Params:
+        app_name: app name to look up.
+
+    Returns:
+        The app status from a known list of states (e.g. `constants.APP_APPLY_IN_PROGRESS`).
+        The associated `constants.APP_NOT_PRESENT` value is returned if the app is not found.
+        A `None` value is returned when there's any error looking up the given app by name.
+    """
+    db = dbapi.get_instance()
+
+    app_status = None
+    try:
+        app = db.kube_app_get(app_name)
+        app_status = app.status
+    except exception.KubeAppNotFound:
+        app_status = constants.APP_NOT_PRESENT
+    except Exception as e:
+        LOG.error(f'failed to determine status of platform app {app_name}: {e}')
+    return app_status
+
+
+def is_platform_app_available(app_name, available_states=None):
+    """
+    Verifies that a given platform app is available matching `available_states`.
+
+    Params:
+        app_name (str): app name to look up.
+        available_states (list): list of app states to consider
+        when None these default to: `[
+                constants.APP_APPLY_SUCCESS,
+                constants.APP_APPLY_IN_PROGRESS,
+            ]`
+
+    Returns:
+        bool -- Wheter a platform app was found in any of given states.
+        The value is False when either the app cannot be found or the
+        lookup fails for any other reason.
+    """
+    if available_states is None:
+        available_states = [
+            constants.APP_APPLY_SUCCESS,
+            constants.APP_APPLY_IN_PROGRESS,
+        ]
+    return get_platform_app_status(app_name) in available_states

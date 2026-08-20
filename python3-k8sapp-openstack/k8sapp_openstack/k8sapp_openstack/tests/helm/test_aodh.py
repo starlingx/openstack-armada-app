@@ -273,3 +273,31 @@ class AodhGetOverrideTest(AodhHelmTestCase,
                     'subPath': app_constants.AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY,
                     'readOnly': True
                 })
+
+    @mock.patch('k8sapp_openstack.helm.aodh.is_platform_app_available', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_aodh_overrides_prometheus_endpoint_not_available(self, *_):
+        """Tests that the Prometheus endpoint configuration is disabled when
+        the platform app is not available.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_AODH,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        conf = overrides['conf']
+        self.assertIn('prometheus', conf)
+        self.assertIn('enabled', conf['prometheus'])
+        self.assertEqual(False, conf['prometheus']['enabled'])
+
+    @mock.patch('k8sapp_openstack.helm.aodh.is_platform_app_available', return_value=True)
+    @mock.patch('k8sapp_openstack.helm.aodh.is_aodh_rest_notifier_tls_enabled', return_value=False)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_aodh_overrides_prometheus_endpoint_available(self, *_):
+        """Tests that Prometheus endpoint configuration present in static overrides
+        is preserved when the prometheus app is available in the platform.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_AODH,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        conf = overrides['conf']
+        self.assertNotIn('prometheus', conf)

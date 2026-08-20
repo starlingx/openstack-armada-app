@@ -541,6 +541,7 @@ conf:
     formatter_default:
       format: "%(message)s"
   prometheus:
+    enabled: true
     host: kube-prometheus-stack-prometheus.monitoring.svc.cluster.local
     port: 9090
 aodh_notifier:

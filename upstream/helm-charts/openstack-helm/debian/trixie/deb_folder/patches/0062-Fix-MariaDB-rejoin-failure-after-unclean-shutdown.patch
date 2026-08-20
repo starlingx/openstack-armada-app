@@ -1,0 +1,447 @@
+From f7aa4174dbc860065051551aee450dabf56b3191 Mon Sep 17 00:00:00 2001
+From: Ahmed Syed <Ahmed.Syed@windriver.com>
+Date: Thu, 27 Aug 2026 13:43:29 -0400
+Subject: [PATCH] Fix MariaDB rejoin failure after unclean shutdown
+
+After an unclean stop of a node hosting a mariadb-server replica (power
+loss, IPMI power-off, kernel panic) the replica does not rejoin the
+Galera cluster when the node returns. The pod stays 0/1 and is restarted
+by the startupProbe until the application is removed and reapplied.
+
+The trigger is the transaction coordinator log. MariaDB creates
+/var/lib/mysql/tc.log while the server runs and removes it on a clean
+shutdown, so finding it at startup means the previous stop was unclean
+and crash recovery still has to replay it.
+
+run_mysqld() performs local housekeeping before starting the
+replicating server: it sets the admin account passwords and runs
+mariadb-upgrade against a local mariadbd started with --wsrep-on=false
+so those statements are not replicated. That is where recovery fails,
+because the wsrep engine registered in tc.log is not enabled in this
+invocation:
+
+  [ERROR] Recovery failed! You must enable all engines that were
+          enabled at the moment of the crash
+  [ERROR] Can't init tc log
+  [ERROR] Aborting
+
+Replay the log before that launch instead, using the same wsrep-enabled
+recovery pass the script already runs to obtain a wsrep position. With
+the provider loaded the engine set matches what tc.log recorded, so the
+replay succeeds, resolves the in-doubt transactions and removes the
+log, leaving nothing for the --wsrep-on=false start to choke on.
+
+Recovering rather than deleting matters. It discards no XA state, so it
+is correct on every path, including a single-node bootstrap or an
+all-nodes-down election winner where this node's data may be the only
+copy. That is why the handling is not conditional on the cluster
+argument.
+
+The replay is followed by a check that tc.log is actually gone rather
+than by trusting the recovered position, which is scraped from
+mariadbd's log text. A pass that failed but still printed a position
+line would otherwise send the wsrep-disabled start into the same abort
+on every restart with nothing ever clearing the log.
+
+recover_wsrep_position() is promoted from a nested closure to a module
+level function so both callers can use it, and it now returns None
+instead of raising when no position is printed. The caller that records
+a seqno keeps the old strictness by raising on None, since a seqno
+cannot be written without one. It also bounds the pass with a timeout so
+an overrun is reported rather than appearing as an anonymous probe
+restart, and logs a non-zero exit.
+
+A second defect kept the pod from reporting a failure.
+wait_mysql_status() looped without a limit and kept no handle on the
+thread running mariadbd, so once the local server aborted the script
+waited on a process that had already gone. Bound the wait, pass the
+thread so an exited mariadbd is detected within one cycle, and raise
+when the local server never becomes available. The thread is marked
+daemon so that raise can actually terminate the interpreter; left
+non-daemon, shutdown blocks joining a thread still waiting on an
+unusable mariadbd and the container stays Running and never Ready,
+which is the state the bound exists to avoid.
+
+Startup budget: the replay runs first and the status wait follows it, so
+the two are consecutive and their sum has to stay inside the
+startupProbe deadline rather than sitting alongside it. With the
+defaults that worst case is 300 + 10 x 30 = 600s against a 660s
+deadline. All three values are exposed under conf.galera as
+mysql_recovery_timeout, mysql_status_max_retries and
+mysql_status_retry_delay and passed through the statefulset, following
+the existing cluster_leader_ttl pattern, so they can be stretched
+alongside the probe parameters. They are read with os.getenv(...) or
+default rather than a default argument, because the statefulset always
+sets them and the case to defend against is an empty value rather than
+an absent one.
+
+Change-Id: I5fcbda32393b925d1d20ce6e7cfd64be2f677e05
+Signed-off-by: Ahmed Syed <ahmed.syed@windriver.com>
+---
+ mariadb/templates/bin/_start.py.tpl | 230 +++++++++++++++++++++-------
+ mariadb/templates/statefulset.yaml  |   6 +
+ mariadb/values.yaml                 |  11 ++
+ 3 files changed, 195 insertions(+), 52 deletions(-)
+
+diff --git a/mariadb/templates/bin/_start.py.tpl b/mariadb/templates/bin/_start.py.tpl
+index f25e29348..98c61e6b3 100644
+--- a/mariadb/templates/bin/_start.py.tpl
++++ b/mariadb/templates/bin/_start.py.tpl
+@@ -143,6 +143,28 @@ default_sleep = 20
+ # set one name for all commands, avoid "magic names"
+ MYSQL_BINARY_NAME='mariadbd'
+ 
++MYSQL_DATA_DIR = '/var/lib/mysql'
++GRASTATE_PATH = os.path.join(MYSQL_DATA_DIR, 'grastate.dat')
++
++# Transaction coordinator log. MariaDB creates it when more than one
++# XA-capable storage engine is enabled and removes it on clean shutdown.
++# Its presence at startup therefore means the previous shutdown was not
++# clean and crash recovery still has to replay it.
++TC_LOG_PATH = os.path.join(MYSQL_DATA_DIR, 'tc.log')
++
++# Startup budget. The recovery pass runs first and the status wait follows
++# it, so the two are consecutive rather than concurrent and their sum has
++# to stay inside the startupProbe deadline. With the defaults below that
++# worst case is 300 + 10 x 30 = 600s against a 660s deadline. Stretching
++# either of these means stretching the probe too, see the note in
++# values.yaml. os.getenv is read with "or" rather than a default argument
++# because the statefulset always sets these, so the case to defend against
++# is an empty value rather than an absent one, and int('') would otherwise
++# raise before the logger exists.
++MYSQL_RECOVERY_TIMEOUT = int(os.getenv('MYSQL_RECOVERY_TIMEOUT') or 300)
++MYSQL_STATUS_MAX_RETRIES = int(os.getenv('MYSQL_STATUS_MAX_RETRIES') or 10)
++MYSQL_STATUS_RETRY_DELAY = int(os.getenv('MYSQL_STATUS_RETRY_DELAY') or 30)
++
+ 
+ def ensure_state_configmap(pod_namespace, configmap_name, configmap_body):
+     """Ensure the state configmap exists.
+@@ -190,12 +212,26 @@ def run_cmd_with_logging(popenargs,
+     return child.wait()
+ 
+ 
+-def wait_mysql_status(delay=30):
++def wait_mysql_status(delay=MYSQL_STATUS_RETRY_DELAY,
++                      retries=MYSQL_STATUS_MAX_RETRIES,
++                      server_thread=None):
++    """Wait for the local mariadbd instance to accept connections.
++
++    Keyword arguments:
++    delay -- seconds to wait between attempts
++    retries -- maximum number of attempts before giving up
++    server_thread -- thread running the mariadbd instance being waited on.
++                     If that thread has exited, mariadbd is gone and there
++                     is nothing left to wait for, so return immediately.
++
++    Returns True if mariadbd became available, False otherwise. This must
++    not block forever: the caller has to be able to react to a mariadbd
++    that died during startup instead of leaving the pod Running but never
++    Ready.
++    """
+     logger.info("Start checking mariadb status")
+-    i = 0
+-    res = 1
+-    while True:
+-        logger.info("Checking mysql status {0}".format(i))
++    for i in range(retries):
++        logger.info("Checking mysql status {0}/{1}".format(i + 1, retries))
+         cmd = ['mariadb',
+             "--defaults-file=/etc/mysql/admin_user.cnf",
+             "--host=localhost"]
+@@ -205,17 +241,51 @@ def wait_mysql_status(delay=30):
+         res = run_cmd_with_logging(cmd, logger)
+         if res == 0:
+             logger.info("mariadb status check passed")
+-            break
+-        else:
+-            logger.info("mariadb status check failed")
+-        i += 1
++            return True
++        logger.info("mariadb status check failed")
++        if server_thread is not None and not server_thread.is_alive():
++            logger.error(
++                "The mariadbd instance being waited on has already exited, "
++                "abandoning the status check")
++            return False
+         time.sleep(delay)
++    logger.error(
++        "mariadb did not become available after {0} attempts".format(retries))
++    return False
++
++
++def launch_local_mysqld(bootstrap_sql_file):
++    """Start a local, non-replicating mariadbd and wait for it to be usable.
++
++    Used to apply the admin account changes and run the schema upgrade
++    before the replicating instance is started. Replication is disabled so
++    those statements are not sent to the cluster.
++
++    Keyword arguments:
++    bootstrap_sql_file -- SQL file passed to mariadbd via --init-file
++
++    Returns True if mariadbd became available, False otherwise.
++    """
++    server_thread = threading.Thread(
++        target=run_cmd_with_logging,
++        args=([
++            MYSQL_BINARY_NAME, '--bind-address=127.0.0.1', '--wsrep-on=false',
++            "--init-file={0}".format(bootstrap_sql_file)
++        ], logger))
++    # Daemon, so that when the caller gives up and raises, the interpreter
++    # can exit instead of blocking forever joining a thread that is still
++    # waiting on a mariadbd which never became usable. Without this the
++    # container stays Running and never Ready, which is the state this
++    # bound exists to avoid.
++    server_thread.daemon = True
++    server_thread.start()
++    return wait_mysql_status(server_thread=server_thread)
+ 
+ 
+ def stop_mysqld():
+     """Stop mysqld, assuming pid file in default location."""
+     logger.info("Shutting down any mysqld instance if required")
+-    mysqld_pidfile_path = "/var/lib/mysql/{0}.pid".format(local_hostname)
++    mysqld_pidfile_path = os.path.join(MYSQL_DATA_DIR, "{0}.pid").format(local_hostname)
+ 
+     def is_pid_running(pid):
+         if os.path.isdir('/proc/{0}'.format(pid)):
+@@ -314,7 +384,7 @@ def mysqld_write_cluster_conf(mode='run'):
+ def mysqld_bootstrap():
+     """Bootstrap the db if no data found in the 'bootstrap_test_dir'"""
+     logger.info("Boostrapping Mariadb")
+-    mysql_data_dir = '/var/lib/mysql'
++    mysql_data_dir = MYSQL_DATA_DIR
+     bootstrap_test_dir = "{0}/mysql".format(mysql_data_dir)
+     if not os.path.isdir(bootstrap_test_dir):
+         stop_mysqld()
+@@ -561,7 +631,7 @@ def get_grastate_val(key):
+         # the IndexError will still occur as we are seeing now without the loop.
+         time_end = time.time() + 60
+         while time.time() < time_end:
+-            with open("/var/lib/mysql/grastate.dat", "r") as myfile:
++            with open(GRASTATE_PATH, "r") as myfile:
+                 grastate_raw = [s.strip() for s in myfile.readlines()]
+             if grastate_raw:
+                 break
+@@ -582,20 +652,20 @@ def set_grastate_val(key, value):
+     value -- the value to set the key to
+     """
+     logger.debug("Updating grastate.dat key={0} value={1}".format(key, value))
+-    with open("/var/lib/mysql/grastate.dat", "r") as sources:
++    with open(GRASTATE_PATH, "r") as sources:
+         lines = sources.readlines()
+         for line_num, line_content in enumerate(lines):
+             if line_content.startswith("{0}:".format(key)):
+                 line_content = "{0}: {1}\n".format(key, value)
+             lines[line_num] = line_content
+-    with open("/var/lib/mysql/grastate.dat", "w") as sources:
++    with open(GRASTATE_PATH, "w") as sources:
+         for line in lines:
+             sources.write(line)
+ 
+ 
+ def update_grastate_configmap():
+     """Update state configmap with grastate.dat info."""
+-    while not os.path.exists('/var/lib/mysql/grastate.dat'):
++    while not os.path.exists(GRASTATE_PATH):
+         time.sleep(1)
+     logger.info("Updating grastate configmap")
+     grastate = dict()
+@@ -610,44 +680,74 @@ def update_grastate_configmap():
+             set_configmap_data(key=configmap_key, value=grastate_value)
+ 
+ 
++def recover_wsrep_position():
++    """Run a recovery pass over the data directory and return the position.
++
++    mariadbd is started with the wsrep provider enabled, which is what lets
++    this replay a tc.log that registered the wsrep engine. A successful
++    replay also resolves the in-doubt transactions and removes tc.log, so
++    callers can use this to make the data directory safe for a subsequent
++    --wsrep-on=false start.
++
++    Returns the recovered position, or None if the pass completed without
++    printing one. Callers that need the position must check for None
++    themselves; callers that only need the replay should verify the
++    postcondition they care about instead, because the position is scraped
++    from mariadbd's log text and is a weaker signal than the state on disk.
++    """
++    wsrep_recover = subprocess.Popen(  # nosec
++        [
++            MYSQL_BINARY_NAME, '--bind-address=127.0.0.1',
++            '--wsrep_cluster_address=gcomm://', '--wsrep-recover'
++        ],
++        stdout=subprocess.PIPE,
++        stderr=subprocess.PIPE,
++        encoding="utf-8")
++    try:
++        out, err = wsrep_recover.communicate(timeout=MYSQL_RECOVERY_TIMEOUT)
++    except subprocess.TimeoutExpired:
++        wsrep_recover.kill()
++        out, err = wsrep_recover.communicate()
++        logger.error(
++            "The wsrep recovery pass did not finish within {0}s and was "
++            "killed. How long a replay takes depends on how much in-doubt "
++            "work was outstanding, so a busy database may need "
++            "conf.galera.mysql_recovery_timeout raised, along with the "
++            "startupProbe budget.".format(MYSQL_RECOVERY_TIMEOUT))
++    wsrep_rec_pos = None
++    # NOTE: communicate() returns a tuple (stdout_data, stderr_data).
++    # The data will be strings if streams were opened in text mode;
++    # otherwise, bytes. If it is bytes, we should decode and get a
++    # str for the err.split() to not error below.
++    if isinstance(err, bytes):
++        err = err.decode('utf-8')
++    for item in err.split("\n"):
++        logger.info("Recovering wsrep position: {0}".format(item))
++        if "WSREP: Recovered position:" in item:
++            line = item.strip().split()
++            wsrep_rec_pos = line[-1].split(':')[-1]
++    if wsrep_recover.returncode != 0:
++        logger.error(
++            "The wsrep recovery pass exited {0}".format(
++                wsrep_recover.returncode))
++    return wsrep_rec_pos
++
++
+ def update_grastate_on_restart():
+     """Update the grastate.dat on node restart."""
+     logger.info("Updating grastate info for node")
+-    if os.path.exists('/var/lib/mysql/grastate.dat'):
++    if os.path.exists(GRASTATE_PATH):
+         if get_grastate_val(key='seqno') == '-1':
+             logger.info(
+                 "Node shutdown was not clean, getting position via wsrep-recover"
+             )
+ 
+-            def recover_wsrep_position():
+-                """Extract recovered wsrep position from uncleanly exited node."""
+-                wsrep_recover = subprocess.Popen(  # nosec
+-                    [
+-                        MYSQL_BINARY_NAME, '--bind-address=127.0.0.1',
+-                        '--wsrep_cluster_address=gcomm://', '--wsrep-recover'
+-                    ],
+-                    stdout=subprocess.PIPE,
+-                    stderr=subprocess.PIPE,
+-                    encoding="utf-8")
+-                out, err = wsrep_recover.communicate()
+-                wsrep_rec_pos = None
+-                # NOTE: communicate() returns a tuple (stdout_data, stderr_data).
+-                # The data will be strings if streams were opened in text mode;
+-                # otherwise, bytes. If it is bytes, we should decode and get a
+-                # str for the err.split() to not error below.
+-                if isinstance(err, bytes):
+-                    err = err.decode('utf-8')
+-                for item in err.split("\n"):
+-                    logger.info("Recovering wsrep position: {0}".format(item))
+-                    if "WSREP: Recovered position:" in item:
+-                        line = item.strip().split()
+-                        wsrep_rec_pos = line[-1].split(':')[-1]
+-                if wsrep_rec_pos is None:
+-                    logger.error("WSREP_REC_POS position could not be found.")
+-                    raise Exception("WSREP_REC_POS position could not be found.")
+-                return wsrep_rec_pos
+-
+-            set_grastate_val(key='seqno', value=recover_wsrep_position())
++
++            recovered_position = recover_wsrep_position()
++            if recovered_position is None:
++                logger.error("WSREP_REC_POS position could not be found.")
++                raise Exception("WSREP_REC_POS position could not be found.")
++            set_grastate_val(key='seqno', value=recovered_position)
+         else:
+             logger.info("Node shutdown was clean, using grastate.dat")
+ 
+@@ -881,7 +981,7 @@ def run_mysqld(cluster='existing'):
+     if cluster == 'new':
+         mysqld_cmd.append('--wsrep-new-cluster')
+ 
+-    mysql_data_dir = '/var/lib/mysql'
++    mysql_data_dir = MYSQL_DATA_DIR
+     db_test_dir = "{0}/mysql".format(mysql_data_dir)
+     if os.path.isdir(db_test_dir):
+         logger.info("Setting the admin passwords to the current value and upgrade mysql if needed")
+@@ -910,12 +1010,38 @@ def run_mysqld(cluster='existing'):
+         with open(bootstrap_sql_file, 'w') as f:
+             f.write(template)
+             f.close()
+-        run_cmd_with_logging_thread = threading.Thread(target=run_cmd_with_logging, args=([
+-            MYSQL_BINARY_NAME, '--bind-address=127.0.0.1', '--wsrep-on=false',
+-            "--init-file={0}".format(bootstrap_sql_file)
+-        ], logger))
+-        run_cmd_with_logging_thread.start()
+-        wait_mysql_status()
++        if os.path.exists(TC_LOG_PATH):
++            # The local mariadbd started below runs with --wsrep-on=false, so
++            # it cannot replay a tc.log that registered the wsrep engine:
++            # recovery aborts with "You must enable all engines that were
++            # enabled at the moment of the crash" and mariadbd exits.
++            #
++            # Replay it here instead, with wsrep enabled, which resolves the
++            # in-doubt transactions and removes the log. Recovering rather
++            # than deleting means no XA state is discarded, so this is safe on
++            # the bootstrap path too, where this node's data may be the only
++            # copy.
++            logger.warning(
++                "{0} is present, so the previous shutdown was not clean. "
++                "Replaying it with wsrep enabled before starting the local "
++                "mariadbd.".format(TC_LOG_PATH))
++            recover_wsrep_position()
++            # Check the state on disk rather than trusting the recovered
++            # position, which is scraped from mariadbd's log text. A pass
++            # that failed but still printed a position line would otherwise
++            # send us into the wsrep-disabled start with the log intact,
++            # which aborts on every restart and never clears itself.
++            if os.path.exists(TC_LOG_PATH):
++                raise Exception(
++                    "{0} is still present after the recovery pass, refusing "
++                    "to start the local mariadbd".format(TC_LOG_PATH))
++        if not launch_local_mysqld(bootstrap_sql_file):
++            # Fail instead of waiting forever. Exiting lets the container be
++            # restarted, which is recoverable and visible, whereas blocking
++            # here leaves the pod Running and never Ready with no operator
++            # signal beyond the logs.
++            raise Exception(
++                'Local mariadbd did not become available, cannot proceed')
+         logger.info("Upgrading local mysql instance")
+         upgrade_cmd=['mariadb-upgrade', '--skip-write-binlog',
+                      "--user={0}".format(mysql_dbadmin_username),
+diff --git a/mariadb/templates/statefulset.yaml b/mariadb/templates/statefulset.yaml
+index 20b52a005..c7df05ef6 100644
+--- a/mariadb/templates/statefulset.yaml
++++ b/mariadb/templates/statefulset.yaml
+@@ -209,6 +209,12 @@ spec:
+               value: {{ .Values.conf.database.mysql_histfile }}
+             - name: CLUSTER_LEADER_TTL
+               value: {{ .Values.conf.galera.cluster_leader_ttl | quote }}
++            - name: MYSQL_RECOVERY_TIMEOUT
++              value: {{ .Values.conf.galera.mysql_recovery_timeout | quote }}
++            - name: MYSQL_STATUS_MAX_RETRIES
++              value: {{ .Values.conf.galera.mysql_status_max_retries | quote }}
++            - name: MYSQL_STATUS_RETRY_DELAY
++              value: {{ .Values.conf.galera.mysql_status_retry_delay | quote }}
+           ports:
+             - name: mysql
+               protocol: TCP
+diff --git a/mariadb/values.yaml b/mariadb/values.yaml
+index 099b25415..ce68ec619 100644
+--- a/mariadb/values.yaml
++++ b/mariadb/values.yaml
+@@ -362,6 +362,17 @@ conf:
+       failover_user_class: mariadb_failover
+   galera:
+     cluster_leader_ttl: 60
++    # Startup budget for a node whose previous shutdown was unclean. The
++    # tc.log replay runs first, bounded by mysql_recovery_timeout, and the
++    # wait for the local server follows it, bounded by
++    # mysql_status_max_retries * mysql_status_retry_delay. The two are
++    # consecutive, so their sum must stay inside the startupProbe deadline
++    # (pod.probes.server.mariadb.startup). With these defaults that is
++    # 300 + 10 * 30 = 600s against a 660s deadline, so raise the probe too
++    # if you raise these for slower storage or a busier database.
++    mysql_recovery_timeout: 300
++    mysql_status_max_retries: 10
++    mysql_status_retry_delay: 30
+   database:
+     mysql_histfile: "/dev/null"
+     my: |

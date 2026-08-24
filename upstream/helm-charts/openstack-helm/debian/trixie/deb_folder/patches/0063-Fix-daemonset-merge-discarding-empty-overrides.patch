@@ -1,0 +1,121 @@
+From 5c9505c7b7261172d7ced575a43984e15a1724cb Mon Sep 17 00:00:00 2001
+From: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+Date: Fri, 21 Aug 2026 11:31:56 -0300
+Subject: [PATCH] Fix daemonset merge discarding empty overrides
+
+The daemonset_overrides helper merges each host's or label's
+config override onto the chart's base config using Sprig's
+"merge", which is backed by Go's mergo library. Mergo treats a
+zero-value (e.g. an empty string, empty map, 0, false) in the
+merge source as equivalent to "not set", and silently falls
+back to the value already present in the merge target instead.
+This makes it impossible to apply an intentional, authoritative
+empty or zero override on top of a non-empty base value: the
+base value always wins, even when a host's override explicitly
+and deliberately sets that field to empty.
+
+One concrete case where this matters is a host whose data
+interfaces are VXLAN-only. Such a host correctly has no
+provider bridge to map, so its computed override for
+bridge_mappings is an empty string. Because of the mergo
+behavior described above, that empty override is discarded and
+the chart's non-empty base value is used instead, pointing the
+agent at a bridge that does not exist for that host.
+
+To fix this, add a new template,
+"helm-toolkit.utils.strip_overridden_keys", that recursively
+walks the base config and removes any key that the override
+also defines, regardless of the value assigned to that key in
+the override. Recursion only descends into keys that are still
+maps on both sides, so unrelated sibling keys and nested
+defaults that the override does not touch are preserved; only
+the specific overridden leaf keys are removed from the base.
+
+This new template is called immediately before each of the two
+"merge" calls in the per-host and per-label override loops of
+_daemonset_overrides.tpl, passing the per-host/per-label
+override as the source and the base config copy as the target.
+With the overridden keys removed from the base beforehand,
+"merge" has nothing to fall back to for those keys, so the
+override is authoritative for every key it defines, including
+keys whose value is empty or zero.
+
+Signed-off-by: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+---
+ .../templates/utils/_daemonset_overrides.tpl  |  9 +++++
+ helm-toolkit/templates/utils/_merge.tpl       | 35 +++++++++++++++++++
+ 2 files changed, 44 insertions(+)
+
+diff --git a/helm-toolkit/templates/utils/_daemonset_overrides.tpl b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
+index cce14dd6e..810743d9a 100644
+--- a/helm-toolkit/templates/utils/_daemonset_overrides.tpl
++++ b/helm-toolkit/templates/utils/_daemonset_overrides.tpl
+@@ -61,6 +61,13 @@ limitations under the License.
+               {{- $override_conf_copy := $host_data.conf }}
+               {{/* Deep copy to prevent https://storyboard.openstack.org/#!/story/2005936 */}}
+               {{- $root_conf_copy := omit ($context.Values.conf | toYaml | fromYaml) "overrides" }}
++              {{/* NOTE: "merge" (mergo) treats an empty string as unset and
++                   will pull the base value back in even when the per-host override
++                   explicitly sets an intentional empty string (e.g. bridge_mappings
++                   for a VXLAN-only host). Strip any key from the base copy that the
++                   override defines, regardless of the override's value, so the
++                   override is always authoritative for that key. */}}
++              {{- include "helm-toolkit.utils.strip_overridden_keys" (dict "target" $root_conf_copy "source" $override_conf_copy) }}
+               {{- $merged_dict := merge $override_conf_copy $root_conf_copy }}
+               {{- $root_conf_copy2 := dict "conf" $merged_dict }}
+               {{- $context_values := omit (omit ($context.Values | toYaml | fromYaml) "conf") "__daemonset_list" }}
+@@ -108,6 +115,8 @@ limitations under the License.
+               {{- $override_conf_copy := $label_data.conf }}
+               {{/* Deep copy to prevent https://storyboard.openstack.org/#!/story/2005936 */}}
+               {{- $root_conf_copy := omit ($context.Values.conf | toYaml | fromYaml) "overrides" }}
++              {{/* NOTE: see equivalent note in the hosts range above. */}}
++              {{- include "helm-toolkit.utils.strip_overridden_keys" (dict "target" $root_conf_copy "source" $override_conf_copy) }}
+               {{- $merged_dict := merge $override_conf_copy $root_conf_copy }}
+               {{- $root_conf_copy2 := dict "conf" $merged_dict }}
+               {{- $context_values := omit (omit ($context.Values | toYaml | fromYaml) "conf") "__daemonset_list" }}
+diff --git a/helm-toolkit/templates/utils/_merge.tpl b/helm-toolkit/templates/utils/_merge.tpl
+index ea8054664..3f4a5e0cd 100644
+--- a/helm-toolkit/templates/utils/_merge.tpl
++++ b/helm-toolkit/templates/utils/_merge.tpl
+@@ -133,3 +133,38 @@ merged by simply keeping the source, and throwing away the target.
+   {{- end -}}
+   {{- $_ := set $ "result" $local.result -}}
+ {{- end -}}
++
++{{/*
++Recursively unsets any key from "target" that is also present in
++"source", regardless of the value assigned to that key in "source".
++
++This is needed because Sprig's "merge" (backed by Go's mergo) treats a
++zero-value (e.g. an empty string, empty map, 0, false) in the merge source as
++equivalent to "not set", and will silently pull the corresponding value back
++in from the merge target instead. This makes it impossible to use "merge" to
++apply an intentional, authoritative empty/zero override on top of a non-empty
++base value.
++
++By stripping matching keys out of the base ("target") before calling "merge",
++the override ("source") is guaranteed to be authoritative for every key it
++defines, including keys whose value is empty/zero.
++
++Usage:
++  {{- include "helm-toolkit.utils.strip_overridden_keys" (dict "target" $base "source" $override) }}
++*/}}
++{{- define "helm-toolkit.utils.strip_overridden_keys" -}}
++  {{- $target := .target -}}
++  {{- $source := .source -}}
++  {{- if and (kindIs "map" $target) (kindIs "map" $source) -}}
++    {{- range $key, $sourceValue := $source -}}
++      {{- if hasKey $target $key -}}
++        {{- $targetValue := index $target $key -}}
++        {{- if and (kindIs "map" $targetValue) (kindIs "map" $sourceValue) -}}
++          {{- include "helm-toolkit.utils.strip_overridden_keys" (dict "target" $targetValue "source" $sourceValue) -}}
++        {{- else -}}
++          {{- $_ := unset $target $key -}}
++        {{- end -}}
++      {{- end -}}
++    {{- end -}}
++  {{- end -}}
++{{- end -}}
+-- 
+2.34.1
+

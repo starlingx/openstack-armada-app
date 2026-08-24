@@ -60,3 +60,4 @@
 0060-Add-startupProbe-to-rabbitmq-statefulset.patch
 0061-Fix-libvirt-cgroup-v2-compatibility.patch
 0062-Fix-MariaDB-rejoin-failure-after-unclean-shutdown.patch
+0063-Fix-daemonset-merge-discarding-empty-overrides.patch

@@ -213,8 +213,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
             agent['tunnel_types'] = tunnel_types
         if local_ip:
             ovs['local_ip'] = local_ip
-        if bridge_mappings:
-            ovs['bridge_mappings'] = str(bridge_mappings)
+        ovs['bridge_mappings'] = str(bridge_mappings)
 
         # https://access.redhat.com/documentation/en-us/
         # red_hat_enterprise_linux_openstack_platform/7/html/

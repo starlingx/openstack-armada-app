@@ -379,6 +379,84 @@ class NeutronGetPerHostOverrideTest(NeutronHelmTestCase,
             overrides[1]['name']
         )
 
+    def _make_data_iface(self, ifname='data0', iface_id=1):
+        iface = mock.MagicMock()
+        iface.id = iface_id
+        iface.ifname = ifname
+        iface.iftype = constants.INTERFACE_TYPE_ETHERNET
+        iface.ifclass = constants.INTERFACE_CLASS_DATA
+        iface.uses = []
+        # support dict-style access, mirroring how
+        # _get_dynamic_ovs_agent_config/_get_interface_port_name index iface
+        iface.__getitem__.side_effect = lambda key: getattr(iface, key)
+        return iface
+
+    def _make_datanet(self, name, network_type):
+        datanet = mock.MagicMock()
+        datanet.datanetwork_network_type = network_type
+        datanet.__getitem__.side_effect = lambda key: {
+            'datanetwork_name': name,
+        }[key]
+        return datanet
+
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
+    @mock.patch('sysinv.common.utils.has_openstack_compute', return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
+    def test_bridge_mappings_empty_string_for_vxlan_only_host(self, *_):
+        """
+        Regression test for _get_dynamic_ovs_agent_config (Closes-bug: 2164937):
+        a VXLAN-only host must get bridge_mappings as an explicit empty string,
+        not have the key omitted (which lets mergo fall back to public:br-ex).
+        """
+        host = mock.MagicMock(id=1, hostname='controller-1')
+        iface = self._make_data_iface(ifname='data0', iface_id=101)
+        datanet = self._make_datanet('datanet0', constants.DATANETWORK_TYPE_VXLAN)
+
+        self.neutron_helm.interfaces_by_hostid = {host.id: [iface]}
+        self.neutron_helm.ifdatanets_by_ifaceid = {iface.id: [datanet]}
+        self.neutron_helm.addresses_by_hostid = {
+            host.id: [mock.MagicMock(ifname='data0', address='172.16.0.10')]
+        }
+
+        with mock.patch.object(neutron.NeutronHelm, 'context',
+                               new_callable=mock.PropertyMock,
+                               return_value=mock.MagicMock()):
+            config = self.neutron_helm._get_dynamic_ovs_agent_config(host)
+
+        self.assertIn('bridge_mappings', config['ovs'])
+        self.assertEqual('', config['ovs']['bridge_mappings'])
+        self.assertEqual('172.16.0.10', config['ovs']['local_ip'])
+        self.assertEqual(constants.DATANETWORK_TYPE_VXLAN,
+                         config['agent']['tunnel_types'])
+
+    @mock.patch('k8sapp_openstack.utils.is_openvswitch_enabled', return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=True)
+    @mock.patch('sysinv.common.utils.has_openstack_compute', return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
+    def test_bridge_mappings_populated_for_vlan_host(self, *_):
+        """
+        A host with a VLAN-mapped data interface must still get a populated
+        bridge_mappings string (existing behaviour must not regress).
+        """
+        host = mock.MagicMock(id=2, hostname='controller-0')
+        iface = self._make_data_iface(ifname='data0', iface_id=201)
+        datanet = self._make_datanet('group0-data0', constants.DATANETWORK_TYPE_VLAN)
+
+        self.neutron_helm.interfaces_by_hostid = {host.id: [iface]}
+        self.neutron_helm.ifdatanets_by_ifaceid = {iface.id: [datanet]}
+        self.neutron_helm.addresses_by_hostid = {host.id: []}
+        self.neutron_helm.ports_by_ifaceid = {iface.id: [{'name': 'eth0'}]}
+
+        config = self.neutron_helm._get_dynamic_ovs_agent_config(host)
+
+        self.assertIn('bridge_mappings', config['ovs'])
+        self.assertTrue(config['ovs']['bridge_mappings'].startswith('group0-data0:br-phy'))
+        self.assertNotIn('local_ip', config['ovs'])
+        self.assertNotIn('tunnel_types', config['agent'])
+
 
 class NeutronMl2ConfigTest(NeutronHelmTestCase,
                            dbbase.ControllerHostTestCase):

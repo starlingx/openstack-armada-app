@@ -4444,3 +4444,57 @@ class TestResolveGlancePvcMetaEntry(dbbase.ControllerHostTestCase):
         result = app_utils._resolve_glance_pvc_storage_class()
 
         self.assertIsNone(result)
+
+
+class TestPlatformAppStatus(dbbase.ControllerHostTestCase):
+    """Encapsulates the testing suite for functions responsible for
+    retrieving the status on other platform apps.
+    """
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_platform_app_status(self, mock_db_get_instance):
+        """Tests that app status is returned accordingly."""
+        mock_db = mock.Mock()
+        mock_app = mock.Mock()
+        mock_db_get_instance.return_value = mock_db
+        for status in constants.APP_STATUS_LIST:
+            mock_db.reset_mock()
+            mock_app.reset_mock()
+            mock_db.kube_app_get.return_value = mock_app
+            mock_app.status = status
+            result = app_utils.get_platform_app_status('fake-app')
+            mock_db.kube_app_get.assert_called_once_with('fake-app')
+            self.assertEqual(result, status)
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_platform_app_status_not_found(self, mock_db_get_instance):
+        """Tests the handling when the app cannot be found."""
+        mock_db = mock.Mock()
+        mock_db_get_instance.return_value = mock_db
+        mock_db.kube_app_get.side_effect = exception.KubeAppNotFound('app not found')
+        result = app_utils.get_platform_app_status('fake-app')
+        mock_db.kube_app_get.assert_called_once_with('fake-app')
+        self.assertEqual(result, constants.APP_NOT_PRESENT)
+
+    @mock.patch('sysinv.db.api.get_instance')
+    def test_get_platform_app_status_error(self, mock_db_get_instance):
+        """Tests when there is an error retriveing app information."""
+        mock_db = mock.Mock()
+        mock_db_get_instance.return_value = mock_db
+        mock_db.kube_app_get.side_effect = Exception()
+        result = app_utils.get_platform_app_status('fake-app')
+        mock_db.kube_app_get.assert_called_once_with('fake-app')
+        self.assertIsNone(result)
+
+    @mock.patch('k8sapp_openstack.utils.get_platform_app_status')
+    def test_is_platform_app_available_default_states(self, mock_get_status):
+        """Verifies the assertion that a platform app has reached a certain state."""
+        default_states = [
+            constants.APP_APPLY_SUCCESS,
+            constants.APP_APPLY_IN_PROGRESS,
+        ]
+        for status in constants.APP_STATUS_LIST:
+            mock_get_status.reset_mock()
+            mock_get_status.return_value = status
+            result = app_utils.is_platform_app_available('fake-app')
+            mock_get_status.assert_called_once_with('fake-app')
+            self.assertEqual(result, status in default_states)

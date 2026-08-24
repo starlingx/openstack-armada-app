@@ -11,6 +11,7 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import is_aodh_rest_notifier_tls_enabled
+from k8sapp_openstack.utils import is_platform_app_available
 
 LOG = logging.getLogger(__name__)
 
@@ -119,6 +120,12 @@ class AodhHelm(openstack.OpenstackBaseHelm):
             # enabling the use of the provided cert file mounted in the pod
             conf_overrides['aodh']['DEFAULT']['rest_notifier_ca_bundle_certificate_path'] = \
                 app_constants.AODH_REST_NOTIFIER_CA_CERT_MOUNT_PATH
+
+        if not is_platform_app_available(app_constants.PROMETHEUS_PLATFORM_APP_NAME):
+            LOG.warning('Prometheus app not found in platform. Disabling Aodh Prometheus alarm evaluator.')
+            conf_overrides['prometheus'] = {
+                'enabled': False
+            }
 
         return conf_overrides
 

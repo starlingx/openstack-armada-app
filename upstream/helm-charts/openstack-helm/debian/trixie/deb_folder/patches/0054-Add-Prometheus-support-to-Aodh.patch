@@ -1,4 +1,4 @@
-From f39d6324c0a599f831268835f53414892aa0a9b2 Mon Sep 17 00:00:00 2001
+From b458e071c35042b456984cae61b1a83ccf1e2b61 Mon Sep 17 00:00:00 2001
 From: cfigueir <carlos.figueiredofelipe@windriver.com>
 Date: Tue, 30 Jun 2026 11:54:41 -0300
 Subject: [PATCH] Add Prometheus support to Aodh
@@ -11,6 +11,7 @@ Following is a Charts configuration example:
 `
 conf:
   prometheus:
+    enabled: true
     host: prometheus.monitoring.svc.cluster.local
     port: 9090
 `
@@ -27,11 +28,13 @@ Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 [Support for Aodh rest notifier host certificate]
 Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+[Add enabled guard attribute to Prometheus evaluator]
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
 ---
  aodh/templates/cron-job-alarms-cleaner.yaml | 2 +-
- aodh/templates/deployment-evaluator.yaml    | 5 +++++
- aodh/values.yaml                            | 7 +++++++
- 3 files changed, 13 insertions(+), 1 deletion(-)
+ aodh/templates/deployment-evaluator.yaml    | 7 +++++++
+ aodh/values.yaml                            | 8 ++++++++
+ 3 files changed, 16 insertions(+), 1 deletion(-)
 
 diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
 index aeb3b9356..dfeef549d 100644
@@ -47,30 +50,33 @@ index aeb3b9356..dfeef549d 100644
                projected:
                  sources:
 diff --git a/aodh/templates/deployment-evaluator.yaml b/aodh/templates/deployment-evaluator.yaml
-index 662063880..17e70e088 100644
+index 662063880..a027c077d 100644
 --- a/aodh/templates/deployment-evaluator.yaml
 +++ b/aodh/templates/deployment-evaluator.yaml
-@@ -76,6 +76,11 @@ spec:
+@@ -76,6 +76,13 @@ spec:
                  command:
                    - /tmp/aodh-evaluator.sh
                    - stop
++{{- if .Values.conf.prometheus.enabled }}
 +          env:
 +            - name: PROMETHEUS_HOST
 +              value: {{ .Values.conf.prometheus.host | quote }}
 +            - name: PROMETHEUS_PORT
 +              value: {{ .Values.conf.prometheus.port | quote }}
++{{- end }}
            volumeMounts:
              - name: pod-tmp
                mountPath: /tmp
 diff --git a/aodh/values.yaml b/aodh/values.yaml
-index 12489bb0a..8f3716514 100644
+index 12489bb0a..4f1c38179 100644
 --- a/aodh/values.yaml
 +++ b/aodh/values.yaml
-@@ -548,6 +548,13 @@ conf:
+@@ -548,6 +548,14 @@ conf:
        class: oslo_log.formatters.ContextFormatter
      formatter_default:
        format: "%(message)s"
 +  prometheus:
++    enabled: false
 +    host: null
 +    port: null
 +

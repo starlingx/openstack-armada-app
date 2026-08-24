@@ -462,6 +462,9 @@ conf:
       policy_file: /etc/aodh/policy.yaml
     oslo_concurrency:
       lock_path: /var/lib/oslo-lock
+    coordination:
+      # Partition alarms across evaluator replicas
+      backend_url: memcached://memcached.openstack.svc.cluster.local:11211
     database:
       alarm_history_time_to_live: 86400
       max_retries: -1

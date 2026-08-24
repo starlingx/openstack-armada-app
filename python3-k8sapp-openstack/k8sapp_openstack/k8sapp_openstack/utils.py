@@ -15,6 +15,8 @@ import shutil
 import threading
 import time
 from typing import Generator
+from typing import Optional
+from typing import Tuple
 
 from cephclient import wrapper as ceph
 from eventlet.green import subprocess
@@ -29,6 +31,7 @@ from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import kubernetes
 from sysinv.common import utils as cutils
+from sysinv.common.retrying import retry
 from sysinv.conductor import kube_app
 from sysinv.db import api as dbapi
 from sysinv.helm import common as helm_common
@@ -90,48 +93,58 @@ def _get_value_from_application(default_value, chart_name, override_name):
     return value
 
 
-def _get_helm_release_values(release_name, namespace) -> dict:
+# Same budget and same predicate as the platform kubernetes calls, so a
+# transient blip is absorbed while a deterministic failure is not: the
+# predicate retries only MaxRetryError and FORBIDDEN, leaving a corrupt
+# release payload or any other API status to raise on the first attempt
+# rather than holding a pre-apply hook for the full budget.
+@retry(stop_max_attempt_number=kubernetes.API_RETRY_ATTEMPT_NUMBER,
+       wait_fixed=kubernetes.API_RETRY_INTERVAL,
+       retry_on_exception=(
+           kubernetes.KubeOperator._retry_on_urllibs3_MaxRetryError))
+def _get_helm_release_values(release_name, namespace) -> Optional[dict]:
     """Get values from a deployed Helm release by reading the release secret.
+
+    Absence and unreadability are reported differently, because callers
+    need to tell a genuinely uninstalled release apart from a read that
+    failed. Returning None for both would force every caller to treat a
+    transient Kubernetes API error as a permanent misconfiguration.
 
     :param release_name: The name of the helm release (e.g., 'oidc-dex')
     :param namespace: The namespace where the release is deployed
 
-    :returns: dict -- Helm values, or None if not found
+    :returns: Optional[dict] -- the release values, or None if the
+              release is not deployed
+
+    :raises: the underlying exception if the release cannot be read or
+             decoded, after any retries
     """
-    try:
-        kube = kubernetes.KubeOperator()
-        secrets = kube.kube_list_secret(namespace)
-        if not secrets:
-            return None
-
-        prefix = f"sh.helm.release.v1.{release_name}.v"
-        release_secrets = [
-            s for s in secrets
-            if s.metadata.name.startswith(prefix)
-        ]
-
-        if not release_secrets:
-            return None
-
-        latest_secret = max(
-            release_secrets,
-            key=lambda s: int(s.metadata.name.split('.v')[-1])
-        )
-
-        release_data = latest_secret.data.get('release')
-        if not release_data:
-            return None
-
-        decompressed = helm_utils.decompress_helm_release_data(release_data)
-        release_json = json.loads(decompressed)
-        return release_json.get('config', {})
-
-    except Exception as e:
-        LOG.warning(
-            f"Error getting helm release values for '{release_name}' "
-            f"in namespace '{namespace}': {e}"
-        )
+    kube = kubernetes.KubeOperator()
+    secrets = kube.kube_list_secret(namespace)
+    if not secrets:
         return None
+
+    prefix = f"sh.helm.release.v1.{release_name}.v"
+    release_secrets = [
+        s for s in secrets
+        if s.metadata.name.startswith(prefix)
+    ]
+
+    if not release_secrets:
+        return None
+
+    latest_secret = max(
+        release_secrets,
+        key=lambda s: int(s.metadata.name.split('.v')[-1])
+    )
+
+    release_data = latest_secret.data.get('release')
+    if not release_data:
+        return None
+
+    decompressed = helm_utils.decompress_helm_release_data(release_data)
+    release_json = json.loads(decompressed)
+    return release_json.get('config', {})
 
 
 def is_user_overrides_available(chart_name, override_name) -> bool:
@@ -2753,38 +2766,144 @@ def is_dex_enabled() -> bool:
     return enabled
 
 
-def get_dex_client_secret() -> str:
-    """Get the DEX client secret from oidc-auth-apps dex helm release.
-
-    Finds the static client matching the OIDCClientID configured in keystone
-    and returns its secret. Returns the default value if not found.
-
-    :returns: str -- The DEX client secret
+def is_dex_federation_enabled() -> bool:
     """
-    client_id = _get_value_from_application(
+    Determine whether DEX federation should be active for this apply.
+
+    True when the operator stored conf.federation.dex_idp.enabled=true as
+    a keystone override (is_dex_enabled()), or when live auto-detection
+    passes (auto_config_dex_federation()).
+
+    The or short-circuits deliberately: an explicit override skips the
+    live health probe, pinning the decision to a value that cannot flip
+    between keystone override generation and the pre-apply hook.
+
+    Consumers do not share one evaluation. Override generation and the
+    hook call this independently, so an apply enabled only by
+    auto-detection still evaluates the probe twice and keeps that gap;
+    sharing one decision per apply needs the lifecycle operator to thread
+    it through and is not done here.
+
+    Returns:
+        True if DEX federation should be enabled, False otherwise.
+    """
+    return is_dex_enabled() or auto_config_dex_federation()
+
+
+def _get_dex_client_id() -> str:
+    """
+    Read the OIDCClientID configured as a keystone helm override.
+
+    Single accessor for the client id that ties keystone to a dex
+    staticClient. Every DEX helper needs it, so it lives here rather than
+    being re-derived at each call site.
+
+    Returns:
+        The configured OIDCClientID, or DEX_CLIENT_ID_DEFAULT if unset.
+    """
+    return _get_value_from_application(
         default_value=app_constants.DEX_CLIENT_ID_DEFAULT,
         chart_name=app_constants.HELM_CHART_KEYSTONE,
         override_name=app_constants.KEYSTONE_OIDC_CLIENT_ID_OVERRIDE
     )
 
+
+def _resolve_dex_client_secret(
+        client_id: str) -> Tuple[Optional[str], Optional[str], bool]:
+    """
+    Resolve the DEX client secret from the deployed oidc-auth-apps release.
+
+    Reports why resolution failed instead of logging it, so the caller can
+    name the cause in the message an operator sees, and reports separately
+    whether the release is deployed at all: an absent release is a
+    supported topology, while a deployed one that does not carry the
+    client is a misconfiguration. Each step is shape checked, so malformed
+    release values - another application's overrides, which this does not
+    validate - report a reason rather than raising an AttributeError the
+    caller could not tell from a failed read. A release that could not be
+    read is not reported here; _get_helm_release_values() propagates that.
+
+    Args:
+        client_id: The OIDCClientID whose staticClient to look for.
+
+    Returns:
+        (secret, None, True) once resolved, otherwise
+        (None, reason, release_deployed) where reason is a phrase naming
+        the condition that failed and release_deployed is False only when
+        the release itself is absent.
+
+    Raises:
+        Exception: propagated from _get_helm_release_values() if the
+                   oidc-dex helm release cannot be read.
+    """
+    release = app_constants.DEX_HELM_RELEASE_NAME
+
     helm_values = _get_helm_release_values(
-        release_name=app_constants.DEX_HELM_RELEASE_NAME,
+        release_name=release,
         namespace=app_constants.DEX_CHART_NAMESPACE
     )
 
-    if helm_values:
-        static_clients = helm_values.get('config', {}).get('staticClients', [])
-        if isinstance(static_clients, list):
-            client = next(
-                (c for c in static_clients if c.get('id') == client_id),
-                None
-            )
-            if client and 'secret' in client:
-                return client['secret']
+    if helm_values is None:
+        return None, f"the '{release}' helm release is not deployed", False
+    if not isinstance(helm_values, dict):
+        return (None,
+                f"the '{release}' helm release values are not a mapping",
+                True)
+
+    config = helm_values.get('config')
+    static_clients = (
+        config.get('staticClients') if isinstance(config, dict) else None
+    )
+    if not isinstance(static_clients, list):
+        return None, (f"the '{release}' helm release declares no "
+                      f"staticClients list"), True
+
+    client = next(
+        (c for c in static_clients
+         if isinstance(c, dict) and c.get('id') == client_id),
+        None
+    )
+    if client is None:
+        return None, (f"the '{release}' helm release declares no "
+                      f"staticClient with id '{client_id}'"), True
+    if not client.get('secret'):
+        return None, (f"the staticClient with id '{client_id}' in the "
+                      f"'{release}' helm release has an absent or empty "
+                      f"secret"), True
+
+    return client['secret'], None, True
+
+
+def get_dex_client_secret() -> str:
+    """Get the DEX client secret from oidc-auth-apps dex helm release.
+
+    Finds the static client matching the OIDCClientID configured in keystone
+    and returns its secret, or the default value if no usable secret is
+    found, including when the matching static client stores an empty one.
+
+    An unreadable release propagates rather than defaulting, because the
+    only caller, update_dex_redirect_uri(), writes this value into the
+    oidc-dex overrides, where defaulting on a failed read would publish
+    the documented placeholder as a real client secret. That caller reads
+    the same release beforehand; removing the resulting second read goes
+    with removing the fabricated staticClient it feeds, tracked
+    separately.
+
+    Returns:
+        The DEX client secret string.
+
+    Raises:
+        Exception: propagated from _get_helm_release_values() if the
+                   oidc-dex helm release cannot be read.
+    """
+    client_id = _get_dex_client_id()
+    secret, unresolved_reason, _ = _resolve_dex_client_secret(client_id)
+    if secret is not None:
+        return secret
 
     LOG.warning(
-        f"DEX static client with id '{client_id}' not found in oidc-auth-apps, "
-        f"using default secret"
+        f"Using the default DEX client secret for OIDCClientID "
+        f"'{client_id}': {unresolved_reason}"
     )
     return app_constants.DEX_CLIENT_SECRET_DEFAULT
 
@@ -3023,8 +3142,7 @@ def auto_config_dex_federation():
 def pre_apply_create_dex_resources_secret(kube):
     """
     Create the Kubernetes secret containing DEX credentials used for
-    DEX-Keystone integration. The secret is created or updated when DEX
-    is enabled.
+    DEX-Keystone integration, when is_dex_federation_enabled().
 
     The secret contains:
     - password: The OIDC client secret retrieved from the dex chart overrides
@@ -3035,15 +3153,76 @@ def pre_apply_create_dex_resources_secret(kube):
             with the cluster and manage secrets.
 
     Raises:
-        SysinvException: If an error occurs while attempting to create the
-                        DEX credentials secret.
+        SysinvException: If the oidc-dex helm release cannot be read or
+                        decoded, if a deployed release does not yield the
+                        client secret, or if creating or updating the
+                        secret fails. Each case carries its own message,
+                        so the app status names the actual cause. An
+                        absent release is not one of these cases; it falls
+                        back to the default client secret.
+        Exception: propagated from the keystone override reads, which sit
+                        outside the release-read handler so that a
+                        malformed override is not reported as a failed
+                        release read.
     """
-    if not auto_config_dex_federation():
+    if not is_dex_federation_enabled():
         LOG.info("DEX integration is not enabled, skipping secret creation")
         return
 
-    # Get the client secret from oidc-auth-apps dex chart overrides
-    dex_client_secret = get_dex_client_secret()
+    # The client id comes from a keystone override, not from the oidc-dex
+    # release, so it is read outside the try to keep a failed override
+    # lookup from being reported below as a failed release read. The
+    # handler stays broad: narrowing it to the Kubernetes API exception
+    # types would let a decode failure leave the hook as a traceback with
+    # no message in the app status.
+    client_id = _get_dex_client_id()
+    try:
+        dex_client_secret, unresolved_reason, release_deployed = (
+            _resolve_dex_client_secret(client_id))
+    except Exception as e:
+        msg = (
+            f"Cannot read the '{app_constants.DEX_HELM_RELEASE_NAME}' helm "
+            f"release from namespace "
+            f"'{app_constants.DEX_CHART_NAMESPACE}' to resolve the DEX "
+            f"client secret, after exhausting the bounded retries: {e}. "
+            f"The release may be readable again shortly, so this is "
+            f"distinct from oidc-auth-apps not being applied. Verify that "
+            f"the Kubernetes API is reachable and that the release secret "
+            f"can be decoded, then retry the apply."
+        )
+        LOG.error(msg)
+        raise exception.SysinvException(msg)
+
+    if dex_client_secret is None and not release_deployed:
+        # A system with no local release is not misconfigured: in the
+        # default centralized Distributed Cloud setup oidc-auth-apps runs
+        # only on the System Controller, whose staticClient carries the
+        # documented default secret, so that default is both the only
+        # value available here and the value keystone needs. Failing the
+        # apply would break a working topology, so keep the pre-existing
+        # fallback and record which secret was used and why.
+        LOG.warning(
+            f"Using the default DEX client secret for OIDCClientID "
+            f"'{client_id}': {unresolved_reason}, so oidc-auth-apps is "
+            f"applied elsewhere - a centralized Distributed Cloud System "
+            f"Controller, for instance. Federated authentication will "
+            f"work only if that DEX declares a staticClient with id "
+            f"'{client_id}' carrying the default secret."
+        )
+        dex_client_secret = app_constants.DEX_CLIENT_SECRET_DEFAULT
+    elif dex_client_secret is None:
+        msg = (
+            f"Cannot resolve the DEX client secret for OIDCClientID "
+            f"'{client_id}' from oidc-auth-apps: {unresolved_reason}. "
+            f"Refusing to write {app_constants.DEX_SECRET_NAME} with a "
+            f"placeholder secret that would cause silent authentication "
+            f"failures. Verify that the "
+            f"'{app_constants.DEX_HELM_RELEASE_NAME}' helm release "
+            f"declares a staticClient with id '{client_id}' carrying a "
+            f"non-empty secret."
+        )
+        LOG.error(msg)
+        raise exception.SysinvException(msg)
 
     secret_exists = kube.kube_get_secret(app_constants.DEX_SECRET_NAME, app_constants.HELM_NS_OPENSTACK)
 
@@ -3417,11 +3596,7 @@ def update_dex_redirect_uri(dbapi, new_redirect_uri) -> bool:
         return False
 
     # Get the client ID configured in keystone
-    client_id = _get_value_from_application(
-        default_value=app_constants.DEX_CLIENT_ID_DEFAULT,
-        chart_name=app_constants.HELM_CHART_KEYSTONE,
-        override_name=app_constants.KEYSTONE_OIDC_CLIENT_ID_OVERRIDE
-    )
+    client_id = _get_dex_client_id()
 
     # Get oidc-auth-apps application
     try:
@@ -3431,10 +3606,20 @@ def update_dex_redirect_uri(dbapi, new_redirect_uri) -> bool:
         return False
 
     # Get combined helm values
-    helm_values = _get_helm_release_values(
-        release_name=app_constants.DEX_HELM_RELEASE_NAME,
-        namespace=app_constants.DEX_CHART_NAMESPACE
-    )
+    try:
+        helm_values = _get_helm_release_values(
+            release_name=app_constants.DEX_HELM_RELEASE_NAME,
+            namespace=app_constants.DEX_CHART_NAMESPACE
+        )
+    except Exception as e:
+        # An unreadable release says nothing about whether a matching
+        # staticClient exists, so there is no safe edit to make: below,
+        # a client that appears absent is created from scratch.
+        LOG.warning(
+            f"Cannot read the '{app_constants.DEX_HELM_RELEASE_NAME}' helm "
+            f"release, skipping redirect URI update: {e}"
+        )
+        return False
 
     # Find the target client in deployed values
     target_client = None

@@ -181,10 +181,12 @@ class KeystoneDexFederationTest(KeystoneHelmTestCase,
     """Tests for the DEX federation override generation.
 
     Covers the two-gate fix: auth methods and trusted_dashboard must be
-    generated whenever DEX is enabled either explicitly (is_dex_enabled)
-    or via auto-detection (auto_config_dex_federation), evaluated once and
-    threaded down, and the auth methods list must preserve pre-existing
-    methods such as application_credential.
+    generated whenever is_dex_federation_enabled() is true, from a single
+    evaluation threaded down to every DEX-dependent section, and the auth
+    methods list must preserve pre-existing methods such as
+    application_credential. The explicit and auto-detection paths that
+    make up that predicate are exercised on the predicate itself, in
+    tests/utils/test_utils.py, where they are observable.
     """
 
     def _keystone(self):
@@ -251,13 +253,11 @@ class KeystoneDexFederationTest(KeystoneHelmTestCase,
                 return_value={})
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_conf_keystone_overrides',
                 return_value={})
-    @mock.patch('k8sapp_openstack.helm.keystone.auto_config_dex_federation')
-    @mock.patch('k8sapp_openstack.helm.keystone.is_dex_enabled')
-    def test_conf_overrides_explicit_enable_wins(
-            self, mock_explicit, mock_auto, *_):
-        """Explicit enable renders dex_idp even when auto-detect fails."""
-        mock_explicit.return_value = True
-        mock_auto.return_value = False
+    @mock.patch('k8sapp_openstack.helm.keystone.is_dex_federation_enabled')
+    def test_conf_overrides_dex_federation_enabled(
+            self, mock_federation_enabled, *_):
+        """DEX federation enabled renders dex_idp."""
+        mock_federation_enabled.return_value = True
 
         overrides = self._keystone()._get_conf_overrides()
 
@@ -270,34 +270,11 @@ class KeystoneDexFederationTest(KeystoneHelmTestCase,
                 return_value={})
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_conf_keystone_overrides',
                 return_value={})
-    @mock.patch('k8sapp_openstack.helm.keystone.auto_config_dex_federation')
-    @mock.patch('k8sapp_openstack.helm.keystone.is_dex_enabled')
-    def test_conf_overrides_auto_enable_is_fallback(
-            self, mock_explicit, mock_auto, *_):
-        """Auto-detection enables DEX when no explicit override is set.
-
-        This is the DC subcloud case this change fixes.
-        """
-        mock_explicit.return_value = False
-        mock_auto.return_value = True
-
-        overrides = self._keystone()._get_conf_overrides()
-
-        self.assertTrue(
-            overrides['federation'].get('dex_idp', {}).get('enabled'))
-
-    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_external_federation_urls',
-                return_value={'external': {}})
-    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides',
-                return_value={})
-    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_conf_keystone_overrides',
-                return_value={})
-    @mock.patch('k8sapp_openstack.helm.keystone.auto_config_dex_federation')
-    @mock.patch('k8sapp_openstack.helm.keystone.is_dex_enabled')
+    @mock.patch('k8sapp_openstack.helm.keystone.is_dex_federation_enabled')
     def test_conf_overrides_disabled_when_neither(
-            self, mock_explicit, mock_auto, *_):
-        mock_explicit.return_value = False
-        mock_auto.return_value = False
+            self, mock_federation_enabled, *_):
+        """Federation disabled produces no dex_idp key."""
+        mock_federation_enabled.return_value = False
 
         overrides = self._keystone()._get_conf_overrides()
 
@@ -309,22 +286,17 @@ class KeystoneDexFederationTest(KeystoneHelmTestCase,
                 return_value={})
     @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_conf_keystone_overrides',
                 return_value={})
-    @mock.patch('k8sapp_openstack.helm.keystone.auto_config_dex_federation')
-    @mock.patch('k8sapp_openstack.helm.keystone.is_dex_enabled')
-    def test_conf_overrides_probe_evaluated_once(
-            self, mock_explicit, mock_auto, mock_ks_overrides, *_):
+    @mock.patch('k8sapp_openstack.helm.keystone.is_dex_federation_enabled')
+    def test_conf_overrides_decision_evaluated_once(
+            self, mock_federation_enabled, mock_ks_overrides, *_):
         """The enablement decision is made once and threaded down.
 
-        auto_config_dex_federation() runs a live DEX health probe, so it
-        must not be called more than once per apply, and the same result
-        must be passed to _get_conf_keystone_overrides().
+        is_dex_federation_enabled() must be called exactly once and its
+        result passed to _get_conf_keystone_overrides().
         """
-        mock_explicit.return_value = False
-        mock_auto.return_value = True
+        mock_federation_enabled.return_value = True
 
         self._keystone()._get_conf_overrides()
 
-        # is_dex_enabled() False short-circuits to auto; auto probed once.
-        self.assertEqual(mock_auto.call_count, 1)
-        # The single decision is passed through to the keystone.conf side.
+        self.assertEqual(mock_federation_enabled.call_count, 1)
         mock_ks_overrides.assert_called_once_with(True)

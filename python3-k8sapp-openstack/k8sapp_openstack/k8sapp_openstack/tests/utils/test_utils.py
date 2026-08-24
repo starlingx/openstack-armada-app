@@ -7,10 +7,15 @@
 import os
 import subprocess
 
+from kubernetes.client.rest import ApiException as KubeApiException
 import mock
+from oslo_serialization import base64
 from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.common import kubernetes
 from sysinv.tests.db import base as dbbase
+from urllib3.exceptions import MaxRetryError
+import yaml
 
 from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
@@ -2519,13 +2524,19 @@ class UtilsTest(dbbase.ControllerHostTestCase):
 
     @mock.patch('sysinv.common.kubernetes.KubeOperator')
     def test_get_helm_release_values_no_secrets(self, mock_kube_operator):
-        """Test _get_helm_release_values returns None when no secrets exist."""
+        """Test _get_helm_release_values returns None when no secrets exist.
+
+        An absent release is reported on the first attempt: retrying a
+        condition that cannot change within the apply would spend the
+        whole budget before failing.
+        """
         kube_instance = mock_kube_operator.return_value
         kube_instance.kube_list_secret.return_value = []
 
         result = app_utils._get_helm_release_values('oidc-dex', 'kube-system')
 
         self.assertIsNone(result)
+        self.assertEqual(kube_instance.kube_list_secret.call_count, 1)
 
     @mock.patch('sysinv.common.kubernetes.KubeOperator')
     def test_get_helm_release_values_no_matching_release(self, mock_kube_operator):
@@ -2539,16 +2550,104 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         result = app_utils._get_helm_release_values('oidc-dex', 'kube-system')
 
         self.assertIsNone(result)
+        self.assertEqual(kube_instance.kube_list_secret.call_count, 1)
 
+    @mock.patch('sysinv.common.retrying.time.sleep')
     @mock.patch('sysinv.common.kubernetes.KubeOperator')
-    def test_get_helm_release_values_exception(self, mock_kube_operator):
-        """Test _get_helm_release_values returns None on exception."""
+    def test_get_helm_release_values_read_failure_propagates(
+            self, mock_kube_operator, mock_sleep):
+        """A persistent read failure raises rather than reporting absence.
+
+        Returning None here is what let a Kubernetes API error reach the
+        operator as a missing oidc-auth-apps. A transport failure is
+        retried a bounded number of times first.
+        """
         kube_instance = mock_kube_operator.return_value
-        kube_instance.kube_list_secret.side_effect = Exception("Kube error")
+        kube_instance.kube_list_secret.side_effect = MaxRetryError(
+            None, 'url', None)
+
+        self.assertRaises(
+            MaxRetryError,
+            app_utils._get_helm_release_values, 'oidc-dex', 'kube-system')
+
+        # Matches the platform kube retry budget the reader borrows.
+        self.assertEqual(
+            kube_instance.kube_list_secret.call_count,
+            kubernetes.API_RETRY_ATTEMPT_NUMBER)
+
+    @mock.patch('sysinv.helm.utils.decompress_helm_release_data')
+    @mock.patch('sysinv.common.retrying.time.sleep')
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_get_helm_release_values_transient_failure_is_retried(
+            self, mock_kube_operator, mock_sleep, mock_decompress):
+        """A one-off read failure resolves on a retry rather than failing.
+
+        This is the case that must not fail a stx-openstack apply: the
+        first list-secret call blips, the second succeeds, and the caller
+        sees the release values.
+        """
+        mock_secret = mock.MagicMock()
+        mock_secret.metadata.name = "sh.helm.release.v1.oidc-dex.v1"
+        mock_secret.data = {'release': 'encoded_data'}
+
+        kube_instance = mock_kube_operator.return_value
+        kube_instance.kube_list_secret.side_effect = [
+            MaxRetryError(None, 'url', None),
+            [mock_secret],
+        ]
+        mock_decompress.return_value = '{"config": {"key": "value"}}'
 
         result = app_utils._get_helm_release_values('oidc-dex', 'kube-system')
 
-        self.assertIsNone(result)
+        self.assertEqual(result, {'key': 'value'})
+        self.assertEqual(kube_instance.kube_list_secret.call_count, 2)
+
+    @mock.patch('sysinv.common.retrying.time.sleep')
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_get_helm_release_values_api_error_is_not_retried(
+            self, mock_kube_operator, mock_sleep):
+        """A non-transient API status fails on the first attempt.
+
+        Retrying every exception would hold a pre-apply hook for the whole
+        budget - 20 attempts at 10 s - before failing an apply that was
+        never going to succeed. The predicate is the platform's own, so
+        this reader waits only for what the rest of sysinv waits for.
+        """
+        kube_instance = mock_kube_operator.return_value
+        kube_instance.kube_list_secret.side_effect = KubeApiException(
+            status=500)
+
+        self.assertRaises(
+            KubeApiException,
+            app_utils._get_helm_release_values, 'oidc-dex', 'kube-system')
+
+        self.assertEqual(kube_instance.kube_list_secret.call_count, 1)
+        mock_sleep.assert_not_called()
+
+    @mock.patch('sysinv.helm.utils.decompress_helm_release_data')
+    @mock.patch('sysinv.common.retrying.time.sleep')
+    @mock.patch('sysinv.common.kubernetes.KubeOperator')
+    def test_get_helm_release_values_corrupt_payload_is_not_retried(
+            self, mock_kube_operator, mock_sleep, mock_decompress):
+        """A corrupt release payload fails on the first attempt.
+
+        Everything after the list-secret call is computation on data
+        already in hand, so re-reading cannot change the outcome.
+        """
+        mock_secret = mock.MagicMock()
+        mock_secret.metadata.name = "sh.helm.release.v1.oidc-dex.v1"
+        mock_secret.data = {'release': 'encoded_data'}
+
+        kube_instance = mock_kube_operator.return_value
+        kube_instance.kube_list_secret.return_value = [mock_secret]
+        mock_decompress.side_effect = ValueError('corrupt payload')
+
+        self.assertRaises(
+            ValueError,
+            app_utils._get_helm_release_values, 'oidc-dex', 'kube-system')
+
+        self.assertEqual(kube_instance.kube_list_secret.call_count, 1)
+        mock_sleep.assert_not_called()
 
     @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
     @mock.patch('k8sapp_openstack.utils._get_value_from_application')
@@ -2574,6 +2673,47 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         """Test get_dex_client_secret returns default when not found."""
         mock_get_value.return_value = 'stx-oidc-client-app'
         mock_get_helm_values.return_value = None
+
+        result = app_utils.get_dex_client_secret()
+
+        self.assertEqual(result, app_constants.DEX_CLIENT_SECRET_DEFAULT)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    def test_get_dex_client_secret_default_when_secret_empty(
+            self, _, mock_get_helm_values):
+        """An empty staticClient secret falls back to the default.
+
+        This differs from the merged behaviour, which returned '' here.
+        An empty secret is not a usable credential, so it is treated the
+        same as an absent one rather than being passed on to callers.
+        """
+        mock_get_helm_values.return_value = {
+            'config': {
+                'staticClients': [
+                    {'id': 'stx-oidc-client-app', 'secret': ''}
+                ]
+            }
+        }
+
+        result = app_utils.get_dex_client_secret()
+
+        self.assertEqual(result, app_constants.DEX_CLIENT_SECRET_DEFAULT)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    def test_get_dex_client_secret_default_when_secret_key_absent(
+            self, _, mock_get_helm_values):
+        """A staticClient with no secret key falls back to the default."""
+        mock_get_helm_values.return_value = {
+            'config': {
+                'staticClients': [
+                    {'id': 'stx-oidc-client-app', 'redirectURIs': []}
+                ]
+            }
+        }
 
         result = app_utils.get_dex_client_secret()
 
@@ -2611,6 +2751,30 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         self.assertIn('ldap-1', updated_yaml)
         self.assertIn('volumeMounts', updated_yaml)
         self.assertIn('https://new.com/redirect', updated_yaml)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values',
+                side_effect=KubeApiException(status=503))
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    def test_update_dex_redirect_uri_skips_when_release_unreadable(
+            self, _, mock_get_helm_values):
+        """An unreadable release skips the update instead of writing.
+
+        A read failure says nothing about whether a matching staticClient
+        exists, and the absent case below creates one from scratch with
+        the documented placeholder secret. Writing that on a failed read
+        would publish the placeholder as a real credential, so the
+        function reports failure and leaves the overrides alone.
+        """
+        db_mock = mock.Mock()
+        db_mock.kube_app_get.return_value.id = 1
+
+        result = app_utils.update_dex_redirect_uri(
+            db_mock, "https://new.com/redirect")
+
+        self.assertFalse(result)
+        db_mock.helm_override_update.assert_not_called()
+        db_mock.helm_override_create.assert_not_called()
 
     @mock.patch('k8sapp_openstack.utils.trigger_oidc_auth_apps_reapply', return_value=True)
     @mock.patch('k8sapp_openstack.utils.update_dex_redirect_uri', return_value=True)
@@ -3528,7 +3692,6 @@ class ResolveSecretRefTest(dbbase.ControllerHostTestCase):
     @staticmethod
     def _mock_secret(data_map):
         """Build a mock K8s Secret whose .data holds base64-encoded values."""
-        from oslo_serialization import base64
         secret = mock.MagicMock()
         secret.data = {k: base64.encode_as_text(v) for k, v in data_map.items()}
         return secret
@@ -4523,3 +4686,506 @@ class TestPlatformAppStatus(dbbase.ControllerHostTestCase):
             result = app_utils.is_platform_app_available('fake-app')
             mock_get_status.assert_called_once_with('fake-app')
             self.assertEqual(result, status in default_states)
+
+
+class PreApplyCreateDexResourcesSecretTest(dbbase.ControllerHostTestCase):
+    """Tests for pre_apply_create_dex_resources_secret and its helpers.
+
+    Hook-level tests patch is_dex_federation_enabled and
+    _resolve_dex_client_secret as opaque units, except for
+    test_malformed_release_values_reported_as_misconfiguration, which
+    patches only the release read so that malformed values travel the
+    real parsing path. Predicate-level tests patch the enablement
+    predicates to verify the truth table and its short-circuit.
+    Resolver-level tests cover each input that leaves the client secret
+    unresolvable, and pin that each reports a distinguishable reason.
+    """
+
+    # ---- Hook-level tests ----
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    @mock.patch('k8sapp_openstack.utils._resolve_dex_client_secret',
+                return_value=('test-secret', None, True))
+    @mock.patch('k8sapp_openstack.utils.is_dex_federation_enabled',
+                return_value=True)
+    def test_creates_secret_when_federation_enabled(
+            self, mock_enabled, mock_resolve_secret, mock_client_id):
+        """Secret created with correct payload when federation enabled."""
+        mock_kube = mock.Mock()
+        mock_kube.kube_get_secret.return_value = None
+
+        app_utils.pre_apply_create_dex_resources_secret(mock_kube)
+
+        # The hook reads the client id once and hands it to the resolver,
+        # rather than each of them reading it independently.
+        mock_resolve_secret.assert_called_once_with('stx-oidc-client-app')
+        mock_kube.kube_create_secret.assert_called_once()
+        ns, body = mock_kube.kube_create_secret.call_args[0]
+        self.assertEqual(ns, app_constants.HELM_NS_OPENSTACK)
+        self.assertEqual(
+            base64.decode_as_text(body['data']['password']), 'test-secret')
+        # Decoded rather than assertIn: an empty OIDCCryptoPassphrase is
+        # still a present key, and keystone would start with no crypto
+        # passphrase at all.
+        self.assertTrue(base64.decode_as_text(body['data']['passphrase']))
+
+    @mock.patch('k8sapp_openstack.utils.is_dex_federation_enabled',
+                return_value=False)
+    def test_skips_secret_when_dex_disabled(self, mock_enabled):
+        """Secret creation is skipped when federation is disabled."""
+        mock_kube = mock.Mock()
+
+        app_utils.pre_apply_create_dex_resources_secret(mock_kube)
+
+        mock_kube.kube_get_secret.assert_not_called()
+        mock_kube.kube_create_secret.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    @mock.patch('k8sapp_openstack.utils._resolve_dex_client_secret',
+                return_value=('test-secret', None, True))
+    @mock.patch('k8sapp_openstack.utils.is_dex_federation_enabled',
+                return_value=True)
+    def test_updates_secret_preserves_existing_passphrase(
+            self, mock_enabled, mock_resolve_secret, mock_client_id):
+        """Re-apply preserves existing passphrase (OIDCCryptoPassphrase)."""
+        mock_kube = mock.Mock()
+        existing_secret = mock.Mock()
+        existing_secret.data = {'passphrase': 'existing-pp-base64'}
+        mock_kube.kube_get_secret.return_value = existing_secret
+
+        app_utils.pre_apply_create_dex_resources_secret(mock_kube)
+
+        mock_kube.kube_get_secret.assert_called_once_with(
+            app_constants.DEX_SECRET_NAME, app_constants.HELM_NS_OPENSTACK)
+        mock_kube.kube_patch_secret.assert_called_once()
+        name, ns, body = mock_kube.kube_patch_secret.call_args[0]
+        self.assertEqual(name, app_constants.DEX_SECRET_NAME)
+        self.assertEqual(ns, app_constants.HELM_NS_OPENSTACK)
+        self.assertEqual(body['data']['passphrase'], 'existing-pp-base64')
+        # password is re-encoded from the resolved secret
+        self.assertEqual(
+            base64.decode_as_text(body['data']['password']), 'test-secret')
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    @mock.patch('k8sapp_openstack.utils._resolve_dex_client_secret',
+                return_value=(None, 'the test reason', True))
+    @mock.patch('k8sapp_openstack.utils.is_dex_federation_enabled',
+                return_value=True)
+    def test_raises_when_client_secret_unresolvable(
+            self, mock_enabled, mock_resolve_secret, mock_client_id):
+        """Hook raises when a deployed release does not yield the secret.
+
+        The exception text is what lands in the application status the
+        operator reads first, so it has to carry the OIDCClientID that
+        failed to resolve and which condition caused it, rather than
+        listing every condition that could have. The release is deployed
+        here, which is what makes this a misconfiguration rather than the
+        supported no-local-release topology covered below.
+        """
+        mock_kube = mock.Mock()
+
+        raised = self.assertRaises(
+            exception.SysinvException,
+            app_utils.pre_apply_create_dex_resources_secret,
+            mock_kube
+        )
+
+        self.assertIn('stx-oidc-client-app', str(raised))
+        self.assertIn('the test reason', str(raised))
+        # The resolver check sits ahead of the get, so nothing touches the
+        # cluster before the hook fails. This pins that ordering.
+        mock_kube.kube_get_secret.assert_not_called()
+        mock_kube.kube_create_secret.assert_not_called()
+        mock_kube.kube_patch_secret.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    @mock.patch('k8sapp_openstack.utils._resolve_dex_client_secret',
+                return_value=(None,
+                              "the 'oidc-dex' helm release is not deployed",
+                              False))
+    @mock.patch('k8sapp_openstack.utils.is_dex_federation_enabled',
+                return_value=True)
+    def test_absent_release_falls_back_to_default_secret(
+            self, mock_enabled, mock_resolve_secret, mock_client_id):
+        """No local release writes the default secret instead of failing.
+
+        The default centralized Distributed Cloud setup runs
+        oidc-auth-apps on the System Controller alone, so a subcloud
+        federates against a DEX it cannot read the release of while every
+        auto-detection condition passes. The System Controller's
+        staticClient carries the documented default secret, so that
+        default is both the only value obtainable here and the value
+        keystone needs; raising would fail the apply on a working
+        deployment. A deployed release that does not yield the secret
+        still raises, above.
+        """
+        mock_kube = mock.Mock()
+        mock_kube.kube_get_secret.return_value = None
+
+        app_utils.pre_apply_create_dex_resources_secret(mock_kube)
+
+        mock_kube.kube_create_secret.assert_called_once()
+        _, body = mock_kube.kube_create_secret.call_args[0]
+        self.assertEqual(
+            base64.decode_as_text(body['data']['password']),
+            app_constants.DEX_CLIENT_SECRET_DEFAULT)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    @mock.patch('k8sapp_openstack.utils._resolve_dex_client_secret',
+                side_effect=KubeApiException(status=503))
+    @mock.patch('k8sapp_openstack.utils.is_dex_federation_enabled',
+                return_value=True)
+    def test_raises_distinct_message_when_release_unreadable(
+            self, mock_enabled, mock_resolve_secret, mock_client_id):
+        """An unreadable release fails with its own message, not absence.
+
+        Both causes fail the apply, but they call for different operator
+        action - check the Kubernetes API and retry, versus apply
+        oidc-auth-apps - so the message that lands in the application
+        status must not describe a read failure as a missing release.
+        """
+        mock_kube = mock.Mock()
+
+        raised = self.assertRaises(
+            exception.SysinvException,
+            app_utils.pre_apply_create_dex_resources_secret,
+            mock_kube
+        )
+
+        self.assertIn('Cannot read', str(raised))
+        self.assertIn(app_constants.DEX_HELM_RELEASE_NAME, str(raised))
+        self.assertNotIn('declares no staticClient', str(raised))
+        mock_kube.kube_get_secret.assert_not_called()
+        mock_kube.kube_create_secret.assert_not_called()
+        mock_kube.kube_patch_secret.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                side_effect=yaml.YAMLError('malformed override'))
+    @mock.patch('k8sapp_openstack.utils.is_dex_federation_enabled',
+                return_value=True)
+    def test_override_lookup_failure_not_blamed_on_release_read(
+            self, mock_enabled, mock_client_id):
+        """A failed client-id lookup is not reported as a failed read.
+
+        The client id comes from a keystone helm override, not from the
+        oidc-dex release. Reading it inside the try would let a malformed
+        override surface as 'Cannot read the oidc-dex helm release ...
+        verify the Kubernetes API is reachable', sending the operator to
+        the wrong subsystem. It propagates instead of being relabelled.
+        """
+        mock_kube = mock.Mock()
+
+        self.assertRaises(
+            yaml.YAMLError,
+            app_utils.pre_apply_create_dex_resources_secret,
+            mock_kube
+        )
+
+        mock_kube.kube_get_secret.assert_not_called()
+        mock_kube.kube_create_secret.assert_not_called()
+        mock_kube.kube_patch_secret.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    @mock.patch('k8sapp_openstack.utils.is_dex_federation_enabled',
+                return_value=True)
+    def test_malformed_release_values_reported_as_misconfiguration(
+            self, mock_enabled, mock_client_id, mock_helm):
+        """Malformed release values are not reported as a read failure.
+
+        The release was read successfully here; only its contents are
+        wrong. Reporting that as an unreachable Kubernetes API sends the
+        operator to check the cluster and retry an apply that will fail
+        the same way every time. The resolver is left unpatched so the
+        malformed values travel the real parsing path.
+        """
+        mock_helm.return_value = {'config': {'staticClients': ['no-mapping']}}
+        mock_kube = mock.Mock()
+
+        raised = self.assertRaises(
+            exception.SysinvException,
+            app_utils.pre_apply_create_dex_resources_secret,
+            mock_kube
+        )
+
+        self.assertIn('declares no staticClient', str(raised))
+        self.assertIn('stx-oidc-client-app', str(raised))
+        self.assertNotIn('Cannot read', str(raised))
+        mock_kube.kube_get_secret.assert_not_called()
+        mock_kube.kube_create_secret.assert_not_called()
+        mock_kube.kube_patch_secret.assert_not_called()
+
+    # ---- Predicate-level tests (is_dex_federation_enabled truth table) ----
+
+    @mock.patch('k8sapp_openstack.utils.auto_config_dex_federation',
+                return_value=False)
+    @mock.patch('k8sapp_openstack.utils.is_dex_enabled', return_value=True)
+    def test_is_dex_federation_enabled_explicit_path(
+            self, mock_explicit, mock_auto):
+        """Explicit override alone enables federation; auto_config skipped.
+
+        This is the exact scenario fixed by this change. Reverting the fix
+        (removing is_dex_enabled() from the union) makes this test fail on
+        both assertions: result becomes False and auto_config gets called.
+        """
+        result = app_utils.is_dex_federation_enabled()
+
+        self.assertTrue(result)
+        mock_auto.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils.auto_config_dex_federation',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_dex_enabled', return_value=False)
+    def test_is_dex_federation_enabled_auto_path(
+            self, mock_explicit, mock_auto):
+        """Auto-detection alone enables federation (DC subcloud case)."""
+        result = app_utils.is_dex_federation_enabled()
+
+        self.assertTrue(result)
+        mock_auto.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.auto_config_dex_federation',
+                return_value=False)
+    @mock.patch('k8sapp_openstack.utils.is_dex_enabled', return_value=False)
+    def test_is_dex_federation_enabled_neither(
+            self, mock_explicit, mock_auto):
+        """Neither path enables federation; result is False."""
+        result = app_utils.is_dex_federation_enabled()
+
+        self.assertFalse(result)
+        mock_auto.assert_called_once()
+
+    # ---- Resolver tests (_resolve_dex_client_secret) ----
+    #
+    # One case per input that leaves the client secret unresolvable, so
+    # that a change in how the release values are read cannot silently
+    # start returning a secret the chart cannot use. Each case also pins
+    # that the returned reason names its own condition, since the reason
+    # is what the caller puts in front of the operator.
+
+    CLIENT_ID = 'stx-oidc-client-app'
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    def test_resolve_dex_client_secret_returns_secret(self, mock_helm):
+        """Resolver returns the secret when the staticClient is present."""
+        mock_helm.return_value = {
+            'config': {
+                'staticClients': [
+                    {'id': self.CLIENT_ID, 'secret': 'real-secret'}
+                ]
+            }
+        }
+
+        secret, reason, deployed = app_utils._resolve_dex_client_secret(
+            self.CLIENT_ID)
+
+        self.assertEqual(secret, 'real-secret')
+        self.assertIsNone(reason)
+        self.assertTrue(deployed)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values',
+                return_value=None)
+    def test_resolve_dex_client_secret_release_absent(self, mock_helm):
+        """An absent release is reported as not deployed.
+
+        None from the reader means the release is not deployed, which the
+        hook treats as a supported topology rather than a
+        misconfiguration, so the flag is what it keys on; an unreadable
+        release raises instead, covered separately.
+        """
+        secret, reason, deployed = app_utils._resolve_dex_client_secret(
+            self.CLIENT_ID)
+
+        self.assertIsNone(secret)
+        self.assertIn('not deployed', reason)
+        self.assertFalse(deployed)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values',
+                side_effect=KubeApiException(status=503))
+    def test_resolve_dex_client_secret_read_failure_propagates(
+            self, mock_helm):
+        """The resolver does not turn a read failure into a reason.
+
+        Reporting it as a reason would re-merge the two cases the reader
+        was changed to keep apart.
+        """
+        self.assertRaises(
+            KubeApiException,
+            app_utils._resolve_dex_client_secret,
+            self.CLIENT_ID)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    def test_resolve_dex_client_secret_release_values_not_a_mapping(
+            self, mock_helm):
+        """Release values that are not a mapping are reported as such."""
+        mock_helm.return_value = ['not-a-mapping']
+
+        secret, reason, deployed = app_utils._resolve_dex_client_secret(
+            self.CLIENT_ID)
+
+        self.assertIsNone(secret)
+        self.assertIn('not a mapping', reason)
+        self.assertTrue(deployed)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    def test_resolve_dex_client_secret_static_clients_not_a_list(
+            self, mock_helm):
+        """A malformed staticClients value is not walked."""
+        mock_helm.return_value = {'config': {'staticClients': 'not-a-list'}}
+
+        secret, reason, deployed = app_utils._resolve_dex_client_secret(
+            self.CLIENT_ID)
+
+        self.assertIsNone(secret)
+        self.assertIn('no staticClients list', reason)
+        self.assertTrue(deployed)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    def test_resolve_dex_client_secret_config_not_a_mapping(self, mock_helm):
+        """A config section that is not a mapping is not walked.
+
+        Walking it would raise AttributeError out of the resolver, which
+        the caller cannot tell apart from a failed read.
+        """
+        mock_helm.return_value = {'config': 'not-a-mapping'}
+
+        secret, reason, deployed = app_utils._resolve_dex_client_secret(
+            self.CLIENT_ID)
+
+        self.assertIsNone(secret)
+        self.assertIn('no staticClients list', reason)
+        self.assertTrue(deployed)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    def test_resolve_dex_client_secret_skips_malformed_static_client(
+            self, mock_helm):
+        """A malformed entry is skipped, not raised on or scanned past.
+
+        The entry is placed ahead of the usable one, so aborting the scan
+        on it would abandon a secret that is present.
+        """
+        mock_helm.return_value = {
+            'config': {
+                'staticClients': [
+                    'not-a-mapping',
+                    {'id': self.CLIENT_ID, 'secret': 'real-secret'}
+                ]
+            }
+        }
+
+        secret, reason, deployed = app_utils._resolve_dex_client_secret(
+            self.CLIENT_ID)
+
+        self.assertEqual(secret, 'real-secret')
+        self.assertIsNone(reason)
+        self.assertTrue(deployed)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    def test_resolve_dex_client_secret_client_not_found(self, mock_helm):
+        """A client id with no matching staticClient names the id."""
+        mock_helm.return_value = {
+            'config': {
+                'staticClients': [
+                    {'id': 'other-client', 'secret': 'other-secret'}
+                ]
+            }
+        }
+
+        secret, reason, deployed = app_utils._resolve_dex_client_secret(
+            self.CLIENT_ID)
+
+        self.assertIsNone(secret)
+        self.assertIn('no staticClient with id', reason)
+        self.assertIn(self.CLIENT_ID, reason)
+        self.assertTrue(deployed)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    def test_resolve_dex_client_secret_key_absent(self, mock_helm):
+        """A matching client that declares no secret is unresolvable."""
+        mock_helm.return_value = {
+            'config': {
+                'staticClients': [
+                    {'id': self.CLIENT_ID, 'redirectURIs': []}
+                ]
+            }
+        }
+
+        secret, reason, deployed = app_utils._resolve_dex_client_secret(
+            self.CLIENT_ID)
+
+        self.assertIsNone(secret)
+        self.assertIn('absent or empty secret', reason)
+        self.assertTrue(deployed)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    def test_resolve_dex_client_secret_empty(self, mock_helm):
+        """An empty secret is unresolvable, like an absent one."""
+        mock_helm.return_value = {
+            'config': {
+                'staticClients': [
+                    {'id': self.CLIENT_ID, 'secret': ''}
+                ]
+            }
+        }
+
+        secret, reason, deployed = app_utils._resolve_dex_client_secret(
+            self.CLIENT_ID)
+
+        self.assertIsNone(secret)
+        self.assertIn('absent or empty secret', reason)
+        self.assertTrue(deployed)
+
+    @mock.patch('k8sapp_openstack.utils._get_helm_release_values')
+    def test_resolve_dex_client_secret_reasons_are_distinct(self, mock_helm):
+        """Each unresolvable condition reports a different reason.
+
+        The point of returning a reason is that the operator learns which
+        condition fired. Reasons that collapsed onto one string would
+        satisfy every other test here while restoring the ambiguity this
+        replaced, so the distinctness is asserted directly.
+        """
+        inputs = [
+            None,
+            ['not-a-mapping'],
+            {'config': {'staticClients': 'not-a-list'}},
+            {'config': {'staticClients': [{'id': 'other-client',
+                                           'secret': 'x'}]}},
+            {'config': {'staticClients': [{'id': self.CLIENT_ID,
+                                           'secret': ''}]}},
+        ]
+
+        reasons = []
+        for helm_values in inputs:
+            mock_helm.return_value = helm_values
+            secret, reason, _ = app_utils._resolve_dex_client_secret(
+                self.CLIENT_ID)
+            self.assertIsNone(secret)
+            reasons.append(reason)
+
+        self.assertEqual(len(set(reasons)), len(inputs))
+
+    # ---- Client id accessor (_get_dex_client_id) ----
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value='stx-oidc-client-app')
+    def test_get_dex_client_id_reads_keystone_override(self, mock_app):
+        """The shared accessor reads the keystone OIDCClientID override.
+
+        Every DEX helper now goes through this one accessor, so the chart,
+        override name and default are pinned here once rather than at each
+        call site.
+        """
+        result = app_utils._get_dex_client_id()
+
+        self.assertEqual(result, 'stx-oidc-client-app')
+        mock_app.assert_called_once_with(
+            default_value=app_constants.DEX_CLIENT_ID_DEFAULT,
+            chart_name=app_constants.HELM_CHART_KEYSTONE,
+            override_name=app_constants.KEYSTONE_OIDC_CLIENT_ID_OVERRIDE
+        )

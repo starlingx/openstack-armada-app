@@ -73,6 +73,12 @@ conf:
       logo:
       logo_splash:
       favicon:
+    wsgi:
+      processes: 5
+      threads: 1
+      maximum_requests: 10000
+      restart_interval: 86400
+      graceful_timeout: 30
     apache: |
       Listen :::{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
 
@@ -86,7 +92,7 @@ conf:
 
       <VirtualHost *:{{ tuple "dashboard" "internal" "web" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}>
           WSGIScriptReloading On
-          WSGIDaemonProcess horizon-http processes=5 threads=1 user=horizon group=horizon display-name=%{GROUP} python-home=/var/lib/openstack socket-user=www-data
+          WSGIDaemonProcess horizon-http processes={{ .Values.conf.horizon.wsgi.processes }} threads={{ .Values.conf.horizon.wsgi.threads }} user=horizon group=horizon display-name=%{GROUP}{{- if gt (int .Values.conf.horizon.wsgi.maximum_requests) 0 }} maximum-requests={{ .Values.conf.horizon.wsgi.maximum_requests }}{{- end }}{{- if gt (int .Values.conf.horizon.wsgi.restart_interval) 0 }} restart-interval={{ .Values.conf.horizon.wsgi.restart_interval }}{{- end }}{{- if gt (int .Values.conf.horizon.wsgi.graceful_timeout) 0 }} graceful-timeout={{ .Values.conf.horizon.wsgi.graceful_timeout }}{{- end }}
           WSGIProcessGroup horizon-http
           WSGIApplicationGroup %{GLOBAL}
           WSGIScriptAlias / /var/www/cgi-bin/horizon/django.wsgi

@@ -198,6 +198,7 @@ conf:
         keystone_multidomain_dropdown: "False"
         keystone_domains:
           Default: "Default"
+          example_domain: example
         keystone_default_domain: Default
         disable_password_reveal: "True"
         show_openrc_file: "True"
@@ -1463,4 +1464,5 @@ manifests:
   secret_registry: true
   service_ingress: true
   service: true
+extraObjects: []
 ...

@@ -1206,6 +1206,15 @@ pod:
           memory: "1024Mi"
           cpu: "2000m"
 
+  probes:
+    api:
+      heat_api:
+        liveness:
+          port: 1717
+    cfn:
+      heat_cfn:
+        liveness:
+          port: 1717
 network_policy:
   heat:
     ingress:
@@ -1259,4 +1268,5 @@ manifests:
   service_ingress_api: true
   service_ingress_cfn: true
   statefulset_engine: false
+extraObjects: []
 ...

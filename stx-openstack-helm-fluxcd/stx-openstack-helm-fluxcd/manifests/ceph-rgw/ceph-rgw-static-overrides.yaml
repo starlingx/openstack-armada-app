@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -10,8 +10,148 @@ conf:
   ceph:
     global:
       cephx: false
+      cephx_require_signatures: false
+      cephx_cluster_require_signatures: true
+      cephx_service_require_signatures: false
+      objecter_inflight_op_bytes: '1073741824'
+      debug_ms: 0/0
+      log_file: /dev/stdout
+      mon_cluster_log_file: /dev/stdout
+      rgw_max_attr_name_len: 64
+      rgw_max_attrs_num_in_req: 32
+      rgw_max_attr_size: 1024
+      rgw_swift_versioning_enabled: true
+    osd:
+      ms_bind_port_max: 7100
+      ms_bind_port_min: 6800
+      osd_max_object_name_len: 256
+      osd_mkfs_options_xfs: -f -i size=2048
+      osd_mkfs_type: xfs
   rgw_ks:
     enabled: true
+    config:
+      rgw_keystone_accepted_roles: admin, member
+      rgw_keystone_api_version: 3
+      rgw_keystone_implicit_tenants: true
+      rgw_keystone_make_new_tenants: true
+      rgw_s3_auth_order: local, external, sts
+      rgw_s3_auth_use_keystone: true
+      rgw_swift_account_in_url: true
+      rgw_swift_url: null
+  templates:
+    keyring:
+      admin: |
+        [client.admin]
+          key = {{ key }}
+          auid = 0
+          caps mds = "allow"
+          caps mon = "allow *"
+          caps osd = "allow *"
+          caps mgr = "allow *"
+      bootstrap:
+        rgw: |
+          [client.bootstrap-rgw]
+            key = {{ key }}
+            caps mgr = "allow profile bootstrap-rgw"
+  features:
+    rgw: true
+  pool:
+    crush:
+      tunables: null
+    default:
+      crush_rule: replicated_rule
+    spec:
+    - application: rbd
+      name: rbd
+      percent_total_data: 40
+      replication: 3
+    - application: cephfs
+      name: cephfs_metadata
+      percent_total_data: 5
+      replication: 3
+    - application: cephfs
+      name: cephfs_data
+      percent_total_data: 10
+      replication: 3
+    - application: rgw
+      name: .rgw.root
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.control
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.data.root
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.gc
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.log
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.intent-log
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.meta
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.usage
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.users.keys
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.users.email
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.users.swift
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.users.uid
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.buckets.extra
+      percent_total_data: 0.1
+      replication: 3
+    - application: rgw
+      name: default.rgw.buckets.index
+      percent_total_data: 3
+      replication: 3
+    - application: rgw
+      name: default.rgw.buckets.data
+      percent_total_data: 34.8
+      replication: 3
+    target:
+      osd: 5
+      pg_per_osd: 100
+  rgw_placement_targets:
+  - data_pool: default.rgw.buckets.data
+    name: default-placement
+  rgw:
+    config:
+      rgw_dynamic_resharding: false
+      rgw_gc_max_objs: 997
+      rgw_keystone_token_cache_size: 0
+      rgw_override_bucket_index_max_shards: 8
+  rgw_restart:
+    timeout: 600
+  rgw_s3:
+    admin_caps: users=*;buckets=*;zone=*
+    config:
+      rgw_relaxed_s3_bucket_names: true
+    enabled: false
 endpoints:
   object_store:
     path:
@@ -22,6 +162,128 @@ endpoints:
         admin: 7480
         internal: 7480
         public: 7480
+    name: swift
+    namespace: null
+    hosts:
+      default: ceph-rgw
+      public: radosgw
+    host_fqdn_override:
+      default: null
+    scheme:
+      default: http
+  cluster_domain_suffix: cluster.local
+  local_image_registry:
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: localhost
+      internal: docker-registry
+      node: localhost
+    name: docker-registry
+    namespace: docker-registry
+    port:
+      registry:
+        node: 5000
+  oci_image_registry:
+    auth:
+      ceph-rgw:
+        password: password
+        username: ceph-rgw
+      enabled: false
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: localhost
+    name: oci-image-registry
+    namespace: oci-image-registry
+    port:
+      registry:
+        default: null
+  identity:
+    auth:
+      admin:
+        os_auth_type: password
+        os_tenant_name: admin
+        password: password
+        project_domain_name: default
+        project_name: admin
+        region_name: RegionOne
+        user_domain_name: default
+        username: admin
+      swift:
+        os_auth_type: password
+        os_tenant_name: admin
+        password: password
+        project_domain_name: service
+        project_name: service
+        region_name: RegionOne
+        role: admin
+        user_domain_name: service
+        username: swift
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: keystone
+      internal: keystone-api
+    name: keystone
+    namespace: null
+    path:
+      default: /v3
+    port:
+      api:
+        default: 80
+        internal: 5000
+    scheme:
+      default: http
+  ceph_object_store:
+    auth:
+      admin:
+        access_key: admin_access_key
+        secret_key: admin_secret_key
+        username: s3_admin
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: ceph-rgw
+      public: radosgw
+    name: radosgw
+    namespace: null
+    path:
+      default: null
+    port:
+      api:
+        default: 8088
+        public: 80
+    scheme:
+      default: http
+  ceph_mon:
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: ceph-mon
+      discovery: ceph-mon-discovery
+    namespace: null
+    port:
+      mon:
+        default: 6789
+      mon_msgr2:
+        default: 3300
+  kube_dns:
+    host_fqdn_override:
+      default: null
+    hosts:
+      default: kube-dns
+    name: kubernetes-dns
+    namespace: kube-system
+    path:
+      default: null
+    port:
+      dns:
+        default: 53
+        protocol: UDP
+      dns_tcp:
+        default: 53
+    scheme: http
 images:
   tags:
     ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
@@ -36,6 +298,12 @@ images:
     rgw_placement_targets: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     rgw_s3_admin: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+  pull_policy: IfNotPresent
+  local_registry:
+    active: false
+    exclude:
+    - dep_check
+    - image_repo_sync
 labels:
   isApplication: false
   api:
@@ -47,22 +315,45 @@ labels:
   registry:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+  test:
+    node_selector_key: openstack-control-plane
+    node_selector_value: enabled
+  rgw:
+    node_selector_key: ceph-rgw
+    node_selector_value: enabled
 network:
   api:
     ingress:
       classes:
         namespace: "nginx-openstack"
         cluster: "nginx"
+      public: true
+      annotations:
+        haproxy.org/path-rewrite: /
+        nginx.ingress.kubernetes.io/proxy-body-size: '0'
+        nginx.ingress.kubernetes.io/proxy-max-temp-file-size: '0'
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    external_policy_local: false
+    node_port:
+      enabled: false
+      port: 30004
+  public: 192.168.0.0/16
+  cluster: 192.168.0.0/16
 pod:
   labels:
     include_app_kubernetes_io: false
   replicas:
     api: 2
     registry: 2
+    rgw: 2
   affinity:
     anti:
       type:
         default: requiredDuringSchedulingIgnoredDuringExecution
+      topologyKey:
+        default: kubernetes.io/hostname
+      weight:
+        default: 10
   tolerations:
     rgw:
       tolerations:
@@ -75,4 +366,328 @@ pod:
       - key: openstack-compute-node
         operator: Exists
         effect: NoSchedule
+  security_context:
+    bootstrap:
+      container:
+        bootstrap:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        keyring_placement:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+      pod:
+        runAsUser: 65534
+    rgw:
+      container:
+        init_dirs:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        rgw:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        rgw_init:
+          readOnlyRootFilesystem: true
+          runAsUser: 0
+      pod:
+        runAsUser: 64045
+    rgw_placement_targets:
+      container:
+        create_rgw_placement_targets:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        keyring_placement:
+          readOnlyRootFilesystem: true
+          runAsUser: 0
+      pod:
+        runAsUser: 64045
+    rgw_pool:
+      container:
+        rgw_pool:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+      pod:
+        runAsUser: 65534
+    rgw_restart:
+      container:
+        ceph-rgw-restart:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+      pod:
+        runAsUser: 65534
+    rgw_s3_admin:
+      container:
+        create_s3_admin:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        keyring_placement:
+          readOnlyRootFilesystem: true
+          runAsUser: 0
+      pod:
+        runAsUser: 64045
+    rgw_storage_init:
+      container:
+        keyring_placement:
+          readOnlyRootFilesystem: true
+          runAsUser: 0
+        rgw_storage_init:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+      pod:
+        runAsUser: 64045
+    rgw_test:
+      pod:
+        runAsUser: 64045
+      rgw_test:
+        ceph_rgw_ks_validation:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        ceph_rgw_s3_validation:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+  dns_policy: ClusterFirstWithHostNet
+  lifecycle:
+    upgrades:
+      deployments:
+        pod_replacement_strategy: RollingUpdate
+        revision_history: 3
+        rolling_update:
+          max_surge: 50%
+          max_unavailable: 50%
+  resources:
+    enabled: false
+    jobs:
+      bootstrap:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 500m
+          memory: 128Mi
+      ceph-rgw-storage-init:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      image_repo_sync:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      ks-endpoints:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      ks_service:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      ks_user:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      rgw_placement_targets:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      rgw_pool:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      rgw_restart:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 500m
+          memory: 128Mi
+      rgw_s3_admin:
+        limits:
+          cpu: 2000m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    rgw:
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 128Mi
+    tests:
+      limits:
+        cpu: 2000m
+        memory: 1024Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  probes:
+    api:
+      ceph-rgw:
+        liveness:
+          enabled: true
+          params:
+            initialDelaySeconds: 120
+            timeoutSeconds: 5
+        readiness:
+          enabled: true
+          params:
+            timeoutSeconds: 5
+deployment:
+  ceph: false
+network_policy:
+  rgw:
+    egress:
+    - {}
+    ingress:
+    - {}
+ceph_client:
+  configmap: ceph-etc
+secrets:
+  identity:
+    admin: ceph-keystone-admin
+    swift: ceph-keystone-user
+    user_rgw: ceph-keystone-user-rgw
+  keyrings:
+    admin: pvc-ceph-client-key
+    mds: ceph-bootstrap-mds-keyring
+    mgr: ceph-bootstrap-mgr-keyring
+    mon: ceph-mon-keyring
+    osd: ceph-bootstrap-osd-keyring
+    rgw: os-ceph-bootstrap-rgw-keyring
+  oci_image_registry:
+    ceph-rgw: ceph-rgw-oci-image-registry-key
+  rgw_s3:
+    admin: radosgw-s3-admin-creds
+  tls:
+    ceph_object_store:
+      api:
+        internal: ceph-rgw-s3-tls-api
+        public: ceph-rgw-s3-tls-public
+    object_store:
+      api:
+        internal: ceph-rgw-ks-tls-api
+        keystone: keystone-tls-api
+        public: ceph-tls-public
+dependencies:
+  dynamic:
+    common:
+      local_image_registry:
+        jobs:
+        - ceph-rgw-image-repo-sync
+        services:
+        - endpoint: node
+          service: local_image_registry
+    targeted:
+      keystone:
+        rgw:
+          services:
+          - endpoint: internal
+            service: identity
+      s3:
+        rgw: {}
+  static:
+    image_repo_sync:
+      services:
+      - endpoint: internal
+        service: local_image_registry
+    ks_endpoints:
+      jobs:
+      - ceph-ks-service
+      services:
+      - endpoint: internal
+        service: identity
+    ks_service:
+      services:
+      - endpoint: internal
+        service: identity
+    ks_user:
+      services:
+      - endpoint: internal
+        service: identity
+    rgw:
+      jobs:
+      - ceph-rgw-storage-init
+    rgw_placement_targets:
+      services:
+      - endpoint: internal
+        service: ceph_object_store
+    rgw_pool:
+      jobs:
+      - ceph-rgw-storage-init
+    rgw_restart:
+      services:
+      - endpoint: internal
+        service: ceph_object_store
+    rgw_s3_admin:
+      services:
+      - endpoint: internal
+        service: ceph_object_store
+    tests:
+      services:
+      - endpoint: internal
+        service: ceph_object_store
+bootstrap:
+  enabled: false
+  script: |
+    ceph -s
+    function ensure_pool () {
+      ceph osd pool stats $1 || ceph osd pool create $1 $2
+      if [[ $(ceph mon versions | awk '/version/{print $3}' | cut -d. -f1) -ge 12 ]]; then
+        ceph osd pool application enable $1 $3
+      fi
+    }
+    #ensure_pool volumes 8 cinder
+jobs:
+  rgw_pool:
+    restartPolicy: OnFailure
+manifests:
+  certificates: false
+  configmap_bin: true
+  configmap_bin_ks: true
+  configmap_ceph_templates: true
+  configmap_etc: true
+  configmap_test_bin: true
+  deployment_rgw: true
+  helm_tests: true
+  ingress_rgw: true
+  job_bootstrap: false
+  job_ceph_rgw_storage_init: true
+  job_image_repo_sync: true
+  job_ks_endpoints: true
+  job_ks_service: true
+  job_ks_user: true
+  job_pre_apply_cleanup: true
+  job_rgw_placement_targets: false
+  job_rgw_pool: true
+  job_rgw_restart: false
+  job_s3_admin: true
+  network_policy: false
+  secret_ingress_tls: true
+  secret_keystone: true
+  secret_keystone_rgw: true
+  secret_registry: true
+  secret_s3_rgw: true
+  service_ingress_rgw: true
+  service_rgw: true
+extraObjects: []
 ...

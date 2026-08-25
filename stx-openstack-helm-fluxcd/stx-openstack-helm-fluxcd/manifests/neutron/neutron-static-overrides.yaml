@@ -62,6 +62,9 @@ labels:
     l2gw:
       node_selector_key: openstack-compute-node
       node_selector_value: enabled
+    ovn_vpn:
+      node_selector_key: openstack-control-plane
+      node_selector_value: enabled
   job:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
@@ -2381,6 +2384,7 @@ secrets:
     designate: neutron-keystone-designate
     ironic: neutron-keystone-ironic
     stx_admin: neutron-keystone-stx-admin
+    test: neutron-keystone-test
   oslo_db:
     admin: neutron-db-admin
     neutron: neutron-db-user
@@ -2785,4 +2789,5 @@ manifests:
 # of values, like [openvswitch=enabled, dpdk=enabled] for ovs-dpdk
 vswitch_labels:
   - none
+extraObjects: []
 ...

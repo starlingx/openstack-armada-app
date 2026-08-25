@@ -19,13 +19,11 @@ images:
     exclude:
       - dep_check
       - image_repo_sync
-
 labels:
   isApplication: false
   ovs:
     node_selector_key: openvswitch
     node_selector_value: enabled
-
 pod:
   labels:
     include_app_kubernetes_io: false
@@ -246,4 +244,5 @@ conf:
   #
   # Leave empty to run as user that invokes the command (default: root)
   ovs_user_name: "openvswitch:openvswitch"
+extraObjects: []
 ...

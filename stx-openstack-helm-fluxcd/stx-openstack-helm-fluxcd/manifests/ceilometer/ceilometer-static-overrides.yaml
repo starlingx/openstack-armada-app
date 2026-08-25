@@ -753,6 +753,306 @@ conf:
     sinks: []
     sources: []
 
+  gnocchi_resources: {}
+  meters:
+    metric:
+    - event_type:
+      - image.upload
+      - image.delete
+      - image.update
+      name: image.size
+      project_id: $.payload.owner
+      resource_id: $.payload.id
+      type: gauge
+      unit: B
+      volume: $.payload.size
+    - event_type: image.send
+      name: image.download
+      project_id: $.payload.receiver_tenant_id
+      resource_id: $.payload.image_id
+      type: delta
+      unit: B
+      user_id: $.payload.receiver_user_id
+      volume: $.payload.bytes_sent
+    - event_type: image.send
+      name: image.serve
+      project_id: $.payload.owner_id
+      resource_id: $.payload.image_id
+      type: delta
+      unit: B
+      volume: $.payload.bytes_sent
+    - event_type:
+      - volume.exists
+      - volume.create.*
+      - volume.delete.*
+      - volume.resize.*
+      - volume.attach.*
+      - volume.detach.*
+      - volume.update.*
+      metadata:
+        display_name: $.payload.display_name
+        volume_type: $.payload.volume_type
+      name: volume.size
+      project_id: $.payload.tenant_id
+      resource_id: $.payload.volume_id
+      type: gauge
+      unit: GB
+      user_id: $.payload.user_id
+      volume: $.payload.size
+    - event_type:
+      - snapshot.exists
+      - snapshot.create.*
+      - snapshot.delete.*
+      metadata:
+        display_name: $.payload.display_name
+      name: snapshot.size
+      project_id: $.payload.tenant_id
+      resource_id: $.payload.snapshot_id
+      type: gauge
+      unit: GB
+      user_id: $.payload.user_id
+      volume: $.payload.volume_size
+    - event_type:
+      - backup.exists
+      - backup.create.*
+      - backup.delete.*
+      - backup.restore.*
+      metadata:
+        display_name: $.payload.display_name
+      name: backup.size
+      project_id: $.payload.tenant_id
+      resource_id: $.payload.backup_id
+      type: gauge
+      unit: GB
+      user_id: $.payload.user_id
+      volume: $.payload.size
+    - event_type: magnum.bay.metrics.*
+      lookup:
+      - name
+      - unit
+      - volume
+      name: $.payload.metrics.[*].name
+      project_id: $.payload.project_id
+      resource_id: $.payload.resource_id
+      type: gauge
+      unit: $.payload.metrics.[*].unit
+      user_id: $.payload.user_id
+      volume: $.payload.metrics.[*].value
+    - event_type: objectstore.http.request
+      lookup:
+      - name
+      - unit
+      - volume
+      name: $.payload.measurements.[*].metric.[*].name
+      project_id: $.payload.initiator.project_id
+      resource_id: $.payload.target.id
+      type: delta
+      unit: $.payload.measurements.[*].metric.[*].unit
+      user_id: $.payload.initiator.id
+      volume: $.payload.measurements.[*].result
+    - event_type: compute.instance.*
+      metadata:
+        display_name: $.payload.display_name
+        flavor_id: $.payload.instance_flavor_id
+        flavor_name: $.payload.instance_type
+        host: $.payload.host
+        image_ref: $.payload.image_meta.base_image_ref
+      name: memory
+      project_id: $.payload.tenant_id
+      resource_id: $.payload.instance_id
+      type: gauge
+      unit: MB
+      user_id: $.payload.user_id
+      user_metadata: $.payload.metadata
+      volume: $.payload.memory_mb
+    - event_type: compute.instance.*
+      metadata:
+        display_name: $.payload.display_name
+        flavor_id: $.payload.instance_flavor_id
+        flavor_name: $.payload.instance_type
+        host: $.payload.host
+        image_ref: $.payload.image_meta.base_image_ref
+      name: vcpus
+      project_id: $.payload.tenant_id
+      resource_id: $.payload.instance_id
+      type: gauge
+      unit: vcpu
+      user_id: $.payload.user_id
+      user_metadata: $.payload.metadata
+      volume: $.payload.vcpus
+    - event_type: compute.instance.create.end
+      metadata:
+        display_name: $.payload.display_name
+        flavor_id: $.payload.instance_flavor_id
+        flavor_name: $.payload.instance_type
+        host: $.payload.host
+        image_ref: $.payload.image_meta.base_image_ref
+      name: compute.instance.booting.time
+      project_id: $.payload.tenant_id
+      resource_id: $.payload.instance_id
+      type: gauge
+      unit: sec
+      user_metadata: $.payload.metadata
+      volume:
+        fields:
+        - $.payload.created_at
+        - $.payload.launched_at
+        plugin: timedelta
+    - event_type: compute.instance.*
+      metadata:
+        display_name: $.payload.display_name
+        flavor_id: $.payload.instance_flavor_id
+        flavor_name: $.payload.instance_type
+        host: $.payload.host
+        image_ref: $.payload.image_meta.base_image_ref
+      name: disk.root.size
+      project_id: $.payload.tenant_id
+      resource_id: $.payload.instance_id
+      type: gauge
+      unit: GB
+      user_id: $.payload.user_id
+      user_metadata: $.payload.metadata
+      volume: $.payload.root_gb
+    - event_type: compute.instance.*
+      metadata:
+        display_name: $.payload.display_name
+        flavor_id: $.payload.instance_flavor_id
+        flavor_name: $.payload.instance_type
+        host: $.payload.host
+        image_ref: $.payload.image_meta.base_image_ref
+      name: disk.ephemeral.size
+      project_id: $.payload.tenant_id
+      resource_id: $.payload.instance_id
+      type: gauge
+      unit: GB
+      user_id: $.payload.user_id
+      user_metadata: $.payload.metadata
+      volume: $.payload.ephemeral_gb
+    - event_type: l3.meter
+      name: bandwidth
+      project_id: $.payload.tenant_id
+      resource_id: $.payload.label_id
+      type: delta
+      unit: B
+      volume: $.payload.bytes
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.frequency')].source
+      name: compute.node.cpu.frequency
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.frequency')].timestamp
+      type: gauge
+      unit: MHz
+      volume: $.payload.metrics[?(@.name='cpu.frequency')].value
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.user.time')].source
+      name: compute.node.cpu.user.time
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.user.time')].timestamp
+      type: cumulative
+      unit: ns
+      volume: $.payload.metrics[?(@.name='cpu.user.time')].value
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.kernel.time')].source
+      name: compute.node.cpu.kernel.time
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.kernel.time')].timestamp
+      type: cumulative
+      unit: ns
+      volume: $.payload.metrics[?(@.name='cpu.kernel.time')].value
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.idle.time')].source
+      name: compute.node.cpu.idle.time
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.idle.time')].timestamp
+      type: cumulative
+      unit: ns
+      volume: $.payload.metrics[?(@.name='cpu.idle.time')].value
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.iowait.time')].source
+      name: compute.node.cpu.iowait.time
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.iowait.time')].timestamp
+      type: cumulative
+      unit: ns
+      volume: $.payload.metrics[?(@.name='cpu.iowait.time')].value
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.kernel.percent')].source
+      name: compute.node.cpu.kernel.percent
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.kernel.percent')].timestamp
+      type: gauge
+      unit: percent
+      volume: $.payload.metrics[?(@.name='cpu.kernel.percent')].value * 100
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.idle.percent')].source
+      name: compute.node.cpu.idle.percent
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.idle.percent')].timestamp
+      type: gauge
+      unit: percent
+      volume: $.payload.metrics[?(@.name='cpu.idle.percent')].value * 100
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.user.percent')].source
+      name: compute.node.cpu.user.percent
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.user.percent')].timestamp
+      type: gauge
+      unit: percent
+      volume: $.payload.metrics[?(@.name='cpu.user.percent')].value * 100
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.iowait.percent')].source
+      name: compute.node.cpu.iowait.percent
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.iowait.percent')].timestamp
+      type: gauge
+      unit: percent
+      volume: $.payload.metrics[?(@.name='cpu.iowait.percent')].value * 100
+    - event_type: compute.metrics.update
+      metadata:
+        event_type: $.event_type
+        host: $.publisher_id
+        source: $.payload.metrics[?(@.name='cpu.percent')].source
+      name: compute.node.cpu.percent
+      resource_id: $.payload.host + "_" + $.payload.nodename
+      timestamp: $.payload.metrics[?(@.name='cpu.percent')].timestamp
+      type: gauge
+      unit: percent
+      volume: $.payload.metrics[?(@.name='cpu.percent')].value * 100
+    - event_type:
+      - identity.authenticate
+      name: $.payload.outcome - $.payload.outcome + 'identity.authenticate.' + $.payload.outcome
+      resource_id: $.payload.initiator.id
+      type: delta
+      unit: user
+      user_id: $.payload.initiator.id
+      volume: 1
 dependencies:
   dynamic:
     common:
@@ -797,6 +1097,37 @@ dependencies:
         - endpoint: internal
           service: metric
 
+    api:
+      jobs:
+      - ceilometer-db-sync
+      - ceilometer-rabbit-init
+      - ceilometer-ks-user
+      - ceilometer-ks-endpoints
+      services:
+      - endpoint: internal
+        service: identity
+      - endpoint: internal
+        service: metric
+    ks_user:
+      services:
+      - endpoint: internal
+        service: identity
+    rabbit_init:
+      services:
+      - endpoint: internal
+        service: oslo_messaging
+    tests:
+      services:
+      - endpoint: internal
+        service: identity
+      - endpoint: internal
+        service: metering
+      - endpoint: internal
+        service: metric
+    image_repo_sync:
+      services:
+      - endpoint: internal
+        service: local_image_registry
 # Names of secrets used by bootstrap and environmental checks
 secrets:
   identity:
@@ -939,6 +1270,7 @@ endpoints:
       http:
         default: 15672
 
+  metric: {}
 pod:
   labels:
     include_app_kubernetes_io: false
@@ -1131,7 +1463,8 @@ manifests:
   service_ingress_api: false
   servicemonitor_central: true
   servicemonitor_compute: true
-
+  job_pre_apply_cleanup: true
+  
 # -- Array of extra K8s manifests to deploy
 ## Note: Supports use of custom Helm templates
 extraObjects: []

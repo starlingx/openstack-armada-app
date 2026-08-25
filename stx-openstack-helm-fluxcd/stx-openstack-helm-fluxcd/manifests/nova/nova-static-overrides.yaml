@@ -1628,6 +1628,7 @@ conf:
       workers: 1
       discover_hosts_in_cells_interval: 30
       periodic_task_interval: -1
+      max_attempts: 10
     metrics:
       required: false
     workarounds:
@@ -1767,6 +1768,8 @@ conf:
       StrictHostKeyChecking no
       UserKnownHostsFile /dev/null
       Port {{ .Values.network.ssh.port }}
+  nova_concurrency:
+    disable_eventlet_patching: 'false'
 # Names of secrets used by bootstrap and environmental checks
 secrets:
   identity:
@@ -2961,4 +2964,5 @@ manifests:
 # List of hosts and uuids
 hosts_uuids: []
 
+extraObjects: []
 ...

@@ -90,6 +90,8 @@ labels:
   server:
     node_selector_key: openstack-compute-node
     node_selector_value: enabled
+    node_selector_exclude_key: openstack-control-plane
+    node_selector_exclude_value: enabled
 
 manifests:
   configmap_bin: true

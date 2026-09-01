@@ -72,7 +72,43 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
         return app_constants.BACKUP_DEFAULT_DRIVER
 
-    def _get_mount_overrides(self):
+    def _get_backup_mount_point_base(self):
+        """Resolve the cinder-backup mount point base directory.
+
+        File-based backup drivers (NFS, Posix) mount the backup share under
+        conf.cinder.DEFAULT.backup_mount_point_base. This value is
+        configurable by the operator via Helm user overrides, so it must be
+        read dynamically instead of assumed. When no override is present the
+        default matches the value set in cinder-static-overrides.yaml
+        (CINDER_BACKUP_MOUNT_POINT_BASE), which is what the emptyDir mount
+        must point to.
+
+        :returns: str -- the effective backup_mount_point_base path.
+        """
+        # Before the app is uploaded and overrides are set, the override
+        # lookup raises (no openstack app / no helm_override row yet). Treat
+        # that as "no user override" and fall back to the default.
+        try:
+            return _get_value_from_application(
+                default_value=app_constants.CINDER_BACKUP_MOUNT_POINT_BASE,
+                chart_name=self.CHART,
+                override_name=app_constants.OVERRIDE_BACKUP_MOUNT_POINT_BASE
+            )
+        except (exception.HelmOverrideNotFound, exception.KubeAppNotFound):
+            return app_constants.CINDER_BACKUP_MOUNT_POINT_BASE
+
+    def _get_mount_overrides(self, include_backup_mount=False):
+        """Build pod.mounts volume/volumeMount overrides for cinder pods.
+
+        Always includes the image conversion hostPath mount and, when a
+        storage CA certificate is available, the storage-ca-cert secret mount.
+
+        :param include_backup_mount: When True, also add a writable emptyDir
+            mount at the cinder-backup mount point base. This is only relevant
+            for the cinder-backup pod (file-based backup drivers), not for
+            cinder-volume.
+        :returns: dict -- {'volumes': [...], 'volumeMounts': [...]}
+        """
         overrides = {
             'volumes': [],
             'volumeMounts': []
@@ -89,6 +125,25 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         # Note: The /var/lib/cinder (state_path) volumeMount is now provided by
         # the chart's default values (2026.1.0+), so we no longer add it here to
         # avoid duplicate mount errors.
+
+        # The cinder-backup container runs with a read-only root filesystem.
+        # File-based backup drivers (NFS, Posix) mount the backup share under
+        # backup_mount_point_base and must create that directory at runtime.
+        # Without a writable volume the mkdir fails silently and the backup
+        # manager hangs, leaving the service DOWN. Provide an emptyDir so the
+        # mount point is writable while preserving readOnlyRootFilesystem. The
+        # mount path is resolved dynamically because the operator can override
+        # backup_mount_point_base. Ceph backups do not use a mount point, so
+        # the empty volume is harmless when that driver is used.
+        if include_backup_mount:
+            overrides['volumes'].append({
+                'name': 'cinder-backup-mount',
+                'emptyDir': {}
+            })
+            overrides['volumeMounts'].append({
+                'name': 'cinder-backup-mount',
+                'mountPath': self._get_backup_mount_point_base()
+            })
 
         # Mount storage CA certificate from Kubernetes secret.
         # The secret is created or migrated during the pre-apply lifecycle hook
@@ -250,7 +305,8 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                             'cinder_volume': self._get_mount_overrides()
                         },
                         'cinder_backup': {
-                            'cinder_backup': self._get_mount_overrides()
+                            'cinder_backup': self._get_mount_overrides(
+                                include_backup_mount=True)
                         }
                     },
                     'replicas': {

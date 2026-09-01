@@ -6,6 +6,7 @@
 
 import mock
 from sysinv.common import constants
+from sysinv.common import exception
 from sysinv.helm import common
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
@@ -1096,3 +1097,109 @@ class CinderMountOverridesTest(CinderConversionTestCase,
         self.assertEqual(overrides['volumeMounts'][2]['mountPath'], '/etc/ssl/certs/storage.pem')
         self.assertEqual(overrides['volumeMounts'][1]['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
         self.assertEqual(overrides['volumeMounts'][2]['name'], app_constants.STORAGE_CA_CERT_SECRET_NAME)
+
+    @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_container_certs',
+                return_value=[])
+    @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_host_cert',
+                return_value=None)
+    @mock.patch('k8sapp_openstack.helm.cinder.is_storage_ca_cert_secret_available',
+                return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder.os.path.isfile', return_value=False)
+    def test_get_mount_overrides_backup_mount_default(
+            self, mock_isfile, mock_secret_available, mock_get_host_cert,
+            mock_get_container_certs):
+        """cinder-backup gets a writable emptyDir at the default mount base."""
+        self.cinder_helm.netapp_enabled = False
+
+        with mock.patch.object(self.cinder_helm,
+                               '_get_backup_mount_point_base',
+                               return_value=app_constants.CINDER_BACKUP_MOUNT_POINT_BASE):
+            overrides = self.cinder_helm._get_mount_overrides(
+                include_backup_mount=True)
+
+        # imageconversion + cinder-backup-mount
+        self.assertEqual(len(overrides['volumes']), 2)
+        self.assertEqual(len(overrides['volumeMounts']), 2)
+        backup_volume = overrides['volumes'][1]
+        backup_mount = overrides['volumeMounts'][1]
+        self.assertEqual(backup_volume['name'], 'cinder-backup-mount')
+        self.assertIn('emptyDir', backup_volume)
+        self.assertEqual(backup_mount['name'], 'cinder-backup-mount')
+        self.assertEqual(backup_mount['mountPath'],
+                         app_constants.CINDER_BACKUP_MOUNT_POINT_BASE)
+
+    @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_container_certs',
+                return_value=[])
+    @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_host_cert',
+                return_value=None)
+    @mock.patch('k8sapp_openstack.helm.cinder.is_storage_ca_cert_secret_available',
+                return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder.os.path.isfile', return_value=False)
+    def test_get_mount_overrides_backup_mount_user_override(
+            self, mock_isfile, mock_secret_available, mock_get_host_cert,
+            mock_get_container_certs):
+        """The emptyDir mount path follows a user-overridden mount point base.
+
+        Covers conf.cinder.DEFAULT.backup_mount_point_base being set to a
+        custom path (e.g. /backup/) as documented in stx-openstack docs.
+        """
+        self.cinder_helm.netapp_enabled = False
+
+        with mock.patch.object(self.cinder_helm,
+                               '_get_backup_mount_point_base',
+                               return_value='/backup'):
+            overrides = self.cinder_helm._get_mount_overrides(
+                include_backup_mount=True)
+
+        backup_mount = overrides['volumeMounts'][1]
+        self.assertEqual(backup_mount['name'], 'cinder-backup-mount')
+        self.assertEqual(backup_mount['mountPath'], '/backup')
+
+    @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_container_certs',
+                return_value=[])
+    @mock.patch('k8sapp_openstack.helm.cinder.get_storage_tls_host_cert',
+                return_value=None)
+    @mock.patch('k8sapp_openstack.helm.cinder.is_storage_ca_cert_secret_available',
+                return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder.os.path.isfile', return_value=False)
+    def test_get_mount_overrides_no_backup_mount_for_volume(
+            self, mock_isfile, mock_secret_available, mock_get_host_cert,
+            mock_get_container_certs):
+        """cinder-volume (include_backup_mount=False) gets no backup mount."""
+        self.cinder_helm.netapp_enabled = False
+
+        overrides = self.cinder_helm._get_mount_overrides()
+
+        mount_names = [m['name'] for m in overrides['volumeMounts']]
+        self.assertNotIn('cinder-backup-mount', mount_names)
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
+    def test_get_backup_mount_point_base_default(self, mock_get_value):
+        """_get_backup_mount_point_base returns the default when no override."""
+        mock_get_value.return_value = app_constants.CINDER_BACKUP_MOUNT_POINT_BASE
+
+        result = self.cinder_helm._get_backup_mount_point_base()
+
+        self.assertEqual(result, app_constants.CINDER_BACKUP_MOUNT_POINT_BASE)
+        mock_get_value.assert_called_once_with(
+            default_value=app_constants.CINDER_BACKUP_MOUNT_POINT_BASE,
+            chart_name=self.cinder_helm.CHART,
+            override_name=app_constants.OVERRIDE_BACKUP_MOUNT_POINT_BASE)
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
+    def test_get_backup_mount_point_base_user_override(self, mock_get_value):
+        """_get_backup_mount_point_base returns the user-overridden value."""
+        mock_get_value.return_value = '/backup'
+
+        result = self.cinder_helm._get_backup_mount_point_base()
+
+        self.assertEqual(result, '/backup')
+
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application')
+    def test_get_backup_mount_point_base_falls_back_on_lookup_error(self, mock_get_value):
+        """When the override lookup raises (no app/override yet), the default is used."""
+        for exc in (exception.HelmOverrideNotFound(name='cinder', namespace='openstack'),
+                    exception.KubeAppNotFound(name='openstack')):
+            mock_get_value.side_effect = exc
+            result = self.cinder_helm._get_backup_mount_point_base()
+            self.assertEqual(result, app_constants.CINDER_BACKUP_MOUNT_POINT_BASE)

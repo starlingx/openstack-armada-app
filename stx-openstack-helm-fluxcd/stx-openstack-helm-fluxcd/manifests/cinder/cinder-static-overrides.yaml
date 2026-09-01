@@ -820,6 +820,12 @@ conf:
     DEFAULT:
       control_exchange: cinder
       state_path: /var/lib/cinder
+      # File-based backup drivers (NFS, Posix) mount the backup share under
+      # this path. The upstream cinder default is $state_path/backup_mount;
+      # we pin it here so it matches the writable emptyDir mount that the
+      # k8sapp-openstack plugin adds to the cinder-backup pod. The operator
+      # may override this; the plugin reads the effective value dynamically.
+      backup_mount_point_base: /var/lib/cinder/backup_mount
       volume_usage_audit_period: hour
       resource_query_filters_file: /etc/cinder/resource_filters.json
       log_config_append: /etc/cinder/logging.conf

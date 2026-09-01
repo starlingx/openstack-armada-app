@@ -1,0 +1,387 @@
+From b0c52150339e1de4e5d9655f0551ca6ad369cf44 Mon Sep 17 00:00:00 2001
+From: ssajeev <sravan.sajeev@windriver.com>
+Date: Mon, 31 Aug 2026 15:05:00 -0400
+Subject: [PATCH] Add pre-upgrade Job to enable rabbitmq feature flags
+
+RABBITMQ_FEATURE_FLAGS is read on a node's very first boot only, so a
+node whose first boot left its feature flag state incomplete cannot be
+corrected by restarting the pod or by re-applying the chart. A newer
+broker then refuses to start from that state: the replacement pod never
+becomes ready and the release times out.
+
+Add a pre-upgrade hook Job that enables the still-running broker's
+stable feature flags before the StatefulSet is rolled. It lists flags
+with 'rabbitmqctl -q list_feature_flags name state stability', selects
+the rows whose stability is stable or required and whose state is
+disabled, and enables them one at a time, then re-reads the listing to
+confirm the end state. pre-upgrade does not fire on install, so the
+fresh install path gains no Job, no pod and no hook run.
+
+rabbitmqctl runs inside the broker container through kubectl exec rather
+than against the broker from outside, so client and broker are the same
+build by construction and the Job holds no broker credential: no admin
+Secret, no erlang cookie volume, no TLS material, and the Job renders
+identically whether manifests.certificates is true or false. The script
+is inlined in command: because a pre-upgrade hook can only mount the
+previous release's ConfigMap.
+
+The cost is a Kubernetes privilege, so it is stated plainly: the Job's
+Role grants create on pods/exec and get on pods, both narrowed by
+resourceNames to the broker pods, and nothing else - no list, no watch,
+no wildcard.
+
+NOTE: Re-evaluate each release whether this Job is still required.
+RabbitMQ only auto-enables feature flags on a new node's first boot, not
+on upgrade, so today each upgrade leaves that version's newly-introduced
+flags disabled and a later version can require them. If the RabbitMQ
+upgrade guidelines change that, this Job can go.
+https://www.rabbitmq.com/docs/upgrade
+
+Signed-off-by: ssajeev <sravan.sajeev@windriver.com>
+---
+ .../templates/job-feature-flags-upgrade.yaml  | 268 ++++++++++++++++++
+ rabbitmq/values.yaml                          |  24 ++
+ 2 files changed, 292 insertions(+)
+ create mode 100644 rabbitmq/templates/job-feature-flags-upgrade.yaml
+
+diff --git a/rabbitmq/templates/job-feature-flags-upgrade.yaml b/rabbitmq/templates/job-feature-flags-upgrade.yaml
+new file mode 100644
+index 000000000..8667c6b6b
+--- /dev/null
++++ b/rabbitmq/templates/job-feature-flags-upgrade.yaml
+@@ -0,0 +1,276 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++    http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{/*
++Renders a ServiceAccount, Role, RoleBinding and Job that enable the running
++broker's stable feature flags before the StatefulSet is rolled to a newer
++broker image.
++
++pre-upgrade only, deliberately: no hook is rendered into an executable phase on
++a fresh install, so the install path gains no Job, no pod and no hook run.
++
++Why this shape - kubectl exec rather than a remote client, the pods/exec grant,
++the inlined script - is explained in this patch's commit message.
++*/}}
++
++{{- if (.Values.global).subchart_release_name }}
++{{- $_ := set . "deployment_name" .Chart.Name }}
++{{- else }}
++{{- $_ := set . "deployment_name" .Release.Name }}
++{{- end }}
++
++{{- if .Values.manifests.job_feature_flags_upgrade }}
++{{- $envAll := . }}
++
++{{- $serviceAccountName := "rabbitmq-feature-flags-upgrade" }}
++{{- $statefulSetName := printf "%s-%s" $envAll.deployment_name "rabbitmq" }}
++{{- $waitSeconds := mul (int $envAll.Values.feature_flags_upgrade.wait.attempts) (int $envAll.Values.feature_flags_upgrade.wait.interval_seconds) }}
++
++{{/*
++One entry per StatefulSet ordinal. This single list is rendered into both the
++Job's candidate list and the Role's resourceNames, so a divergence between the
++pods the Job talks to and the pods it is allowed to talk to is not expressible.
++*/}}
++{{- $candidates := list }}
++{{- range $ordinal := until (int $envAll.Values.pod.replicas.server) }}
++{{- $candidates = append $candidates (printf "%s-%d" $statefulSetName $ordinal) }}
++{{- end }}
++---
++apiVersion: v1
++kind: ServiceAccount
++metadata:
++  name: {{ $serviceAccountName }}
++  namespace: {{ $envAll.Release.Namespace }}
++  annotations:
++    "helm.sh/hook": "pre-upgrade"
++    "helm.sh/hook-weight": "-6"
++    "helm.sh/hook-delete-policy": before-hook-creation
++imagePullSecrets:
++  - name: default-registry-key
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: Role
++metadata:
++  name: {{ $serviceAccountName }}
++  namespace: {{ $envAll.Release.Namespace }}
++  annotations:
++    "helm.sh/hook": "pre-upgrade"
++    "helm.sh/hook-weight": "-6"
++    "helm.sh/hook-delete-policy": before-hook-creation
++rules:
++  # get by name, never list: resourceNames cannot usefully restrict list, so
++  # enumerating would have meant an unrestricted grant over every pod in the
++  # namespace.
++  - apiGroups:
++      - ""
++    resources:
++      - pods
++    verbs:
++      - get
++    resourceNames:
++{{- range $candidate := $candidates }}
++      - {{ $candidate | quote }}
++{{- end }}
++  # resourceNames does narrow this: the create limitation applies to top-level
++  # resources only, and an exec request carries the pod name in its path.
++  - apiGroups:
++      - ""
++    resources:
++      - pods/exec
++    verbs:
++      - create
++    resourceNames:
++{{- range $candidate := $candidates }}
++      - {{ $candidate | quote }}
++{{- end }}
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: RoleBinding
++metadata:
++  name: {{ $serviceAccountName }}
++  namespace: {{ $envAll.Release.Namespace }}
++  annotations:
++    "helm.sh/hook": "pre-upgrade"
++    "helm.sh/hook-weight": "-6"
++    "helm.sh/hook-delete-policy": before-hook-creation
++roleRef:
++  apiGroup: rbac.authorization.k8s.io
++  kind: Role
++  name: {{ $serviceAccountName }}
++subjects:
++  - kind: ServiceAccount
++    name: {{ $serviceAccountName }}
++    namespace: {{ $envAll.Release.Namespace }}
++---
++apiVersion: batch/v1
++kind: Job
++metadata:
++  name: {{ $serviceAccountName }}
++  labels:
++{{ tuple $envAll "rabbitmq" "feature-flags-upgrade" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++    "helm.sh/hook": "pre-upgrade"
++    # -5, after the pre-apply cleanup Job at -7 and not below it: that Job
++    # deletes leftover hook resources, so running this one first would have its
++    # pod, and its logs, deleted out from under the upgrade.
++    "helm.sh/hook-weight": "-5"
++    "helm.sh/hook-delete-policy": before-hook-creation
++spec:
++  backoffLimit: 1
++  # Computed from feature_flags_upgrade.wait: 2 x attempts x interval_seconds
++  # + 60 (two attempts, backoffLimit 1, plus headroom), so overrides carry through.
++  activeDeadlineSeconds: {{ add (mul 2 $waitSeconds) 60 }}
++  template:
++    metadata:
++      labels:
++{{ tuple $envAll "rabbitmq" "feature-flags-upgrade" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++{{ dict "envAll" $envAll "podName" "rabbitmq-feature-flags-upgrade" "containerNames" (list "rabbitmq-feature-flags-upgrade" ) | include "helm-toolkit.snippets.kubernetes_mandatory_access_control_annotation" | indent 8 }}
++    spec:
++{{ dict "envAll" $envAll "application" "feature_flags_upgrade" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
++      serviceAccountName: {{ $serviceAccountName }}
++      restartPolicy: Never
++{{ if $envAll.Values.pod.tolerations.rabbitmq.enabled }}
++{{ tuple $envAll "rabbitmq" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
++      nodeSelector:
++        {{ $envAll.Values.labels.jobs.node_selector_key }}: {{ $envAll.Values.labels.jobs.node_selector_value | quote }}
++      containers:
++        - name: rabbitmq-feature-flags-upgrade
++          # Reuses the pre_apply_cleanup image because it provides kubectl, which
++          # this Job needs to reach the broker. Keep them in step: repointing
++          # pre_apply_cleanup at an image without kubectl breaks this Job.
++{{ tuple $envAll "pre_apply_cleanup" | include "helm-toolkit.snippets.image" | indent 10 }}
++{{ dict "envAll" $envAll "application" "feature_flags_upgrade" "container" "rabbitmq_feature_flags_upgrade" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
++          command:
++            - sh
++            - -c
++            - |
++              # The root filesystem is read-only and only /tmp is writable, so
++              # point HOME there: kubectl writes its discovery cache under
++              # $HOME/.kube/cache and warns on every call otherwise.
++              export HOME=/tmp
++
++              NAMESPACE={{ $envAll.Release.Namespace | quote }}
++              CANDIDATES={{ $candidates | join " " | quote }}
++              WAIT_ATTEMPTS={{ $envAll.Values.feature_flags_upgrade.wait.attempts | quote }}
++              WAIT_INTERVAL={{ $envAll.Values.feature_flags_upgrade.wait.interval_seconds | quote }}
++
++              # One ready pod is what lets us ask; full membership is what lets
++              # us act. So wait for the first, and only measure the second.
++              attempt=0
++              ready_all=false
++              detail=""
++              target=""
++              while [ "$attempt" -lt "$WAIT_ATTEMPTS" ]; do
++                ready_all=true
++                detail=""
++                target=""
++                for pod in $CANDIDATES; do
++                  status=$(kubectl get pod "$pod" -n "$NAMESPACE" -o \
++                    'jsonpath={.status.phase} {.status.containerStatuses[?(@.name=="rabbitmq")].ready}' \
++                    2>&1 || echo "get-failed")
++                  detail="$detail $pod=[$status]"
++                  case "$status" in
++                    "Running true")
++                      if [ -z "$target" ]; then
++                        target="$pod"
++                      fi
++                      ;;
++                    *)
++                      ready_all=false
++                      ;;
++                  esac
++                done
++                if [ -n "$target" ]; then
++                  break
++                fi
++                attempt=$((attempt + 1))
++                echo "waiting for a ready cluster member:$detail ($((WAIT_ATTEMPTS - attempt)) attempts left)"
++                sleep "$WAIT_INTERVAL"
++              done
++
++              if [ -z "$target" ]; then
++                echo "FATAL: no cluster member is ready:$detail" >&2
++                echo "Refusing to proceed. Feature flag state can only be read and" >&2
++                echo "repaired through a running broker, and no candidate pod reached" >&2
++                echo "Running with its rabbitmq container ready." >&2
++                exit 1
++              fi
++              echo "target pod: $target (full membership: $ready_all)"
++
++              # ready_all is interpolated into the single-quoted inner script
++              # text below, since the inner shell cannot see an outer variable.
++              kubectl exec "$target" -n "$NAMESPACE" -c rabbitmq -- sh -c '
++                set -e
++
++                full_membership='"$ready_all"'
++
++                echo "--- before ---"
++                rabbitmqctl -q list_feature_flags name state stability
++
++                targets=$(rabbitmqctl -q list_feature_flags name state stability |
++                  awk "(\$2 == \"disabled\") && (\$3 == \"stable\" || \$3 == \"required\") { print \$1 }" |
++                  sort)
++
++                # Nothing disabled means nothing can be partially enabled, so a
++                # down member cannot be skipped: membership does not matter here.
++                # An [ -z ... ] && echo ... one-liner would exit under set -e
++                # when the test fails, because the AND-list is top-level.
++                if [ -z "$targets" ]; then
++                  echo "nothing to do; all stable feature flags already enabled"
++                  exit 0
++                fi
++
++                if [ "$full_membership" != true ]; then
++                  echo "FATAL: flags need enabling but cluster membership is incomplete" >&2
++                  echo "Refusing to proceed. Enabling flags now would skip the down member(s)," >&2
++                  echo "whose stale on-disk state would make them unbootable once the" >&2
++                  echo "StatefulSet rolls them to the new broker image." >&2
++                  exit 1
++                fi
++
++                # One flag per invocation, not the all keyword: all is
++                # version-dependent server side and on an older broker applies
++                # no stability filter at all. Enabling individually also means
++                # a refusal names the flag, immediately after its own line.
++                for name in $targets; do
++                  echo "enabling $name"
++                  rabbitmqctl -t 120 enable_feature_flag "$name"
++                  echo "enabled $name"
++                done
++
++                echo "--- after ---"
++                rabbitmqctl -q list_feature_flags name state stability
++
++                # Not redundant with the exit codes above. Those say each call
++                # was accepted; re-reading the listing confirms the end state
++                # the upgrade depends on, and catches a flag rolled back after
++                # a failed migration function.
++                still=$(rabbitmqctl -q list_feature_flags name state stability |
++                  awk "(\$2 != \"enabled\") && (\$3 == \"stable\" || \$3 == \"required\") { print \$1 }")
++                if [ -n "$still" ]; then
++                  echo "FATAL: these stable flags are still not enabled: $still" >&2
++                  exit 1
++                fi
++              '
++          volumeMounts:
++            - name: pod-tmp
++              mountPath: /tmp
++      volumes:
++        - name: pod-tmp
++          emptyDir: {}
++{{- end }}
+diff --git a/rabbitmq/values.yaml b/rabbitmq/values.yaml
+index 4b81a085d..57ea1f1ef 100644
+--- a/rabbitmq/values.yaml
++++ b/rabbitmq/values.yaml
+@@ -104,6 +104,13 @@ pod:
+         rabbitmq_cookie:
+           allowPrivilegeEscalation: false
+           readOnlyRootFilesystem: true
++    feature_flags_upgrade:
++      pod:
++        runAsUser: 999
++      container:
++        rabbitmq_feature_flags_upgrade:
++          allowPrivilegeEscalation: false
++          readOnlyRootFilesystem: true
+     test:
+       pod:
+         runAsUser: 999
+@@ -404,6 +411,30 @@ io_thread_pool:
+   enabled: false
+   size: 64
+ 
++# Bounds for the membership wait in the pre-upgrade feature flag repair Job.
++# The 10 second interval matches the existing _rabbitmq-wait-for-cluster.sh.tpl
++# loop. 31 x 10s = 310s matches the boot budget the chart already grants the
++# broker through its startupProbe (periodSeconds 10 x failureThreshold 30, plus
++# a 10 second initial delay), which is set that high because broker boot is slow
++# on network-attached storage. The Job's activeDeadlineSeconds is computed from
++# these two values as 2 x attempts x interval_seconds + 60, because backoffLimit
++# 1 allows two attempts, so changing them here is sufficient. At the defaults
++# below that is 680s, which sits inside the HelmRelease's 30 minute timeout and
++# leaves roughly 18 minutes for the StatefulSet roll; raise the wait far enough
++# and that headroom shrinks.
++#
++# The deadline covers the membership wait only, deliberately. The enable phase
++# runs rabbitmqctl -t 120 per flag, so a worst case of ten stalled enables would
++# be 1200s on its own and could not be accommodated without giving up the whole
++# release timeout. Enables return in well under a second in practice, and an
++# enable that genuinely takes two minutes means an unhealthy broker, where
++# failing the Job is better than waiting for the release to time out. So this is
++# a safety net rather than a budget for the slowest possible run.
++feature_flags_upgrade:
++  wait:
++    attempts: 31
++    interval_seconds: 10
++
+ storage_conf:
+   volume_storage_class_priority:
+     - "ceph"
+@@ -419,6 +450,7 @@ manifests:
+   ingress_management: true
+   job_pre_apply_cleanup: true
+   job_cluster_wait: true
++  job_feature_flags_upgrade: true
+   job_image_repo_sync: true
+   monitoring:
+     prometheus:
+2.43.0
+

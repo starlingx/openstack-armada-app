@@ -62,3 +62,4 @@
 0062-Fix-MariaDB-rejoin-failure-after-unclean-shutdown.patch
 0063-Fix-daemonset-merge-discarding-empty-overrides.patch
 0064-placement-update-liveness-readiness-probes-to-use-htk.patch
+0065-Add-pre-upgrade-Job-to-enable-rabbitmq-feature-flags.patch

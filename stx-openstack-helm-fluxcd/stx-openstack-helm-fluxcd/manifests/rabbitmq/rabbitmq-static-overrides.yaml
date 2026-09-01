@@ -97,6 +97,13 @@ pod:
         rabbitmq_cookie:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
+    feature_flags_upgrade:
+      pod:
+        runAsUser: 999
+      container:
+        rabbitmq_feature_flags_upgrade:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
     test:
       pod:
         runAsUser: 999
@@ -193,11 +200,13 @@ conf:
   rabbit_advanced_config:
     enabled: false
     default_consumer_prefetch: 250
-  # Feature Flags is introduced in RabbitMQ 3.8.0
-  # To deploy with standard list of feature, leave as default
-  # To deploy with specific feature, separate each feature with comma
-  # To deploy with all features disabled, leave blank or empty
-  feature_flags: all
+  # Feature Flags were introduced in RabbitMQ 3.8.0.
+  # 'default' means the broker enables all of its own stable feature flags on a
+  # node's first boot. This is the value we want.
+  # A comma-separated list restricts first boot to those flags only.
+  # A blank or empty value forces ALL flags to be disabled - do not use it.
+  # Note: 'all' is a rabbitmqctl CLI keyword, not a valid value here.
+  feature_flags: default
   users: {}
   # define users in the section below which have to be
   # created by rabbitmq at start up stage through definitions.json
@@ -405,6 +414,13 @@ helm3_hook: false
 io_thread_pool:
   enabled: false
   size: 64
+# Membership wait bounds for the pre-upgrade feature flag repair Job. The Job's
+# activeDeadlineSeconds is computed from these in the chart, so raising them
+# here carries its bound with it. See the chart values for the derivation.
+feature_flags_upgrade:
+  wait:
+    attempts: 31
+    interval_seconds: 10
 storage_conf:
   volume_storage_class_priority:
     - "ceph"
@@ -419,6 +435,7 @@ manifests:
   ingress_management: true
   job_pre_apply_cleanup: true
   job_cluster_wait: true
+  job_feature_flags_upgrade: true
   job_image_repo_sync: true
   monitoring:
     prometheus:

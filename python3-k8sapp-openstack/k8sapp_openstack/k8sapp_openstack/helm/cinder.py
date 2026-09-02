@@ -22,7 +22,6 @@ from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_backend_protocol
 from k8sapp_openstack.utils import get_backends_conf
 from k8sapp_openstack.utils import get_ceph_fsid
-from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import get_storage_backup_priority_list
 from k8sapp_openstack.utils import get_storage_tls_container_certs
@@ -312,16 +311,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         if self._is_openstack_https_ready(self.SERVICE_NAME):
             overrides[common.HELM_NS_OPENSTACK] = \
                 self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
-
-        # The ceph client versions supported by baremetal and rook ceph backends
-        # are not necessarily the same. Therefore, the ceph client image must be
-        # dynamically configured based on the ceph backend currently deployed.
-        if self._rook_ceph:
-            overrides[common.HELM_NS_OPENSTACK] =\
-                self._update_image_tag_overrides(
-                    overrides[common.HELM_NS_OPENSTACK],
-                    ['cinder_backup_storage_init', 'cinder_storage_init'],
-                    get_image_rook_ceph())
 
         if namespace in self.SUPPORTED_NAMESPACES:
             return overrides[namespace]

@@ -286,7 +286,7 @@ endpoints:
     scheme: http
 images:
   tags:
-    ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    ceph_config_helper: docker.io/openstackhelm/ceph-config-helper:ubuntu_jammy_18.2.2-1-20240312
     ceph_rgw: null
     ceph_rgw_pool: null
     dep_check: quay.io/airshipit/kubernetes-entrypoint:7a6a594d2efec8b402ad970d18906863b2f04d4f-ubuntu_noble
@@ -295,8 +295,8 @@ images:
     ks_endpoints: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ks_service: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     ks_user: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
-    rgw_placement_targets: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
-    rgw_s3_admin: docker.io/openstackhelm/ceph-config-helper:ubuntu_bionic-20201223
+    rgw_placement_targets: docker.io/openstackhelm/ceph-config-helper:ubuntu_jammy_18.2.2-1-20240312
+    rgw_s3_admin: docker.io/openstackhelm/ceph-config-helper:ubuntu_jammy_18.2.2-1-20240312
     pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   pull_policy: IfNotPresent
   local_registry:

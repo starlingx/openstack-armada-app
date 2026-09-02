@@ -22,7 +22,6 @@ from k8sapp_openstack.utils import check_netapp_backends
 from k8sapp_openstack.utils import get_backends_conf
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_hosts_uuids
-from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import get_services_fqdn_pattern
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_nova_ephemeral_ceph_enabled
@@ -189,16 +188,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
             overrides[common.HELM_NS_OPENSTACK] = \
                 self._enable_certificates(overrides[common.HELM_NS_OPENSTACK])
-
-        # The ceph client versions supported by baremetal and rook ceph backends
-        # are not necessarily the same. Therefore, the ceph client image must be
-        # dynamically configured based on the ceph backend currently deployed.
-        if self._rook_ceph:
-            overrides[common.HELM_NS_OPENSTACK] =\
-                self._update_image_tag_overrides(
-                    overrides[common.HELM_NS_OPENSTACK],
-                    ['nova_service_cleaner', 'nova_storage_init'],
-                    get_image_rook_ceph())
 
         if nfs_shares.get('enabled', False):
             overrides[common.HELM_NS_OPENSTACK]["conf"]["nova"].update({

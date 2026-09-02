@@ -55,7 +55,7 @@ class ClientsHelm(openstack.OpenstackBaseHelm):
                 "job_bootstrap": True,
             })
 
-        # In central cloud, all the the ceph client images must be downloaded,
+        # In central cloud, the ceph client image must be downloaded,
         # regardless of the ceph backend availability, to allow subclouds to
         # be deployed with any of the supported ceph backends. However, when not
         # in Central Cloud the ceph client image downloaded will be determined
@@ -65,7 +65,7 @@ class ClientsHelm(openstack.OpenstackBaseHelm):
             overrides[common.HELM_NS_OPENSTACK] =\
                 self._update_image_tag_overrides(
                     overrides[common.HELM_NS_OPENSTACK],
-                    ['host_ceph_config_helper', 'rook_ceph_config_helper'],
+                    ['rook_ceph_config_helper'],
                     None)
 
         if namespace in self.SUPPORTED_NAMESPACES:

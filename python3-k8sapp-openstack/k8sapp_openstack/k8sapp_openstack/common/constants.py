@@ -104,9 +104,6 @@ HELM_NS_ROOK_CEPH = 'rook-ceph'
 CEPH_BACKEND_NAME = constants.SB_TYPE_CEPH
 
 CEPH_ROOK_BACKEND_NAME = constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH_ROOK]
-CEPH_ROOK_IMAGE_DEFAULT_REPO = 'docker.io/openstackhelm/ceph-config-helper'
-CEPH_ROOK_IMAGE_DEFAULT_TAG = 'ubuntu_jammy_18.2.2-1-20240312'
-CEPH_ROOK_IMAGE_OVERRIDE = 'rook_ceph_config_helper'
 CEPH_ROOK_MANAGER_APP = 'rook-ceph-mgr'
 CEPH_ROOK_POLL_CRUSH_RULE = 'kube-rbd'
 CEPH_ROOK_RBD_SECRET_NAME = 'rook-csi-rbd-provisioner'

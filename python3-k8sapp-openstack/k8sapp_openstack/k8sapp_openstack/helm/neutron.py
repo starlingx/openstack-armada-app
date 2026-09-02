@@ -13,6 +13,8 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import get_current_vswitch_label
+from k8sapp_openstack.utils import get_host_bridge_map
+from k8sapp_openstack.utils import get_host_sriov_bridge_map
 from k8sapp_openstack.utils import get_vlan_os_interface_name
 
 LOG = logging.getLogger(__name__)
@@ -103,10 +105,27 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                             }
                         }
                     }
-                    # if ovs runs on host, auto bridge add is covered by sysinv
-                    if (self.is_openvswitch_enabled() or self.is_openvswitch_dpdk_enabled()):
+                    # With OVS-kernel the Neutron agent owns every physical
+                    # bridge, so all of them are requested here.
+                    #
+                    # With OVS-DPDK every physical bridge is created by the
+                    # platform (sysinv puppet), with datapath_type=netdev and
+                    # the DPDK ports already attached, so none of them is
+                    # requested.  The key is still emitted, as an empty table,
+                    # because the bridge list of the chart ({br-ex: null})
+                    # would otherwise take effect and create a bridge.
+                    #
+                    # SR-IOV data interfaces are the exception: the platform
+                    # never creates a bridge for them, but the OVS agent still
+                    # binds their data networks' helper ports, so with OVS-DPDK
+                    # the agent is asked for the br-sriov bridges here.
+                    if self.is_openvswitch_enabled():
                         host_neutron['conf'].update({
                             'auto_bridge_add': self._get_host_bridges(host)})
+                    elif self.is_openvswitch_dpdk_enabled():
+                        host_neutron['conf'].update({
+                            'auto_bridge_add':
+                                self._get_host_sriov_bridges(host)})
 
                     # add first host to config_map
                     if not config_map:
@@ -171,11 +190,55 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         LOG.debug("_get_host_bridges: host=%s RESULT bridges=%s", host.hostname, bridges)
         return bridges
 
+    def _get_host_sriov_bridges(self, host):
+        """OVS-DPDK auto_bridge_add for SR-IOV data interfaces.
+
+        With OVS-DPDK the data (br-phy) bridges are created by the platform and
+        are deliberately not requested from the agent.  SR-IOV interfaces get
+        no platform bridge, so the br-sriov bridges used to bind their data
+        networks' helper ports (DHCP/L3/metadata) are requested from the agent
+        here.  The names match get_host_sriov_bridge_map so bridge_mappings and
+        auto_bridge_add agree.
+        """
+        bridges = {}
+        sriov_bridge_map = get_host_sriov_bridge_map(
+            self.interfaces_by_hostid.get(host.id, []))
+        for iface in self.interfaces_by_hostid.get(host.id, []):
+            if not self._is_sriov_network_type(iface):
+                continue
+            if any(dn.datanetwork_network_type in
+                   [constants.DATANETWORK_TYPE_FLAT,
+                    constants.DATANETWORK_TYPE_VLAN] for dn in
+                   self.ifdatanets_by_ifaceid.get(iface.id, [])):
+                port_name = self._get_interface_port_name(host, iface)
+                brname = sriov_bridge_map.get(iface['ifname'])
+                if port_name and brname:
+                    bridges[brname] = port_name.encode('utf8', 'strict')
+        LOG.debug("_get_host_sriov_bridges: host=%s RESULT bridges=%s",
+                  host.hostname, bridges)
+        return bridges
+
     def _get_dynamic_ovs_agent_config(self, host):
         local_ip = None
         tunnel_types = None
         bridge_mappings = ""
         index = 0
+        # With OVS-DPDK the physical bridges are created by the platform, so
+        # their names are derived from the platform's algorithm instead of being
+        # numbered locally.  With OVS-kernel the agent creates the bridges it is
+        # told to create, and the local numbering is kept.
+        #
+        # SR-IOV data interfaces never get a platform (br-phy) bridge, but the
+        # OVS agent still binds the DHCP/L3/metadata helper ports of their data
+        # networks, so they need a bridge in bridge_mappings.  On OVS-DPDK those
+        # bridges (br-sriov<N>) are agent-created via auto_bridge_add; on
+        # OVS-kernel the legacy per-datanet numbering already provides one.
+        bridge_map = None
+        sriov_bridge_map = None
+        if self.is_openvswitch_dpdk_enabled():
+            interfaces = self.interfaces_by_hostid.get(host.id, [])
+            bridge_map = get_host_bridge_map(interfaces)
+            sriov_bridge_map = get_host_sriov_bridge_map(interfaces)
         for iface in self.interfaces_by_hostid.get(host.id, []):
             if self._is_data_network_type(iface) or self._is_sriov_network_type(iface):
                 datanets = self.ifdatanets_by_ifaceid.get(iface.id, [])
@@ -195,8 +258,25 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                         port_name = self._get_interface_port_name(host, iface)
                         # Skip bridge mapping if port name could not be resolved
                         if port_name:
-                            brname = 'br-phy%d' % index
-                            index += 1
+                            if bridge_map is None:
+                                # OVS-kernel: the agent owns every bridge and
+                                # numbers them locally, data and SR-IOV alike.
+                                brname = 'br-phy%d' % index
+                                index += 1
+                            elif self._is_sriov_network_type(iface):
+                                # OVS-DPDK, SR-IOV: agent-created br-sriov
+                                # bridge (see get_host_sriov_bridge_map).
+                                brname = sriov_bridge_map.get(iface['ifname'])
+                            else:
+                                # OVS-DPDK, data: platform-created br-phy bridge.
+                                brname = bridge_map.get(iface['ifname'])
+                            if not brname:
+                                LOG.warning(
+                                    "_get_dynamic_ovs_agent_config: host=%s "
+                                    "iface=%s: no OVS-DPDK bridge for the "
+                                    "interface class, skipping datanet %s",
+                                    host.hostname, iface['ifname'], dn_name)
+                                continue
                             bridge_mappings += ('%s:%s,' % (dn_name, brname))
                             LOG.debug("_get_dynamic_ovs_agent_config: host=%s iface=%s dn=%s "
                                       "-> bridge %s for port %s",

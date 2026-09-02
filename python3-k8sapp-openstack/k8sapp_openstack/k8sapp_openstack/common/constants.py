@@ -429,6 +429,16 @@ VSWITCH_ALLOWED_COMBINATIONS = [
     {OPENVSWITCH_LABEL, DPDK_LABEL},
 ]
 
+# OVS bridge naming.  Reproduces the platform's naming for the bridges of the
+# data interfaces (see get_host_bridge_map in utils.py).
+OVS_BRIDGE_NAME_DATA = 'br-phy%d'
+
+# OVS bridge naming for SR-IOV data interfaces.  Unlike the data (br-phy)
+# bridges, the platform does not create these; the OVS agent does, via
+# auto_bridge_add.  A distinct name is used so they never collide with the
+# platform-owned br-phy bridges (see get_host_sriov_bridge_map in utils.py).
+OVS_BRIDGE_NAME_SRIOV = 'br-sriov%d'
+
 # Return messages from ceph configmap creation
 CEPH_BACKEND_NOT_CONFIGURED = "Not configured"
 DB_API_NOT_AVAILABLE = "Database API is not available"

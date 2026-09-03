@@ -420,7 +420,18 @@ pod:
     placement:
       api:
         liveness:
-          port: 1717
+          enabled: true
+          port: 8778
+          params:
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+        readiness:
+          enabled: true
+          params:
+            initialDelaySeconds: 5
+            periodSeconds: 10
     jobs:
       db_init:
         requests:

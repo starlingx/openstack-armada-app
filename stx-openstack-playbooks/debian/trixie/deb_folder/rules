@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+# See debhelper(7) for an overview.
+
+export DH_VERBOSE = 1
+export ROOT = debian/tmp
+export ANSIBLE_FOLDER = $(ROOT)/usr/lib/application/ansible
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	install -d -m 755 $(ANSIBLE_FOLDER)
+	# debrepack copies the contents of ansible/ (e.g. backup-restore/ and
+	# any top-level files) into the package build root. Install every
+	# top-level entry except debian/.
+	find . -mindepth 1 -maxdepth 1 ! -name "debian" ! -name ".pc" \
+	    -exec cp -pR {} $(ANSIBLE_FOLDER)/ \;

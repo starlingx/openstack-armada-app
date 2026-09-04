@@ -1,0 +1,27 @@
+---
+#
+# Copyright (c) 2019-2026 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# OpenStack-specific constants for the application backup role. Platform runtime
+# values (backup_dir, backup_timestamp, compress_program, exclude_targets,
+# remaining_disk_size_estimation, openstack_app_name, software_version,
+# inventory_hostname) are inherited from the calling platform playbook scope.
+platform_path: /opt/platform
+kube_config_dir: /etc/kubernetes/admin.conf
+mariadb_pod: mariadb-server-0
+# MariaDB databases that are not part of the OpenStack application backup.
+skip_os_dbs:
+  - 'Database'
+  - 'information_schema'
+  - 'performance_schema'
+  - 'mysql'
+  - 'horizon'
+  - 'panko'
+  - 'gnocchi'
+  - 'sys'
+fluxcd_permdir: "{{ platform_path }}/fluxcd/{{ software_version }}"
+helm_charts_permdir: "{{ platform_path }}/helm_charts"
+# <openstack_backup_filename_prefix>_<timestamp>.tgz
+openstack_backup_filename_prefix: "{{ inventory_hostname }}_{{ openstack_app_name }}_backup"

@@ -513,9 +513,9 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
     def _is_strict_backend_available(self):
         """Probe strict (native) storage backend availability.
 
-        Centralizes availability detection for the strict backends (Host-based
-        Ceph, Rook Ceph with fsid + manager API, and NetApp NFS/iSCSI/FC) so the
-        orchestrator can compute it once and share it with every ESB sub-check.
+        Centralizes availability detection for the strict backends (Rook Ceph
+        with fsid + manager API, and NetApp NFS/iSCSI/FC) so the orchestrator
+        can compute it once and share it with every ESB sub-check.
 
         Returns:
             tuple[bool, str]: ``(available, status)`` where ``available`` is True
@@ -557,10 +557,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             backend_available = rook_api_available and fsid_available
             status += f", fsid_available={fsid_available}, " \
                       f"rook_api_available={rook_api_available}"
-        elif ceph_available:
-            fsid_available = app_utils.get_ceph_fsid() is not None
-            backend_available = fsid_available
-            status += f", fsid_available={fsid_available}"
 
         if netapp_nfs_available:
             backend_available = True

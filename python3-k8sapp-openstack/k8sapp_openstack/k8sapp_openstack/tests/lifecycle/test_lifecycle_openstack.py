@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -68,22 +68,22 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid',
                 return_value='aa8c8da0-47de-4fad-8b5d-2c06be236fc8')
     @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
-    def test_is_strict_backend_available_ceph(
+    def test_is_strict_backend_available_host_ceph_unsupported(
         self,
         mock_is_ceph_backend_available,
         mock_get_ceph_fsid,
         mock_check_netapp_backends
     ):
-        """ Test _is_strict_backend_available for host ceph backend and fsid
-        available.
+        """ Test _is_strict_backend_available for host ceph backend, which is
+        no longer a supported storage backend.
         """
         mock_is_ceph_backend_available.side_effect = \
             self._ceph_backend_available
         available, _ = self.lifecycle._is_strict_backend_available()
-        self.assertTrue(available)
+        self.assertFalse(available)
         mock_is_ceph_backend_available.assert_called()
         mock_check_netapp_backends.assert_called()
-        mock_get_ceph_fsid.assert_called()
+        mock_get_ceph_fsid.assert_not_called()
 
     @mock.patch('k8sapp_openstack.utils.check_netapp_backends',
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: True,
@@ -105,7 +105,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         self.assertTrue(available)
         mock_is_ceph_backend_available.assert_called()
         mock_check_netapp_backends.assert_called()
-        mock_get_ceph_fsid.assert_called()
+        mock_get_ceph_fsid.assert_not_called()
 
     @mock.patch('k8sapp_openstack.utils.get_backends_conf', return_value={})
     @mock.patch('k8sapp_openstack.utils.get_enabled_storage_backends_from_override',
@@ -116,7 +116,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
                               app_constants.NETAPP_FC_BACKEND_NAME: False})
     @mock.patch('k8sapp_openstack.utils.get_ceph_fsid', return_value=None)
     @mock.patch('k8sapp_openstack.utils.is_ceph_backend_available')
-    def test_semantic_check_storage_backend_available_fsid_unavailable(
+    def test_semantic_check_storage_backend_available_host_ceph_only(
         self,
         mock_is_ceph_backend_available,
         mock_get_ceph_fsid,
@@ -124,8 +124,8 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_get_enabled_backends,
         mock_get_backends_conf,
     ):
-        """ Test that apply is blocked when host ceph is available but fsid is
-        unavailable and there is no ESB backend.
+        """ Test that apply is blocked when only host ceph is available and
+        there is no ESB backend.
         """
         mock_is_ceph_backend_available.side_effect = \
             self._ceph_backend_available
@@ -136,7 +136,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             exception.LifecycleSemanticCheckException,
             self.lifecycle._semantic_check_storage_backend_available,
             strict_available, status)
-        mock_get_ceph_fsid.assert_called()
+        mock_get_ceph_fsid.assert_not_called()
         mock_check_netapp_backends.assert_called()
 
     @mock.patch('k8sapp_openstack.utils.get_backends_conf', return_value={})

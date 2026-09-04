@@ -12,7 +12,6 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import get_ceph_fsid
-from k8sapp_openstack.utils import get_image_rook_ceph
 from k8sapp_openstack.utils import is_ceph_backend_available
 
 LOG = logging.getLogger(__name__)
@@ -70,16 +69,6 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                     }
                 }
             )
-
-        # The ceph client versions supported by baremetal and rook ceph backends
-        # are not necessarily the same. Therefore, the ceph client image must be
-        # dynamically configured based on the ceph backend currently deployed.
-        if self._rook_ceph:
-            overrides[common.HELM_NS_OPENSTACK] =\
-                self._update_image_tag_overrides(
-                    overrides[common.HELM_NS_OPENSTACK],
-                    ['ceph_config_helper'],
-                    get_image_rook_ceph())
 
         if nova_shares.get('enabled'):
             overrides[common.HELM_NS_OPENSTACK].update({

@@ -77,6 +77,48 @@
       fluxcd_permdir: "{{ platform_path }}/fluxcd/{{ backup_software_version }}"
       helm_charts_permdir: "{{ platform_path }}/helm_charts"
 
+  - name: Restore OpenStack PVCs
+    block:
+      - name: Extract OpenStack PVC info file from backup archive
+        command: >-
+          tar -C {{ backup_dir }} -xpf
+          {{ target_backup_dir }}/{{ backup_filename }}
+          --wildcards --transform='s,.*/,,' '*/pvc_info.yml'
+        register: extract_pvc_info
+        failed_when: false
+
+      - name: Check if OpenStack PVC info file was extracted
+        stat:
+          path: "{{ backup_dir }}/pvc_info.yml"
+        register: pvc_info_file_stat
+
+      - name: Restore OpenStack PVCs from snapshot info
+        when: pvc_info_file_stat.stat.exists
+        block:
+          - name: Retrieve OpenStack PVC info from the file
+            set_fact:
+              pvc_info_dict: >-
+                {{ lookup('file', backup_dir + '/pvc_info.yml')
+                   | from_yaml }}
+
+          - name: Create 'openstack' namespace if needed
+            shell: >-
+              kubectl create namespace openstack
+              --dry-run=client -o yaml | kubectl apply -f -
+            environment:
+              KUBECONFIG: "{{ kube_config_dir }}"
+            when: pvc_info_dict | length > 0
+
+          - name: Restore OpenStack PVCs
+            include_tasks: restore-openstack-pvc.yml
+            loop: "{{ pvc_info_dict | dict2items }}"
+            loop_control:
+              loop_var: pvc_item
+            vars:
+              pvc_name: "{{ pvc_item.key }}"
+              pvc_info: "{{ pvc_item.value }}"
+            when: pvc_info_dict | length > 0
+
   - name: Restore Helm charts, fluxcd manifests and extension filesystem
     command: tar -C / --overwrite -xpf {{ target_backup_dir }}/{{ backup_filename }} {{ item }}
     become_user: root

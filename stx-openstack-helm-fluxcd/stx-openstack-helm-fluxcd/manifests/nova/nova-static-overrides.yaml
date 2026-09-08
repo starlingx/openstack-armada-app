@@ -1464,8 +1464,8 @@ conf:
       # NOTE(portdirect): the bind port should not be defined, and is manipulated
       # via the endpoints section.
       osapi_compute_listen_port: null
-      osapi_compute_workers: 1
-      metadata_workers: 1
+      osapi_compute_workers: 2
+      metadata_workers: 2
       compute_driver: libvirt.LibvirtDriver
       my_ip: "::"
       instance_usage_audit: True

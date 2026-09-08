@@ -1956,7 +1956,7 @@ conf:
       # via the endpoints section.
       bind_port: null
       default_availability_zones: nova
-      api_workers: 1
+      api_workers: 2
       rpc_workers: 4
       allow_overlapping_ips: True
       state_path: /var/run/neutron

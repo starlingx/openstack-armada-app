@@ -1,0 +1,330 @@
+From 9c624eded3d59d92fdaee9cdc58b539180574b75 Mon Sep 17 00:00:00 2001
+From: jmosher <jmosher@mirantis.com>
+Date: Wed, 26 Aug 2026 20:24:39 +0000
+Subject: [PATCH] heat and placement: update liveness/readiness probes to use htk
+
+heat and placement: update liveness/readiness probes to use healthcheck
+
+Update liveness/readiness probes for heat-api, heat-cfn, and placement
+to use the htk function.
+
+Also updates heat-api, and heat-cfn to use /healthcheck endpoints for
+readiness probe.  Leaves the liveness probe pointing at the uwsgi stats
+port.
+
+Signed-off-by: jmosher <jmosher@mirantis.com>
+Change-Id: I0ec2713411c9c1ce984b0d0f8e18e5c1699c7db9
+
+[Back-ported from OpenStack-Helm master branch]
+The heat hunks of the upstream OpenStack-Helm change, which move
+`heat-api` and `heat-cfn` readiness onto `/healthcheck`, have been
+deliberately excluded as they are not required for the bug fix
+that motivates this back porting.
+
+This patch must be removed when the pinned openstack-helm revision is
+advanced past the upstream change. The `liveness.port` override in
+`placement-static-overrides.yaml` does not depend on this patch, as the
+pre-existing inline template already honoured it; what this patch adds
+is `params` support, so `timeoutSeconds` and `failureThreshold` are only
+applied while it is in place. Both continue to work from the overrides
+once the chart itself carries the upstream change.
+
+Signed-off-by: Yathavan Parameshwaran <yathavan.parameshwaran@windriver.com>
+
+[Updated to complete the back port]
+The heat hunks excluded above are now included, so this is the
+complete back port of the upstream change. They convert the `heat-api`
+and `heat-cfn` probes to the htk function, add a `/healthcheck` route
+served by `oslo_middleware` and point readiness at it, and leave
+liveness on the uWSGI stats port as upstream does. They are required
+so that the heat probe parameters can be set from
+`heat-static-overrides.yaml`.
+
+Signed-off-by: asyed1 <ahmed.syed@windriver.com>
+---
+ heat/templates/deployment-api.yaml  | 36 ++++++++++++++++-----------
+ heat/templates/deployment-cfn.yaml  | 35 ++++++++++++++++----------
+ heat/values.yaml                    | 45 ++++++++++++++++++++++-------
+ placement/templates/deployment.yaml | 38 +++++++++++++++--------------
+ placement/values.yaml               |  9 +++++++
+ 5 files changed, 104 insertions(+), 59 deletions(-)
+
+diff --git a/heat/templates/deployment-api.yaml b/heat/templates/deployment-api.yaml
+index be913ee7b..b87f2424a 100644
+--- a/heat/templates/deployment-api.yaml
++++ b/heat/templates/deployment-api.yaml
+@@ -12,6 +12,24 @@ See the License for the specific language governing permissions and
+ limitations under the License.
+ */}}
+ 
++{{- define "heatLivenessProbeTemplate" }}
++httpGet:
++  scheme: {{ tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
++  path: /
++  {{- if .Values.pod.probes.api.heat_api.liveness.port }}
++  port: {{ .Values.pod.probes.api.heat_api.liveness.port }}
++  {{- else }}
++  port: {{ tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++  {{- end }}
++{{- end }}
++
++{{- define "heatReadinessProbeTemplate" }}
++httpGet:
++  scheme: {{ tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
++  path: {{ tuple "orchestration" "healthcheck" "internal" . | include "helm-toolkit.endpoints.keystone_endpoint_path_lookup" }}
++  port: {{ tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++{{- end }}
++
+ {{- if .Values.manifests.deployment_api }}
+ {{- $envAll := . }}
+ 
+@@ -84,22 +102,8 @@ spec:
+           ports:
+             - name: h-api
+               containerPort: {{ tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-          readinessProbe:
+-            httpGet:
+-              scheme: {{ tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
+-              path: /
+-              port: {{ tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-            initialDelaySeconds: 30
+-          livenessProbe:
+-            httpGet:
+-              scheme: {{ tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
+-              path: /
+-              {{- if .Values.pod.probes.api.heat_api.liveness.port }}
+-              port: {{ .Values.pod.probes.api.heat_api.liveness.port }}
+-              {{- else }}
+-              port: {{ tuple "orchestration" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-              {{- end }}
+-            initialDelaySeconds: 10
++{{ dict "envAll" $envAll "component" "api" "container" "heat_api" "type" "readiness" "probeTemplate" (include "heatReadinessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
++{{ dict "envAll" $envAll "component" "api" "container" "heat_api" "type" "liveness" "probeTemplate" (include "heatLivenessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+           volumeMounts:
+             - name: pod-tmp
+               mountPath: /tmp
+diff --git a/heat/templates/deployment-cfn.yaml b/heat/templates/deployment-cfn.yaml
+index c88900d24..85f3ea161 100644
+--- a/heat/templates/deployment-cfn.yaml
++++ b/heat/templates/deployment-cfn.yaml
+@@ -12,6 +12,24 @@ See the License for the specific language governing permissions and
+ limitations under the License.
+ */}}
+ 
++{{- define "heatcfnLivenessProbeTemplate" }}
++httpGet:
++  scheme: {{ tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
++  path: /
++  {{- if .Values.pod.probes.cfn.heat_cfn.liveness.port }}
++  port: {{ .Values.pod.probes.cfn.heat_cfn.liveness.port }}
++  {{- else }}
++  port: {{ tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++  {{- end }}
++{{- end }}
++
++{{- define "heatcfnReadinessProbeTemplate" }}
++httpGet:
++  scheme: {{ tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
++  path: {{ tuple "cloudformation" "healthcheck" "internal" . | include "helm-toolkit.endpoints.keystone_endpoint_path_lookup" }}
++  port: {{ tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++{{- end }}
++
+ {{- if .Values.manifests.deployment_cfn }}
+ {{- $envAll := . }}
+ 
+@@ -84,21 +102,8 @@ spec:
+           ports:
+             - name: h-cfn
+               containerPort: {{ tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-          readinessProbe:
+-            httpGet:
+-              scheme: {{ tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
+-              path: /
+-              port: {{ tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-          livenessProbe:
+-            httpGet:
+-              scheme: {{ tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
+-              path: /
+-              {{- if .Values.pod.probes.cfn.heat_cfn.liveness.port }}
+-              port: {{ .Values.pod.probes.cfn.heat_cfn.liveness.port }}
+-              {{- else }}
+-              port: {{ tuple "cloudformation" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-              {{- end }}
+-            initialDelaySeconds: 10
++{{ dict "envAll" $envAll "component" "cfn" "container" "heat_cfn" "type" "readiness" "probeTemplate" (include "heatcfnReadinessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
++{{ dict "envAll" $envAll "component" "cfn" "container" "heat_cfn" "type" "liveness" "probeTemplate" (include "heatcfnLivenessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+           volumeMounts:
+             - name: pod-tmp
+               mountPath: /tmp
+diff --git a/heat/values.yaml b/heat/values.yaml
+index 7bbcebfd0..33d579757 100644
+--- a/heat/values.yaml
++++ b/heat/values.yaml
+@@ -277,22 +277,31 @@ conf:
+               properties:
+                 length: 40
+   paste:
+-    pipeline:heat-api:
+-      pipeline: cors request_id faultwrap http_proxy_to_wsgi versionnegotiation osprofiler authurl authtoken audit context apiv1app
+-    pipeline:heat-api-standalone:
+-      pipeline: cors request_id faultwrap http_proxy_to_wsgi versionnegotiation authurl authpassword context apiv1app
+-    pipeline:heat-api-custombackend:
+-      pipeline: cors request_id faultwrap versionnegotiation context custombackendauth apiv1app
+-    pipeline:heat-api-cfn:
+-      pipeline: cors http_proxy_to_wsgi cfnversionnegotiation osprofiler ec2authtoken authtoken audit context apicfnv1app
+-    pipeline:heat-api-cfn-standalone:
+-      pipeline: cors http_proxy_to_wsgi cfnversionnegotiation ec2authtoken context apicfnv1app
++    composite:heat-api:
++      use: "egg:Paste#urlmap"
++      /: api
++      /healthcheck: healthcheck
++    composite:heat-api-cfn:
++      use: "egg:Paste#urlmap"
++      /: api-cfn
++      /healthcheck: healthcheck
++    composite:api:
++      paste.composite_factory: heat.api:pipeline_factory
++      default: cors request_id faultwrap http_proxy_to_wsgi versionnegotiation authurl authtoken audit context osprofiler apiv1app
++      standalone: cors request_id faultwrap http_proxy_to_wsgi versionnegotiation authurl authpassword context apiv1app
++      custombackend: cors request_id context faultwrap versionnegotiation custombackendauth apiv1app
++    composite:api-cfn:
++      paste.composite_factory: heat.api:pipeline_factory
++      default: cors request_id http_proxy_to_wsgi cfnversionnegotiation ec2authtoken authtoken audit context osprofiler apicfnv1app
++      standalone: cors request_id http_proxy_to_wsgi cfnversionnegotiation ec2authtoken context apicfnv1app
+     app:apiv1app:
+       paste.app_factory: heat.common.wsgi:app_factory
+       heat.app_factory: heat.api.openstack.v1:API
+     app:apicfnv1app:
+       paste.app_factory: heat.common.wsgi:app_factory
+       heat.app_factory: heat.api.cfn.v1:API
++    app:healthcheck:
++      paste.app_factory: oslo_middleware:Healthcheck.app_factory
+     filter:versionnegotiation:
+       paste.filter_factory: heat.common.wsgi:filter_factory
+       heat.filter_factory: heat.api.openstack:version_negotiation_filter
+@@ -305,6 +314,8 @@ conf:
+     filter:cfnversionnegotiation:
+       paste.filter_factory: heat.common.wsgi:filter_factory
+       heat.filter_factory: heat.api.cfn:version_negotiation_filter
++    filter:cwversionnegotiation:
++      paste.filter_factory: heat.common.wsgi:filter_factory
+     filter:context:
+       paste.filter_factory: heat.common.context:ContextMiddleware_filter_factory
+     filter:ec2authtoken:
+@@ -814,6 +825,7 @@ endpoints:
+       #     key: null
+     path:
+       default: '/v1/%(project_id)s'
++      healthcheck: /healthcheck
+     scheme:
+       default: 'http'
+       service: 'http'
+@@ -838,6 +850,7 @@ endpoints:
+       #     key: null
+     path:
+       default: /v1
++      healthcheck: /healthcheck
+     scheme:
+       default: 'http'
+       service: 'http'
+@@ -1198,11 +1211,23 @@ pod:
+     api:
+       heat_api:
+         liveness:
++          enabled: true
+           port: 1717
++          params:
++            initialDelaySeconds: 10
++        readiness:
++          enabled: true
++          params:
++            initialDelaySeconds: 30
+     cfn:
+       heat_cfn:
+         liveness:
++          enabled: true
+           port: 1717
++          params:
++            initialDelaySeconds: 10
++        readiness:
++          enabled: true
+ 
+ network_policy:
+   heat:
+diff --git a/placement/templates/deployment.yaml b/placement/templates/deployment.yaml
+index 4015e12fb..751a2efa9 100644
+--- a/placement/templates/deployment.yaml
++++ b/placement/templates/deployment.yaml
+@@ -14,6 +14,24 @@ See the License for the specific language governing permissions and
+ limitations under the License.
+ */}}
+ 
++{{- define "placementLivenessProbeTemplate" }}
++httpGet:
++  scheme: {{ tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
++  path: /
++  {{- if .Values.pod.probes.placement.api.liveness.port }}
++  port: {{ .Values.pod.probes.placement.api.liveness.port }}
++  {{- else }}
++  port: {{ tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++  {{- end }}
++{{- end }}
++
++{{- define "placementReadinessProbeTemplate" }}
++httpGet:
++  scheme: {{ tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
++  path: /
++  port: {{ tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++{{- end }}
++
+ {{- if .Values.manifests.deployment }}
+ {{- $envAll := . }}
+ 
+@@ -101,24 +119,8 @@ spec:
+           ports:
+             - name: p-api
+               containerPort: {{ tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-          readinessProbe:
+-            httpGet:
+-              scheme: {{ tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
+-              path: /
+-              port: {{ tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-            initialDelaySeconds: 5
+-            periodSeconds: 10
+-          livenessProbe:
+-            httpGet:
+-              scheme: {{ tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
+-              path: /
+-              {{- if .Values.pod.probes.placement.api.liveness.port }}
+-              port: {{ .Values.pod.probes.placement.api.liveness.port }}
+-              {{- else }}
+-              port: {{ tuple "placement" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+-              {{- end }}
+-            initialDelaySeconds: 5
+-            periodSeconds: 10
++{{ dict "envAll" $envAll "component" "placement" "container" "api" "type" "readiness" "probeTemplate" (include "placementReadinessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
++{{ dict "envAll" $envAll "component" "placement" "container" "api" "type" "liveness" "probeTemplate" (include "placementLivenessProbeTemplate" $envAll | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+           volumeMounts:
+             - name: pod-tmp
+               mountPath: /tmp
+diff --git a/placement/values.yaml b/placement/values.yaml
+index a9bd2806d..0c68395ec 100644
+--- a/placement/values.yaml
++++ b/placement/values.yaml
+@@ -398,7 +398,16 @@ pod:
+     placement:
+       api:
+         liveness:
++          enabled: True
+           port: 1717
++          params:
++            initialDelaySeconds: 5
++            periodSeconds: 10
++        readiness:
++          enabled: True
++          params:
++            initialDelaySeconds: 5
++            periodSeconds: 10
+ 
+ secrets:
+   identity:

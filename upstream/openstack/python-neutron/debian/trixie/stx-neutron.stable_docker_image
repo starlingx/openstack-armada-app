@@ -14,3 +14,28 @@ PIP_PACKAGES="\
 "
 DIST_PACKAGES="ethtool lshw"
 PROFILES="fluent neutron linuxbridge openvswitch"
+
+# Temporary carry. The l2-agent treats a transient RPC version mismatch
+# during a neutron-rpc-server rollout as fatal and its main thread dies,
+# leaving the agent silently not managing the dataplane. Retry instead,
+# add the sleep that branch was missing, and reword the warning, which
+# blamed connectivity for what is now also a version mismatch. The greps
+# abort the build if this code moves or is fixed upstream. The sleep sed is
+# positional: it edits the line after the 'Detailed message' log line. No sed
+# here is pre-checked individually; the grep following each one is what makes
+# a reflow or an upstream reword abort the build instead of silently no-oping.
+# Remove when this lands upstream and PROJECT_REF picks it up:
+# https://bugs.launchpad.net/neutron/+bug/2167373
+CUSTOMIZATION="\
+    grep -q 'except oslo_messaging.MessagingTimeout as e:' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    ! grep -q 'oslo_messaging.RemoteError' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    sed -i 's/except oslo_messaging.MessagingTimeout as e:/except (oslo_messaging.MessagingTimeout, oslo_messaging.RemoteError) as e:/' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    sed -i 's/l2-agent cannot contact neutron server. /l2-agent could not reach a compatible neutron server. /' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    sed -i 's/Check connectivity to neutron server. /Check connectivity and RPC version compatibility. /' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    sed -i '/Detailed message: %(msg)s./{n; s/continue/time.sleep(self.conf.AGENT.report_interval); continue/;}' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    grep -q 'oslo_messaging.RemoteError' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    grep -q 'could not reach a compatible neutron server' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    grep -q 'Check connectivity and RPC version compatibility' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    grep -q 'report_interval); continue' /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py && \
+    python3 -m py_compile /var/lib/openstack/lib/python3.13/site-packages/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py
+"

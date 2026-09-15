@@ -2058,6 +2058,90 @@ def get_number_of_controllers() -> int:
     return number_of_controllers
 
 
+def get_pvc_provisioner(pvc_name: str) -> str:
+    """Return the CSI provisioner (driver) backing a PVC.
+
+    Resolves the PVC's StorageClass and then that StorageClass's
+    ``provisioner`` field. This is the CSI driver name that a
+    VolumeSnapshotClass must reference (via its ``driver`` field) in order to
+    be able to snapshot the PVC. Deriving the driver from the PVC keeps the
+    snapshot logic backend-agnostic instead of assuming a fixed backend.
+
+    Args:
+        pvc_name (str): Name of the PVC to inspect.
+
+    Returns:
+        str: The provisioner/driver string (e.g. ``"csi.trident.netapp.io"``
+             or ``"rbd.csi.ceph.com"``), or an empty string if it cannot be
+             determined.
+    """
+    storageclass_name = get_pvc_storageclass(pvc_name)
+    if not storageclass_name:
+        return ""
+
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "get", "storageclass", storageclass_name,
+        "-o", "jsonpath={.provisioner}",
+    ]
+    try:
+        provisioner = send_cmd_read_response(cmd)
+        if not provisioner:
+            LOG.warning(f"Unable to determine provisioner for storageclass "
+                        f"'{storageclass_name}' (PVC '{pvc_name}')")
+        return provisioner.strip() if provisioner else ""
+    except Exception as e:
+        LOG.error("Unexpected error while fetching provisioner for storageclass"
+                  f" '{storageclass_name}' (PVC '{pvc_name}'): {e}")
+        return ""
+
+
+def get_snapshot_class_for_provisioner(provisioner: str) -> str:
+    """Return the name of an existing VolumeSnapshotClass for a CSI driver.
+
+    Looks up the VolumeSnapshotClasses already present on the system and
+    returns the first one whose ``driver`` matches ``provisioner``. The class
+    must already exist; this function never creates one. Matching is done by
+    driver (not by name), so it works for any storage backend whose
+    VolumeSnapshotClass has been configured on the system (e.g. the Trident
+    class on NetApp), without assuming a fixed snapshot-class name.
+
+    Args:
+        provisioner (str): CSI driver name to match against each
+            VolumeSnapshotClass ``driver`` field, e.g.
+            ``"csi.trident.netapp.io"``.
+
+    Returns:
+        str: The name of a matching VolumeSnapshotClass, or an empty string if
+             none exists (or the provisioner is empty).
+    """
+    if not provisioner:
+        return ""
+
+    jsonpath = (
+        f"{{range .items[?(@.driver==\"{provisioner}\")]}}"
+        r"{.metadata.name}"
+        "{\"\\n\"}"
+        r"{end}"
+    )
+    cmd = [
+        "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+        "get", "volumesnapshotclasses.snapshot.storage.k8s.io",
+        "-o", f"jsonpath={jsonpath}",
+    ]
+    try:
+        output = send_cmd_read_response(cmd, log=False)
+        names = output.split() if output else []
+        if not names:
+            LOG.warning("Unable to find a VolumeSnapshotClass for provisioner"
+                        f" '{provisioner}'")
+        return names[0] if names else ""
+    except Exception as e:
+        LOG.error("Unexpected error while fetching volumesnapshotclasses for"
+                  f" provisioner '{provisioner}': {e}")
+        return ""
+
+
 def check_and_create_snapshot_class(snapshot_class: str, path: str):
     """
     Check if a PVC Snapshot Class exists. If not, create the class.

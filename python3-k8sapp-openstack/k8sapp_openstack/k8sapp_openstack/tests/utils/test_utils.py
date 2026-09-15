@@ -517,6 +517,98 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             "delete", "volumesnapshots.snapshot.storage.k8s.io", snapshot_name
         ])
 
+    @mock.patch('k8sapp_openstack.utils.get_pvc_storageclass')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_get_pvc_provisioner(self, mock_send_cmd, mock_get_sc):
+        """Returns the CSI provisioner backing a PVC."""
+        mock_get_sc.return_value = "netapp-nas-backend"
+        mock_send_cmd.return_value = "csi.trident.netapp.io"
+
+        result = app_utils.get_pvc_provisioner("mysql-data-mariadb-server-0")
+
+        self.assertEqual(result, "csi.trident.netapp.io")
+        mock_get_sc.assert_called_once_with("mysql-data-mariadb-server-0")
+        mock_send_cmd.assert_called_once_with([
+            "kubectl", "--kubeconfig", mock.ANY,
+            "get", "storageclass", "netapp-nas-backend",
+            "-o", "jsonpath={.provisioner}",
+        ])
+
+    @mock.patch('k8sapp_openstack.utils.get_pvc_storageclass')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_get_pvc_provisioner_no_storageclass(self, mock_send_cmd,
+                                                 mock_get_sc):
+        """Returns '' and skips the driver lookup when the PVC has no
+        StorageClass."""
+        mock_get_sc.return_value = ""
+
+        result = app_utils.get_pvc_provisioner("missing-pvc")
+
+        self.assertEqual(result, "")
+        mock_send_cmd.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils.get_pvc_storageclass')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_get_pvc_provisioner_empty_provisioner(self, mock_send_cmd,
+                                                   mock_get_sc):
+        """Returns '' when the StorageClass reports no provisioner."""
+        mock_get_sc.return_value = "netapp-nas-backend"
+        mock_send_cmd.return_value = ""
+
+        result = app_utils.get_pvc_provisioner("mysql-data-mariadb-server-0")
+
+        self.assertEqual(result, "")
+
+    @mock.patch('k8sapp_openstack.utils.get_pvc_storageclass')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_get_pvc_provisioner_cmd_exception(self, mock_send_cmd,
+                                               mock_get_sc):
+        """Returns '' when the provisioner lookup command fails."""
+        mock_get_sc.return_value = "netapp-nas-backend"
+        mock_send_cmd.side_effect = Exception("kubectl failed")
+
+        result = app_utils.get_pvc_provisioner("mysql-data-mariadb-server-0")
+
+        self.assertEqual(result, "")
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_get_snapshot_class_for_provisioner(self, mock_send_cmd):
+        """Returns the first VolumeSnapshotClass matching the given driver."""
+        mock_send_cmd.return_value = "csi-snapclass\n"
+
+        result = app_utils.get_snapshot_class_for_provisioner(
+            "csi.trident.netapp.io")
+
+        self.assertEqual(result, "csi-snapclass")
+        mock_send_cmd.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_get_snapshot_class_for_provisioner_none_found(self, mock_send_cmd):
+        """Returns '' when no VolumeSnapshotClass matches the driver."""
+        mock_send_cmd.return_value = ""
+
+        result = app_utils.get_snapshot_class_for_provisioner(
+            "csi.trident.netapp.io")
+
+        self.assertEqual(result, "")
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_get_snapshot_class_for_provisioner_cmd_exception(
+            self, mock_send_cmd):
+        """Returns '' when the VolumeSnapshotClass lookup command fails."""
+        mock_send_cmd.side_effect = Exception("kubectl failed")
+
+        result = app_utils.get_snapshot_class_for_provisioner(
+            "csi.trident.netapp.io")
+
+        self.assertEqual(result, "")
+
+    def test_get_snapshot_class_for_provisioner_empty_provisioner(self):
+        """Returns '' (and does not query) for an empty provisioner."""
+        result = app_utils.get_snapshot_class_for_provisioner("")
+
+        self.assertEqual(result, "")
+
     @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
     def test_delete_kubernetes_resource(self, mock_send_cmd):
         """Test delete_kubernetes_resource deletes the resource correctly."""

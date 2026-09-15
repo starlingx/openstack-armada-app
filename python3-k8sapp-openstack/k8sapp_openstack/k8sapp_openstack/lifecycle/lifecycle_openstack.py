@@ -34,8 +34,10 @@ from k8sapp_openstack.utils import check_netapp_backends
 from k8sapp_openstack.utils import check_storageclass_change
 from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_endpoint_domain
+from k8sapp_openstack.utils import get_pvc_provisioner
 from k8sapp_openstack.utils import get_pvc_storageclass
 from k8sapp_openstack.utils import get_pvc_storageclass_requirements
+from k8sapp_openstack.utils import get_snapshot_class_for_provisioner
 from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_dex_enabled
@@ -1137,15 +1139,57 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         :param app: AppOperator.Application object
 
         """
-        # Create mariadb's PVC snapshots
+        # Create mariadb's PVC snapshots using a VolumeSnapshotClass that
+        # matches the PVC's actual CSI backend, rather than assuming Ceph RBD.
+        #
+        # A VolumeSnapshotClass can only snapshot a PVC when its ``driver``
+        # matches the CSI driver that provisioned the PVC. Hardcoding the Ceph
+        # "rbd-snapshot" class (driver rbd.csi.ceph.com) breaks on backends
+        # such as NetApp/Trident: the snapshot never becomes ready, which wedges
+        # the PVC and blocks upgrade rollback. So the class is discovered from
+        # the PVC's provisioner instead.
         nc = app_utils.get_number_of_controllers()
-        SNAPSHOT_CLASS_NAME = "rbd-snapshot"
+        # Legacy Ceph behaviour: when the PVC is on a Ceph RBD backend but no
+        # VolumeSnapshotClass exists yet, create_pvc_snapshot() auto-creates
+        # this one. Preserved unchanged for existing Ceph deployments.
+        CEPH_RBD_SNAPSHOT_CLASS_NAME = "rbd-snapshot"
+        CEPH_RBD_DRIVERS = (
+            app_constants.CEPH_RBD_DRIVER,
+            app_constants.CEPH_ROOK_RBD_DRIVER,
+        )
 
         for i in range(0, nc):
             pvc_name = f"mysql-data-mariadb-server-{i}"
             snapshot_name = f"snapshot-of-{pvc_name}"
-            LOG.info(f"Trying to take a snapshot from PVC {pvc_name}")
-            app_utils.create_pvc_snapshot(snapshot_name, pvc_name, SNAPSHOT_CLASS_NAME, path=app.inst_path)
+
+            provisioner = get_pvc_provisioner(pvc_name)
+            snapshot_class = get_snapshot_class_for_provisioner(provisioner)
+
+            if not snapshot_class:
+                if provisioner in CEPH_RBD_DRIVERS:
+                    # Ceph RBD without an existing class: let
+                    # create_pvc_snapshot()/check_and_create_snapshot_class()
+                    # auto-create the Ceph class, as it did before this fix.
+                    snapshot_class = CEPH_RBD_SNAPSHOT_CLASS_NAME
+                else:
+                    # No VolumeSnapshotClass matches this PVC's backend and it
+                    # is not a Ceph backend we know how to create one for.
+                    # Fail the pre-update snapshot rather than create an
+                    # incompatible class that can never become ready (which
+                    # would wedge the PVC and defeat rollback). A backend with
+                    # no VolumeSnapshotClass is not properly configured for a
+                    # snapshot-backed upgrade.
+                    raise exception.LifecycleSemanticCheckException(
+                        f"Cannot take a pre-update snapshot of PVC "
+                        f"'{pvc_name}': no VolumeSnapshotClass is available for "
+                        f"its storage backend (provisioner "
+                        f"'{provisioner or 'unknown'}'). Configure a "
+                        f"VolumeSnapshotClass whose driver matches this "
+                        f"provisioner before upgrading.")
+
+            LOG.info(f"Trying to take a snapshot from PVC {pvc_name} using "
+                     f"snapshot class '{snapshot_class}'")
+            app_utils.create_pvc_snapshot(snapshot_name, pvc_name, snapshot_class, path=app.inst_path)
 
     @staticmethod
     def _is_failed_update_version(app, hook_info):

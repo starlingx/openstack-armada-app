@@ -490,3 +490,8 @@ ANSIBLE_CURRENT_LINK = "current"
 # failed application-update. Retention is capped here: the deploy hook prunes
 # anything older.
 ANSIBLE_PREVIOUS_LINK = "previous"
+
+# nfv-vim runtime config, read to detect a VIM left with its compute plugin off
+VIM_CONFIG_FILE = "/etc/nfv/vim/config.ini"
+VIM_CONFIG_NFVI_SECTION = "nfvi"
+VIM_CONFIG_COMPUTE_PLUGIN_DISABLED = "compute_plugin_disabled"

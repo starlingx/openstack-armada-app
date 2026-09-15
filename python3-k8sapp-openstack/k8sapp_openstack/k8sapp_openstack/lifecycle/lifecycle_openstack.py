@@ -8,6 +8,7 @@
 
 """ System inventory App lifecycle operator."""
 
+import configparser
 import os
 from pathlib import Path
 import shutil
@@ -185,6 +186,12 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # The radosgw chart may have been enabled/disabled. Regardless of
             # the prior apply state, update the ceph config
             conductor_obj._update_radosgw_config(context)
+        elif hook_info[LifecycleConstants.EXTRA][LifecycleConstants.APP_APPLIED] and \
+                self._is_vim_compute_plugin_disabled():
+            # The refresh restarts the VIM, so only re-apply it when out of sync
+            LOG.warning("VIM compute plugin is disabled while the application "
+                        "is applied; refreshing the VIM configuration.")
+            conductor_obj._update_vim_config(context)
 
         self._delete_maridb_pvc_snapshots_if_exists()
 
@@ -216,6 +223,22 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 # Never fail an otherwise successful apply over cleanup.
                 LOG.error("Failed to prune the retained playbook version: %s",
                           e)
+
+    @staticmethod
+    def _is_vim_compute_plugin_disabled():
+        """Return True only if the VIM config explicitly disables compute."""
+        parser = configparser.RawConfigParser(strict=False)
+        try:
+            if not parser.read(app_constants.VIM_CONFIG_FILE):
+                return False
+            return parser.getboolean(
+                app_constants.VIM_CONFIG_NFVI_SECTION,
+                app_constants.VIM_CONFIG_COMPUTE_PLUGIN_DISABLED,
+                fallback=False)
+        except (configparser.Error, ValueError) as e:
+            LOG.warning("Unable to read %s: %s",
+                        app_constants.VIM_CONFIG_FILE, e)
+            return False
 
     def post_apply_manifest(self, app, hook_info):
         """Post apply manifest actions

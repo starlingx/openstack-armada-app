@@ -14,10 +14,9 @@ from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
-from k8sapp_openstack.utils import auto_config_dex_federation
 from k8sapp_openstack.utils import get_dex_issuer_url
 from k8sapp_openstack.utils import get_external_service_url
-from k8sapp_openstack.utils import is_dex_enabled
+from k8sapp_openstack.utils import is_dex_federation_enabled
 
 LOG = logging.getLogger(__name__)
 
@@ -245,18 +244,9 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
         }
 
     def _get_conf_overrides(self):
-        # Evaluate DEX enablement once per apply and reuse the result for
-        # every DEX-dependent section below. auto_config_dex_federation()
-        # runs a live DEX health probe, so calling it more than once in a
-        # single apply could return inconsistent results and leave the
-        # apache OIDC block enabled while the keystone.conf auth methods and
-        # trusted_dashboard are skipped (or vice versa).
-        #
-        # Explicit user enable wins; auto-detection is the fallback. This
-        # keeps auto-enabled deployments (e.g. DC subclouds, which never
-        # store an explicit conf.federation.dex_idp.enabled override) in sync
-        # with standalone deployments where the operator sets it by hand.
-        dex_enabled = is_dex_enabled() or auto_config_dex_federation()
+        # Evaluate once; see is_dex_federation_enabled() docstring for
+        # short-circuit and single-evaluation semantics.
+        dex_enabled = is_dex_federation_enabled()
 
         overrides = {
             'keystone': self._get_conf_keystone_overrides(dex_enabled),

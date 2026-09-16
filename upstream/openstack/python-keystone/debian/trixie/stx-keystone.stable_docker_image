@@ -2,7 +2,7 @@ BUILDER=loci
 LABEL=stx-keystone
 PROJECT=keystone
 PROJECT_REPO=https://opendev.org/openstack/keystone.git
-PROJECT_REF=7b9f39226744b8db50a6d702cc5f715fc9c17f37
+PROJECT_REF=b3512f0b7bf91989e0159f5a18391a81174e344c
 PIP_PACKAGES="\
   ldap \
   ldappool \

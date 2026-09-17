@@ -1490,6 +1490,109 @@ def get_vlan_os_interface_name(ifname):
     return ifname
 
 
+def platform_interface_sort_key(iface):
+    """
+    Sort interfaces the way the platform does.
+
+    Replicates the ordering of sysinv/puppet/interface.py interface_sort_key()
+    method for the interface types that can be assigned a data network, so that
+    bridge indexes derived from it match the ones assigned by the platform.
+
+    The platform sorts PCI interfaces last (is_pci_interface(), keyed on the
+    ifclass pci-sriov/pci-passthrough, not the iftype).  That branch is not
+    replicated here because this only sorts data class interfaces, and a data
+    class interface is never pci-sriov/pci-passthrough, so is_pci_interface()
+    is always false for them.  SR-IOV is an ifclass, not an iftype, so such
+    interfaces still carry a normal iftype (ethernet/ae/vf); they get no
+    br-phy bridge and are skipped by the caller.
+
+    Unlike the platform version, which raises SysinvException('Invalid
+    iftype') on an unknown interface type, this sorts it last instead: this
+    code runs while generating Helm overrides and must never abort an
+    application upload.
+
+    Args:
+        iface: The platform interface object.
+
+    Returns:
+        tuple: The sort key of the interface.
+    """
+    iftype = iface['iftype']
+    if iftype == constants.INTERFACE_TYPE_VIRTUAL:
+        return 0, iface['ifname']
+    if iftype == constants.INTERFACE_TYPE_ETHERNET:
+        return 1, iface['ifname']
+    if iftype == constants.INTERFACE_TYPE_AE:
+        return 2, iface['ifname']
+    if iftype == constants.INTERFACE_TYPE_VLAN:
+        return 3, iface['ifname']
+    return 4, iface['ifname']
+
+
+def get_host_bridge_map(interfaces):
+    """
+    Map data interface name to OVS bridge name for a single host.
+
+    Only meaningful with OVS-DPDK, where the physical bridges are created by
+    the platform and the application must not invent their names.
+
+    Reproduces the platform's naming: sysinv/puppet/ovs.py _get_port_config()
+    creates exactly one bridge per data class interface, named 'br-phy<index>'
+    following platform_interface_sort_key() order, with datapath_type=netdev
+    and the DPDK ports already attached.  The index does not depend on the data
+    networks assigned to the interface.
+
+    Interfaces of any other class are not included: the platform creates no
+    br-phy bridge for them.  SR-IOV interfaces are handled separately by
+    get_host_sriov_bridge_map(), because the OVS agent still needs a bridge to
+    bind the DHCP/L3/metadata helper ports of an SR-IOV data network.
+
+    Args:
+        interfaces: The interfaces of a single host.
+
+    Returns:
+        dict: The bridge name of every data interface, indexed by interface
+              name.
+    """
+    ifaces = [i for i in interfaces
+              if i['ifclass'] == constants.INTERFACE_CLASS_DATA]
+    return {iface['ifname']: app_constants.OVS_BRIDGE_NAME_DATA % index
+            for index, iface in enumerate(
+                sorted(ifaces, key=platform_interface_sort_key))}
+
+
+def get_host_sriov_bridge_map(interfaces):
+    """
+    Map SR-IOV data interface name to OVS bridge name for a single host.
+
+    Only meaningful with OVS-DPDK.  The platform creates br-phy bridges only
+    for data class interfaces (sysinv/puppet/ovs.py _get_port_config()), never
+    for SR-IOV interfaces.  However, the OVS agent still handles the
+    DHCP/L3/metadata helper ports of an SR-IOV data network, so those networks
+    must appear in bridge_mappings pointing at a bridge that exists.
+
+    With OVS-kernel the agent creates every bridge it is told to create, so the
+    legacy per-datanet numbering already provided one.  With OVS-DPDK the data
+    (br-phy) bridges become platform-owned and are removed from auto_bridge_add;
+    the SR-IOV bridges named here are still requested from the agent via
+    auto_bridge_add so they exist for the mapping to reference.  A distinct
+    br-sriov name space is used so these never collide with the platform's
+    br-phy bridges.
+
+    Args:
+        interfaces: The interfaces of a single host.
+
+    Returns:
+        dict: The bridge name of every SR-IOV data interface, indexed by
+              interface name.
+    """
+    ifaces = [i for i in interfaces
+              if i['ifclass'] == constants.INTERFACE_CLASS_PCI_SRIOV]
+    return {iface['ifname']: app_constants.OVS_BRIDGE_NAME_SRIOV % index
+            for index, iface in enumerate(
+                sorted(ifaces, key=platform_interface_sort_key))}
+
+
 def get_labels_by_host(labels) -> dict:
     """
     Given a set of labels, build a dict in the format 'host_id':'label=value' for

@@ -63,3 +63,4 @@
 0063-Fix-daemonset-merge-discarding-empty-overrides.patch
 0064-placement-update-liveness-readiness-probes-to-use-htk.patch
 0065-Add-pre-upgrade-Job-to-enable-rabbitmq-feature-flags.patch
+0066-Reconcile-stale-kernel-OVS-provider-bridge-ports.patch

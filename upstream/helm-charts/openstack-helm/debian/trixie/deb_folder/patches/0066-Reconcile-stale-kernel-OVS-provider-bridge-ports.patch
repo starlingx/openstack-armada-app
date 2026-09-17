@@ -1,0 +1,79 @@
+From 2403b0c62fda8dd4197eee1938206b01e4654c07 Mon Sep 17 00:00:00 2001
+From: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+Date: Tue, 15 Sep 2026 17:41:08 -0300
+Subject: [PATCH] Reconcile stale kernel-OVS provider bridge ports
+
+The auto_bridge_add handling in the neutron-ovs-agent init
+script only ever calls add-br/add-port for the current
+desired bridge mapping. If a datanetwork is unassigned from
+a data interface (or the interface is deleted or reclassed),
+its entry disappears from auto_bridge_add on the next
+render, but the physical port already added to the br-phy*
+bridge is never removed. The stale port stays attached to
+the bridge indefinitely, and stx-openstack has no other
+mechanism to clean it up.
+
+Add a reconciliation pass right after the existing
+add-br/add-port loop: recompute the desired {bridge: iface}
+mapping from the same auto_bridge_add source, then for
+every br-phy* bridge remove any non-patch port that does
+not match what is expected there. This never adds a port,
+only the existing loop does that, and it never touches
+br-int/br-tun or any patch port (phy-*/int-*), only the
+kernel-OVS provider bridges themselves.
+
+Skipped entirely when DPDK_ENABLED is true, since DPDK
+bridges are already managed declaratively via sysinv's
+puppet (platform::vswitch::ovs), which reconciles ports on
+every config-apply independent of this script.
+
+Since interface-datanetwork assignment changes require the
+owning host to be locked first, this reconciliation always
+runs on the same unlock cycle that made the change possible
+in the first place, so the stale port is cleaned up as soon
+as the pod is recreated with the corrected mapping.
+
+Signed-off-by: kgoncalv <kayo.goncalvesdacosta@windriver.com>
+---
+ .../_neutron-openvswitch-agent-init.sh.tpl    | 25 +++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+diff --git a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
+index 72c14d882..f9d147ee3 100644
+--- a/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
++++ b/neutron/templates/bin/_neutron-openvswitch-agent-init.sh.tpl
+@@ -506,6 +506,31 @@ do
+   fi
+ done
+ 
++# Remove stale ports from kernel-OVS provider bridges. The loop above only
++# ever adds ports; if a datanetwork is unassigned from a data interface,
++# the stale physical port is otherwise left attached to its br-phy* bridge
++# indefinitely. DPDK bridges are excluded: they are managed declaratively
++# via puppet (platform::vswitch::ovs), which already reconciles ports
++# on every config-apply.
++if [[ "${DPDK_ENABLED}" != "true" ]]; then
++  declare -A desired_bridge_map
++  for bmap in `sed 's/[{}"]//g' /tmp/auto_bridge_add | tr "," "\n"`
++  do
++    bridge=${bmap%:*}
++    iface=${bmap#*:}
++    desired_bridge_map["$bridge"]=$iface
++  done
++  for bridge in $(ovs-vsctl --db=unix:${OVS_SOCKET} list-br 2>/dev/null | grep "^br-phy"); do
++    expected="${desired_bridge_map[$bridge]:-}"
++    for existing in $(ovs-vsctl --db=unix:${OVS_SOCKET} list-ports "$bridge" 2>/dev/null); do
++      case "$existing" in phy-*|int-*) continue ;; esac
++      if [ "$existing" != "$expected" ]; then
++        ovs-vsctl --db=unix:${OVS_SOCKET} --if-exists del-port "$bridge" "$existing"
++      fi
++    done
++  done
++fi
++
+ tunnel_types="{{- .Values.conf.plugins.openvswitch_agent.agent.tunnel_types -}}"
+ if [[ -n "${tunnel_types}" ]] ; then
+     tunnel_interface="{{- .Values.network.interface.tunnel -}}"
+-- 
+2.34.1
+

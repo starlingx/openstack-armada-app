@@ -262,6 +262,15 @@ NFS_BACKUP_DRIVER = "cinder.backup.drivers.nfs.NFSBackupDriver"
 NETAPP_ISCSI_BACKUP_DRIVER = "cinder.backup.drivers.posix.PosixBackupDriver"
 NETAPP_FC_BACKUP_DRIVER = "cinder.backup.drivers.posix.PosixBackupDriver"
 
+# Default mount point base used by file-based backup drivers (NFS, Posix)
+# to mount the backup share. The cinder-backup container needs a writable
+# volume here because it runs with a read-only root filesystem. This default
+# is also set in cinder-static-overrides.yaml so the chart config and the
+# emptyDir mount agree; the operator can override it via the Helm override
+# key below.
+CINDER_BACKUP_MOUNT_POINT_BASE = "/var/lib/cinder/backup_mount"
+OVERRIDE_BACKUP_MOUNT_POINT_BASE = "conf.cinder.DEFAULT.backup_mount_point_base"
+
 # Glance Definitions
 GLANCE_BACKEND_RBD = 'rbd'
 GLANCE_BACKEND_PVC = 'pvc'

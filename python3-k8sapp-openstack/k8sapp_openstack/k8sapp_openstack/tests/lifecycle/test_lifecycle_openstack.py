@@ -365,6 +365,77 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         conductor_obj._update_config_for_stx_openstack.assert_called_once_with(context)
         conductor_obj._update_radosgw_config.assert_called_once_with(context)
 
+    def _run_post_apply_vim_check(self, app_applied, was_applied,
+                                  vim_compute_disabled):
+        context = mock.Mock()
+        conductor_obj = mock.Mock()
+        hook_info = {
+            LifecycleConstants.EXTRA: {
+                LifecycleConstants.APP_APPLIED: app_applied,
+                self.lifecycle.WAS_APPLIED: was_applied,
+            }
+        }
+        with mock.patch(_DEX_REDIRECT), \
+                mock.patch(_LIFECYCLE_MOD + '.app_utils') as mock_app_utils, \
+                mock.patch.object(self.lifecycle,
+                                  '_is_vim_compute_plugin_disabled',
+                                  return_value=vim_compute_disabled):
+            mock_app_utils.get_number_of_controllers.return_value = 1
+            self.lifecycle.post_apply(context, conductor_obj, None, hook_info)
+        return context, conductor_obj
+
+    def test__post_apply_reapply_refreshes_disabled_vim(self):
+        context, conductor_obj = self._run_post_apply_vim_check(
+            app_applied=True, was_applied=True, vim_compute_disabled=True)
+
+        conductor_obj._update_vim_config.assert_called_once_with(context)
+        conductor_obj._update_config_for_stx_openstack.assert_not_called()
+
+    def test__post_apply_reapply_leaves_enabled_vim_alone(self):
+        _, conductor_obj = self._run_post_apply_vim_check(
+            app_applied=True, was_applied=True, vim_compute_disabled=False)
+
+        conductor_obj._update_vim_config.assert_not_called()
+        conductor_obj._update_config_for_stx_openstack.assert_not_called()
+
+    def test__post_apply_failed_reapply_does_not_touch_vim(self):
+        _, conductor_obj = self._run_post_apply_vim_check(
+            app_applied=False, was_applied=True, vim_compute_disabled=True)
+
+        conductor_obj._update_vim_config.assert_not_called()
+
+    def test__post_apply_first_apply_uses_full_refresh(self):
+        context, conductor_obj = self._run_post_apply_vim_check(
+            app_applied=True, was_applied=False, vim_compute_disabled=True)
+
+        conductor_obj._update_config_for_stx_openstack.assert_called_once_with(context)
+        conductor_obj._update_vim_config.assert_not_called()
+
+    def test__is_vim_compute_plugin_disabled(self):
+        cases = (
+            ("[debug]\nlog_format=%(asctime)s\n"
+             "[nfvi]\ncompute_plugin_disabled=True\n", True),
+            ("[nfvi]\ncompute_plugin_disabled=False\n", False),
+            ("[nfvi]\nimage_plugin_disabled=True\n", False),
+            ("[nfvi]\ncompute_plugin_disabled=maybe\n", False),
+            ("no section header\n", False),
+        )
+        for content, expected in cases:
+            with tempfile.NamedTemporaryFile('w', suffix='.ini',
+                                             delete=False) as f:
+                f.write(content)
+            self.addCleanup(os.remove, f.name)
+            with mock.patch.object(app_constants, 'VIM_CONFIG_FILE', f.name):
+                self.assertEqual(
+                    expected,
+                    self.lifecycle._is_vim_compute_plugin_disabled(),
+                    content)
+
+    def test__is_vim_compute_plugin_disabled_missing_file(self):
+        with mock.patch.object(app_constants, 'VIM_CONFIG_FILE',
+                               '/nonexistent/nfv/vim/config.ini'):
+            self.assertFalse(self.lifecycle._is_vim_compute_plugin_disabled())
+
     @mock.patch('k8sapp_openstack.utils.get_app_version_list',
                 return_value=['25.03-0', '25.09-0'])
     def test__pre_update_actions_update_op(self, *_):

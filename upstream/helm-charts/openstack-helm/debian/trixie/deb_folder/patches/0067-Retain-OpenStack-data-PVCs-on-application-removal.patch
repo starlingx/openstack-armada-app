@@ -1,0 +1,102 @@
+From 836a3f8a58608689cd09a297d9d994a56df7b199 Mon Sep 17 00:00:00 2001
+From: Vinicius <Vinicius.RochaLobo@windriver.com>
+Date: Fri, 11 Sep 2026 15:55:48 -0300
+Subject: [PATCH] Retain OpenStack data PVCs annotation for backup discovery
+
+The OpenStack backup and restore flow discovers which PVCs hold
+persistent data by looking for the helm.sh/resource-policy: keep
+annotation. Only the glance-images PVC carried that annotation; the
+cinder-backup and nova-instances PVCs (Cinder volume backups and Nova
+ephemeral instance data) did not, so they were invisible to that
+discovery and were left out of backups.
+
+Add a keep_pvc value (default true) that stamps the
+helm.sh/resource-policy: keep annotation on the cinder-backup and
+nova-instances PVCs, matching the existing behaviour of the glance-images
+PVC. This makes all three OpenStack data PVCs consistent and discoverable
+by the backup playbook.
+
+The annotation only prevents Helm/FluxCD from deleting the PVC when the
+chart release is uninstalled, and marks the PVC as holding persistent
+data. It does not preserve data across a full StarlingX
+application-remove/delete: that path deletes the PVCs and the openstack
+namespace outside of Helm, so no manual PVC deletion is required.
+Persistence across a remove/delete cycle is provided by the
+backup/restore flow, which relies on this annotation to find and
+snapshot the PVCs, not by the annotation on its own.
+---
+ cinder/templates/pvc-backup.yaml       | 4 ++++
+ cinder/values.yaml                     | 7 +++++++
+ nova/templates/pvc-nova-ephemeral.yaml | 4 ++++
+ nova/values.yaml                       | 7 +++++++
+ 4 files changed, 22 insertions(+)
+
+diff --git a/cinder/templates/pvc-backup.yaml b/cinder/templates/pvc-backup.yaml
+index da6478a..be09165 100644
+--- a/cinder/templates/pvc-backup.yaml
++++ b/cinder/templates/pvc-backup.yaml
+@@ -20,6 +20,10 @@ kind: PersistentVolumeClaim
+ apiVersion: v1
+ metadata:
+   name: cinder-backup
++  {{- if .Values.keep_pvc }}
++  annotations:
++    helm.sh/resource-policy: keep
++  {{- end }}
+ spec:
+   accessModes: [ "ReadWriteOnce" ]
+   resources:
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 489e66a..98a9d43 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -1575,6 +1575,13 @@ manifests:
+ 
+ # -- Array of extra K8s manifests to deploy
+ ## Note: Supports use of custom Helm templates
++# NOTE: This is for enable helm resource-policy to keep cinder-backup PVC.
++# set keep_pvc: true when allow helm resource-policy to keep for PVC.
++# This will requires mannual delete for PVC.
++# set keep_pvc: false when disallow helm resource-policy to keep for PVC.
++# This will allow helm to delete the PVC.
++keep_pvc: true
++
+ extraObjects: []
+   # - apiVersion: secrets-store.csi.x-k8s.io/v1
+   #   kind: SecretProviderClass
+diff --git a/nova/templates/pvc-nova-ephemeral.yaml b/nova/templates/pvc-nova-ephemeral.yaml
+index bfc7924..8fc06cb 100644
+--- a/nova/templates/pvc-nova-ephemeral.yaml
++++ b/nova/templates/pvc-nova-ephemeral.yaml
+@@ -13,6 +13,10 @@ apiVersion: v1
+ kind: PersistentVolumeClaim
+ metadata:
+   name: {{ $pvc.name }}
++  {{- if .Values.keep_pvc }}
++  annotations:
++    helm.sh/resource-policy: keep
++  {{- end }}
+ spec:
+   accessModes:
+ {{- toYaml $pvcVolume.access_modes | nindent 4 }}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index f950e71..06503d6 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -2887,6 +2887,13 @@ hosts_uuids: []
+ 
+ # -- Array of extra K8s manifests to deploy
+ ## Note: Supports use of custom Helm templates
++# NOTE: This is for enable helm resource-policy to keep nova-instances PVC.
++# set keep_pvc: true when allow helm resource-policy to keep for PVC.
++# This will requires mannual delete for PVC.
++# set keep_pvc: false when disallow helm resource-policy to keep for PVC.
++# This will allow helm to delete the PVC.
++keep_pvc: true
++
+ extraObjects: []
+   # - apiVersion: secrets-store.csi.x-k8s.io/v1
+   #   kind: SecretProviderClass
+-- 
+2.43.0
+

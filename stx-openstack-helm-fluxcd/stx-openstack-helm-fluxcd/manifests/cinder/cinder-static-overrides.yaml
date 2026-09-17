@@ -1572,5 +1572,18 @@ manifests:
   secret_registry: true
   service_api: true
   service_ingress_api: true
+
+# Adds the "helm.sh/resource-policy: keep" annotation to the cinder-backup
+# PVC. The annotation only prevents Helm/FluxCD from deleting the PVC when the
+# chart release is uninstalled; it marks the PVC as holding persistent data
+# that the backup/restore flow must capture.
+#   keep_pvc: true  -> annotate the PVC with resource-policy: keep.
+#   keep_pvc: false -> do not annotate; Helm may delete the PVC on uninstall.
+# NOTE: under stx-openstack this annotation is effectively ignored by the
+# application framework. A "system application-remove" deletes every resource
+# in the openstack namespace (PVCs included) and then the namespace itself,
+# outside of Helm, so the PVC is removed automatically and no manual PVC
+# deletion is required.
+keep_pvc: true
 extraObjects: []
 ...

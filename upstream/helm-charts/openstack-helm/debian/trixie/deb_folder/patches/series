@@ -64,3 +64,4 @@
 0064-placement-update-liveness-readiness-probes-to-use-htk.patch
 0065-Add-pre-upgrade-Job-to-enable-rabbitmq-feature-flags.patch
 0066-Reconcile-stale-kernel-OVS-provider-bridge-ports.patch
+0067-Retain-OpenStack-data-PVCs-on-application-removal.patch

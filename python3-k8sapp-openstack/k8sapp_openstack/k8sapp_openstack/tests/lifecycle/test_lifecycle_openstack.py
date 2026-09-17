@@ -399,8 +399,58 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         self.lifecycle._pre_update_backup_actions.assert_not_called()
         self.lifecycle._pre_update_cleanup_actions.assert_not_called()
 
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack'
+                '.get_snapshot_class_for_provisioner')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack'
+                '.get_pvc_provisioner')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
-    def test__pre_update_backup_actions(self, mock_app_utils, *_):
+    def test__pre_update_backup_actions_uses_discovered_class(
+            self, mock_app_utils, mock_get_provisioner,
+            mock_get_snapshot_class, *_):
+        """A snapshot class discovered from the PVC's backend is used as-is.
+
+        This is the generic path that covers NetApp (and any other backend)
+        whose VolumeSnapshotClass already exists on the system.
+        """
+        app = mock.Mock(inst_path='test_path')
+
+        number_of_controllers = 2
+
+        PVC_PREFIX = 'mysql-data-mariadb-server'
+        SNAPSHOT_NAME_PREFIX = 'snapshot-of'
+        NETAPP_SNAPSHOT_CLASS_NAME = "csi-snapclass"
+
+        mock_app_utils.get_number_of_controllers.return_value = \
+            number_of_controllers
+        mock_get_provisioner.return_value = \
+            app_constants.NETAPP_STORAGECLASS_PROVISIONER
+        mock_get_snapshot_class.return_value = NETAPP_SNAPSHOT_CLASS_NAME
+
+        calls = []
+        for i in range(0, number_of_controllers):
+            pvc_name = f"{PVC_PREFIX}-{i}"
+            snapshot_name = f"{SNAPSHOT_NAME_PREFIX}-{pvc_name}"
+            calls.append(mock.call(snapshot_name, pvc_name,
+                                   NETAPP_SNAPSHOT_CLASS_NAME,
+                                   path=app.inst_path))
+
+        self.lifecycle._pre_update_backup_actions(app)
+
+        mock_app_utils.create_pvc_snapshot.assert_has_calls(calls)
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack'
+                '.get_snapshot_class_for_provisioner')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack'
+                '.get_pvc_provisioner')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
+    def test__pre_update_backup_actions_ceph_fallback(
+            self, mock_app_utils, mock_get_provisioner,
+            mock_get_snapshot_class, *_):
+        """On Ceph RBD with no existing class, fall back to 'rbd-snapshot'.
+
+        Preserves the legacy behaviour where create_pvc_snapshot() /
+        check_and_create_snapshot_class() auto-creates the Ceph class.
+        """
         app = mock.Mock(inst_path='test_path')
 
         number_of_controllers = 2
@@ -409,17 +459,49 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         SNAPSHOT_NAME_PREFIX = 'snapshot-of'
         SNAPSHOT_CLASS_NAME = "rbd-snapshot"
 
+        mock_app_utils.get_number_of_controllers.return_value = \
+            number_of_controllers
+        mock_get_provisioner.return_value = app_constants.CEPH_RBD_DRIVER
+        # No existing VolumeSnapshotClass matches the Ceph driver.
+        mock_get_snapshot_class.return_value = ""
+
         calls = []
         for i in range(0, number_of_controllers):
             pvc_name = f"{PVC_PREFIX}-{i}"
             snapshot_name = f"{SNAPSHOT_NAME_PREFIX}-{pvc_name}"
-            calls.append(mock.call(snapshot_name, pvc_name, SNAPSHOT_CLASS_NAME, path=app.inst_path))
-
-        mock_app_utils.get_number_of_controllers.return_value = number_of_controllers
+            calls.append(mock.call(snapshot_name, pvc_name,
+                                   SNAPSHOT_CLASS_NAME, path=app.inst_path))
 
         self.lifecycle._pre_update_backup_actions(app)
 
         mock_app_utils.create_pvc_snapshot.assert_has_calls(calls)
+
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack'
+                '.get_snapshot_class_for_provisioner')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack'
+                '.get_pvc_provisioner')
+    @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
+    def test__pre_update_backup_actions_no_class_non_ceph_raises(
+            self, mock_app_utils, mock_get_provisioner,
+            mock_get_snapshot_class, *_):
+        """A non-Ceph backend with no VolumeSnapshotClass fails the upgrade.
+
+        No snapshot is attempted (no incompatible class is fabricated), so the
+        pre-update step raises before any charts are applied.
+        """
+        app = mock.Mock(inst_path='test_path')
+
+        mock_app_utils.get_number_of_controllers.return_value = 1
+        mock_get_provisioner.return_value = \
+            app_constants.NETAPP_STORAGECLASS_PROVISIONER
+        mock_get_snapshot_class.return_value = ""
+
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._pre_update_backup_actions,
+            app)
+
+        mock_app_utils.create_pvc_snapshot.assert_not_called()
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
     def test__recover_backup_snapshot(self, mock_app_utils, *_):

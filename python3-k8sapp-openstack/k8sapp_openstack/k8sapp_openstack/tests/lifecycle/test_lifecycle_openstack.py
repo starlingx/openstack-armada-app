@@ -18,6 +18,7 @@ from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
 
 from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.common.constants import RestoreResult
 from k8sapp_openstack.lifecycle import lifecycle_openstack
 
 
@@ -330,7 +331,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             snapshot_name = f"{SNAPSHOT_NAME_PREFIX}-{pvc_name}"
             calls.append(mock.call(snapshot_name, ignore_not_found=True))
 
-        mock_app_utils.get_number_of_controllers.return_value = number_of_controllers
+        mock_app_utils.get_num_provisioned_controllers.return_value = number_of_controllers
 
         self.lifecycle.post_apply(context, conductor_obj, None, hook_info)
 
@@ -356,7 +357,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             }
         }
 
-        mock_app_utils.get_number_of_controllers.return_value = 1
+        mock_app_utils.get_num_provisioned_controllers.return_value = 1
         mock_post_apply_dex.side_effect = Exception("DEX error")
 
         # Should not raise exception
@@ -380,7 +381,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
                 mock.patch.object(self.lifecycle,
                                   '_is_vim_compute_plugin_disabled',
                                   return_value=vim_compute_disabled):
-            mock_app_utils.get_number_of_controllers.return_value = 1
+            mock_app_utils.get_num_provisioned_controllers.return_value = 1
             self.lifecycle.post_apply(context, conductor_obj, None, hook_info)
         return context, conductor_obj
 
@@ -491,7 +492,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         SNAPSHOT_NAME_PREFIX = 'snapshot-of'
         NETAPP_SNAPSHOT_CLASS_NAME = "csi-snapclass"
 
-        mock_app_utils.get_number_of_controllers.return_value = \
+        mock_app_utils.get_num_provisioned_controllers.return_value = \
             number_of_controllers
         mock_get_provisioner.return_value = \
             app_constants.NETAPP_STORAGECLASS_PROVISIONER
@@ -530,7 +531,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         SNAPSHOT_NAME_PREFIX = 'snapshot-of'
         SNAPSHOT_CLASS_NAME = "rbd-snapshot"
 
-        mock_app_utils.get_number_of_controllers.return_value = \
+        mock_app_utils.get_num_provisioned_controllers.return_value = \
             number_of_controllers
         mock_get_provisioner.return_value = app_constants.CEPH_RBD_DRIVER
         # No existing VolumeSnapshotClass matches the Ceph driver.
@@ -562,7 +563,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         """
         app = mock.Mock(inst_path='test_path')
 
-        mock_app_utils.get_number_of_controllers.return_value = 1
+        mock_app_utils.get_num_provisioned_controllers.return_value = 1
         mock_get_provisioner.return_value = \
             app_constants.NETAPP_STORAGECLASS_PROVISIONER
         mock_get_snapshot_class.return_value = ""
@@ -576,25 +577,125 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils')
     def test__recover_backup_snapshot(self, mock_app_utils, *_):
-        app = mock.Mock(inst_path='test_path')
-
-        number_of_controllers = 2
-
         PVC_PREFIX = 'mysql-data-mariadb-server'
         SNAPSHOT_NAME_PREFIX = 'snapshot-of'
         STATEFULSET_NAME = 'mariadb-server'
 
-        calls = []
-        for i in range(0, number_of_controllers):
-            pvc_name = f"{PVC_PREFIX}-{i}"
-            snapshot_name = f"{SNAPSHOT_NAME_PREFIX}-{pvc_name}"
-            calls.append(mock.call(snapshot_name, pvc_name, STATEFULSET_NAME, path=app.inst_path))
+        for number_of_controllers in (1, 2):
+            mock_app_utils.reset_mock()
+            app = mock.Mock(inst_path='test_path')
 
-        mock_app_utils.get_number_of_controllers.return_value = number_of_controllers
+            restore_calls = []
+            for i in range(0, number_of_controllers):
+                pvc_name = f"{PVC_PREFIX}-{i}"
+                snapshot_name = f"{SNAPSHOT_NAME_PREFIX}-{pvc_name}"
+                restore_calls.append(
+                    mock.call(snapshot_name, pvc_name, STATEFULSET_NAME,
+                              path=app.inst_path))
 
-        self.lifecycle._recover_backup_snapshot(app)
+            # Both the restore loop and the scale-up now use the same
+            # provisioned-controller count.
+            mock_app_utils.get_num_provisioned_controllers.return_value = \
+                number_of_controllers
+            # A snapshot was found and restored for each server.
+            mock_app_utils.restore_pvc_snapshot.return_value = \
+                RestoreResult.RESTORED
 
-        mock_app_utils.restore_pvc_snapshot.assert_has_calls(calls)
+            self.lifecycle._recover_backup_snapshot(app)
+
+            # One restore per server (bounded by the provisioned count).
+            mock_app_utils.restore_pvc_snapshot.assert_has_calls(restore_calls)
+            self.assertEqual(
+                mock_app_utils.restore_pvc_snapshot.call_count,
+                number_of_controllers)
+
+            # The StatefulSet is scaled up exactly once, after the loop, to the
+            # provisioned-controller count.
+            mock_app_utils.scale_statefulset.assert_called_once_with(
+                STATEFULSET_NAME, number_of_controllers)
+
+    def test__recover_backup_snapshot_uses_provisioned_count_for_loop_and_scale(
+            self, *_):
+        """Both the restore loop and the scale-up use the provisioned-
+        controller count (the value the mariadb chart override uses for
+        pod.replicas.server, and hence the number of server PVCs that exist).
+        On a duplex with only one controller provisioned, one PVC is restored
+        and the StatefulSet is scaled to one."""
+        with mock.patch(
+                'k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils') \
+                as mock_app_utils:
+            app = mock.Mock(inst_path='test_path')
+            # Only 1 controller provisioned -> 1 server PVC exists.
+            mock_app_utils.get_num_provisioned_controllers.return_value = 1
+            mock_app_utils.restore_pvc_snapshot.return_value = \
+                RestoreResult.RESTORED
+
+            self.lifecycle._recover_backup_snapshot(app)
+
+            # One restore (the single existing PVC)...
+            self.assertEqual(
+                mock_app_utils.restore_pvc_snapshot.call_count, 1)
+            # ...and the StatefulSet is scaled to the provisioned count.
+            mock_app_utils.scale_statefulset.assert_called_once_with(
+                'mariadb-server', 1)
+
+    def test__recover_backup_snapshot_no_restore_no_scale(self, *_):
+        """When no snapshots exist, restore_pvc_snapshot returns NOT_FOUND
+        (StatefulSet never scaled down) and the StatefulSet must not be
+        scaled."""
+        with mock.patch(
+                'k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils') \
+                as mock_app_utils:
+            app = mock.Mock(inst_path='test_path')
+            mock_app_utils.get_num_provisioned_controllers.return_value = 2
+            # No snapshot found for any server.
+            mock_app_utils.restore_pvc_snapshot.return_value = \
+                RestoreResult.NOT_FOUND
+
+            self.lifecycle._recover_backup_snapshot(app)
+
+            # Restore was attempted per server, but since nothing was restored
+            # and nothing was scaled down, the StatefulSet is left untouched.
+            self.assertEqual(
+                mock_app_utils.restore_pvc_snapshot.call_count, 2)
+            mock_app_utils.scale_statefulset.assert_not_called()
+
+    def test__recover_backup_snapshot_failed_after_scaledown_still_scales(
+            self, *_):
+        """If a snapshot existed and the StatefulSet was scaled to 0 but the
+        restore then failed (FAILED_AFTER_SCALEDOWN), the caller must still
+        scale the StatefulSet back up so MariaDB is not stranded at zero
+        replicas."""
+        with mock.patch(
+                'k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils') \
+                as mock_app_utils:
+            app = mock.Mock(inst_path='test_path')
+            mock_app_utils.get_num_provisioned_controllers.return_value = 2
+            mock_app_utils.restore_pvc_snapshot.return_value = \
+                RestoreResult.FAILED_AFTER_SCALEDOWN
+
+            self.lifecycle._recover_backup_snapshot(app)
+
+            # Even though no restore succeeded, the StatefulSet was left at 0
+            # by the restore attempt, so it must be scaled back up.
+            mock_app_utils.scale_statefulset.assert_called_once_with(
+                'mariadb-server', 2)
+
+    def test__recover_backup_snapshot_zero_provisioned_returns_early(
+            self, *_):
+        """If get_num_provisioned_controllers() is 0 (count could not be
+        determined), the restore is skipped entirely - no restore attempts,
+        no scale."""
+        with mock.patch(
+                'k8sapp_openstack.lifecycle.lifecycle_openstack.app_utils') \
+                as mock_app_utils:
+            app = mock.Mock(inst_path='test_path')
+            mock_app_utils.get_num_provisioned_controllers.return_value = 0
+
+            self.lifecycle._recover_backup_snapshot(app)
+
+            mock_app_utils.restore_pvc_snapshot.assert_not_called()
+            mock_app_utils.scale_statefulset.assert_not_called()
 
     def test__recover_actions(self, *_):
         """Test _recover_actions
@@ -618,6 +719,33 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         self.lifecycle._recover_backup_snapshot.assert_called_once_with(app)
         self.lifecycle._recover_app_resources_failed_update.\
             assert_called_once_with(app_op, app)
+
+    def test__recover_actions_skips_restore_for_recovered_version(self, *_):
+        """The MariaDB PVC restore must not run on the second recover dispatch.
+
+        sysinv raises the recover hook again once recovery has completed,
+        carrying the version that was restored. Re-running the destructive PVC
+        restore then would scale the freshly reinstalled MariaDB back down and
+        re-restore already-restored data.
+        """
+        app = mock.Mock()
+        app.name = 'stx-openstack'
+        app.version = 'RECOVERED_VERSION'
+        app_op = mock.Mock()
+
+        hook_info = {
+            LifecycleConstants.EXTRA: {
+                LifecycleConstants.FROM_APP_VERSION: 'FAILED_VERSION',
+            }
+        }
+
+        self.lifecycle._recover_backup_snapshot = mock.Mock()
+        self.lifecycle._recover_app_resources_failed_update = mock.Mock()
+        self.lifecycle._undeploy_ansible = mock.Mock()
+
+        self.lifecycle._recover_actions(app_op, app, hook_info)
+
+        self.lifecycle._recover_backup_snapshot.assert_not_called()
 
     def test__recover_actions_undeploys_failed_version(self, *_):
         """The dispatch carrying the failed version retires its playbooks."""

@@ -2258,6 +2258,41 @@ def get_snapshot_class_for_provisioner(provisioner: str) -> str:
         return ""
 
 
+def get_num_provisioned_controllers() -> int:
+    """Return the number of provisioned, enabled controllers.
+
+    Counts controllers that are unlocked, enabled, available or degraded and
+    have their VIM services enabled. These criteria mirror
+    sysinv/helm/base.py:_num_provisioned_controllers; keep them in sync if
+    that set changes.
+
+    Returns:
+        int: Number of provisioned controllers (0 if none match or the count
+             cannot be determined). Callers that need a non-zero floor should
+             apply it themselves.
+    """
+    number_of_controllers = 0
+
+    try:
+        db = dbapi.get_instance()
+        if db is None:
+            LOG.error("Could not get dbapi instance while getting number of "
+                      "provisioned controllers")
+            return number_of_controllers
+        number_of_controllers = int(db.count_hosts_matching_criteria(
+            personality=constants.CONTROLLER,
+            administrative=constants.ADMIN_UNLOCKED,
+            operational=constants.OPERATIONAL_ENABLED,
+            availability=[constants.AVAILABILITY_AVAILABLE,
+                          constants.AVAILABILITY_DEGRADED],
+            vim_progress_status=constants.VIM_SERVICES_ENABLED))
+    except Exception as e:
+        LOG.error("Unexpected error while getting number of provisioned "
+                  f"controllers: {e}")
+
+    return number_of_controllers
+
+
 def check_and_create_snapshot_class(snapshot_class: str, path: str):
     """
     Check if a PVC Snapshot Class exists. If not, create the class.
@@ -2383,27 +2418,48 @@ def create_pvc_snapshot(snapshot_name: str, pvc_name: str, snapshot_class: str, 
 def restore_pvc_snapshot(snapshot_name: str,
                          pvc_name: str,
                          statefulset_name: str,
-                         number_of_controllers: int = 1,
-                         path: str = "/tmp"):
+                         path: str = "/tmp") -> "app_constants.RestoreResult":
     """
     Restore a PVC snapshot, if possible
+
+    Scales the StatefulSet down to 0 and restores the PVC from its snapshot.
+    Scaling the StatefulSet back up is intentionally left to the caller so it
+    can be done once, after all PVCs have been restored, using the desired
+    replica count (see scale_statefulset).
 
     Params:
         snapshot_name (str): Name of the snapshot
         pvc_name (str): PVC whose snapshot was taken of
         statefulset_name (str): Name of the statefulset using the PVC
-        number_of_controllers (int): Number of controllers in the system
         path (str): Path to temporary files
+
+    Returns:
+        RestoreResult: NOT_FOUND if no snapshot existed (StatefulSet left
+            untouched); RESTORED if the PVC was restored; or
+            FAILED_AFTER_SCALEDOWN if a snapshot existed and the StatefulSet
+            was scaled to 0 but the restore then failed. The caller scales the
+            StatefulSet back up for RESTORED and FAILED_AFTER_SCALEDOWN (both
+            leave it at 0), and only skips the scale-up for NOT_FOUND.
     """
+    # First, check whether the snapshot exists. This is done before touching
+    # the StatefulSet so that a recover with no snapshots taken is a true
+    # no-op: NOT_FOUND means the StatefulSet was never scaled down.
     try:
-        # Check if snapshot exists
         cmd = [
             "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
             "-n", app_constants.HELM_NS_OPENSTACK,
             "get", "volumesnapshots.snapshot.storage.k8s.io", snapshot_name
         ]
         send_cmd_read_response(cmd)
+    except Exception as e:
+        LOG.warning(f"No snapshot '{snapshot_name}' to restore ({e}); leaving "
+                    f"StatefulSet '{statefulset_name}' untouched")
+        return app_constants.RestoreResult.NOT_FOUND
 
+    # The snapshot exists; from here on the StatefulSet is scaled to 0, so any
+    # failure must still return FAILED_AFTER_SCALEDOWN (not NOT_FOUND) so the
+    # caller scales it back up and MariaDB is not stranded at zero replicas.
+    try:
         # Set sts replicas to zero
         cmd = [
             "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
@@ -2470,16 +2526,31 @@ def restore_pvc_snapshot(snapshot_name: str,
 
         os.remove(filename)
 
-        # Set sts replicas to number of controllers
+        return app_constants.RestoreResult.RESTORED
+
+    except Exception as e:
+        LOG.error(f"Restore of PVC snapshot '{snapshot_name}' failed after "
+                  f"the StatefulSet was scaled down: {e}")
+        return app_constants.RestoreResult.FAILED_AFTER_SCALEDOWN
+
+
+def scale_statefulset(statefulset_name: str, replicas: int):
+    """Scale a StatefulSet to the given number of replicas.
+
+    Params:
+        statefulset_name (str): Name of the statefulset
+        replicas (int): Desired number of replicas
+    """
+    try:
         cmd = [
             "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
             "-n", app_constants.HELM_NS_OPENSTACK,
-            "scale", "sts", statefulset_name, f"--replicas={number_of_controllers}"
+            "scale", "sts", statefulset_name, f"--replicas={replicas}"
         ]
         send_cmd_read_response(cmd)
-
     except Exception as e:
-        LOG.error(f"Unexpected error while restoring PVC snapshot: {e}")
+        LOG.error(f"Unexpected error while scaling statefulset "
+                  f"{statefulset_name} to {replicas} replicas: {e}")
 
 
 def delete_snapshot(snapshot_name: str, *, ignore_not_found=False):

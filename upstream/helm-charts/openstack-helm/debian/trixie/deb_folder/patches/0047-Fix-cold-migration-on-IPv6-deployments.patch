@@ -1,7 +1,7 @@
-From 51e164e9e306fefd8767f8d2d92d41d8d7a44ae1 Mon Sep 17 00:00:00 2001
+From fa8304634915d58628fdd2f98f44bdf2ceb5793f Mon Sep 17 00:00:00 2001
 From: Luis Henrique Silva Cazuriaga
  <LuisHenrique.SilvaCazuriaga@windriver.com>
-Date: Thu, 12 Mar 2026 17:22:34 -0300
+Date: Wed, 9 Sep 2026 11:41:06 -0300
 Subject: [PATCH] Fix cold migration on IPv6 deployments
 
 VM cold migration fails on IPv6 deployments because the nova
@@ -71,337 +71,1053 @@ set explicitly.
 
 Change-Id: Icb792eefab456bdbee84964b1e43ba4a1560726a
 Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
----
- nova/templates/bin/_nova-compute-init.sh.tpl | 142 +++++++++++++++++--
- nova/templates/bin/_nova-compute.sh.tpl      |   6 +
- nova/templates/bin/_ssh-start.sh.tpl         | 105 +++++++++++++-
- 3 files changed, 242 insertions(+), 11 deletions(-)
 
-diff --git a/nova/templates/bin/_nova-compute-init.sh.tpl b/nova/templates/bin/_nova-compute-init.sh.tpl
-index 5218d3707..7f24934e0 100644
---- a/nova/templates/bin/_nova-compute-init.sh.tpl
-+++ b/nova/templates/bin/_nova-compute-init.sh.tpl
-@@ -16,6 +16,56 @@ limitations under the License.
+[ Rework migration address selection ]
+
+Replace the address-order-dependent shell helpers with a shared selector
+used by Nova and libvirt. Prefer a matching Kubernetes Node address,
+validate explicit addresses and interfaces, and reject floating-address
+fallbacks on configured Node networks. Retain a unique-local fallback for
+dedicated networks and the legacy behavior for wildcard CIDRs.
+
+Select Nova host, live migration, and SSH addresses once per pod, and use
+one generated libvirt configuration for both daemon startup paths.
+Preserve concrete Nova and libvirt overrides and generate nova.conf
+atomically across container restarts.
+
+Project status.hostIPs on Kubernetes 1.30 and newer so dual-stack
+deployments can select the secondary address family, with status.hostIP
+kept as the compatibility fallback.
+
+Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
+---
+ .../templates/scripts/_node-address.py.tpl    | 360 ++++++++++++++++++
+ libvirt/templates/bin/_libvirt.sh.tpl         |  26 +-
+ libvirt/templates/configmap-bin.yaml          |   2 +
+ libvirt/templates/daemonset-libvirt.yaml      |  16 +-
+ libvirt/values.yaml                           |  37 +-
+ nova/templates/bin/_nova-compute-init.sh.tpl  | 120 ++++--
+ nova/templates/bin/_nova-compute.sh.tpl       |  90 +++--
+ nova/templates/bin/_ssh-start.sh.tpl          |  13 +-
+ nova/templates/configmap-bin.yaml             |   2 +
+ nova/templates/configmap-etc.yaml             |  19 +
+ nova/templates/daemonset-compute.yaml         |  53 +++
+ nova/values.yaml                              |   8 +
+ 12 files changed, 646 insertions(+), 100 deletions(-)
+ create mode 100644 helm-toolkit/templates/scripts/_node-address.py.tpl
+
+diff --git a/helm-toolkit/templates/scripts/_node-address.py.tpl b/helm-toolkit/templates/scripts/_node-address.py.tpl
+new file mode 100644
+index 000000000..082ea11cb
+--- /dev/null
++++ b/helm-toolkit/templates/scripts/_node-address.py.tpl
+@@ -0,0 +1,360 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- define "helm-toolkit.scripts.node_address" }}
++#!/usr/bin/env python3
++
++import argparse
++import ipaddress
++import json
++import os
++import subprocess
++import sys
++
++
++class SelectionError(Exception):
++    pass
++
++
++def _split_values(value):
++    values = []
++    for item in value.replace(",", " ").split():
++        if item not in values:
++            values.append(item)
++    return values
++
++
++def _parse_addresses(value, description):
++    addresses = []
++    for item in _split_values(value):
++        try:
++            address = ipaddress.ip_address(item)
++        except ValueError as exc:
++            raise SelectionError(
++                "invalid {} address {!r}: {}".format(description, item, exc)
++            )
++        if address not in addresses:
++            addresses.append(address)
++    return addresses
++
++
++def _parse_networks(value, description):
++    networks = []
++    for item in _split_values(value):
++        try:
++            network = ipaddress.ip_network(item, strict=False)
++        except ValueError as exc:
++            raise SelectionError(
++                "invalid {} CIDR {!r}: {}".format(description, item, exc)
++            )
++        if network not in networks:
++            networks.append(network)
++    return networks
++
++
++def _run_ip(*arguments):
++    try:
++        output = subprocess.check_output(
++            ["ip", "-j"] + list(arguments),
++            stderr=subprocess.STDOUT,
++            text=True,
++        )
++    except (OSError, subprocess.CalledProcessError) as exc:
++        detail = getattr(exc, "output", "")
++        raise SelectionError(
++            "failed to execute ip {}: {} {}".format(
++                " ".join(arguments), exc, detail.strip()
++            ).strip()
++        )
++    try:
++        return json.loads(output)
++    except ValueError as exc:
++        raise SelectionError("invalid JSON returned by ip: {}".format(exc))
++
++
++def _local_addresses():
++    addresses = []
++    for link in _run_ip("address", "show"):
++        interface = link.get("ifname", "")
++        for info in link.get("addr_info", []):
++            if info.get("family") not in ("inet", "inet6"):
++                continue
++            flags = set(info.get("flags", []))
++            if flags.intersection(
++                    ("tentative", "dadfailed", "deprecated", "temporary")):
++                continue
++            try:
++                address = ipaddress.ip_address(info["local"])
++            except (KeyError, ValueError):
++                continue
++            if (address.is_unspecified or address.is_multicast
++                    or address.is_loopback or address.is_link_local):
++                continue
++            addresses.append({
++                "address": address,
++                "interface": interface,
++                "scope": info.get("scope", ""),
++            })
++    return addresses
++
++
++def _route_interface(network):
++    family = "-6" if network.version == 6 else "-4"
++    routes = _run_ip(family, "route", "list", str(network))
++    for route in routes:
++        interface = route.get("dev")
++        if interface:
++            return interface
++    return ""
++
++
++def _overlaps(left, right):
++    return left.version == right.version and left.overlaps(right)
++
++
++def _format_candidates(candidates):
++    return ", ".join(
++        "{} on {} ({})".format(
++            candidate["address"],
++            candidate["interface"],
++            candidate["scope"],
++        )
++        for candidate in candidates
++    ) or "none"
++
++
++def _find_local(addresses, address, interface=""):
++    return [
++        candidate for candidate in addresses
++        if candidate["address"] == address
++        and (not interface or candidate["interface"] == interface)
++    ]
++
++
++def _select_explicit(purpose, value, interface, local_addresses):
++    try:
++        address = ipaddress.ip_address(value)
++    except ValueError as exc:
++        raise SelectionError(
++            "{} explicit address {!r} is invalid: {}".format(
++                purpose, value, exc
++            )
++        )
++
++    if address.is_unspecified:
++        return address
++
++    candidates = _find_local(local_addresses, address, interface)
++    if not candidates:
++        suffix = " on interface {}".format(interface) if interface else ""
++        raise SelectionError(
++            "{} explicit address {} is not assigned locally{}".format(
++                purpose, address, suffix
++            )
++        )
++    return address
++
++
++def _select_legacy(purpose, network, interface, local_addresses):
++    selected_interface = interface or _route_interface(network)
++    candidates = [
++        candidate for candidate in local_addresses
++        if candidate["address"].version == network.version
++        and candidate["scope"] == "global"
++        and (not selected_interface
++             or candidate["interface"] == selected_interface)
++    ]
++    if not candidates:
++        suffix = " on interface {}".format(selected_interface) \
++            if selected_interface else ""
++        raise SelectionError(
++            "{} legacy wildcard selection found no global IPv{} address{}".format(
++                purpose, network.version, suffix
++            )
++        )
++    return candidates[0]["address"]
++
++
++def _select_without_network(purpose, interface, local_addresses):
++    if interface:
++        candidates = [
++            candidate for candidate in local_addresses
++            if candidate["interface"] == interface
++            and candidate["scope"] == "global"
++        ]
++        if len(candidates) != 1:
++            raise SelectionError(
++                "{} requires exactly one global address on interface {}; "
++                "found {} ({})".format(
++                    purpose,
++                    interface,
++                    len(candidates),
++                    _format_candidates(candidates),
++                )
++            )
++        return candidates[0]["address"]
++
++    for network in (
++            ipaddress.ip_network("0.0.0.0/0"),
++            ipaddress.ip_network("::/0")):
++        route_interface = _route_interface(network)
++        if not route_interface:
++            continue
++        try:
++            return _select_legacy(
++                purpose, network, route_interface, local_addresses
++            )
++        except SelectionError:
++            continue
++    raise SelectionError(
++        "{} could not find an address through an IPv4 or IPv6 default route".format(
++            purpose
++        )
++    )
++
++
++def select_address(args):
++    local_addresses = _local_addresses()
++
++    if args.explicit_address:
++        return _select_explicit(
++            args.purpose,
++            args.explicit_address,
++            args.interface,
++            local_addresses,
++        )
++
++    network_value = args.network_cidr
++    if not network_value:
++        return _select_without_network(
++            args.purpose, args.interface, local_addresses
++        )
++
++    requested_networks = _parse_networks(
++        network_value, "requested {}".format(args.purpose)
++    )
++    if len(requested_networks) != 1:
++        raise SelectionError(
++            "{} requires exactly one requested CIDR".format(args.purpose)
++        )
++    requested_network = requested_networks[0]
++
++    if requested_network.prefixlen == 0:
++        return _select_legacy(
++            args.purpose,
++            requested_network,
++            args.interface,
++            local_addresses,
++        )
++
++    node_address_list_value = os.environ.get("CLUSTER_HOST_IPS", "")
++    legacy_address_value = os.environ.get("CLUSTER_HOST_IP", "")
++    node_address_list = _parse_addresses(
++        node_address_list_value, "Node hostIPs"
++    )
++    legacy_addresses = _parse_addresses(legacy_address_value, "Node hostIP")
++    if node_address_list:
++        if (legacy_addresses
++                and legacy_addresses[0] != node_address_list[0]):
++            raise SelectionError(
++                "Node hostIP {} does not match the first hostIPs address {}".format(
++                    legacy_addresses[0], node_address_list[0]
++                )
++            )
++        node_addresses = node_address_list
++    else:
++        node_addresses = legacy_addresses
++    node_candidates = [
++        address for address in node_addresses
++        if address.version == requested_network.version
++        and address in requested_network
++    ]
++
++    if len(node_candidates) > 1:
++        raise SelectionError(
++            "{} has multiple Node addresses in {}: {}".format(
++                args.purpose,
++                requested_network,
++                ", ".join(str(address) for address in node_candidates),
++            )
++        )
++
++    if node_candidates:
++        node_address = node_candidates[0]
++        local_matches = _find_local(
++            local_addresses, node_address, args.interface
++        )
++        if not local_matches:
++            suffix = " on interface {}".format(args.interface) \
++                if args.interface else ""
++            raise SelectionError(
++                "{} Node address {} for {} is not assigned locally{}".format(
++                    args.purpose, node_address, requested_network, suffix
++                )
++            )
++        return node_address
++
++    platform_networks = _parse_networks(
++        args.node_network_cidrs, "platform Node network"
++    )
++    if any(_overlaps(requested_network, network)
++           for network in platform_networks):
++        raise SelectionError(
++            "{} has no matching Node address for platform network {}; "
++            "refusing a local floating-address fallback".format(
++                args.purpose, requested_network
++            )
++        )
++
++    local_candidates = [
++        candidate for candidate in local_addresses
++        if candidate["address"].version == requested_network.version
++        and candidate["address"] in requested_network
++        and (not args.interface
++             or candidate["interface"] == args.interface)
++    ]
++    if len(local_candidates) != 1:
++        raise SelectionError(
++            "{} requires exactly one local address in {}; found {} ({})".format(
++                args.purpose,
++                requested_network,
++                len(local_candidates),
++                _format_candidates(local_candidates),
++            )
++        )
++    return local_candidates[0]["address"]
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--purpose", required=True)
++    parser.add_argument("--network-cidr", default="")
++    parser.add_argument("--interface", default="")
++    parser.add_argument("--explicit-address", default="")
++    parser.add_argument("--node-network-cidrs", default="")
++    args = parser.parse_args()
++
++    try:
++        address = select_address(args)
++    except SelectionError as exc:
++        print("Address selection failed: {}".format(exc), file=sys.stderr)
++        return 1
++
++    print(address)
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
++{{- end }}
+diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
+index 99f41c871..548ad4863 100644
+--- a/libvirt/templates/bin/_libvirt.sh.tpl
++++ b/libvirt/templates/bin/_libvirt.sh.tpl
+@@ -16,29 +16,9 @@ limitations under the License.
  
  set -ex
  
-+# A subnet is only usable to select a specific address when it is not a
-+# wildcard. Wildcard values mean "any address", so the legacy interface
-+# based lookup must be kept for them.
-+function is_wildcard_subnet {
-+    case "${1}" in
-+        ""|0/0|0.0.0.0/0|::/0)
-+            return 0
-+            ;;
-+        *)
-+            return 1
-+            ;;
-+    esac
+-# Check if environment variable exists
+-if [ -z "$CLUSTER_HOST_IP" ]; then
+-  echo "Error: CLUSTER_HOST_IP environment variable is not set."
+-  exit 1
+-fi
+-
+-# Set input and output files
+-INPUT_FILE="/etc/libvirt/libvirtd.conf"
+-OUTPUT_FILE="/tmp/libvirtd.conf"
+-
+-# Check if the output directory exists
+-if [ ! -d "$(dirname "$OUTPUT_FILE")" ]; then
+-  echo "Error: Output directory does not exist."
+-  exit 1
+-fi
+-
+-# Set listen_addr to replace with cluster host ip
+-LISTEN_ADDR="$CLUSTER_HOST_IP"
+-LISTEN_ADDR_FIELD="listen_addr"
+-LISTEN_ADDR_REGEX="^[[:space:]]*$LISTEN_ADDR_FIELD[[:space:]]*=.*"
+-LISTEN_ADDR_REPL="$LISTEN_ADDR_FIELD = \"$LISTEN_ADDR\""
+-
+-sed -E "s|$LISTEN_ADDR_REGEX|$LISTEN_ADDR_REPL|" "$INPUT_FILE" > "$OUTPUT_FILE"
++# Keep the historical final-daemon path while making it consume the same
++# generated configuration as the temporary secret-initialization daemon.
++ln -sf /etc/libvirt/libvirtd.conf /tmp/libvirtd.conf
+ 
+ # NOTE(mnaser): This will move the VNC certificates into the expected location.
+ if [ -f /tmp/vnc.crt ]; then
+diff --git a/libvirt/templates/configmap-bin.yaml b/libvirt/templates/configmap-bin.yaml
+index b37691cb4..344694942 100644
+--- a/libvirt/templates/configmap-bin.yaml
++++ b/libvirt/templates/configmap-bin.yaml
+@@ -28,6 +28,8 @@ data:
+ {{- end }}
+   libvirt.sh: |
+ {{ tuple "bin/_libvirt.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  node-address.py: |
++{{- include "helm-toolkit.scripts.node_address" . | indent 4 }}
+ {{- if eq .Values.conf.qemu.vnc_tls "1" }}
+   cert-init.sh: |
+ {{ tpl .Values.conf.vencrypt.cert_init_sh . | indent 4 }}
+diff --git a/libvirt/templates/daemonset-libvirt.yaml b/libvirt/templates/daemonset-libvirt.yaml
+index a48257136..2fe628105 100644
+--- a/libvirt/templates/daemonset-libvirt.yaml
++++ b/libvirt/templates/daemonset-libvirt.yaml
+@@ -109,6 +109,12 @@ spec:
+               valueFrom:
+                 fieldRef:
+                   fieldPath: status.hostIP
++{{- if semverCompare ">=1.30-0" .Capabilities.KubeVersion.Version }}
++            - name: CLUSTER_HOST_IPS
++              valueFrom:
++                fieldRef:
++                  fieldPath: status.hostIPs
++{{- end }}
+           volumeMounts:
+             - name: pod-tmp
+               mountPath: /tmp
+@@ -118,6 +124,10 @@ spec:
+               mountPath: /tmp/init-dynamic-options.sh
+               subPath: init-dynamic-options.sh
+               readOnly: true
++            - name: libvirt-bin
++              mountPath: /tmp/node-address.py
++              subPath: node-address.py
++              readOnly: true
+ {{- if eq .Values.conf.qemu.vnc_tls "1" }}
+         - name: cert-init-vnc
+ {{ tuple $envAll "kubectl" | include "helm-toolkit.snippets.image" | indent 10 }}
+@@ -211,11 +221,8 @@ spec:
+ {{ tuple $envAll "libvirt" | include "helm-toolkit.snippets.image" | indent 10 }}
+ {{ tuple $envAll $envAll.Values.pod.resources.libvirt | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
+ {{ dict "envAll" $envAll "application" "libvirt" "container" "libvirt" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
++{{- if or .Values.conf.ceph.enabled .Values.conf.ceph.cinder.external_ceph.enabled }}
+           env:
+-            - name: CLUSTER_HOST_IP
+-              valueFrom:
+-                fieldRef:
+-                  fieldPath: status.hostIP
+           {{- if .Values.conf.ceph.enabled }}
+             - name: CEPH_CINDER_USER
+               value: "{{ .Values.conf.ceph.cinder.user }}"
+@@ -232,6 +239,7 @@ spec:
+             - name: LIBVIRT_EXTERNAL_CEPH_CINDER_SECRET_UUID
+               value: "{{ .Values.conf.ceph.cinder.external_ceph.secret_uuid }}"
+             {{ end }}
++{{- end }}
+ {{ dict "envAll" . "component" "libvirt" "container" "libvirt" "type" "readiness" "probeTemplate" (include "libvirtProbeTemplate" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+ {{ dict "envAll" . "component" "libvirt" "container" "libvirt" "type" "liveness" "probeTemplate" (include "libvirtProbeTemplate" . | fromYaml) | include "helm-toolkit.snippets.kubernetes_probe" | indent 10 }}
+           command:
+diff --git a/libvirt/values.yaml b/libvirt/values.yaml
+index 5dba35e7c..52d588277 100644
+--- a/libvirt/values.yaml
++++ b/libvirt/values.yaml
+@@ -88,6 +88,10 @@ ceph_client:
+   user_secret_name: pvc-ceph-client-key
+ 
+ conf:
++  address_selection:
++    # Platform network CIDRs whose Node identity must be present. Generic
++    # deployments leave this empty and may use the unique-local fallback.
++    node_network_cidrs: []
+   ceph:
+     enabled: true
+     admin_keyring: null
+@@ -118,28 +122,39 @@ conf:
+     libvirt:
+       listen_interface: null
+       listen_address: null
++      listen_network_cidr: null
+     script: |
+       #!/bin/bash
+       set -ex
+ 
+       LIBVIRT_CONF_PATH=/tmp/pod-shared/libvirtd.conf
+ 
+-      {{- if .Values.conf.dynamic_options.libvirt.listen_interface }}
++      {{- if eq (toString .Values.conf.libvirt.listen_addr) "${LISTEN_IP_ADDRESS}" }}
++      LISTEN_INTERFACE={{ .Values.conf.dynamic_options.libvirt.listen_interface | default "" | quote }}
++      LISTEN_ADDRESS={{ .Values.conf.dynamic_options.libvirt.listen_address | default "" | quote }}
++      LISTEN_NETWORK_CIDR={{ .Values.conf.dynamic_options.libvirt.listen_network_cidr | default "" | quote }}
++      NODE_NETWORK_CIDRS={{ join "," (.Values.conf.address_selection.node_network_cidrs | default (list)) | quote }}
+ 
+-      LISTEN_INTERFACE="{{ .Values.conf.dynamic_options.libvirt.listen_interface }}"
+-      LISTEN_IP_ADDRESS=$(ip address show $LISTEN_INTERFACE | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}')
+-
+-      {{- else if .Values.conf.dynamic_options.libvirt.listen_address }}
+-      LISTEN_IP_ADDRESS={{ .Values.conf.dynamic_options.libvirt.listen_address }}
+-
+-      {{- else }}
+-      LISTEN_IP_ADDRESS=${CLUSTER_HOST_IP}
+-      {{- end }}
++      if [ -n "${LISTEN_ADDRESS}" ]; then
++          LISTEN_IP_ADDRESS=$(/tmp/node-address.py \
++              --purpose "libvirt listener" \
++              --explicit-address "${LISTEN_ADDRESS}" \
++              --interface "${LISTEN_INTERFACE}")
++      elif [ -n "${LISTEN_NETWORK_CIDR}" ] || [ -n "${LISTEN_INTERFACE}" ]; then
++          LISTEN_IP_ADDRESS=$(/tmp/node-address.py \
++              --purpose "libvirt listener" \
++              --network-cidr "${LISTEN_NETWORK_CIDR}" \
++              --interface "${LISTEN_INTERFACE}" \
++              --node-network-cidrs "${NODE_NETWORK_CIDRS}")
++      else
++          LISTEN_IP_ADDRESS=${CLUSTER_HOST_IP}
++      fi
+ 
+-      if [[ -z $LISTEN_IP_ADDRESS ]]; then
++      if [ -z "${LISTEN_IP_ADDRESS}" ]; then
+           echo "LISTEN_IP_ADDRESS is not set."
+           exit 1
+       fi
++      {{- end }}
+ 
+       tee > ${LIBVIRT_CONF_PATH} << EOF
+       {{ include "libvirt.utils.to_libvirt_conf" .Values.conf.libvirt }}
+diff --git a/nova/templates/bin/_nova-compute-init.sh.tpl b/nova/templates/bin/_nova-compute-init.sh.tpl
+index 5218d3707..d8dd57088 100644
+--- a/nova/templates/bin/_nova-compute-init.sh.tpl
++++ b/nova/templates/bin/_nova-compute-init.sh.tpl
+@@ -16,6 +16,34 @@ limitations under the License.
+ 
+ set -ex
+ 
++SELECTION_DIR=/etc/nova/address-selection
++
++function read_setting {
++    local setting_path="${SELECTION_DIR}/${1}"
++    if [ -f "${setting_path}" ]; then
++        cat "${setting_path}"
++    fi
 +}
 +
-+# Return the first global address that belongs to the given subnet.
-+# When an interface is provided the search is restricted to it first, then
-+# widened to every interface, since the address of the requested subnet may
-+# be hosted by a different device than the one owning the subnet route.
-+# On AIO-SX the cluster-host address lives on loopback with scope host,
-+# so if scope global finds nothing, retry without the scope restriction.
-+function address_in_subnet {
-+    local subnet="${1}"
-+    local interface="${2}"
-+    local ip_opt="-4"
-+    local address=""
++function is_enabled {
++    [[ "${1,,}" == "true" ]]
++}
 +
-+    if [[ "${subnet}" == *":"* ]]; then
-+        ip_opt="-6"
-+    fi
++function select_node_address {
++    local purpose="${1}"
++    local network_cidr="${2}"
++    local interface="${3}"
++    local explicit_address="${4}"
++    local node_network_cidrs="${5}"
 +
-+    if [ -n "${interface}" ]; then
-+        address=$(ip ${ip_opt} -o addr show dev ${interface} to ${subnet} scope global | awk '{ print $4; exit }' | awk -F "/" '{ print $1 }')
-+    fi
-+
-+    if [ -z "${address}" ]; then
-+        address=$(ip ${ip_opt} -o addr show to ${subnet} scope global | awk '{ print $4; exit }' | awk -F "/" '{ print $1 }')
-+    fi
-+
-+    if [ -z "${address}" ]; then
-+        if [ -n "${interface}" ]; then
-+            address=$(ip ${ip_opt} -o addr show dev ${interface} to ${subnet} | awk '{ print $4; exit }' | awk -F "/" '{ print $1 }')
-+        fi
-+        if [ -z "${address}" ]; then
-+            address=$(ip ${ip_opt} -o addr show to ${subnet} | awk '{ print $4; exit }' | awk -F "/" '{ print $1 }')
-+        fi
-+    fi
-+
-+    echo "${address}"
++    /tmp/node-address.py \
++        --purpose "${purpose}" \
++        --network-cidr "${network_cidr}" \
++        --interface "${interface}" \
++        --explicit-address "${explicit_address}" \
++        --node-network-cidrs "${node_network_cidrs}"
 +}
 +
  {{- if and .Values.hosts_uuids (not .Values.manifests.compute_uuid_self_provisioning) }}
  # Extract Host's uuid from helm chart and save it to the compute_id file
    {{- range $host := .Values.hosts_uuids }}
-@@ -33,17 +83,56 @@ mkdir -p /var/lib/nova/instances
+@@ -32,51 +60,77 @@ mkdir -p /var/lib/nova/instances
+ # Set Ownership of nova dirs to the nova user
  chown ${NOVA_USER_UID} /var/lib/nova /var/lib/nova/instances
  
- migration_interface="{{- .Values.conf.libvirt.live_migration_interface -}}"
-+migration_network_cidr="{{- .Values.conf.libvirt.live_migration_network_cidr -}}"
- if [[ -z $migration_interface ]]; then
-     # search for interface with default routing
-     # If there is not default gateway, exit
+-migration_interface="{{- .Values.conf.libvirt.live_migration_interface -}}"
+-if [[ -z $migration_interface ]]; then
+-    # search for interface with default routing
+-    # If there is not default gateway, exit
 -    migration_network_cidr="{{- .Values.conf.libvirt.live_migration_network_cidr -}}"
-     if [ -z "${migration_network_cidr}" ] ; then
+-    if [ -z "${migration_network_cidr}" ] ; then
 -        migration_network_cidr="0/0"
-+        migration_interface=$(ip -4 route list 0.0.0.0/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+        if [ -n "${migration_interface}" ]; then
-+            migration_network_cidr="0/0"
-+            inet_keyword="inet "
-+        else
-+            migration_interface=$(ip -6 route list ::/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+            migration_network_cidr="::/0"
-+            inet_keyword="inet6 "
-+        fi
-+    else
-+        if [[ "${migration_network_cidr}" == *":"* ]]; then
-+            migration_interface=$(ip -6 route list ${migration_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+            if [ -z "${migration_interface}" ] ; then
-+                migration_interface=$(ip -6 -o addr show to ${migration_network_cidr} scope global | awk '{ print $2; exit }')
-+            fi
-+            if [ -z "${migration_interface}" ] ; then
-+                migration_interface=$(ip -6 -o addr show scope global | awk '{ print $2; exit }')
-+            fi
-+            inet_keyword="inet6 "
-+        else
-+            migration_interface=$(ip -4 route list ${migration_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+            if [ -z "${migration_interface}" ] ; then
-+                migration_interface=$(ip -4 -o addr show to ${migration_network_cidr} scope global | awk '{ print $2; exit }')
-+            fi
-+            if [ -z "${migration_interface}" ] ; then
-+                migration_interface=$(ip -4 -o addr show scope global | awk '{ print $2; exit }')
-+            fi
-+            inet_keyword="inet "
-+        fi
-     fi
+-    fi
 -    migration_interface=$(ip -4 route list ${migration_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }') || exit 1
+-fi
+-
+-migration_address=$(ip a s $migration_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
+-
+-if [ -z "${migration_address}" ] ; then
+-  echo "Var live_migration_interface is empty"
+-  exit 1
++node_network_cidrs=$(read_setting node-network-cidrs)
++
++migration_search_enabled=$(read_setting live-migration-address-search-enabled)
++migration_address_managed=$(read_setting live-migration-address-managed)
++if is_enabled "${migration_search_enabled}" || \
++        is_enabled "${migration_address_managed}"; then
++    migration_address=$(select_node_address \
++        "Nova live migration" \
++        "$(read_setting live-migration-network-cidr)" \
++        "$(read_setting live-migration-interface)" \
++        "" \
++        "${node_network_cidrs}")
++    printf '%s\n' "${migration_address}" \
++        > /tmp/pod-shared/nova-live-migration-address
  fi
  
--migration_address=$(ip a s $migration_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
-+migration_address=""
-+
-+# When an explicit CIDR is configured, pick the address that actually belongs
-+# to it instead of the first address of the interface. A single NIC may host
-+# several networks (e.g. mgmt and cluster-host on the same port), in which
-+# case the first address can belong to the wrong network.
-+if ! is_wildcard_subnet "${migration_network_cidr}" ; then
-+    migration_address=$(address_in_subnet "${migration_network_cidr}" "${migration_interface}")
-+fi
-+
-+if [ -z "${migration_address}" ] ; then
-+    migration_address=$(ip a s $migration_interface | grep "${inet_keyword}" | grep 'scope global' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
-+fi
- 
- if [ -z "${migration_address}" ] ; then
-   echo "Var live_migration_interface is empty"
-@@ -56,17 +145,54 @@ live_migration_inbound_addr = $migration_address
+-tee > /tmp/pod-shared/nova-libvirt.conf << EOF
++if is_enabled "${migration_search_enabled}"; then
++    tee > /tmp/pod-shared/nova-libvirt.conf << EOF
+ [libvirt]
+ live_migration_inbound_addr = $migration_address
  EOF
- 
- hypervisor_interface="{{- .Values.conf.hypervisor.host_interface -}}"
-+hypervisor_network_cidr="{{- .Values.conf.hypervisor.host_network_cidr -}}"
- if [[ -z $hypervisor_interface ]]; then
-     # search for interface with default routing
-     # If there is not default gateway, exit
+-
+-hypervisor_interface="{{- .Values.conf.hypervisor.host_interface -}}"
+-if [[ -z $hypervisor_interface ]]; then
+-    # search for interface with default routing
+-    # If there is not default gateway, exit
 -    hypervisor_network_cidr="{{- .Values.conf.hypervisor.host_network_cidr -}}"
-     if [ -z "${hypervisor_network_cidr}" ] ; then
+-    if [ -z "${hypervisor_network_cidr}" ] ; then
 -        hypervisor_network_cidr="0/0"
-+        hypervisor_interface=$(ip -4 route list 0.0.0.0/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+        if [ -n "${hypervisor_interface}" ]; then
-+            hypervisor_network_cidr="0/0"
-+            inet_keyword="inet "
-+        else
-+            hypervisor_interface=$(ip -6 route list ::/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+            hypervisor_network_cidr="::/0"
-+            inet_keyword="inet6 "
-+        fi
-+    else
-+        if [[ "${hypervisor_network_cidr}" == *":"* ]]; then
-+            hypervisor_interface=$(ip -6 route list ${hypervisor_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+            if [ -z "${hypervisor_interface}" ] ; then
-+                hypervisor_interface=$(ip -6 -o addr show to ${hypervisor_network_cidr} scope global | awk '{ print $2; exit }')
-+            fi
-+            if [ -z "${hypervisor_interface}" ] ; then
-+                hypervisor_interface=$(ip -6 -o addr show scope global | awk '{ print $2; exit }')
-+            fi
-+            inet_keyword="inet6 "
-+        else
-+            hypervisor_interface=$(ip -4 route list ${hypervisor_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+            if [ -z "${hypervisor_interface}" ] ; then
-+                hypervisor_interface=$(ip -4 -o addr show to ${hypervisor_network_cidr} scope global | awk '{ print $2; exit }')
-+            fi
-+            if [ -z "${hypervisor_interface}" ] ; then
-+                hypervisor_interface=$(ip -4 -o addr show scope global | awk '{ print $2; exit }')
-+            fi
-+            inet_keyword="inet "
-+        fi
-     fi
+-    fi
 -    hypervisor_interface=$(ip -4 route list ${hypervisor_network_cidr} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }') || exit 1
  fi
  
 -hypervisor_address=$(ip a s $hypervisor_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
-+hypervisor_address=""
-+
-+# Same reasoning as for the migration address: prefer the address that
-+# belongs to the configured CIDR over the first address of the interface.
-+if ! is_wildcard_subnet "${hypervisor_network_cidr}" ; then
-+    hypervisor_address=$(address_in_subnet "${hypervisor_network_cidr}" "${hypervisor_interface}")
+-
+-if [ -z "${hypervisor_address}" ] ; then
+-  echo "Var my_ip is empty"
+-  exit 1
++host_search_enabled=$(read_setting host-address-search-enabled)
++host_address_managed=$(read_setting host-address-managed)
++if is_enabled "${host_search_enabled}" || is_enabled "${host_address_managed}"; then
++    hypervisor_address=$(select_node_address \
++        "Nova host" \
++        "$(read_setting host-network-cidr)" \
++        "$(read_setting host-interface)" \
++        "" \
++        "${node_network_cidrs}")
++    printf '%s\n' "${hypervisor_address}" \
++        > /tmp/pod-shared/nova-host-address
+ fi
+ 
+-tee > /tmp/pod-shared/nova-hypervisor.conf << EOF
++if is_enabled "${host_search_enabled}"; then
++    tee > /tmp/pod-shared/nova-hypervisor.conf << EOF
+ [DEFAULT]
+ my_ip  = $hypervisor_address
+ EOF
 +fi
 +
-+if [ -z "${hypervisor_address}" ] ; then
-+    hypervisor_address=$(ip a s $hypervisor_interface | grep "${inet_keyword}" | grep 'scope global' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
++if is_enabled "$(read_setting ssh-enabled)"; then
++    ssh_subnet=$(read_setting ssh-from-subnet)
++    ssh_address=$(read_setting ssh-listen-address)
++    ssh_interface=$(read_setting ssh-listen-interface)
++
++    if [ -z "${ssh_subnet}" ]; then
++        if [[ "${ssh_address}" == *:* ]]; then
++            ssh_subnet="::/0"
++        elif [ -n "${ssh_address}" ]; then
++            ssh_subnet="0.0.0.0/0"
++        elif ip -4 route list 0.0.0.0/0 | grep -q .; then
++            ssh_subnet="0.0.0.0/0"
++        else
++            ssh_subnet="::/0"
++        fi
++    fi
++
++    ssh_address=$(select_node_address \
++        "Nova SSH" \
++        "${ssh_subnet}" \
++        "${ssh_interface}" \
++        "${ssh_address}" \
++        "${node_network_cidrs}")
++    printf '%s\n' "${ssh_address}" \
++        > /tmp/pod-shared/nova-ssh-address
++    printf '%s\n' "${ssh_subnet}" \
++        > /tmp/pod-shared/nova-ssh-from-subnet
 +fi
  
- if [ -z "${hypervisor_address}" ] ; then
-   echo "Var my_ip is empty"
+ {{- if and ( empty .Values.conf.nova.DEFAULT.host ) ( .Values.pod.use_fqdn.compute ) }}
+ tee > /tmp/pod-shared/nova-compute-fqdn.conf << EOF
 diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
-index ae6a16e57..7b4535bc9 100644
+index ae6a16e57..f01252351 100644
 --- a/nova/templates/bin/_nova-compute.sh.tpl
 +++ b/nova/templates/bin/_nova-compute.sh.tpl
-@@ -36,10 +36,16 @@ function start () {
+@@ -18,15 +18,18 @@ set -ex
+ COMMAND="${@:-start}"
  
-     # Set fields to replace with cluster host ip
-     declare -A CONFIG_CHANGES
-+{{- if not .Values.conf.hypervisor.address_search_enabled }}
-     CONFIG_CHANGES["DEFAULT.my_ip"]="$CLUSTER_HOST_IP"
-+{{- end }}
+ function start () {
+-    # Check if environment variable exists
+-    if [ -z "$CLUSTER_HOST_IP" ]; then
++    # The console substitutions retain their existing status.hostIP behavior.
 +{{- if not .Values.console.address_search_enabled }}
-     CONFIG_CHANGES["vnc.server_listen"]="$CLUSTER_HOST_IP"
-     CONFIG_CHANGES["vnc.server_proxyclient_address"]="$CLUSTER_HOST_IP"
++    if [ -z "${CLUSTER_HOST_IP}" ]; then
+         echo "Error: CLUSTER_HOST_IP environment variable is not set."
+         exit 1
+     fi
 +{{- end }}
-+{{- if not .Values.conf.libvirt.address_search_enabled }}
-     CONFIG_CHANGES["libvirt.live_migration_inbound_addr"]="$CLUSTER_HOST_IP"
+ 
+     # Set input and output files
+     INPUT_FILE="/etc/nova/nova.conf"
+     OUTPUT_FILE="/tmp/pod-shared/nova.conf"
++    SELECTION_DIR="/etc/nova/address-selection"
+ 
+     # Check if the output directory exists
+     if [ ! -d "$(dirname "$OUTPUT_FILE")" ]; then
+@@ -34,15 +37,42 @@ function start () {
+         exit 1
+     fi
+ 
+-    # Set fields to replace with cluster host ip
++    # Set fields to replace. Host and live migration addresses are only
++    # replaced when their base value is an automatic placeholder. Concrete
++    # values remain under the operator's control.
+     declare -A CONFIG_CHANGES
+-    CONFIG_CHANGES["DEFAULT.my_ip"]="$CLUSTER_HOST_IP"
+-    CONFIG_CHANGES["vnc.server_listen"]="$CLUSTER_HOST_IP"
+-    CONFIG_CHANGES["vnc.server_proxyclient_address"]="$CLUSTER_HOST_IP"
+-    CONFIG_CHANGES["libvirt.live_migration_inbound_addr"]="$CLUSTER_HOST_IP"
++    declare -A AUTOMATIC_ONLY
++    host_search_enabled=$(cat "${SELECTION_DIR}/host-address-search-enabled")
++    migration_search_enabled=$(cat \
++        "${SELECTION_DIR}/live-migration-address-search-enabled")
++
++    if [[ "${host_search_enabled,,}" != "true" ]] && \
++            [ -s /tmp/pod-shared/nova-host-address ]; then
++        CONFIG_CHANGES["DEFAULT.my_ip"]=$(cat \
++            /tmp/pod-shared/nova-host-address)
++        AUTOMATIC_ONLY["DEFAULT.my_ip"]=true
++    fi
++{{- if not .Values.console.address_search_enabled }}
++    CONFIG_CHANGES["vnc.server_listen"]="${CLUSTER_HOST_IP}"
++    CONFIG_CHANGES["vnc.server_proxyclient_address"]="${CLUSTER_HOST_IP}"
 +{{- end }}
++
++    if [[ "${migration_search_enabled,,}" != "true" ]] && \
++            [ -s /tmp/pod-shared/nova-live-migration-address ]; then
++        CONFIG_CHANGES["libvirt.live_migration_inbound_addr"]=$(cat \
++            /tmp/pod-shared/nova-live-migration-address)
++        AUTOMATIC_ONLY["libvirt.live_migration_inbound_addr"]=true
++    fi
++
++    TEMP_FILE=$(mktemp "${OUTPUT_FILE}.XXXXXX")
++    function cleanup {
++        rm -f "${TEMP_FILE}"
++    }
++    trap cleanup EXIT
  
      # Loop through the lines of the input file
-     while IFS="=" read -r line; do
+-    while IFS="=" read -r line; do
++    section=""
++    while IFS= read -r line || [ -n "${line}" ]; do
+         # Check if the line is a section
+         if [[ "$line" =~ ^\[.*\]$ ]]; then
+             section="${line//[\[\]]/}"  # Get section name by stripping brackets
+@@ -54,34 +84,48 @@ function start () {
+             field_name="${field_section#*.}"     # Extract field (after the dot)
+             new_value="${CONFIG_CHANGES[$field_section]}"
+ 
+-            # If we are in the correct section, update the field value
+-            if [[ "$section" == "$section_name" && "$line" =~ ^$field_name\ = ]]; then
++            # If we are in the correct section, update the field value. The
++            # advertised-address placeholders are option-specific; wildcard
++            # bind values elsewhere keep their native meaning.
++            if [[ "$section" == "$section_name" && \
++                    "$line" =~ ^[[:space:]]*$field_name[[:space:]]*= ]]; then
++                current_value="${line#*=}"
++                current_value="${current_value#"${current_value%%[![:space:]]*}"}"
++                current_value="${current_value%"${current_value##*[![:space:]]}"}"
++                if [[ "${AUTOMATIC_ONLY[$field_section]}" == "true" && \
++                        "${current_value}" != "0.0.0.0" && \
++                        "${current_value}" != "::" ]]; then
++                    continue
++                fi
+                 line="$field_name = $new_value"
+             fi
+         done
+ 
+-        # Write the line (modified or unmodified) to the output file
+-        if ! echo "$line" >> "$OUTPUT_FILE"; then
++        if ! printf '%s\n' "$line" >> "$TEMP_FILE"; then
+             echo "Error: Failed to write to output file."
+             exit 1
+         fi
+     done < "$INPUT_FILE"
+ 
+-    exec nova-compute \
+-        --config-file /tmp/pod-shared/nova.conf \
++    mv -f "${TEMP_FILE}" "${OUTPUT_FILE}"
++    trap - EXIT
++
++    nova_args=(--config-file /tmp/pod-shared/nova.conf)
+     {{- if .Values.console.address_search_enabled }}
+-        --config-file /tmp/pod-shared/nova-console.conf \
+-    {{- end }}
+-    {{- if .Values.conf.libvirt.address_search_enabled }}
+-        --config-file /tmp/pod-shared/nova-libvirt.conf \
++    nova_args+=(--config-file /tmp/pod-shared/nova-console.conf)
+     {{- end }}
++    if [[ "${migration_search_enabled,,}" == "true" ]]; then
++        nova_args+=(--config-file /tmp/pod-shared/nova-libvirt.conf)
++    fi
+     {{- if and ( empty .Values.conf.nova.DEFAULT.host ) ( .Values.pod.use_fqdn.compute ) }}
+-        --config-file /tmp/pod-shared/nova-compute-fqdn.conf \
+-    {{- end }}
+-    {{- if .Values.conf.hypervisor.address_search_enabled }}
+-        --config-file /tmp/pod-shared/nova-hypervisor.conf \
++    nova_args+=(--config-file /tmp/pod-shared/nova-compute-fqdn.conf)
+     {{- end }}
+-        --config-dir /etc/nova/nova.conf.d
++    if [[ "${host_search_enabled,,}" == "true" ]]; then
++        nova_args+=(--config-file /tmp/pod-shared/nova-hypervisor.conf)
++    fi
++    nova_args+=(--config-dir /etc/nova/nova.conf.d)
++
++    exec nova-compute "${nova_args[@]}"
+ }
+ 
+ function stop () {
 diff --git a/nova/templates/bin/_ssh-start.sh.tpl b/nova/templates/bin/_ssh-start.sh.tpl
-index feca575bc..36dacb57e 100644
+index feca575bc..32f6977c5 100644
 --- a/nova/templates/bin/_ssh-start.sh.tpl
 +++ b/nova/templates/bin/_ssh-start.sh.tpl
-@@ -16,6 +16,56 @@ limitations under the License.
+@@ -25,13 +25,14 @@ for KEY_TYPE in $KEY_TYPES; do
+ done
+ IFS=''
  
- set -ex
- 
-+# A subnet is only usable to select a specific address when it is not a
-+# wildcard. Wildcard values mean "any address", so the legacy interface
-+# based lookup must be kept for them.
-+function is_wildcard_subnet {
-+    case "${1}" in
-+        ""|0/0|0.0.0.0/0|::/0)
-+            return 0
-+            ;;
-+        *)
-+            return 1
-+            ;;
-+    esac
-+}
-+
-+# Return the first global address that belongs to the given subnet.
-+# When an interface is provided the search is restricted to it first, then
-+# widened to every interface, since the address of the requested subnet may
-+# be hosted by a different device than the one owning the subnet route.
-+# On AIO-SX the cluster-host address lives on loopback with scope host,
-+# so if scope global finds nothing, retry without the scope restriction.
-+function address_in_subnet {
-+    local subnet="${1}"
-+    local interface="${2}"
-+    local ip_opt="-4"
-+    local address=""
-+
-+    if [[ "${subnet}" == *":"* ]]; then
-+        ip_opt="-6"
-+    fi
-+
-+    if [ -n "${interface}" ]; then
-+        address=$(ip ${ip_opt} -o addr show dev ${interface} to ${subnet} scope global | awk '{ print $4; exit }' | awk -F "/" '{ print $1 }')
-+    fi
-+
-+    if [ -z "${address}" ]; then
-+        address=$(ip ${ip_opt} -o addr show to ${subnet} scope global | awk '{ print $4; exit }' | awk -F "/" '{ print $1 }')
-+    fi
-+
-+    if [ -z "${address}" ]; then
-+        if [ -n "${interface}" ]; then
-+            address=$(ip ${ip_opt} -o addr show dev ${interface} to ${subnet} | awk '{ print $4; exit }' | awk -F "/" '{ print $1 }')
-+        fi
-+        if [ -z "${address}" ]; then
-+            address=$(ip ${ip_opt} -o addr show to ${subnet} | awk '{ print $4; exit }' | awk -F "/" '{ print $1 }')
-+        fi
-+    fi
-+
-+    echo "${address}"
-+}
-+
- IFS=','
- for KEY_TYPE in $KEY_TYPES; do
-     KEY_PATH=/etc/ssh/ssh_host_${KEY_TYPE}_key
-@@ -28,10 +78,59 @@ IFS=''
- subnet_address="{{- .Values.network.ssh.from_subnet -}}"
- 
- if [ -z "${subnet_address}" ] ; then
+-subnet_address="{{- .Values.network.ssh.from_subnet -}}"
+-
+-if [ -z "${subnet_address}" ] ; then
 -    subnet_address="0.0.0.0/0"
-+    listen_interface=$(ip -4 route list 0.0.0.0/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+    if [ -n "${listen_interface}" ]; then
-+        subnet_address="0.0.0.0/0"
-+        inet_keyword="inet "
-+    else
-+        listen_interface=$(ip -6 route list ::/0 | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+        subnet_address="::/0"
-+        inet_keyword="inet6 "
-+    fi
-+else
-+    if [[ "${subnet_address}" == *":"* ]]; then
-+        listen_interface=$(ip -6 route list ${subnet_address} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+        if [ -z "${listen_interface}" ] ; then
-+            listen_interface=$(ip -6 -o addr show to ${subnet_address} scope global | awk '{ print $2; exit }')
-+        fi
-+        if [ -z "${listen_interface}" ] ; then
-+            listen_interface=$(ip -6 -o addr show scope global | awk '{ print $2; exit }')
-+        fi
-+        inet_keyword="inet6 "
-+    else
-+        listen_interface=$(ip -4 route list ${subnet_address} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }')
-+        if [ -z "${listen_interface}" ] ; then
-+            listen_interface=$(ip -4 -o addr show to ${subnet_address} scope global | awk '{ print $2; exit }')
-+        fi
-+        if [ -z "${listen_interface}" ] ; then
-+            listen_interface=$(ip -4 -o addr show scope global | awk '{ print $2; exit }')
-+        fi
-+        inet_keyword="inet "
-+    fi
-+fi
-+
-+listen_address=""
-+
-+# When an explicit subnet is configured, pick the address that actually
-+# belongs to it. Selecting the first address of the interface is wrong when
-+# a single NIC hosts more than one network (e.g. mgmt and cluster-host on
-+# the same port), because sshd would then listen on the wrong network.
-+if ! is_wildcard_subnet "${subnet_address}" ; then
-+    listen_address=$(address_in_subnet "${subnet_address}" "${listen_interface}")
-+fi
-+
-+if [ -z "${listen_address}" ] ; then
-+    if [ -z "${listen_interface}" ] ; then
-+        echo "Could not determine listen interface"
-+        exit 1
-+    fi
-+    listen_address=$(ip a s ${listen_interface} | grep "${inet_keyword}" | grep 'scope global' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
-+fi
-+
-+if [ -z "${listen_address}" ] ; then
-+    echo "Could not determine listen address"
++if [ ! -s /tmp/pod-shared/nova-ssh-address ] || \
++        [ ! -s /tmp/pod-shared/nova-ssh-from-subnet ]; then
++    echo "Nova SSH address selection output is missing"
 +    exit 1
  fi
 -listen_interface=$(ip -4 route list ${subnet_address} | awk -F 'dev' '{ print $2; exit }' | awk '{ print $1 }') || exit 1
 -listen_address=$(ip a s $listen_interface | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}' | head -1)
++
++listen_address=$(cat /tmp/pod-shared/nova-ssh-address)
++subnet_address=$(cat /tmp/pod-shared/nova-ssh-from-subnet)
  
  cat > /tmp/sshd_config_extend <<EOF
  ListenAddress $listen_address
+diff --git a/nova/templates/configmap-bin.yaml b/nova/templates/configmap-bin.yaml
+index e7f4ffd1d..417c465e6 100644
+--- a/nova/templates/configmap-bin.yaml
++++ b/nova/templates/configmap-bin.yaml
+@@ -75,6 +75,8 @@ data:
+ {{ tuple "bin/_nova-compute.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   nova-compute-init.sh: |
+ {{ tuple "bin/_nova-compute-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  node-address.py: |
++{{- include "helm-toolkit.scripts.node_address" . | indent 4 }}
+   nova-compute-ironic.sh: |
+ {{ tuple "bin/_nova-compute-ironic.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   nova-conductor.sh: |
+diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
+index 4b60acf9b..f565c5d10 100644
+--- a/nova/templates/configmap-etc.yaml
++++ b/nova/templates/configmap-etc.yaml
+@@ -201,6 +201,12 @@ limitations under the License.
+ {{ range .Values.conf.nova_compute_redactions }}
+ {{   $_ := set $__nova_compute "config" (omit $__nova_compute.config .) }}
+ {{ end }}
++{{- $automaticAddresses := list "0.0.0.0" "::" }}
++{{- $myIP := .Values.conf.nova.DEFAULT.my_ip | default "" | toString }}
++{{- $liveMigrationAddress := index .Values.conf.nova.libvirt "live_migration_inbound_addr" | default "" | toString }}
++{{- $hostAddressManaged := has $myIP $automaticAddresses }}
++{{- $liveMigrationAddressManaged := has $liveMigrationAddress $automaticAddresses }}
++{{- $nodeNetworkCidrs := .Values.conf.address_selection.node_network_cidrs | default (list) }}
+ ---
+ apiVersion: v1
+ kind: Secret
+@@ -224,6 +230,19 @@ data:
+   nova-ironic.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_ironic | b64enc }}
+   nova-api-uwsgi.ini: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_api_uwsgi | b64enc }}
+   nova-metadata-uwsgi.ini: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_metadata_uwsgi | b64enc }}
++  host-address-search-enabled: {{ .Values.conf.hypervisor.address_search_enabled | toString | b64enc }}
++  host-address-managed: {{ $hostAddressManaged | toString | b64enc }}
++  host-interface: {{ .Values.conf.hypervisor.host_interface | default "" | toString | b64enc }}
++  host-network-cidr: {{ .Values.conf.hypervisor.host_network_cidr | default "" | toString | b64enc }}
++  live-migration-address-search-enabled: {{ .Values.conf.libvirt.address_search_enabled | toString | b64enc }}
++  live-migration-address-managed: {{ $liveMigrationAddressManaged | toString | b64enc }}
++  live-migration-interface: {{ .Values.conf.libvirt.live_migration_interface | default "" | toString | b64enc }}
++  live-migration-network-cidr: {{ .Values.conf.libvirt.live_migration_network_cidr | default "" | toString | b64enc }}
++  node-network-cidrs: {{ join "," $nodeNetworkCidrs | b64enc }}
++  ssh-enabled: {{ .Values.network.ssh.enabled | toString | b64enc }}
++  ssh-from-subnet: {{ .Values.network.ssh.from_subnet | default "" | toString | b64enc }}
++  ssh-listen-address: {{ .Values.network.ssh.listen_address | default "" | toString | b64enc }}
++  ssh-listen-interface: {{ .Values.network.ssh.listen_interface | default "" | toString | b64enc }}
+ {{- if .Values.conf.security }}
+ {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.security "key" "security.conf" "format" "Secret" ) | indent 2 }}
+ {{- end }}
+diff --git a/nova/templates/daemonset-compute.yaml b/nova/templates/daemonset-compute.yaml
+index 156509a40..8995e4cc2 100644
+--- a/nova/templates/daemonset-compute.yaml
++++ b/nova/templates/daemonset-compute.yaml
+@@ -128,6 +128,16 @@ spec:
+           env:
+             - name: NOVA_USER_UID
+               value: "{{ .Values.pod.security_context.nova.pod.runAsUser }}"
++            - name: CLUSTER_HOST_IP
++              valueFrom:
++                fieldRef:
++                  fieldPath: status.hostIP
++{{- if semverCompare ">=1.30-0" .Capabilities.KubeVersion.Version }}
++            - name: CLUSTER_HOST_IPS
++              valueFrom:
++                fieldRef:
++                  fieldPath: status.hostIPs
++{{- end }}
+           command:
+             - /tmp/nova-compute-init.sh
+           terminationMessagePath: /var/log/termination-log
+@@ -138,6 +148,13 @@ spec:
+               mountPath: /tmp/nova-compute-init.sh
+               subPath: nova-compute-init.sh
+               readOnly: true
++            - name: nova-bin
++              mountPath: /tmp/node-address.py
++              subPath: node-address.py
++              readOnly: true
++            - name: nova-address-selection
++              mountPath: /etc/nova/address-selection
++              readOnly: true
+             - name: varlibnova
+               mountPath: /var/lib/nova
+             {{- if .Values.storage_conf.nfs_shares.enabled }}
+@@ -362,6 +379,9 @@ spec:
+               mountPath: /tmp/nova-compute.sh
+               subPath: nova-compute.sh
+               readOnly: true
++            - name: nova-address-selection
++              mountPath: /etc/nova/address-selection
++              readOnly: true
+             - name: nova-bin
+               mountPath: /tmp/health-probe.py
+               subPath: health-probe.py
+@@ -524,6 +544,8 @@ spec:
+               mountPath: /tmp/ssh-start.sh
+               subPath: ssh-start.sh
+               readOnly: true
++            - name: pod-shared
++              mountPath: /tmp/pod-shared
+ {{- dict "enabled" (or .Values.manifests.certificates .Values.tls.identity) "name" .Values.secrets.tls.compute.osapi.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+ {{ if $mounts_nova_compute.volumeMounts }}{{ toYaml $mounts_nova_compute.volumeMounts | indent 12 }}{{ end }}
+         {{ end }}
+@@ -540,6 +562,37 @@ spec:
+           secret:
+             secretName: {{ $configMapName }}
+             defaultMode: 0444
++        - name: nova-address-selection
++          secret:
++            secretName: {{ $configMapName }}
++            defaultMode: 0444
++            items:
++              - key: host-address-search-enabled
++                path: host-address-search-enabled
++              - key: host-address-managed
++                path: host-address-managed
++              - key: host-interface
++                path: host-interface
++              - key: host-network-cidr
++                path: host-network-cidr
++              - key: live-migration-address-search-enabled
++                path: live-migration-address-search-enabled
++              - key: live-migration-address-managed
++                path: live-migration-address-managed
++              - key: live-migration-interface
++                path: live-migration-interface
++              - key: live-migration-network-cidr
++                path: live-migration-network-cidr
++              - key: node-network-cidrs
++                path: node-network-cidrs
++              - key: ssh-enabled
++                path: ssh-enabled
++              - key: ssh-from-subnet
++                path: ssh-from-subnet
++              - key: ssh-listen-address
++                path: ssh-listen-address
++              - key: ssh-listen-interface
++                path: ssh-listen-interface
+         - name: nova-etc-snippets
+ {{- if $etcSources }}
+           projected:
+diff --git a/nova/values.yaml b/nova/values.yaml
+index e907cb08b..fccc073f8 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -284,6 +284,10 @@ network:
+     enabled: false
+     port: 8022
+     from_subnet: 0.0.0.0/0
++    # Optional explicit listener. When an interface is also supplied, the
++    # address must be assigned to it.
++    listen_address: null
++    listen_interface: null
+     key_types:
+       - rsa
+       - dsa
+@@ -1411,6 +1415,10 @@ conf:
+     live_migration_interface: null
+     # or set cidr
+     live_migration_network_cidr: 0/0
++  address_selection:
++    # Platform network CIDRs whose Node identity must be present. Generic
++    # deployments leave this empty and may use the unique-local fallback.
++    node_network_cidrs: []
+   hypervisor:
+     address_search_enabled: true
+     # my_ip can be set automatically through this interface name.
 -- 
 2.43.0
+

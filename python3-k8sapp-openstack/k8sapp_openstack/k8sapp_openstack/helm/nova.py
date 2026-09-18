@@ -80,7 +80,9 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         self.ifdatanets_by_ifaceid = self._get_interface_datanets()
         self.datanets_by_netuuid = self._get_datanetworks()
         self.rbd_config = self._get_storage_ceph_config()
-        cluster_host_subnet = self._get_cluster_host_subnet()
+        cluster_host_subnets = self._get_cluster_host_subnets()
+        cluster_host_subnet = (
+            cluster_host_subnets[0] if cluster_host_subnets else None)
         nfs_shares = self._get_instances_nfs_shares_config()
         ssh_privatekey, ssh_publickey = \
             self._get_or_generate_ssh_keys(
@@ -106,7 +108,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                         'novncproxy': self._num_provisioned_controllers()
                     }
                 },
-                'conf': self._get_conf_overrides(cluster_host_subnet),
+                'conf': self._get_conf_overrides(
+                    cluster_host_subnet, cluster_host_subnets),
                 'endpoints': self._get_endpoints_overrides(),
                 'network': {
                     'ssh': {
@@ -543,9 +546,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         else:
             libvirt_config.update({'images_type': 'default'})
 
-    def _get_cluster_host_subnet(self):
-        address_pool = self.dbapi.address_pool_get(self.cluster_host_network.pool_uuid)
-        return '%s/%s' % (str(address_pool.network), str(address_pool.prefix))
+    def _get_cluster_host_subnets(self):
+        return self._get_network_subnets(self.cluster_host_network)
 
     def _update_reserved_memory(self, host, default_config):
         reserved_pages = []
@@ -844,7 +846,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         else:
             return True
 
-    def _get_conf_overrides(self, cluster_host_subnet):
+    def _get_conf_overrides(self, cluster_host_subnet,
+                            cluster_host_subnets=None):
         cinder_overrides = {}
 
         admin_keyring = 'null'
@@ -857,6 +860,9 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             cinder_overrides['user'] = 'null'
 
         overrides = {
+            'address_selection': {
+                'node_network_cidrs': cluster_host_subnets or [],
+            },
             'enable_iscsi': self._enable_multipath(),
             'ceph': {
                 'enabled': self._ceph_enabled,

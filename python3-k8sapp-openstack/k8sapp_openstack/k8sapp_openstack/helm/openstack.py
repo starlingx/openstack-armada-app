@@ -69,6 +69,38 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
     def get_namespaces(self):
         return self.SUPPORTED_NAMESPACES
 
+    def _get_network_subnets(self, network):
+        """Return ordered CIDRs for all address pools attached to a network.
+
+        The pool referenced by ``network.pool_uuid`` is returned first,
+        followed by additional network pools in database order. Duplicate
+        pools and CIDRs are omitted. If ``network`` is absent, an empty list
+        is returned.
+        """
+        if not network:
+            return []
+
+        primary_pool_uuid = getattr(network, 'pool_uuid', None)
+        pool_uuids = []
+        if primary_pool_uuid:
+            pool_uuids.append(primary_pool_uuid)
+
+        network_pools = self.dbapi.network_addrpool_get_by_network_id(
+            network.id)
+        for network_pool in network_pools:
+            pool_uuid = network_pool.address_pool_uuid
+            if pool_uuid not in pool_uuids:
+                pool_uuids.append(pool_uuid)
+
+        subnets = []
+        for pool_uuid in pool_uuids:
+            address_pool = self.dbapi.address_pool_get(pool_uuid)
+            subnet = '%s/%s' % (
+                str(address_pool.network), str(address_pool.prefix))
+            if subnet not in subnets:
+                subnets.append(subnet)
+        return subnets
+
     def _get_service_config(self, service):
         configs = self.context.setdefault('_service_configs', {})
         if service not in configs:

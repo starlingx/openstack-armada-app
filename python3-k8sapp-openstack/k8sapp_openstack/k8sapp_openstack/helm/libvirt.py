@@ -31,6 +31,13 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
     def get_overrides(self, namespace=None):
         nova_shares = self._get_instances_nfs_shares_config()
 
+        cluster_host_network = self.dbapi.network_get_by_type(
+            constants.NETWORK_TYPE_CLUSTER_HOST)
+        cluster_host_subnets = self._get_network_subnets(
+            cluster_host_network)
+        cluster_host_subnet = (
+            cluster_host_subnets[0] if cluster_host_subnets else None)
+
         pvc_resolution = self._resolve_nova_pvc_overrides()
 
         cinder_backends = self._get_cinder_volumes_backends()
@@ -49,7 +56,8 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
                         }
                     }
                 },
-                'conf': self._get_conf_overrides(),
+                'conf': self._get_conf_overrides(
+                    cluster_host_subnet, cluster_host_subnets),
             }
         }
 
@@ -90,7 +98,8 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
         else:
             return overrides
 
-    def _get_conf_overrides(self):
+    def _get_conf_overrides(self, cluster_host_subnet=None,
+                            cluster_host_subnets=None):
         cinder_overrides = {}
 
         LOG.info(f"Libvirt Ceph enabled: {self._ceph_enabled} ")
@@ -117,6 +126,14 @@ class LibvirtHelm(openstack.OpenstackBaseHelm):
             cinder_overrides['keyring'] = 'null'
 
         overrides = {
+            'address_selection': {
+                'node_network_cidrs': cluster_host_subnets or [],
+            },
+            'dynamic_options': {
+                'libvirt': {
+                    'listen_network_cidr': cluster_host_subnet,
+                },
+            },
             'qemu': {
                 'user': "root",
                 'group': "root",

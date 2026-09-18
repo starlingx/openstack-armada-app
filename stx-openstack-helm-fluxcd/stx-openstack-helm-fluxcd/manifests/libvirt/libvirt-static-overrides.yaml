@@ -102,35 +102,11 @@ conf:
   # Modifies the config in which value is specified as the name of a variable
   # that is computed in the script.
   dynamic_options:
+    # Use the chart implementation so Nova and libvirt share the same
+    # node-address selection contract.
     libvirt:
       listen_interface: null
       listen_address: null
-    script: |
-      #!/bin/bash
-      set -ex
-
-      LIBVIRT_CONF_PATH=/tmp/pod-shared/libvirtd.conf
-
-      {{- if .Values.conf.dynamic_options.libvirt.listen_interface }}
-
-      LISTEN_INTERFACE="{{ .Values.conf.dynamic_options.libvirt.listen_interface }}"
-      LISTEN_IP_ADDRESS=$(ip address show $LISTEN_INTERFACE | grep 'inet ' | awk '{print $2}' | awk -F "/" '{print $1}')
-
-      {{- else if .Values.conf.dynamic_options.libvirt.listen_address }}
-      LISTEN_IP_ADDRESS={{ .Values.conf.dynamic_options.libvirt.listen_address }}
-
-      {{- else }}
-      LISTEN_IP_ADDRESS=${CLUSTER_HOST_IP}
-      {{- end }}
-
-      if [[ -z $LISTEN_IP_ADDRESS ]]; then
-          echo "LISTEN_IP_ADDRESS is not set."
-          exit 1
-      fi
-
-      tee > ${LIBVIRT_CONF_PATH} << EOF
-      {{ include "libvirt.utils.to_libvirt_conf" .Values.conf.libvirt }}
-      EOF
   qemu:
     vnc_tls: "0"
     vnc_tls_x509_verify: "0"

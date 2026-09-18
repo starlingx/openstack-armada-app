@@ -50,6 +50,54 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
         """Tests that namespaces match the list of supported namespaces."""
         self.assertEqual(self.helm.get_namespaces(), self.helm.SUPPORTED_NAMESPACES)
 
+    def test_get_network_subnets_returns_primary_first(self):
+        network = mock.Mock(id=7, pool_uuid='primary-pool')
+        primary_link = mock.Mock(address_pool_uuid='primary-pool')
+        secondary_link = mock.Mock(address_pool_uuid='secondary-pool')
+        primary_pool = mock.Mock(network='192.0.2.0', prefix=24)
+        secondary_pool = mock.Mock(network='2001:db8::', prefix=64)
+        self.operator.dbapi = mock.Mock()
+
+        with mock.patch.object(
+                self.helm.dbapi,
+                'network_addrpool_get_by_network_id',
+                return_value=[secondary_link, primary_link]), \
+                mock.patch.object(
+                    self.helm.dbapi,
+                    'address_pool_get',
+                    side_effect=[primary_pool, secondary_pool]):
+            result = self.helm._get_network_subnets(network)
+
+        self.assertEqual(result, ['192.0.2.0/24', '2001:db8::/64'])
+
+    def test_get_network_subnets_returns_empty_without_network(self):
+        self.operator.dbapi = mock.Mock()
+
+        result = self.helm._get_network_subnets(None)
+
+        self.assertEqual(result, [])
+        self.helm.dbapi.network_addrpool_get_by_network_id.assert_not_called()
+        self.helm.dbapi.address_pool_get.assert_not_called()
+
+    def test_get_network_subnets_omits_duplicate_cidrs(self):
+        network = mock.Mock(id=7, pool_uuid='primary-pool')
+        secondary_link = mock.Mock(address_pool_uuid='secondary-pool')
+        primary_pool = mock.Mock(network='192.0.2.0', prefix=24)
+        secondary_pool = mock.Mock(network='192.0.2.0', prefix=24)
+        self.operator.dbapi = mock.Mock()
+
+        with mock.patch.object(
+                self.helm.dbapi,
+                'network_addrpool_get_by_network_id',
+                return_value=[secondary_link]), \
+                mock.patch.object(
+                    self.helm.dbapi,
+                    'address_pool_get',
+                    side_effect=[primary_pool, secondary_pool]):
+            result = self.helm._get_network_subnets(network)
+
+        self.assertEqual(result, ['192.0.2.0/24'])
+
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_service')
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.context', new={})
     def test_get_service_config_multiple_services(self, mock_get_service, *_):

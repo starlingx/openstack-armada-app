@@ -110,8 +110,12 @@ class NovaGetOverrideTest(NovaHelmTestCase,
             overrides['network']['ssh']['from_subnet'],
             expected_subnet
         )
+        self.assertEqual(
+            overrides['conf']['address_selection']['node_network_cidrs'],
+            [expected_subnet]
+        )
 
-    @mock.patch('k8sapp_openstack.helm.nova.NovaHelm._get_cluster_host_subnet',
+    @mock.patch('k8sapp_openstack.helm.nova.NovaHelm._get_cluster_host_subnets',
                 return_value=None)
     @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
@@ -123,6 +127,10 @@ class NovaGetOverrideTest(NovaHelmTestCase,
 
         self.assertNotIn('libvirt', overrides['conf'])
         self.assertNotIn('hypervisor', overrides['conf'])
+        self.assertEqual(
+            overrides['conf']['address_selection']['node_network_cidrs'],
+            []
+        )
 
     @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)

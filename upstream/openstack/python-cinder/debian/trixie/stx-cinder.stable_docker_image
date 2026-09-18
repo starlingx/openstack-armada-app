@@ -13,6 +13,7 @@ DIST_PACKAGES="nfs-common \
                lsscsi
 "
 PIP_PACKAGES="\
+  py-pure-client==1.83.1 \
   pycryptodomex \
   python-swiftclient
 "

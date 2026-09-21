@@ -15,6 +15,7 @@ DIST_PACKAGES="nfs-common \
 PIP_PACKAGES="\
   py-pure-client==1.83.1 \
   pycryptodomex \
-  python-swiftclient
+  python-swiftclient \
+  pymemcache
 "
 PROFILES="fluent cinder lvm ceph qemu"

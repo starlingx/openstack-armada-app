@@ -604,6 +604,8 @@ conf:
       OIDCPassClaimsAs: "both"
       OIDCOAuthSSLValidateServer: "Off"
       OIDCEnableMemcached: true
+      OIDCMemCacheStatefulSet: "osh-openstack-memcached-memcached"
+      OIDCMemCacheReplicas: 1
       # Delimiter for multi-valued claims (Keystone expects semicolon for groups)
       OIDCClaimDelimiter: ";"
     # Values below must match DEX_HEALTH_CHECK_DEFAULT_* in constants.py
@@ -1012,8 +1014,14 @@ conf:
 
         {{- if .Values.conf.federation.wsgi.OIDCEnableMemcached }}
         # Shared session cache across replicas using memcached
+        {{- $mcHost := tuple "oslo_cache" "internal" . | include "helm-toolkit.endpoints.hostname_fqdn_endpoint_lookup" }}
+        {{- $mcPort := tuple "oslo_cache" "internal" "memcache" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
+        {{- $mcServers := list }}
+        {{- range $i := until (int .Values.conf.federation.wsgi.OIDCMemCacheReplicas) }}
+        {{- $mcServers = append $mcServers (printf "%s-%d.%s:%s" $.Values.conf.federation.wsgi.OIDCMemCacheStatefulSet $i $mcHost $mcPort) }}
+        {{- end }}
         OIDCCacheType memcache
-        OIDCMemCacheServers {{ tuple "oslo_cache" "internal" "memcache" . | include "helm-toolkit.endpoints.host_and_port_endpoint_uri_lookup" }}
+        OIDCMemCacheServers "{{ join " " $mcServers }}"
         {{- end }}
 
         # JWK refresh

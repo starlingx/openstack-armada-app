@@ -253,7 +253,12 @@ class KeystoneHelm(openstack.OpenstackBaseHelm):
             'policy': self._get_conf_policy_overrides(),
             'federation': {
                 **self._get_oidc_overrides(dex_enabled),
-                **self._get_external_federation_urls(dex_enabled)
+                **self._get_external_federation_urls(dex_enabled),
+                # One memcached pod per controller, same count as the memcached chart
+                'wsgi': {
+                    'OIDCMemCacheReplicas':
+                        self._num_provisioned_controllers()
+                }
             }
         }
 

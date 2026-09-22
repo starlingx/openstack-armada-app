@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2024 Wind River Systems, Inc.
+# Copyright (c) 2021-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -58,6 +58,14 @@ pod:
     liveness:
       pci_irq_affinity_agent:
         enabled: true
+  lifecycle:
+    upgrades:
+      daemonsets:
+        pod_replacement_strategy: RollingUpdate
+        pci_irq_affinity_agent:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 1
 
 conf:
   endpoints:

@@ -30,6 +30,18 @@ spec:
   upgrade:
     disableHooks: false
     disableWait: true
+  # This release wants a dependsOn openvswitch. Both charts place a pod on every
+  # compute node, and replacing a node's openvswitch and neutron-ovs-agent pods
+  # at nearly the same time interrupts instance connectivity on that node for
+  # much longer than either replacement alone.
+  #
+  # It cannot be declared here: with OVS-DPDK the openvswitch chart is not
+  # deployed, and a dependsOn naming an absent HelmRelease would leave this
+  # release permanently unreconciled. A conditional edge, added under the same
+  # predicate that governs the chart, is the fix; it needs plugin support that
+  # does not exist yet.
+  #
+  # Tracked at https://bugs.launchpad.net/starlingx/+bug/2166536
   dependsOn:
     - name: placement
       namespace: openstack

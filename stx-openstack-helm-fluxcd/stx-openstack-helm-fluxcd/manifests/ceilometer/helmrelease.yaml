@@ -24,12 +24,15 @@ spec:
   timeout: 30m
   test:
     enable: false
+  # Safe to wait even though this path creates the DaemonSet rather than
+  # rolling it: rabbit-init and ks-user are plain manifests, not post-upgrade
+  # hooks, so the readiness wait cannot block on them.
   install:
     disableHooks: false
-    disableWait: true
+    disableWait: false
   upgrade:
     disableHooks: false
-    disableWait: true
+    disableWait: false
   dependsOn:
     - name: nova
       namespace: openstack

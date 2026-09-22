@@ -1348,9 +1348,14 @@ pod:
       daemonsets:
         pod_replacement_strategy: RollingUpdate
         compute:
+          # Takes effect only once both the FROM and TO releases carry the
+          # ceilometer compute DaemonSet, which is not the case today. It is
+          # needed then so the rollout fits inside the release timeout.
+          # Creation, which is what this path does, ignores this value and
+          # brings up every pod at once.
           enabled: true
           min_ready_seconds: 0
-          max_unavailable: 1
+          max_unavailable: "10%"
   resources:
     enabled: true
     compute:

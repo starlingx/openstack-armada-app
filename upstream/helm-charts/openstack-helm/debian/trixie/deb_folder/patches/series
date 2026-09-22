@@ -64,3 +64,4 @@
 0064-heat-placement-update-liveness-readiness-probes-to-use-htk.patch
 0065-Reconcile-stale-kernel-OVS-provider-bridge-ports.patch
 0066-Retain-OpenStack-data-PVCs-on-application-removal.patch
+0067-Clean-stale-wrong-type-objects-at-libvirt-socket-and.patch

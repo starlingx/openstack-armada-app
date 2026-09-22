@@ -86,8 +86,13 @@ spec:
             mountPath: /etc/pci_irq_affinity/config.ini
             subPath: config.ini
             readOnly: true
-          - name: libvirt-sock-ro
-            mountPath: /var/run/libvirt/libvirt-sock-ro
+          # Mount the libvirt runtime directory, not the single socket file:
+          # a socket-file bind mount pins an inode and goes stale when libvirtd
+          # recreates the socket, whereas a directory mount tracks the live
+          # socket. Consistent with how nova-compute and libvirt mount the run
+          # tree. The socket still resolves at the same in-container path.
+          - name: libvirt-run
+            mountPath: /var/run/libvirt
             readOnly: true
           - name: compute-sys
             mountPath: {{ .Values.conf.host.mount_path.sys }}
@@ -115,10 +120,10 @@ spec:
         secret:
           defaultMode: 0644
           secretName: {{ $configMapName }}
-      - name: libvirt-sock-ro
+      - name: libvirt-run
         hostPath:
-          path: /var/run/libvirt/libvirt-sock-ro
-          type: Socket
+          path: /var/run/libvirt
+          type: DirectoryOrCreate
       - name: compute-sys
         hostPath:
           path: /sys

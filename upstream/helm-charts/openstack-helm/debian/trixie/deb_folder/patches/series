@@ -65,3 +65,4 @@
 0065-Reconcile-stale-kernel-OVS-provider-bridge-ports.patch
 0066-Retain-OpenStack-data-PVCs-on-application-removal.patch
 0067-Clean-stale-wrong-type-objects-at-libvirt-socket-and.patch
+0068-Re-provision-nova-compute_id-on-container-start.patch

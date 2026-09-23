@@ -1,0 +1,62 @@
+From ec847ed17b5605aed1f8637b80908556094bb194 Mon Sep 17 00:00:00 2001
+From: Sravan Sajeev <Sravan.Sajeev@windriver.com>
+Date: Wed, 23 Sep 2026 13:24:12 -0400
+Subject: [PATCH] Re-provision nova compute_id on container start
+
+The nova-compute container's preStop hook removes
+/var/lib/nova/compute_id so that a stale node identity cannot survive
+an application update. Kubernetes also runs preStop on an in-place
+container restart, and the init container that writes the file only
+runs when the pod is created, so a restart leaves no identity behind.
+nova then refuses to start with "No local node identity found, but
+this is not our first startup on this host", and the pod crash-loops
+until it is recreated by hand.
+
+Write the provisioned UUID again at the start of the main container,
+from the same hosts_uuids values the init container uses. The restart
+path becomes self-correcting, the stale-identity cleanup is left
+intact, and because the value comes from the chart rather than from
+disk it also replaces an identity written by an earlier version.
+
+This only applies where host UUID provisioning is enabled; under
+compute_uuid_self_provisioning there is no authoritative UUID to write.
+
+Signed-off-by: Sravan Sajeev <Sravan.Sajeev@windriver.com>
+---
+ nova/templates/bin/_nova-compute.sh.tpl | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/nova/templates/bin/_nova-compute.sh.tpl b/nova/templates/bin/_nova-compute.sh.tpl
+index f01252351..18e2e4f3b 100644
+--- a/nova/templates/bin/_nova-compute.sh.tpl
++++ b/nova/templates/bin/_nova-compute.sh.tpl
+@@ -125,6 +125,26 @@ function start () {
+     fi
+     nova_args+=(--config-dir /etc/nova/nova.conf.d)
+ 
++{{- if and .Values.hosts_uuids (not .Values.manifests.compute_uuid_self_provisioning) }}
++    # Re-assert the provisioned node identity when it is missing. The preStop
++    # hook removes this file so that a stale identity cannot survive an
++    # application update, but Kubernetes also runs preStop on an in-place
++    # container restart, while the init container that writes the file only
++    # runs when the pod is created. A restart therefore left no identity behind
++    # and nova refused to start. Writing the chart-provided UUID here makes the
++    # restart path self-correcting without weakening that cleanup. The write is
++    # guarded on the file being absent so a normal start, where the init
++    # container already wrote it, does no work.
++    compute_id_file="{{ .Values.conf.nova.DEFAULT.state_path }}/compute_id"
++    if [ ! -f "${compute_id_file}" ]; then
++  {{- range $host := .Values.hosts_uuids }}
++        if [ "{{ $host.name }}" == "${HOSTNAME}" ]; then
++            echo "{{ $host.uuid }}" > "${compute_id_file}"
++        fi
++  {{- end }}
++    fi
++{{- end }}
++
+     exec nova-compute "${nova_args[@]}"
+ }
+ 
+-- 
+2.43.0
+

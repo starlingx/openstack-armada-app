@@ -1,4 +1,4 @@
-From fa8304634915d58628fdd2f98f44bdf2ceb5793f Mon Sep 17 00:00:00 2001
+From ae7f00d03b1847dcd34c423ba392d8ea2d4462af Mon Sep 17 00:00:00 2001
 From: Luis Henrique Silva Cazuriaga
  <LuisHenrique.SilvaCazuriaga@windriver.com>
 Date: Wed, 9 Sep 2026 11:41:06 -0300
@@ -90,8 +90,27 @@ deployments can select the secondary address family, with status.hostIP
 kept as the compatibility fallback.
 
 Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
+
+[ Preserve address-selection compatibility during upgrades ]
+
+Quote every selector Secret value so empty settings remain present during a
+chart upgrade instead of becoming missing Secret keys. Accept the legacy
+IPv4 0/0 wildcard and reject unusable IPv6 addresses represented by either
+iproute2 JSON flags or booleans.
+
+Keep an explicitly configured interface authoritative when the platform
+default CIDR does not match it, while still requiring a unique usable
+address on that interface.
+
+When a matching Node address is unavailable, do not let an explicit
+interface fall back to an address in the requested or platform Node
+networks. Such an address may be a movable floating address. Keep the
+unique-address fallback for dedicated networks, but require the requested
+IP family; cross-family interface overrides must also set a matching CIDR.
+
+Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windriver.com>
 ---
- .../templates/scripts/_node-address.py.tpl    | 360 ++++++++++++++++++
+ .../templates/scripts/_node-address.py.tpl    | 400 ++++++++++++++++++++
  libvirt/templates/bin/_libvirt.sh.tpl         |  26 +-
  libvirt/templates/configmap-bin.yaml          |   2 +
  libvirt/templates/daemonset-libvirt.yaml      |  16 +-
@@ -103,15 +122,15 @@ Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windri
  nova/templates/configmap-etc.yaml             |  19 +
  nova/templates/daemonset-compute.yaml         |  53 +++
  nova/values.yaml                              |   8 +
- 12 files changed, 646 insertions(+), 100 deletions(-)
+ 12 files changed, 686 insertions(+), 100 deletions(-)
  create mode 100644 helm-toolkit/templates/scripts/_node-address.py.tpl
 
 diff --git a/helm-toolkit/templates/scripts/_node-address.py.tpl b/helm-toolkit/templates/scripts/_node-address.py.tpl
 new file mode 100644
-index 000000000..082ea11cb
+index 000000000..f977ff5ca
 --- /dev/null
 +++ b/helm-toolkit/templates/scripts/_node-address.py.tpl
-@@ -0,0 +1,360 @@
+@@ -0,0 +1,400 @@
 +{{/*
 +Licensed under the Apache License, Version 2.0 (the "License");
 +you may not use this file except in compliance with the License.
@@ -166,6 +185,10 @@ index 000000000..082ea11cb
 +def _parse_networks(value, description):
 +    networks = []
 +    for item in _split_values(value):
++        # Preserve the legacy OpenStack-Helm shorthand for the IPv4
++        # default route. Python's ipaddress module does not accept "0/0".
++        if item == "0/0":
++            item = "0.0.0.0/0"
 +        try:
 +            network = ipaddress.ip_network(item, strict=False)
 +        except ValueError as exc:
@@ -199,14 +222,15 @@ index 000000000..082ea11cb
 +
 +def _local_addresses():
 +    addresses = []
++    unusable_flags = ("tentative", "dadfailed", "deprecated", "temporary")
 +    for link in _run_ip("address", "show"):
 +        interface = link.get("ifname", "")
 +        for info in link.get("addr_info", []):
 +            if info.get("family") not in ("inet", "inet6"):
 +                continue
 +            flags = set(info.get("flags", []))
-+            if flags.intersection(
-+                    ("tentative", "dadfailed", "deprecated", "temporary")):
++            if (flags.intersection(unusable_flags)
++                    or any(info.get(flag) is True for flag in unusable_flags)):
 +                continue
 +            try:
 +                address = ipaddress.ip_address(info["local"])
@@ -338,6 +362,33 @@ index 000000000..082ea11cb
 +    )
 +
 +
++def _select_interface_fallback(args, requested_network, local_addresses):
++    address = _select_without_network(
++        args.purpose, args.interface, local_addresses
++    )
++    platform_networks = _parse_networks(
++        args.node_network_cidrs, "platform Node network"
++    )
++    # A unique address in a protected network can still be a floating IP.
++    for network in [requested_network] + platform_networks:
++        if address.version == network.version and address in network:
++            raise SelectionError(
++                "{} refusing interface fallback to {} in {}; "
++                "a matching local Node address is required".format(
++                    args.purpose, address, network
++                )
++            )
++    if address.version != requested_network.version:
++        raise SelectionError(
++            "{} interface {} address {} does not match requested IPv{}; "
++            "configure a matching network CIDR".format(
++                args.purpose, args.interface, address,
++                requested_network.version,
++            )
++        )
++    return address
++
++
 +def select_address(args):
 +    local_addresses = _local_addresses()
 +
@@ -410,6 +461,10 @@ index 000000000..082ea11cb
 +            local_addresses, node_address, args.interface
 +        )
 +        if not local_matches:
++            if args.interface:
++                return _select_interface_fallback(
++                    args, requested_network, local_addresses
++                )
 +            suffix = " on interface {}".format(args.interface) \
 +                if args.interface else ""
 +            raise SelectionError(
@@ -424,6 +479,10 @@ index 000000000..082ea11cb
 +    )
 +    if any(_overlaps(requested_network, network)
 +           for network in platform_networks):
++        if args.interface:
++            return _select_interface_fallback(
++                args, requested_network, local_addresses
++            )
 +        raise SelectionError(
 +            "{} has no matching Node address for platform network {}; "
 +            "refusing a local floating-address fallback".format(
@@ -964,7 +1023,7 @@ index e7f4ffd1d..417c465e6 100644
  {{ tuple "bin/_nova-compute-ironic.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
    nova-conductor.sh: |
 diff --git a/nova/templates/configmap-etc.yaml b/nova/templates/configmap-etc.yaml
-index 4b60acf9b..f565c5d10 100644
+index 4b60acf9b..10e3adbd8 100644
 --- a/nova/templates/configmap-etc.yaml
 +++ b/nova/templates/configmap-etc.yaml
 @@ -201,6 +201,12 @@ limitations under the License.
@@ -984,19 +1043,19 @@ index 4b60acf9b..f565c5d10 100644
    nova-ironic.conf: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_ironic | b64enc }}
    nova-api-uwsgi.ini: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_api_uwsgi | b64enc }}
    nova-metadata-uwsgi.ini: {{ include "helm-toolkit.utils.to_oslo_conf" .Values.conf.nova_metadata_uwsgi | b64enc }}
-+  host-address-search-enabled: {{ .Values.conf.hypervisor.address_search_enabled | toString | b64enc }}
-+  host-address-managed: {{ $hostAddressManaged | toString | b64enc }}
-+  host-interface: {{ .Values.conf.hypervisor.host_interface | default "" | toString | b64enc }}
-+  host-network-cidr: {{ .Values.conf.hypervisor.host_network_cidr | default "" | toString | b64enc }}
-+  live-migration-address-search-enabled: {{ .Values.conf.libvirt.address_search_enabled | toString | b64enc }}
-+  live-migration-address-managed: {{ $liveMigrationAddressManaged | toString | b64enc }}
-+  live-migration-interface: {{ .Values.conf.libvirt.live_migration_interface | default "" | toString | b64enc }}
-+  live-migration-network-cidr: {{ .Values.conf.libvirt.live_migration_network_cidr | default "" | toString | b64enc }}
-+  node-network-cidrs: {{ join "," $nodeNetworkCidrs | b64enc }}
-+  ssh-enabled: {{ .Values.network.ssh.enabled | toString | b64enc }}
-+  ssh-from-subnet: {{ .Values.network.ssh.from_subnet | default "" | toString | b64enc }}
-+  ssh-listen-address: {{ .Values.network.ssh.listen_address | default "" | toString | b64enc }}
-+  ssh-listen-interface: {{ .Values.network.ssh.listen_interface | default "" | toString | b64enc }}
++  host-address-search-enabled: {{ .Values.conf.hypervisor.address_search_enabled | toString | b64enc | quote }}
++  host-address-managed: {{ $hostAddressManaged | toString | b64enc | quote }}
++  host-interface: {{ .Values.conf.hypervisor.host_interface | default "" | toString | b64enc | quote }}
++  host-network-cidr: {{ .Values.conf.hypervisor.host_network_cidr | default "" | toString | b64enc | quote }}
++  live-migration-address-search-enabled: {{ .Values.conf.libvirt.address_search_enabled | toString | b64enc | quote }}
++  live-migration-address-managed: {{ $liveMigrationAddressManaged | toString | b64enc | quote }}
++  live-migration-interface: {{ .Values.conf.libvirt.live_migration_interface | default "" | toString | b64enc | quote }}
++  live-migration-network-cidr: {{ .Values.conf.libvirt.live_migration_network_cidr | default "" | toString | b64enc | quote }}
++  node-network-cidrs: {{ join "," $nodeNetworkCidrs | b64enc | quote }}
++  ssh-enabled: {{ .Values.network.ssh.enabled | toString | b64enc | quote }}
++  ssh-from-subnet: {{ .Values.network.ssh.from_subnet | default "" | toString | b64enc | quote }}
++  ssh-listen-address: {{ .Values.network.ssh.listen_address | default "" | toString | b64enc | quote }}
++  ssh-listen-interface: {{ .Values.network.ssh.listen_interface | default "" | toString | b64enc | quote }}
  {{- if .Values.conf.security }}
  {{- include "helm-toolkit.snippets.values_template_renderer" (dict "envAll" $envAll "template" .Values.conf.security "key" "security.conf" "format" "Secret" ) | indent 2 }}
  {{- end }}
@@ -1120,4 +1179,3 @@ index e907cb08b..fccc073f8 100644
      # my_ip can be set automatically through this interface name.
 -- 
 2.43.0
-

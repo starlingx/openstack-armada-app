@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import enum
+
 from sysinv.common import constants
 
 
@@ -514,3 +516,20 @@ ANSIBLE_PREVIOUS_LINK = "previous"
 VIM_CONFIG_FILE = "/etc/nfv/vim/config.ini"
 VIM_CONFIG_NFVI_SECTION = "nfvi"
 VIM_CONFIG_COMPUTE_PLUGIN_DISABLED = "compute_plugin_disabled"
+
+
+class RestoreResult(enum.Enum):
+    """Outcome of restore_pvc_snapshot, so the caller can distinguish a
+    no-op from a partial failure that left the StatefulSet scaled down.
+
+    NOT_FOUND: No snapshot existed. The StatefulSet was NOT scaled down and
+               must be left untouched.
+    RESTORED:  The PVC was restored from its snapshot successfully.
+    FAILED_AFTER_SCALEDOWN: A snapshot existed and the StatefulSet was scaled
+               to 0, but the restore failed afterwards. The StatefulSet is
+               left at 0 and MUST be scaled back up so MariaDB is not stranded
+               at zero replicas.
+    """
+    NOT_FOUND = "not_found"
+    RESTORED = "restored"
+    FAILED_AFTER_SCALEDOWN = "failed_after_scaledown"

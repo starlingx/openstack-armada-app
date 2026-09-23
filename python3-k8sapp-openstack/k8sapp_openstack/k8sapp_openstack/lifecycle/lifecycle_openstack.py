@@ -351,7 +351,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         Delete PVC snapshots if they exist.
         :return: None
         """
-        nc = app_utils.get_number_of_controllers()
+        nc = max(1, app_utils.get_num_provisioned_controllers())
 
         for i in range(0, nc):
             pvc_name = f"mysql-data-mariadb-server-{i}"
@@ -1171,7 +1171,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # such as NetApp/Trident: the snapshot never becomes ready, which wedges
         # the PVC and blocks upgrade rollback. So the class is discovered from
         # the PVC's provisioner instead.
-        nc = app_utils.get_number_of_controllers()
+        nc = max(1, app_utils.get_num_provisioned_controllers())
         # Legacy Ceph behaviour: when the PVC is on a Ceph RBD backend but no
         # VolumeSnapshotClass exists yet, create_pvc_snapshot() auto-creates
         # this one. Preserved unchanged for existing Ceph deployments.
@@ -1254,7 +1254,22 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             hook_info (LifecycleHookInfo): Recover hook info. Used to tell the
                 two recover dispatches apart; see _is_failed_update_version.
         """
-        self._recover_backup_snapshot(app)
+        # The recover hook is dispatched twice with the same payload: once
+        # carrying the failed version (the genuine recover) and once, after the
+        # recovery has completed, carrying the version that was restored. The
+        # MariaDB PVC restore is destructive (it deletes and recreates the PVCs
+        # and rescales the StatefulSet), so running it on the second dispatch
+        # would undo the freshly reinstalled MariaDB, scaling it back down and
+        # re-restoring already-restored data. The same guard applies to
+        # playbook undeployment below, so evaluate it once and reuse it.
+        is_failed_update_version = self._is_failed_update_version(app,
+                                                                  hook_info)
+        if is_failed_update_version:
+            self._recover_backup_snapshot(app)
+        else:
+            LOG.info("Skipping MariaDB PVC restore for %s %s: this recover "
+                     "dispatch carries the recovered version, not the failed "
+                     "one", app.name, app.version)
         self._recover_app_resources_failed_update(app_op, app)
 
         # Retire the failed version's playbooks and promote the retained
@@ -1267,7 +1282,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # Guarded because the hook is dispatched twice. Undeploying on the
         # second dispatch would remove the tree belonging to the version that
         # was just recovered to and unlink 'current' along with it.
-        if self._is_failed_update_version(app, hook_info):
+        if is_failed_update_version:
             self._undeploy_ansible(app)
         else:
             LOG.info("Skipping playbook undeployment for %s %s: this recover "
@@ -1377,20 +1392,77 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                 app_utils.delete_residual_images(residual_images)
 
     def _recover_backup_snapshot(self, app):
-        """Perform pre recover backup actions
+        """Restore MariaDB from its PVC snapshots taken before the update.
+
+        Restores each ``mysql-data-mariadb-server-<i>`` PVC from the snapshot
+        taken in ``_pre_update_backup_actions``. Both use the same
+        provisioned-controller count (get_num_provisioned_controllers, floored
+        at 1), which is the value the MariaDB chart override uses for
+        ``pod.replicas.server`` and therefore the number of server PVCs that
+        exist. ``restore_pvc_snapshot`` scales the StatefulSet to 0 before
+        swapping each PVC; this method scales it back up once, after the loop,
+        to that same count. The StatefulSet is left untouched only when no
+        snapshot existed for any server (all NOT_FOUND); if a restore failed
+        after the StatefulSet was scaled down, it is still scaled back up so
+        MariaDB is not stranded at zero replicas.
 
         :param app: AppOperator.Application object
-
         """
-        # Restore mariadb's PVCs if snapshots were taken
-        nc = app_utils.get_number_of_controllers()
         STATEFULSET_NAME = "mariadb-server"
+        # The provisioned-controller count governs how many mariadb-server
+        # replicas/PVCs the chart deploys (see helm/mariadb.py), so it is the
+        # count used for the snapshot restore loop and the final scale alike.
+        num_provisioned = app_utils.get_num_provisioned_controllers()
+        if num_provisioned == 0:
+            LOG.error("Could not determine the number of provisioned "
+                      "controllers; skipping MariaDB PVC restore during "
+                      "recovery")
+            return
+        replicas = max(1, num_provisioned)
 
-        for i in range(0, nc):
+        restored_any = False
+        failed_after_scaledown = False
+        for i in range(0, replicas):
             pvc_name = f"mysql-data-mariadb-server-{i}"
             snapshot_name = f"snapshot-of-{pvc_name}"
             LOG.info(f"Trying to restore a snapshot from PVC {pvc_name}")
-            app_utils.restore_pvc_snapshot(snapshot_name, pvc_name, STATEFULSET_NAME, path=app.inst_path)
+            result = app_utils.restore_pvc_snapshot(
+                snapshot_name, pvc_name, STATEFULSET_NAME,
+                path=app.inst_path)
+            if result == app_constants.RestoreResult.RESTORED:
+                restored_any = True
+            elif result == app_constants.RestoreResult.FAILED_AFTER_SCALEDOWN:
+                # The snapshot existed and the StatefulSet was scaled to 0, but
+                # the restore failed. We must still scale back up so MariaDB is
+                # not left stranded at zero replicas.
+                failed_after_scaledown = True
+                LOG.error(f"Restore of {pvc_name} failed after the StatefulSet "
+                          "was scaled down; will scale back up to avoid "
+                          "stranding MariaDB at zero replicas")
+            else:
+                # NOT_FOUND: no snapshot for this server, so the StatefulSet
+                # was not scaled down for it. Nothing to do; leave it alone.
+                LOG.info(f"No snapshot restored for {pvc_name}")
+
+        # Skip the scale-up only when every server was NOT_FOUND (nothing was
+        # restored and nothing was left scaled down) - the StatefulSet is still
+        # at its original replica count and must be left alone. When a restore
+        # succeeded or failed after scaling to 0, the StatefulSet is at 0 and
+        # must be scaled back up.
+        if not restored_any and not failed_after_scaledown:
+            LOG.warning("No MariaDB PVC snapshots were restored; leaving the "
+                        f"{STATEFULSET_NAME} StatefulSet untouched")
+            return
+
+        # Scale the StatefulSet back up once, after all PVCs are restored, to
+        # the provisioned-controller count (the value the chart override uses
+        # for pod.replicas.server), so the recovered StatefulSet matches the
+        # reinstalled chart. Scaling per-PVC inside the loop would start
+        # server-0 before server-1's PVC is restored and leave the StatefulSet
+        # at the wrong replica count.
+        LOG.info(f"Scaling {STATEFULSET_NAME} to {replicas} replica(s) after "
+                 "restore")
+        app_utils.scale_statefulset(STATEFULSET_NAME, replicas)
 
     def _semantic_check_dc_system_type(self, app):
         """Check what type of DC system is running.

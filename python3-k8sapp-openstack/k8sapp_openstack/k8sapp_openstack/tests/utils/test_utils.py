@@ -490,26 +490,120 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         mock_open.assert_called_once_with(f"{path}/{pvc_name}-snapshot.json", "w")
         mock_json_dump.assert_called_once()
 
+    @mock.patch('os.remove')
     @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
     @mock.patch('builtins.open', new_callable=mock.mock_open)
     @mock.patch('json.dump')
-    def test_restore_pvc_snapshot(self, mock_json_dump, mock_open, mock_send_cmd):
-        """Test restore_pvc_snapshot restores the snapshot correctly."""
+    def test_restore_pvc_snapshot(self, mock_json_dump, mock_open, mock_send_cmd,
+                                  mock_os_remove):
+        """Test restore_pvc_snapshot restores the snapshot correctly.
+
+        Scale-up is no longer performed here (the caller scales once after all
+        PVCs are restored), so restore issues: snapshot-exists check, scale-0,
+        get-pvc, delete-pvc, create-pvc (5 commands, no trailing scale-up)."""
         snapshot_name = "test-snapshot"
         pvc_name = "test-pvc"
         statefulset_name = "test-sts"
-        number_of_controllers = 2
         path = "/tmp"
         mock_send_cmd.side_effect = [
-            None, None, "10Gi test-storage-class", None, None, None
+            None, None, "10Gi test-storage-class", None, None
         ]
-        app_utils.restore_pvc_snapshot(snapshot_name, pvc_name, statefulset_name, number_of_controllers, path)
+        result = app_utils.restore_pvc_snapshot(
+            snapshot_name, pvc_name, statefulset_name, path)
+        # A successful restore returns RESTORED so the caller knows to scale up.
+        self.assertEqual(result, app_constants.RestoreResult.RESTORED)
         mock_send_cmd.assert_any_call([
             "kubectl", "--kubeconfig", mock.ANY,
             "create", "-f", f"{path}/{pvc_name}-snapshot-to-apply.json"
         ])
+        # restore_pvc_snapshot still scales the StatefulSet down to 0 before
+        # swapping the PVC, but must not scale it back up: the caller scales
+        # once, after all PVCs are restored. So the only scale command issued
+        # here is "--replicas=0"; there is no scale-up.
+        scale_cmds = [
+            c.args[0] for c in mock_send_cmd.call_args_list
+            if c.args and isinstance(c.args[0], list) and "scale" in c.args[0]
+        ]
+        self.assertEqual(scale_cmds, [[
+            "kubectl", "--kubeconfig", mock.ANY,
+            "-n", mock.ANY,
+            "scale", "sts", statefulset_name, "--replicas=0"
+        ]])
         mock_open.assert_called_once_with(f"{path}/{pvc_name}-snapshot-to-apply.json", "w")
         mock_json_dump.assert_called_once()
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_restore_pvc_snapshot_not_found(self, mock_send_cmd):
+        """If the snapshot does not exist, the existence check raises before
+        the StatefulSet is scaled down, so it returns NOT_FOUND and issues no
+        scale command."""
+        # The snapshot-exists check fails.
+        mock_send_cmd.side_effect = Exception("snapshot not found")
+        result = app_utils.restore_pvc_snapshot(
+            "missing-snap", "test-pvc", "test-sts", "/tmp")
+        self.assertEqual(result, app_constants.RestoreResult.NOT_FOUND)
+        # No scale-to-0 (or any other command) beyond the existence check.
+        scale_cmds = [
+            c.args[0] for c in mock_send_cmd.call_args_list
+            if c.args and isinstance(c.args[0], list) and "scale" in c.args[0]
+        ]
+        self.assertEqual(scale_cmds, [])
+
+    @mock.patch('os.remove')
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_restore_pvc_snapshot_failed_after_scaledown(
+            self, mock_send_cmd, mock_os_remove):
+        """If the snapshot exists (scale-to-0 done) but a later step fails,
+        it returns FAILED_AFTER_SCALEDOWN so the caller still scales back up."""
+        # 1) existence check OK, 2) scale-to-0 OK, 3) get-pvc raises.
+        mock_send_cmd.side_effect = [None, None, Exception("get pvc failed")]
+        result = app_utils.restore_pvc_snapshot(
+            "test-snap", "test-pvc", "test-sts", "/tmp")
+        self.assertEqual(
+            result, app_constants.RestoreResult.FAILED_AFTER_SCALEDOWN)
+        # The StatefulSet was scaled to 0 before the failure.
+        scale_cmds = [
+            c.args[0] for c in mock_send_cmd.call_args_list
+            if c.args and isinstance(c.args[0], list) and "scale" in c.args[0]
+        ]
+        self.assertEqual(scale_cmds, [[
+            "kubectl", "--kubeconfig", mock.ANY,
+            "-n", mock.ANY,
+            "scale", "sts", "test-sts", "--replicas=0"
+        ]])
+
+    @mock.patch('k8sapp_openstack.utils.dbapi')
+    def test_get_num_provisioned_controllers(self, mock_dbapi):
+        """Returns the raw provisioned-controller count (0 possible); the
+        floor is applied by callers, not here."""
+        db = mock_dbapi.get_instance.return_value
+        db.count_hosts_matching_criteria.return_value = 2
+        self.assertEqual(app_utils.get_num_provisioned_controllers(), 2)
+
+        db.count_hosts_matching_criteria.return_value = 1
+        self.assertEqual(app_utils.get_num_provisioned_controllers(), 1)
+
+        # No floor here - returns 0 when no controllers match.
+        db.count_hosts_matching_criteria.return_value = 0
+        self.assertEqual(app_utils.get_num_provisioned_controllers(), 0)
+
+        # On DB error, returns 0 rather than crashing.
+        db.count_hosts_matching_criteria.side_effect = Exception("db down")
+        self.assertEqual(app_utils.get_num_provisioned_controllers(), 0)
+
+        # If dbapi.get_instance() returns None, returns 0 rather than raising.
+        mock_dbapi.get_instance.return_value = None
+        self.assertEqual(app_utils.get_num_provisioned_controllers(), 0)
+
+    @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
+    def test_scale_statefulset(self, mock_send_cmd):
+        """Test scale_statefulset issues a single scale command."""
+        app_utils.scale_statefulset("mariadb-server", 2)
+        mock_send_cmd.assert_called_once_with([
+            "kubectl", "--kubeconfig", mock.ANY,
+            "-n", mock.ANY,
+            "scale", "sts", "mariadb-server", "--replicas=2"
+        ])
 
     @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
     def test_delete_snapshot(self, mock_send_cmd):

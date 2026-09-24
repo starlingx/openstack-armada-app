@@ -192,7 +192,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         self._backends_conf = get_backends_conf()
         self.available_netapp_backends = [
             be for be in self.available_backends
-            if be.startswith('netapp') and self.available_backends[be]
+            if be in app_constants.NETAPP_SUPPORTED_BACKENDS and self.available_backends[be]
         ]
         self._ceph_enabled = bool(
             self.available_backends.get(app_constants.CEPH_BACKEND_NAME, False)

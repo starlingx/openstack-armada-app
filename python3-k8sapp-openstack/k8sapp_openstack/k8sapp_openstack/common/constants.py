@@ -517,6 +517,11 @@ VIM_CONFIG_FILE = "/etc/nfv/vim/config.ini"
 VIM_CONFIG_NFVI_SECTION = "nfvi"
 VIM_CONFIG_COMPUTE_PLUGIN_DISABLED = "compute_plugin_disabled"
 
+# Nova AIO-SX graceful shutdown timeout (seconds).
+# Reduced from the upstream default (160s) to fit within sysinv's
+# hardcoded 150s kubectl drain timeout on AIO-SX.
+AIO_SX_NOVA_MANAGER_SHUTDOWN_TIMEOUT = 60
+
 
 class RestoreResult(enum.Enum):
     """Outcome of restore_pvc_snapshot, so the caller can distinguish a

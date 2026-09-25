@@ -953,6 +953,21 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 }
             })
 
+        # On AIO-SX the global K8s drain budget is consumed by other pods
+        # before nova-compute receives SIGTERM, leaving the Nova manager's
+        # default 160s sleep exceeding sysinv's hardcoded 150s drain timeout.
+        # Set manager_shutdown_timeout to 60s so Nova exits cleanly within
+        # the remaining budget. Not applied on other topologies where the
+        # drain path is not used.
+        if utils.is_aio_simplex_system(self.dbapi):
+            overrides = self._update_overrides(overrides, {
+                'nova': {
+                    'DEFAULT': {
+                        'manager_shutdown_timeout': app_constants.AIO_SX_NOVA_MANAGER_SHUTDOWN_TIMEOUT,
+                    },
+                }
+            })
+
         return overrides
 
     def _get_secrets_overrides(self):

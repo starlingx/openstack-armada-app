@@ -300,3 +300,21 @@ class KeystoneDexFederationTest(KeystoneHelmTestCase,
 
         self.assertEqual(mock_federation_enabled.call_count, 1)
         mock_ks_overrides.assert_called_once_with(True)
+
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_external_federation_urls',
+                return_value={'external': {}})
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_oidc_overrides',
+                return_value={})
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._get_conf_keystone_overrides',
+                return_value={})
+    @mock.patch('k8sapp_openstack.helm.keystone.KeystoneHelm._num_provisioned_controllers',
+                return_value=2)
+    @mock.patch('k8sapp_openstack.helm.keystone.is_dex_federation_enabled',
+                return_value=False)
+    def test_conf_overrides_memcache_replicas_follow_controllers(self, *_):
+        """OIDCMemCacheReplicas matches the memcached pod count so every
+        keystone-api replica lists the same memcached instances."""
+        overrides = self._keystone()._get_conf_overrides()
+
+        self.assertEqual(
+            overrides['federation']['wsgi']['OIDCMemCacheReplicas'], 2)

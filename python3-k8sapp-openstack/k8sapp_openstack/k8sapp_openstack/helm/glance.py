@@ -63,7 +63,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             app_constants.GLANCE_BACKEND_CINDER
         self._available_netapp_backends = [
             be for be in self._available_backends
-            if be.startswith('netapp') and self._available_backends[be]
+            if be in app_constants.NETAPP_SUPPORTED_BACKENDS and self._available_backends[be]
         ]
         self._ceph_enabled = bool(
             self._available_backends.get(app_constants.CEPH_BACKEND_NAME, False)

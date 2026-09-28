@@ -939,7 +939,7 @@ class CinderHelmTestCase(testtools.TestCase):
         ch.available_backends = cinder.get_available_volume_backends()
         ch.available_netapp_backends = [
             be for be in ch.available_backends
-            if be.startswith('netapp') and ch.available_backends[be]
+            if be in app_constants.NETAPP_SUPPORTED_BACKENDS and ch.available_backends[be]
         ]
         ch._ceph_enabled = bool(
             ch.available_backends.get(app_constants.CEPH_BACKEND_NAME, False)

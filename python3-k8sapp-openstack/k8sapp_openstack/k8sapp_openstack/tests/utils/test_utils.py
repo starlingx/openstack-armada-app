@@ -3555,6 +3555,13 @@ class TestIsStrictBackend(dbbase.ControllerHostTestCase):
         self.assertFalse(app_utils.is_strict_backend("Ceph"))
         self.assertFalse(app_utils.is_strict_backend("NETAPP-NFS"))
 
+    def test_netapp_prefixed_name_is_not_strict(self):
+        """A backend name that only shares the netapp prefix is not strict."""
+        for base in app_constants.NETAPP_SUPPORTED_BACKENDS:
+            name = base + "-backend"
+            self.assertFalse(app_utils.is_strict_backend(name))
+            self.assertNotIn(name, app_constants.NETAPP_SUPPORTED_BACKENDS)
+
 
 class TestGetAvailableVolumeBackendsESB(dbbase.ControllerHostTestCase):
     """Tests for ESB (Extended Storage Backend) entries in get_available_volume_backends()."""

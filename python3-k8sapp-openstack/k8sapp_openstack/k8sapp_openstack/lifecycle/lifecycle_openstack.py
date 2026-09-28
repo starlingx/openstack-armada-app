@@ -321,12 +321,104 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
     def pre_update(self, app_op, app):
         """Pre update actions.
 
-        Called only on explicit application-update.
-        This deploys /opt/platform/ansible
+        Runs on application-update: deploys the app playbooks and enables the
+        running broker's RabbitMQ feature flags before the StatefulSet rolls.
         """
         LOG.info("openstack pre_update: ansible deploy starting.")
         # Perform pre update playbook deploy.
         self._deploy_ansible(app)
+
+        # Enable the broker's feature flags before the StatefulSet rolls to a
+        # newer image. Isolated so it can't affect the ansible deploy above.
+        self._enable_rabbitmq_feature_flags()
+
+    def _get_ready_rabbitmq_pod(self):
+        """Return the name of a Running/ready rabbitmq broker pod, or None."""
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK, "get", "pods",
+            "-l", app_constants.RABBITMQ_SERVER_LABEL,
+            "-o", "jsonpath={range .items[*]}{.metadata.name} "
+                  "{.status.phase} "
+                  "{.status.containerStatuses[?(@.name=='rabbitmq')].ready}"
+                  "{'\\n'}{end}",
+        ]
+        try:
+            output = app_utils.send_cmd_read_response(cmd, log=False)
+        except Exception as e:
+            LOG.warning("openstack pre_update: could not list rabbitmq pods "
+                        "(%s).", e)
+            return None
+        for line in output.splitlines():
+            parts = line.split()
+            if len(parts) == 3 and parts[1] == "Running" and parts[2] == "true":
+                return parts[0]
+        return None
+
+    def _enable_rabbitmq_feature_flags(self):
+        """Enable the running broker's stable feature flags before an upgrade.
+
+        A broker only auto-enables feature flags on first boot, so on upgrade
+        the previous version's flags stay disabled and the newer broker can
+        refuse to start. "enable_feature_flag all" enables stable and required
+        flags only (experimental are skipped). Any failure is logged, not
+        raised, so a transient error does not fail the update.
+        """
+        pod = self._get_ready_rabbitmq_pod()
+        if not pod:
+            LOG.warning("openstack pre_update: no ready rabbitmq broker pod "
+                        "found; skipping feature-flag enable.")
+            return
+
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK,
+            "exec", pod, "-c", app_constants.RABBITMQ_CONTAINER,
+            "--", "rabbitmqctl", "enable_feature_flag", "all",
+        ]
+        try:
+            LOG.info("openstack pre_update: enabling RabbitMQ feature flags "
+                     "via %s.", pod)
+            app_utils.send_cmd_read_response(cmd)
+        except Exception as e:
+            LOG.warning("openstack pre_update: could not enable RabbitMQ "
+                        "feature flags: %s", e)
+            return
+
+        # Confirm the end state the upgrade depends on. Logged, not raised: a
+        # genuine miss is surfaced for debugging without failing the update.
+        # The broker itself refuses to start without required flags, so a real
+        # miss still fails loudly when the StatefulSet rolls to the new image.
+        still_disabled = self._disabled_stable_feature_flags(pod)
+        if still_disabled:
+            LOG.warning("openstack pre_update: stable/required RabbitMQ feature "
+                        "flags still disabled after enable: %s",
+                        ", ".join(still_disabled))
+
+    def _disabled_stable_feature_flags(self, pod):
+        """Return stable/required flags still disabled on the broker.
+
+        Empty when all are enabled, or when the listing cannot be read (the
+        enable already ran; an unreadable check is not worth a false warning).
+        """
+        cmd = [
+            "kubectl", "--kubeconfig", kubernetes.KUBERNETES_ADMIN_CONF,
+            "-n", app_constants.HELM_NS_OPENSTACK,
+            "exec", pod, "-c", app_constants.RABBITMQ_CONTAINER,
+            "--", "rabbitmqctl", "-q", "list_feature_flags",
+            "name", "state", "stability",
+        ]
+        try:
+            output = app_utils.send_cmd_read_response(cmd, log=False)
+        except Exception:
+            return []
+        disabled = []
+        for line in output.splitlines():
+            parts = line.split()
+            if len(parts) == 3 and parts[1] != "enabled" and \
+                    parts[2] in ("stable", "required"):
+                disabled.append(parts[0])
+        return disabled
 
     def pre_downgrade(self, app_op, app):
         """Pre downgrade actions.

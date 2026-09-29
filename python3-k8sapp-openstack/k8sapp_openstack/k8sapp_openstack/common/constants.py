@@ -228,6 +228,10 @@ NOVA_CEPH_BACKEND_NAME = "ceph"
 MARIADB_PVC_NAME = "mysql-data-mariadb-server-0"
 RABBITMQ_PVC_NAME = "rabbitmq-data-osh-openstack-rabbitmq-rabbitmq-0"
 
+# RabbitMQ broker pod selection (feature-flag enable runs against a broker).
+RABBITMQ_SERVER_LABEL = "application=rabbitmq,component=server"
+RABBITMQ_CONTAINER = "rabbitmq"
+
 # NetApp Default and Placeholder Values
 NETAPP_CINDER_VOLUME_DRIVER = "cinder.volume.drivers.netapp.common.NetAppDriver"
 NETAPP_STORAGE_FAMILY = "ontap_cluster"

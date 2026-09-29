@@ -3551,3 +3551,98 @@ class OpenstackAppAnsibleDeliveryTest(base.TestCase):
                 mock.Mock(), mock.Mock(), mock.Mock(), app, hook_info)
 
         mock_hook.assert_called_once()
+
+
+class RabbitmqFeatureFlagsTest(dbbase.BaseHostTestCase):
+    """Tests for the pre-update RabbitMQ feature-flag enable."""
+
+    _LIFECYCLE = 'k8sapp_openstack.lifecycle.lifecycle_openstack'
+    _POD = "osh-openstack-rabbitmq-rabbitmq-0"
+
+    def setUp(self):
+        super(RabbitmqFeatureFlagsTest, self).setUp()
+        self.lifecycle = lifecycle_openstack.OpenstackAppLifecycleOperator()
+
+    def _pod_list(self, entries):
+        """Build the get-pods jsonpath output: [(name, phase, ready), ...]."""
+        return "\n".join(f"{n} {p} {r}" for n, p, r in entries)
+
+    def _flags(self, all_enabled=True):
+        """Build list_feature_flags 'name state stability' output."""
+        state = "enabled" if all_enabled else "disabled"
+        return (f"quorum_queue {state} required\n"
+                f"stream_queue {state} stable\n"
+                "khepri_db disabled experimental\n")
+
+    @mock.patch(_LIFECYCLE + '.app_utils.send_cmd_read_response')
+    def test_enable_runs_against_a_ready_broker(self, mock_cmd):
+        """Picks a ready broker pod and runs enable_feature_flag all on it."""
+        mock_cmd.side_effect = [
+            self._pod_list([(self._POD, "Running", "true"),
+                            ("osh-openstack-rabbitmq-rabbitmq-1", "Running",
+                             "true")]),
+            "",  # enable
+            self._flags(all_enabled=True),  # verify
+        ]
+        self.lifecycle._enable_rabbitmq_feature_flags()
+        # Second call is the exec of enable_feature_flag all on the ready pod.
+        enable_cmd = mock_cmd.call_args_list[1].args[0]
+        self.assertIn("rabbitmqctl", enable_cmd)
+        self.assertIn("enable_feature_flag", enable_cmd)
+        self.assertIn("all", enable_cmd)
+        self.assertIn(self._POD, enable_cmd)
+
+    @mock.patch(_LIFECYCLE + '.app_utils.send_cmd_read_response')
+    def test_skips_first_not_ready_broker(self, mock_cmd):
+        """A not-ready ordinal-0 is skipped for a ready peer, not failed."""
+        mock_cmd.side_effect = [
+            self._pod_list([(self._POD, "Running", "false"),
+                            ("osh-openstack-rabbitmq-rabbitmq-1", "Running",
+                             "true")]),
+            "",  # enable
+            self._flags(all_enabled=True),  # verify
+        ]
+        self.lifecycle._enable_rabbitmq_feature_flags()
+        enable_cmd = mock_cmd.call_args_list[1].args[0]
+        self.assertIn("osh-openstack-rabbitmq-rabbitmq-1", enable_cmd)
+
+    @mock.patch(_LIFECYCLE + '.app_utils.send_cmd_read_response')
+    def test_no_ready_broker_skips_without_enabling(self, mock_cmd):
+        """No ready broker -> skip (no enable), do not raise."""
+        mock_cmd.return_value = self._pod_list(
+            [(self._POD, "Running", "false")])
+        self.lifecycle._enable_rabbitmq_feature_flags()
+        # Only the list call happened; enable was never attempted.
+        self.assertEqual(mock_cmd.call_count, 1)
+
+    @mock.patch(_LIFECYCLE + '.app_utils.send_cmd_read_response')
+    def test_enable_failure_is_swallowed(self, mock_cmd):
+        """A broker/exec failure on enable must not raise (retriable)."""
+        mock_cmd.side_effect = [
+            self._pod_list([(self._POD, "Running", "true")]),
+            Exception("broker unreachable"),
+        ]
+        # Should not raise; no verify attempted after a failed enable.
+        self.lifecycle._enable_rabbitmq_feature_flags()
+
+    @mock.patch(_LIFECYCLE + '.app_utils.send_cmd_read_response')
+    def test_verify_warns_when_flags_still_disabled(self, mock_cmd):
+        """Enable ran but a stable flag is still disabled -> warn, not raise."""
+        mock_cmd.side_effect = [
+            self._pod_list([(self._POD, "Running", "true")]),
+            "",  # enable
+            self._flags(all_enabled=False),  # verify: still disabled
+        ]
+        with mock.patch.object(lifecycle_openstack.LOG, "warning") as mock_warn:
+            # Should not raise.
+            self.lifecycle._enable_rabbitmq_feature_flags()
+            self.assertTrue(mock_warn.called)
+
+    @mock.patch(_LIFECYCLE +
+                '.OpenstackAppLifecycleOperator._enable_rabbitmq_feature_flags')
+    @mock.patch(_LIFECYCLE +
+                '.OpenstackAppLifecycleOperator._deploy_ansible')
+    def test_pre_update_invokes_enable(self, _mock_deploy, mock_enable):
+        """pre_update wires the feature-flag enable in."""
+        self.lifecycle.pre_update(mock.Mock(), mock.Mock())
+        mock_enable.assert_called_once()

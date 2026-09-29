@@ -97,13 +97,6 @@ pod:
         rabbitmq_cookie:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
-    feature_flags_upgrade:
-      pod:
-        runAsUser: 999
-      container:
-        rabbitmq_feature_flags_upgrade:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
     test:
       pod:
         runAsUser: 999
@@ -414,13 +407,6 @@ helm3_hook: false
 io_thread_pool:
   enabled: false
   size: 64
-# Membership wait bounds for the pre-upgrade feature flag repair Job. The Job's
-# activeDeadlineSeconds is computed from these in the chart, so raising them
-# here carries its bound with it. See the chart values for the derivation.
-feature_flags_upgrade:
-  wait:
-    attempts: 31
-    interval_seconds: 10
 storage_conf:
   volume_storage_class_priority:
     - "ceph"
@@ -435,7 +421,6 @@ manifests:
   ingress_management: true
   job_pre_apply_cleanup: true
   job_cluster_wait: true
-  job_feature_flags_upgrade: true
   job_image_repo_sync: true
   monitoring:
     prometheus:

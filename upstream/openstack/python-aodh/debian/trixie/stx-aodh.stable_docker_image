@@ -9,7 +9,32 @@ PROJECT_UID=42425
 PROJECT_GID=42425
 PIP_PACKAGES="aodhclient pymemcache"
 PROFILES="apache"
+
+# Temporary carry. Aodh keeps the prometheus alarm scope on the PrometheusRule
+# class, so once an aodh-api process has created or updated a prometheus alarm,
+# it rejects every composite alarm that has a prometheus sub-rule (HTTP 400).
+# Keep the scope on the rule and apply it to composite prometheus sub-rules.
+# The greps abort the build if this code moves or is fixed upstream.
+# Remove when this lands upstream and PROJECT_REF picks it up.
 CUSTOMIZATION="\
     ln -s /etc/apache2/mods-available/wsgi.load /etc/apache2/mods-enabled/wsgi.load && \
-    ln -s /etc/apache2/mods-available/wsgi.conf /etc/apache2/mods-enabled/wsgi.conf
+    ln -s /etc/apache2/mods-available/wsgi.conf /etc/apache2/mods-enabled/wsgi.conf && \
+    grep -q 'cls.scope_to_project = auth_project' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/prometheus.py && \
+    ! grep -q 'scope_to_project' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    sed -i 's/cls.scope_to_project = /rule.scope_to_project = /' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/prometheus.py && \
+    sed -i '/^from aodh.api.controllers.v2 import base/a from aodh.api.controllers.v2 import utils as v2_utils' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    sed -i 's/def valid_composite_rule(rules):/def valid_composite_rule(rules, scope=False):/' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    sed -i 's/CompositeRule.valid_composite_rule(sub_rule)/CompositeRule.valid_composite_rule(sub_rule, scope)/' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    sed -i \"s/wjson.fromjson(plugin, rules)/wjson.fromjson(plugin, {k: v for k, v in rules.items() if k != 'scope_to_project' or rule_type != 'prometheus'})/\" /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    sed -i \"s/rules.update(type=rule_type)/rules.update(type=rule_type); rules.update({'scope_to_project': scope} if scope is not False and rule_type == 'prometheus' else {})/\" /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    sed -i '/def validate_alarm(alarm):/,/pass/s/pass/CompositeRule.valid_composite_rule(alarm.composite_rule, v2_utils.get_auth_project(alarm.project_id) or None)/' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    ! grep -q 'cls.scope_to_project' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/prometheus.py && \
+    grep -q 'rule.scope_to_project = auth_project' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/prometheus.py && \
+    grep -q 'import utils as v2_utils' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    grep -q 'def valid_composite_rule(rules, scope=False):' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    grep -q 'valid_composite_rule(sub_rule, scope)' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    grep -q \"k != 'scope_to_project' or rule_type != 'prometheus'\" /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    grep -q \"rules.update({'scope_to_project': scope}\" /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    grep -q 'valid_composite_rule(alarm.composite_rule, v2_utils.get_auth_project(alarm.project_id) or None)' /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py && \
+    python3 -m py_compile /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/prometheus.py /var/lib/openstack/lib/python3.13/site-packages/aodh/api/controllers/v2/alarm_rules/composite.py
 "

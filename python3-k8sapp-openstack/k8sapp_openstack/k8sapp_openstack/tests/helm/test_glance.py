@@ -212,7 +212,9 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
     @mock.patch('k8sapp_openstack.helm.glance.get_backend_protocol', return_value='rbd')
     def test_glance_cinder_ceph_hostnetwork_disabled(self, mock_protocol, mock_https, mock_priority, *_):
         """
-        Tests that hostNetwork is NOT enabled when Glance uses Cinder with Ceph backend.
+        Tests that hostNetwork is NOT enabled when Glance uses Cinder with Ceph backend,
+        but that glance_api IS still privileged.
+
         """
         mock_priority.side_effect = [
             [app_constants.GLANCE_BACKEND_CINDER],
@@ -232,7 +234,17 @@ class GlanceGetOverrideTest(GlanceHelmTestCase,
                 cnamespace=common.HELM_NS_OPENSTACK)
             self.assertIn('pod', overrides)
             self.assertNotIn('useHostNetwork', overrides['pod'])
-            self.assertNotIn('security_context', overrides['pod'])
+            # Privileged is required for the Cinder store even on
+            # a non-SAN (here rbd) default backend.
+            self.assertIn('security_context', overrides['pod'])
+            self.assertEqual(
+                overrides['pod']['security_context']['glance']['container']['glance_api'],
+                {
+                    'readOnlyRootFilesystem': False,
+                    'privileged': True,
+                    'allowPrivilegeEscalation': True,
+                }
+            )
 
     @mock.patch(
         'k8sapp_openstack.helm.glance._get_value_from_application',
@@ -307,7 +319,19 @@ class GlancePodOverridesESBTest(GlanceHelmTestCase,
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     @mock.patch('k8sapp_openstack.helm.glance.get_backend_protocol', return_value='nfs')
     def test_esb_nfs_no_host_network(self, mock_protocol, mock_https, mock_priority, *_):
-        """ESB NFS backend does not enable useHostNetwork or privileged."""
+        """ESB NFS backend does not enable useHostNetwork, but IS privileged.
+
+        Test previously asserted that no security_context wasemitted, which
+        encoded the defect as expected behavior. The glance chart renders
+        the Bidirectional /etc/multipath mount for ANY Cinder image store,
+        so a non-privileged glance_api makes the Deployment invalid:
+
+            spec.template.spec.containers[0].volumeMounts.mountPropagation:
+            Forbidden: Bidirectional mount propagation is available only to
+            privileged containers
+
+        Host networking remains SAN-only, so it must still be absent here.
+        """
         mock_priority.side_effect = [
             [app_constants.GLANCE_BACKEND_CINDER],
             ['dell-powerstore-nfs']
@@ -324,7 +348,60 @@ class GlancePodOverridesESBTest(GlanceHelmTestCase,
                 cnamespace=common.HELM_NS_OPENSTACK)
             self.assertIn('pod', overrides)
             self.assertNotIn('useHostNetwork', overrides['pod'])
-            self.assertNotIn('security_context', overrides['pod'])
+            self.assertIn('security_context', overrides['pod'])
+            self.assertEqual(
+                overrides['pod']['security_context']['glance']['container']['glance_api'],
+                {
+                    'readOnlyRootFilesystem': False,
+                    'privileged': True,
+                    'allowPrivilegeEscalation': True,
+                }
+            )
+
+    @mock.patch(
+        'k8sapp_openstack.helm.glance._get_value_from_application',
+        return_value=[app_constants.GLANCE_BACKEND_CINDER]
+    )
+    @mock.patch('k8sapp_openstack.helm.glance.get_storage_backends_priority_list')
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.glance.get_backend_protocol', return_value='nfs')
+    def test_strict_netapp_nfs_privileged_no_host_network(
+        self, mock_protocol, mock_https, mock_priority, *_
+    ):
+        """Strict NetApp NFS default backend.
+
+        This is the reported failure configuration: Glance image store = Cinder
+        with the Cinder default backend on NetApp NFS (non-SAN). glance_api MUST
+        be privileged so the chart's Bidirectional /etc/multipath mount is
+        admitted by Kubernetes, and host networking MUST stay off because there
+        is no host iSCSI/FC stack to reach.
+        """
+        mock_priority.side_effect = [
+            [app_constants.GLANCE_BACKEND_CINDER],
+            [app_constants.NETAPP_NFS_BACKEND_NAME]
+        ]
+        with mock.patch(
+            'k8sapp_openstack.helm.glance.get_available_volume_backends',
+            return_value={
+                app_constants.GLANCE_BACKEND_CINDER: app_constants.GLANCE_BACKEND_CINDER,
+                app_constants.NETAPP_NFS_BACKEND_NAME: app_constants.NETAPP_NFS_BACKEND_NAME,
+                app_constants.NETAPP_ISCSI_BACKEND_NAME: app_constants.NETAPP_ISCSI_BACKEND_NAME
+            }
+        ):
+            overrides = self.operator.get_helm_chart_overrides(
+                app_constants.HELM_CHART_GLANCE,
+                cnamespace=common.HELM_NS_OPENSTACK)
+            self.assertIn('pod', overrides)
+            self.assertIn('security_context', overrides['pod'])
+            self.assertEqual(
+                overrides['pod']['security_context']['glance']['container']['glance_api'],
+                {
+                    'readOnlyRootFilesystem': False,
+                    'privileged': True,
+                    'allowPrivilegeEscalation': True,
+                }
+            )
+            self.assertNotIn('useHostNetwork', overrides['pod'])
 
     @mock.patch(
         'k8sapp_openstack.helm.glance._get_value_from_application',

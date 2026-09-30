@@ -879,6 +879,7 @@ conf:
       interface: internal
     oslo_policy:
       policy_file: /etc/cinder/policy.yaml
+      enforce_new_defaults: true
     oslo_concurrency:
       lock_path: /var/lib/oslo-lock
     oslo_messaging_notifications:

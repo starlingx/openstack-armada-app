@@ -24,8 +24,8 @@ spec:
   timeout: 30m
   test:
     enable: false
-  # This release is deliberately left as it is, and both reasons are recorded so
-  # that a future change does not scale it without addressing them first.
+  # This release is deliberately left as it is, and the reason is recorded so
+  # that a future change does not scale it without addressing it first.
   #
   # disableWait must stay true. nova-db-sync and nova-rabbit-init are
   # post-install/post-upgrade Helm hooks, and nova-compute's init container lists
@@ -37,27 +37,26 @@ spec:
   # would deadlock on a single-node system.
   #
   # Tracked at https://bugs.launchpad.net/starlingx/+bug/2166534
-  #
-  # The libvirt dependency below is a separate matter and is not related to the
-  # hook ordering; see the comment above dependsOn.
   install:
     disableHooks: false
     disableWait: true
   upgrade:
     disableHooks: false
     disableWait: true
-  # libvirt is declared as a dependency because the chart already requires it.
-  # nova-compute's init container lists a same-host libvirt pod under
-  # dependencies.static.compute.pod with requireSameNode: true (nova/values.yaml),
-  # so a nova pod cannot start until the libvirt pod on its own node is ready.
-  # Without this edge the two releases are unordered siblings under placement and
-  # Flux reconciles them concurrently, so a nova pod can land on a node whose
-  # libvirt pod is mid-replacement and stall until it becomes ready. This makes
-  # the release graph express the dependency the charts actually have.
+  # libvirt must not be listed here, even though nova-compute's init container
+  # waits on a same-host libvirt pod (dependencies.static.compute.pod with
+  # requireSameNode: true in nova/values.yaml). When nova instance storage is
+  # backed by a PVC (storage_conf.pvc.enabled), the libvirt DaemonSet mounts the
+  # nova-instances PVC, and that PVC is created by this release. libvirt also
+  # waits for its DaemonSet, so ordering nova behind libvirt deadlocks: libvirt
+  # pods stay Pending on a PVC that nova has not been allowed to create yet.
+  # Leaving the edge out lets nova create the PVC while libvirt is still
+  # reconciling. The two releases then settle on their own, because the init
+  # container wait is per-pod and retries rather than failing.
+  #
+  # Tracked at https://bugs.launchpad.net/starlingx/+bug/2168755
   dependsOn:
     - name: placement
-      namespace: openstack
-    - name: libvirt
       namespace: openstack
   valuesFrom:
     - kind: Secret

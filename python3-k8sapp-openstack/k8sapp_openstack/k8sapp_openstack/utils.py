@@ -864,7 +864,7 @@ def check_storageclass_change(
              list resolves to no available backend).
     """
     value = resolve_backend_storage_class(
-        priority_list, available_backends, backends_conf={})
+        priority_list, available_backends)
 
     # When the priority list resolves to nothing there is no new StorageClass to
     # compare against. Treat it as "no change" so a direct call does not raise.
@@ -4423,7 +4423,8 @@ def _resolve_glance_pvc_requirement() -> dict:
 
     Returns:
         dict|None: A requirement descriptor
-            {'chart': <label>, 'priority_list': [...], 'storage_class': <str|None>}
+            {'chart': <label>, 'pvc_name': <name>,
+             'priority_list': [...], 'storage_class': <str|None>}
             or None when Glance does not require a PVC in the current config.
     """
     priority_list = get_storage_backends_priority_list(
@@ -4445,6 +4446,7 @@ def _resolve_glance_pvc_requirement() -> dict:
             if pvc_storage_class:
                 return {
                     'chart': f"{app_constants.HELM_CHART_GLANCE} (PVC image store)",
+                    'pvc_name': app_constants.GLANCE_PVC_NAME,
                     'priority_list': priority_list,
                     'storage_class': pvc_storage_class,
                 }
@@ -4458,6 +4460,7 @@ def _resolve_glance_pvc_requirement() -> dict:
                 )
                 return {
                     'chart': f"{app_constants.HELM_CHART_GLANCE} (PVC image store)",
+                    'pvc_name': app_constants.GLANCE_PVC_NAME,
                     'priority_list': pvc_priority,
                     'storage_class': None,
                 }
@@ -4471,6 +4474,7 @@ def _resolve_glance_pvc_requirement() -> dict:
         if glance_backend == app_constants.GLANCE_BACKEND_PVC:
             return {
                 'chart': f"{app_constants.HELM_CHART_GLANCE} (PVC image store)",
+                'pvc_name': app_constants.GLANCE_PVC_NAME,
                 'priority_list': priority_list,
                 'storage_class': storage_class,
             }
@@ -4557,6 +4561,7 @@ def _resolve_nova_pvc_requirement() -> dict:
     )
     return {
         'chart': f"{app_constants.HELM_CHART_NOVA} (ephemeral PVC)",
+        'pvc_name': get_nova_pvc_name(),
         'priority_list': pvc_priority_list,
         'storage_class': resolve_backend_storage_class(
             pvc_priority_list, pvc_available_backend),
@@ -4601,6 +4606,7 @@ def _resolve_cinder_backup_requirement() -> dict:
             # resolution fails here and apply is blocked with a clear error.
             return {
                 'chart': f"{app_constants.HELM_CHART_CINDER} (backup)",
+                'pvc_name': app_constants.CINDER_BACKUP_PVC_NAME,
                 'priority_list': backup_priority_list,
                 'storage_class': available_backends.get(backend) or None,
             }
@@ -4626,19 +4632,22 @@ def get_pvc_storageclass_requirements() -> list:
 
     Returns:
         list[dict]: Each entry is
-            {'chart': <label>, 'priority_list': [...], 'storage_class': <str|None>}.
+            {'chart': <label>, 'pvc_name': <name>, 'priority_list': [...],
+             'storage_class': <str|None>}.
             A ``storage_class`` of None means the priority list did not resolve
             to any available backend.
     """
     requirements = [
         {
             'chart': app_constants.HELM_CHART_MARIADB,
+            'pvc_name': app_constants.MARIADB_PVC_NAME,
             'priority_list': get_storage_backends_priority_list(
                 app_constants.HELM_CHART_MARIADB),
             'storage_class': None,
         },
         {
             'chart': app_constants.HELM_CHART_RABBITMQ,
+            'pvc_name': app_constants.RABBITMQ_PVC_NAME,
             'priority_list': get_storage_backends_priority_list(
                 app_constants.HELM_CHART_RABBITMQ),
             'storage_class': None,
@@ -4658,6 +4667,23 @@ def get_pvc_storageclass_requirements() -> list:
         requirement = resolver()
         if requirement is not None:
             requirements.append(requirement)
+
+    return requirements
+
+
+def get_pvc_storageclass_immutability_requirements() -> list:
+    """Return desired StorageClasses for application-managed PVCs."""
+    requirements = get_pvc_storageclass_requirements()
+    backup_pvc = app_constants.CINDER_BACKUP_PVC_NAME
+
+    if not any(req['pvc_name'] == backup_pvc for req in requirements):
+        requirements.append({
+            'chart': f"{app_constants.HELM_CHART_CINDER} (backup)",
+            'pvc_name': backup_pvc,
+            'priority_list': get_storage_backup_priority_list(
+                app_constants.HELM_CHART_CINDER),
+            'storage_class': None,
+        })
 
     return requirements
 

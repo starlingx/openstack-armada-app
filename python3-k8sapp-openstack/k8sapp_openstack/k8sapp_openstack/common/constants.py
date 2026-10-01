@@ -227,6 +227,8 @@ NOVA_CEPH_BACKEND_NAME = "ceph"
 # PVC Names for StorageClass validation
 MARIADB_PVC_NAME = "mysql-data-mariadb-server-0"
 RABBITMQ_PVC_NAME = "rabbitmq-data-osh-openstack-rabbitmq-rabbitmq-0"
+GLANCE_PVC_NAME = "glance-images"
+CINDER_BACKUP_PVC_NAME = "cinder-backup"
 
 # NetApp Default and Placeholder Values
 NETAPP_CINDER_VOLUME_DRIVER = "cinder.volume.drivers.netapp.common.NetAppDriver"

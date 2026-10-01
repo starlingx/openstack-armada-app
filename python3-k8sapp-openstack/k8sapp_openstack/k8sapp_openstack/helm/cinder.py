@@ -280,10 +280,16 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             cinder_overrides['DEFAULT']['backup_driver'] = self.default_backup_driver
 
         backup_replicas = self._num_provisioned_controllers()
-        if self.default_backup_type in [app_constants.NETAPP_ISCSI_BACKEND_NAME, app_constants.NETAPP_FC_BACKEND_NAME]:
-            # Trident doesn't support multiple replicas when deployed using
-            # storage backends because RWX volumes cannot be created
-            # using "ontap-san" (iSCSI/FC) [1] provisioned through K8S PVCs.
+        if (self.default_backup_driver and
+                "PosixBackupDriver" in self.default_backup_driver):
+            # The Posix backup driver is backed by a single ReadWriteOnce PVC,
+            # which can only be attached to one node at a time. Since the
+            # cinder-backup pods have a required anti-affinity on hostname,
+            # more than one replica would leave the extra pods stuck with a
+            # Multi-Attach error. RWX volumes cannot be created using block
+            # storage classes such as "ontap-san" (iSCSI/FC) [1], so this
+            # applies to both strict and ESB block backends. NFS (shared
+            # share) and Ceph (pool, no PVC) keep scaling out.
             # [1] https://docs.netapp.com/us-en/trident/trident-use/ontap-san.html
             backup_replicas = 1
 

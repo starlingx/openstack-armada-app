@@ -200,8 +200,23 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         }
 
         if self._image_store == app_constants.GLANCE_IMAGE_STORE_CINDER:
-            # Drive pod security context from the Cinder default backend
-            # protocol via the shared protocol-to-pod-config helper.
+            # The chart's Cinder mount block needs a privileged glance_api:
+            # /etc/multipath uses Bidirectional propagation, and the os-brick
+            # NFS attach needs CAP_SYS_ADMIN.
+            overrides['security_context'] = {
+                'glance': {
+                    'container': {
+                        'glance_api': {
+                            'readOnlyRootFilesystem': False,
+                            'privileged': True,
+                            'allowPrivilegeEscalation': True,
+                        },
+                    },
+                },
+            }
+
+            # Host networking is only needed to reach the host iSCSI/FC
+            # stack, so it stays SAN-only.
             protocol = get_backend_protocol(self._cinder_default_backend)
             if protocol is None:
                 LOG.warning(
@@ -212,17 +227,6 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             else:
                 pod_config = self._get_protocol_pod_config({protocol})
                 if pod_config['use_host_network']:
-                    overrides['security_context'] = {
-                        'glance': {
-                            'container': {
-                                'glance_api': {
-                                    'readOnlyRootFilesystem': False,
-                                    'privileged': True,
-                                    'allowPrivilegeEscalation': True,
-                                },
-                            },
-                        },
-                    }
                     overrides['useHostNetwork'] = {
                         'api': True
                     }

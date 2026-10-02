@@ -1,0 +1,89 @@
+From 49b642d93507eed13ffcb088afb4236697ce2a10 Mon Sep 17 00:00:00 2001
+From: Sravan Sajeev <Sravan.Sajeev@windriver.com>
+Date: Tue, 22 Sep 2026 19:22:45 -0400
+Subject: [PATCH] Clean stale wrong-type objects at libvirt socket and config
+ paths
+
+libvirtd and the init-dynamic-options init container each own a path that
+Kubernetes can materialise as a directory when the expected socket or file
+is absent at mount time. Once that happens the pod crash-loops forever:
+libvirtd's bind() to /run/libvirt/libvirt-sock-ro returns EADDRINUSE, and
+init-dynamic-options' tee to /tmp/pod-shared/libvirtd.conf fails with "Is a
+directory". Neither unlink() nor tee can displace a directory, so the wrong
+object persists across every restart and the node runs no VMs.
+
+Clear a non-socket at the libvirt-sock, libvirt-sock-ro and libvirt-admin-sock
+paths before launching libvirtd, mirroring the existing pid-file cleanup, and
+clear a non-file at the rendered libvirtd.conf before writing it. Also surface
+the recent libvirtd log when the pid file never appears, so the bind failure
+is visible in the container log instead of only on the host.
+
+This does not change libvirtd's normal startup or the pod lifecycle; the
+cleanup only acts when a wrong-type object is present.
+
+Signed-off-by: Sravan Sajeev <Sravan.Sajeev@windriver.com>
+---
+ libvirt/templates/bin/_libvirt.sh.tpl | 18 +++++++++++++++++-
+ libvirt/values.yaml                   | 10 ++++++++++
+ 2 files changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/libvirt/templates/bin/_libvirt.sh.tpl b/libvirt/templates/bin/_libvirt.sh.tpl
+index 3eca3b3cf..41273bbd4 100644
+--- a/libvirt/templates/bin/_libvirt.sh.tpl
++++ b/libvirt/templates/bin/_libvirt.sh.tpl
+@@ -45,6 +45,21 @@ fi
+ 
+ rm -f /var/run/libvirtd.pid
+ 
++# A wrong-type object left at a libvirt socket path (for example a
++# directory created where the read-only control socket belongs, which can
++# happen when a hostPath mount of that path materialises it before
++# libvirtd has recreated the socket) makes libvirtd fail bind() with
++# EADDRINUSE and crash-loop. libvirtd unlinks a stale socket itself but
++# will not remove a directory. Remove an empty directory left at any of
++# these paths; rmdir is used deliberately so a non-empty directory is
++# left in place and surfaced rather than silently deleted.
++for _sock in libvirt-sock libvirt-sock-ro libvirt-admin-sock; do
++  if [ -d "/var/run/libvirt/${_sock}" ]; then
++    echo "WARNING: /var/run/libvirt/${_sock} is a directory, not a socket; removing" 1>&2
++    rmdir "/var/run/libvirt/${_sock}" || echo "WARNING: could not remove /var/run/libvirt/${_sock}" 1>&2
++  fi
++done
++
+ if [ "$(cat /etc/os-release | grep -w NAME= | grep -w CentOS)" ]; then
+   if [[ -c /dev/kvm ]]; then
+     chmod 660 /dev/kvm
+@@ -116,7 +131,8 @@ if [ -n "${LIBVIRT_CEPH_CINDER_SECRET_UUID}" ] || [ -n "${LIBVIRT_EXTERNAL_CEPH_
+       let TIMEOUT-=1
+       sleep 1
+     else
+-      echo "ERROR: libvirt did not start in time (pid file missing)"
++      echo "ERROR: libvirtd did not start in time (pid file missing). Recent daemon log:" 1>&2
++      tail -n 20 /var/log/libvirt/libvirtd.log 1>&2 || true
+       exit 1
+     fi
+   done
+diff --git a/libvirt/values.yaml b/libvirt/values.yaml
+index 52d588277..296d9c35e 100644
+--- a/libvirt/values.yaml
++++ b/libvirt/values.yaml
+@@ -156,6 +156,16 @@ conf:
+       fi
+       {{- end }}
+ 
++      # kubelet can materialise a subPath mount target as a directory when
++      # the file does not yet exist (for example after a host reboot,
++      # before this init container has run). tee then fails with "Is a
++      # directory" on every retry and the pod never starts. Remove an empty
++      # directory left at the config path before writing it; rmdir leaves a
++      # non-empty directory in place rather than deleting it silently.
++      if [ -d "${LIBVIRT_CONF_PATH}" ]; then
++          rmdir "${LIBVIRT_CONF_PATH}" || echo "WARNING: could not remove ${LIBVIRT_CONF_PATH}" 1>&2
++      fi
++
+       tee > ${LIBVIRT_CONF_PATH} << EOF
+       {{ include "libvirt.utils.to_libvirt_conf" .Values.conf.libvirt }}
+       EOF
+-- 
+2.43.0
+

@@ -4247,6 +4247,23 @@ class TestCheckStorageclassChangeUnresolved(dbbase.ControllerHostTestCase):
         self.assertFalse(changed)
         self.assertIsNone(new_sc)
 
+    @mock.patch("k8sapp_openstack.utils.get_backends_conf")
+    def test_esb_storageclass_change_is_detected(self, mock_backends_conf):
+        """ESB entries are resolved from the Cinder backend registry."""
+        mock_backends_conf.return_value = {
+            'dell-powerstore': {
+                'protocol': 'nfs',
+                'k8s_storage_class': 'dell-nfs',
+            },
+        }
+
+        changed, new_sc = app_utils.check_storageclass_change(
+            ['dell-powerstore'], {}, 'dell-iscsi'
+        )
+
+        self.assertTrue(changed)
+        self.assertEqual('dell-nfs', new_sc)
+
 
 class TestGetPvcStorageclassRequirements(dbbase.ControllerHostTestCase):
     """Tests for get_pvc_storageclass_requirements()."""
@@ -4338,6 +4355,56 @@ class TestGetPvcStorageclassRequirements(dbbase.ControllerHostTestCase):
         self.assertIn('glance (PVC image store)', charts)
         self.assertIn('nova (ephemeral PVC)', charts)
         self.assertIn('cinder (backup)', charts)
+
+
+class TestPvcStorageclassImmutabilityRequirements(
+    dbbase.ControllerHostTestCase
+):
+    """Tests for PVCs that leave the desired configuration."""
+
+    @mock.patch("k8sapp_openstack.utils.get_storage_backup_priority_list")
+    @mock.patch("k8sapp_openstack.utils.get_pvc_storageclass_requirements")
+    def test_includes_inactive_cinder_backup_pvc(
+        self, mock_requirements, mock_backup_priority
+    ):
+        mock_requirements.return_value = [{
+            'chart': 'mariadb',
+            'pvc_name': app_constants.MARIADB_PVC_NAME,
+            'priority_list': ['ceph'],
+            'storage_class': 'general',
+        }]
+        mock_backup_priority.return_value = ['dell-nfs']
+
+        requirements = (
+            app_utils.get_pvc_storageclass_immutability_requirements()
+        )
+
+        backup = requirements[-1]
+        self.assertEqual(
+            app_constants.CINDER_BACKUP_PVC_NAME, backup['pvc_name']
+        )
+        self.assertIsNone(backup['storage_class'])
+        self.assertEqual(['dell-nfs'], backup['priority_list'])
+
+    @mock.patch("k8sapp_openstack.utils.get_storage_backup_priority_list")
+    @mock.patch("k8sapp_openstack.utils.get_pvc_storageclass_requirements")
+    def test_does_not_duplicate_active_cinder_backup_pvc(
+        self, mock_requirements, mock_backup_priority
+    ):
+        requirement = {
+            'chart': 'cinder (backup)',
+            'pvc_name': app_constants.CINDER_BACKUP_PVC_NAME,
+            'priority_list': ['dell-iscsi'],
+            'storage_class': 'dell-iscsi',
+        }
+        mock_requirements.return_value = [requirement]
+
+        requirements = (
+            app_utils.get_pvc_storageclass_immutability_requirements()
+        )
+
+        self.assertEqual([requirement], requirements)
+        mock_backup_priority.assert_not_called()
 
 
 class TestResolveConditionalPvcRequirements(dbbase.ControllerHostTestCase):
@@ -4566,12 +4633,14 @@ class TestResolveConditionalPvcRequirements(dbbase.ControllerHostTestCase):
         ]
         self.assertIsNone(app_utils._resolve_nova_pvc_requirement())
 
+    @mock.patch("k8sapp_openstack.utils.get_nova_pvc_name",
+                return_value="nova-custom")
     @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
     @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")
     @mock.patch("k8sapp_openstack.utils.get_storage_backends_priority_list")
     @mock.patch("k8sapp_openstack.utils.get_enabled_storage_backends_from_override")
     def test_nova_pvc_required_and_resolved(
-        self, mock_enabled, mock_priority, mock_available, _
+        self, mock_enabled, mock_priority, mock_available, *_
     ):
         """Nova PVC requirement returned and resolved when pvc backend is selected."""
         mock_enabled.return_value = [app_constants.PVC_BACKEND_NAME]
@@ -4584,6 +4653,7 @@ class TestResolveConditionalPvcRequirements(dbbase.ControllerHostTestCase):
         requirement = app_utils._resolve_nova_pvc_requirement()
         self.assertIsNotNone(requirement)
         self.assertEqual(requirement["storage_class"], "dell-nfs-sc")
+        self.assertEqual(requirement["pvc_name"], "nova-custom")
 
     @mock.patch("k8sapp_openstack.utils.get_backends_conf", return_value={})
     @mock.patch("k8sapp_openstack.utils.get_available_volume_backends")

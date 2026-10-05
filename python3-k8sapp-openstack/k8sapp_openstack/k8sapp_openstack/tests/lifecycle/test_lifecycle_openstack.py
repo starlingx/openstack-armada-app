@@ -1476,15 +1476,6 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             "dpdk=enabled, openvswitch=enabled, other-vswitch=enabled$"
         )
 
-    @mock.patch(
-        'k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends',
-        return_value={
-            "ceph": "general",
-            app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
-            app_constants.NETAPP_NFS_BACKEND_NAME: "",
-            app_constants.NETAPP_FC_BACKEND_NAME: ""
-        }
-    )
     @mock.patch('k8sapp_openstack.utils.create_aodh_rest_notifier_ca_cert_secret')
     @mock.patch('k8sapp_openstack.helpers.ldap.check_group', return_value=False)
     @mock.patch('k8sapp_openstack.helpers.ldap.add_group', return_value=True)
@@ -1563,15 +1554,6 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             hook_info
         )
 
-    @mock.patch(
-        'k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends',
-        return_value={
-            "ceph": "general",
-            app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
-            app_constants.NETAPP_NFS_BACKEND_NAME: "",
-            app_constants.NETAPP_FC_BACKEND_NAME: ""
-        }
-    )
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_ceph_backend_available')
     def test_pre_apply_copy_storage_backend_config_rook_ceph_success(
         self,
@@ -1603,15 +1585,6 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         assert fake_configmap.metadata.namespace == common.HELM_NS_OPENSTACK
         assert fake_configmap.metadata.name == self.lifecycle.APP_OPENSTACK_RESOURCE_CONFIG_MAP
 
-    @mock.patch(
-        'k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends',
-        return_value={
-            "ceph": "general",
-            app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
-            app_constants.NETAPP_NFS_BACKEND_NAME: "",
-            app_constants.NETAPP_FC_BACKEND_NAME: ""
-        }
-    )
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_ceph_backend_available')
     def test_pre_apply_copy_storage_backend_config_rook_ceph_missing_configmap(
         self,
@@ -1631,15 +1604,6 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             mock_kube
         )
 
-    @mock.patch(
-        'k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends',
-        return_value={
-            "ceph": "",
-            app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
-            app_constants.NETAPP_NFS_BACKEND_NAME: "",
-            app_constants.NETAPP_FC_BACKEND_NAME: ""
-        }
-    )
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_ceph_backend_available',
                 return_value=(False, "Other reason"))
     def test_pre_apply_copy_storage_backend_config_backend_not_configured(
@@ -1655,15 +1619,6 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         mock_kube.kube_read_config_map.assert_not_called()
 
-    @mock.patch(
-        'k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends',
-        return_value={
-            "ceph": "general",
-            app_constants.NETAPP_ISCSI_BACKEND_NAME: "",
-            app_constants.NETAPP_NFS_BACKEND_NAME: "",
-            app_constants.NETAPP_FC_BACKEND_NAME: ""
-        }
-    )
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_ceph_backend_available')
     def test_pre_apply_copy_storage_backend_config_rbd_storage_backend_success(
         self,
@@ -2187,118 +2142,147 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         self.assertIn("no PVCs", msg)
 
     @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_storage_backends_priority_list")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_pvc_exists_in_a_namespace", return_value=True)
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists", return_value=True)
-    def test_semantic_check_backend_storageclass_uses_chart_specific_backends(
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack."
+        "get_pvc_storageclass_immutability_requirements"
+    )
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack."
+        "check_if_pvc_exists_in_a_namespace", return_value=True
+    )
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists",
+        return_value=True,
+    )
+    def test_storageclass_immutability_checks_managed_pvcs(
         self,
         mock_check_if_namespace_exists,
         mock_check_if_pvc_exists_in_a_namespace,
-        mock_get_available_volume_backends,
-        mock_get_storage_backends_priority_list,
+        mock_get_requirements,
         mock_get_pvc_storageclass,
     ):
-        """Test chart-specific backend lookup for StatefulSet PVC semantic check."""
-        mock_get_available_volume_backends.side_effect = [
+        """Every configured PVC is compared with its desired StorageClass."""
+        requirements = [
             {
-                app_constants.CEPH_BACKEND_NAME: "general",
-                app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+                'chart': 'mariadb',
+                'pvc_name': app_constants.MARIADB_PVC_NAME,
+                'storage_class': 'general',
             },
             {
-                app_constants.CEPH_BACKEND_NAME: "general",
-                app_constants.NETAPP_NFS_BACKEND_NAME: "netapp-nas-backend",
+                'chart': 'rabbitmq',
+                'pvc_name': app_constants.RABBITMQ_PVC_NAME,
+                'storage_class': 'general',
+            },
+            {
+                'chart': 'glance (PVC image store)',
+                'pvc_name': app_constants.GLANCE_PVC_NAME,
+                'storage_class': 'dell-nfs',
+            },
+            {
+                'chart': 'nova (ephemeral PVC)',
+                'pvc_name': app_constants.DEFAULT_NOVA_PVC_NAME,
+                'storage_class': 'dell-nfs',
+            },
+            {
+                'chart': 'cinder (backup)',
+                'pvc_name': app_constants.CINDER_BACKUP_PVC_NAME,
+                'storage_class': None,
             },
         ]
-        mock_get_storage_backends_priority_list.side_effect = [
-            [app_constants.CEPH_BACKEND_NAME, app_constants.NETAPP_NFS_BACKEND_NAME],
-            [app_constants.CEPH_BACKEND_NAME, app_constants.NETAPP_NFS_BACKEND_NAME],
-        ]
+        mock_get_requirements.return_value = requirements
         mock_get_pvc_storageclass.side_effect = [
-            "general",
-            "general",
+            'general', 'general', 'dell-nfs', 'dell-nfs', '',
         ]
 
         self.assertIsNone(self.lifecycle._check_storageclass_immutability())
         self.assertEqual(
-            [
-                mock.call(chart_name=app_constants.HELM_CHART_MARIADB),
-                mock.call(chart_name=app_constants.HELM_CHART_RABBITMQ),
-            ],
-            mock_get_available_volume_backends.call_args_list,
+            [mock.call(req['pvc_name']) for req in requirements],
+            mock_get_pvc_storageclass.call_args_list,
         )
 
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_storageclass_change")
     @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_storage_backends_priority_list")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_pvc_exists_in_a_namespace", return_value=True)
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists", return_value=True)
-    def test_semantic_check_backend_storageclass_mariadb_failed(
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack."
+        "get_pvc_storageclass_immutability_requirements"
+    )
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack."
+        "check_if_pvc_exists_in_a_namespace", return_value=True
+    )
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists",
+        return_value=True,
+    )
+    def test_storageclass_immutability_rejects_managed_pvc_changes(
         self,
         mock_check_if_namespace_exists,
         mock_check_if_pvc_exists_in_a_namespace,
-        mock_get_available_volume_backends,
-        mock_get_storage_backends_priority_list,
+        mock_get_requirements,
         mock_get_pvc_storageclass,
-        mock_check_storageclass_change,
     ):
-        """Test if _semantic_check_backend_storageclass fails in case a storage class is detected for mariadb"""
-        mock_get_available_volume_backends.return_value = ["storageclass"]
-        mock_get_storage_backends_priority_list.side_effect = [
-            ["storageclass"],  # mariadb priority list
-            ["storageclass"],  # rabbitmq priority list
+        """StorageClass changes are rejected for every managed PVC."""
+        consumers = [
+            ('mariadb', app_constants.MARIADB_PVC_NAME),
+            ('rabbitmq', app_constants.RABBITMQ_PVC_NAME),
+            ('glance (PVC image store)', app_constants.GLANCE_PVC_NAME),
+            ('nova (ephemeral PVC)', app_constants.DEFAULT_NOVA_PVC_NAME),
+            ('cinder (backup)', app_constants.CINDER_BACKUP_PVC_NAME),
         ]
 
-        mock_get_pvc_storageclass.side_effect = [
-            "storageclass",
-            "storageclass",
-        ]
-        mock_check_storageclass_change.side_effect = [
-            (True, "new"),
-            (False, None),
-        ]
+        for chart, pvc_name in consumers:
+            with self.subTest(chart=chart):
+                mock_get_requirements.return_value = [{
+                    'chart': chart,
+                    'pvc_name': pvc_name,
+                    'storage_class': 'dell-nfs',
+                }]
+                mock_get_pvc_storageclass.return_value = 'dell-iscsi'
 
-        try:
-            self.lifecycle._check_storageclass_immutability()
-        except exception.LifecycleSemanticCheckException as e:
-            self.assertIn("mariadb", str(e).lower())
+                try:
+                    self.lifecycle._check_storageclass_immutability()
+                    self.fail("Expected LifecycleSemanticCheckException")
+                except exception.LifecycleSemanticCheckException as error:
+                    message = str(error)
+                self.assertIn(chart, message)
+                self.assertIn(pvc_name, message)
+                self.assertIn('dell-iscsi', message)
+                self.assertIn('dell-nfs', message)
 
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_storageclass_change")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_storage_backends_priority_list")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_available_volume_backends")
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_pvc_exists_in_a_namespace", return_value=True)
-    @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists", return_value=True)
-    def test_semantic_check_backend_storageclass_rabbitmq_failed(
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass",
+        return_value='dell-iscsi',
+    )
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack."
+        "get_pvc_storageclass_immutability_requirements",
+        return_value=[{
+            'chart': 'cinder (backup)',
+            'pvc_name': app_constants.CINDER_BACKUP_PVC_NAME,
+            'storage_class': None,
+        }],
+    )
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack."
+        "check_if_pvc_exists_in_a_namespace", return_value=True
+    )
+    @mock.patch(
+        "k8sapp_openstack.lifecycle.lifecycle_openstack.check_if_namespace_exists",
+        return_value=True,
+    )
+    def test_storageclass_immutability_rejects_pvc_to_non_pvc_transition(
         self,
         mock_check_if_namespace_exists,
         mock_check_if_pvc_exists_in_a_namespace,
-        mock_get_available_volume_backends,
-        mock_get_storage_backends_priority_list,
+        mock_get_requirements,
         mock_get_pvc_storageclass,
-        mock_check_storageclass_change,
     ):
-        """Test if _semantic_check_backend_storageclass raises in case a storage class is detected for rabbitmq"""
-        mock_get_available_volume_backends.return_value = ["storageclass"]
-        mock_get_storage_backends_priority_list.side_effect = [
-            ["storageclass"],
-            ["storageclass"],
-        ]
-
-        mock_get_pvc_storageclass.side_effect = [
-            "storageclass",
-            "storageclass",
-        ]
-        mock_check_storageclass_change.side_effect = [
-            (False, None),
-            (True, "new"),
-        ]
-
+        """An existing Posix backup PVC cannot be dropped in-place."""
         try:
             self.lifecycle._check_storageclass_immutability()
-        except exception.LifecycleSemanticCheckException as e:
-            self.assertIn("rabbitmq", str(e).lower())
+            self.fail("Expected LifecycleSemanticCheckException")
+        except exception.LifecycleSemanticCheckException as error:
+            self.assertIn('cinder (backup)', str(error))
+            self.assertIn('no PVC', str(error))
 
     @mock.patch("k8sapp_openstack.lifecycle.lifecycle_openstack.get_pvc_storageclass_requirements")
     def test_check_storageclass_resolution_pass(

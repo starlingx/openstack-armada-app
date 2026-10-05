@@ -32,14 +32,12 @@ from k8sapp_openstack.utils import check_dex_healthy
 from k8sapp_openstack.utils import check_if_namespace_exists
 from k8sapp_openstack.utils import check_if_pvc_exists_in_a_namespace
 from k8sapp_openstack.utils import check_netapp_backends
-from k8sapp_openstack.utils import check_storageclass_change
-from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_endpoint_domain
 from k8sapp_openstack.utils import get_pvc_provisioner
 from k8sapp_openstack.utils import get_pvc_storageclass
+from k8sapp_openstack.utils import get_pvc_storageclass_immutability_requirements
 from k8sapp_openstack.utils import get_pvc_storageclass_requirements
 from k8sapp_openstack.utils import get_snapshot_class_for_provisioner
-from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_dex_enabled
 from k8sapp_openstack.utils import oidc_parameters_exist
@@ -1582,7 +1580,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         - ``_check_storageclass_immutability()`` runs only when PVCs already
           exist in the openstack namespace. It blocks in-place StorageClass
-          migration for the MariaDB and RabbitMQ PVCs.
+          migration for application-managed PVCs.
 
         Raises:
             LifecycleSemanticCheckException:
@@ -1630,8 +1628,8 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         they were originally deployed with. Migration between different StorageClass
         is not supported.
 
-        The check validates that the StorageClass currently used by the MariaDB and
-        RabbitMQ PVCs didn't had changes.
+        The check compares each existing application PVC with the StorageClass
+        resolved from the desired configuration.
 
         If a different StorageClass is detected, the check fails intentionally,
         instructing the user to perform a backup and redeploy instead of attempting
@@ -1652,45 +1650,24 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
                         "skipping StorageClasses semantic check")
             return
 
-        mariadb_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_MARIADB)
-        mariadb_available_backends = get_available_volume_backends(
-            chart_name=app_constants.HELM_CHART_MARIADB
-        )
-        mariadb_current_storageclass = get_pvc_storageclass(app_constants.MARIADB_PVC_NAME)
-        mariadb_storageclass_change_validation, mariadb_new_storageclass = check_storageclass_change(
-            mariadb_priority_list,
-            mariadb_available_backends,
-            mariadb_current_storageclass
-             )
-        rabbitmq_priority_list = get_storage_backends_priority_list(app_constants.HELM_CHART_RABBITMQ)
-        rabbitmq_available_backends = get_available_volume_backends(
-            chart_name=app_constants.HELM_CHART_RABBITMQ
-        )
-        rabbitmq_current_storageclass = get_pvc_storageclass(app_constants.RABBITMQ_PVC_NAME)
-        rabbitmq_storageclass_change_validation, rabbitmq_new_storageclass = check_storageclass_change(
-            rabbitmq_priority_list,
-            rabbitmq_available_backends,
-            rabbitmq_current_storageclass
-             )
+        requirements = get_pvc_storageclass_immutability_requirements()
+        for requirement in requirements:
+            pvc_name = requirement['pvc_name']
+            current_storageclass = get_pvc_storageclass(pvc_name)
+            desired_storageclass = requirement['storage_class']
 
-        if (not mariadb_storageclass_change_validation
-              and not rabbitmq_storageclass_change_validation):
-            return
+            if not current_storageclass:
+                continue
+            if current_storageclass == desired_storageclass:
+                continue
 
-        if mariadb_storageclass_change_validation:
+            desired_storage_description = desired_storageclass or "no PVC"
             raise exception.LifecycleSemanticCheckException(
-                f"{app_constants.HELM_CHART_MARIADB} is currently running using "
-                f"StorageClass:\"{mariadb_current_storageclass}\" while is trying to reapply "
-                f"with StorageClass:\"{mariadb_new_storageclass}\" and migration is not supported. "
-                "Please backup your data and remove/apply the application to modify the current StorageClass."
-            )
-
-        if rabbitmq_storageclass_change_validation:
-            raise exception.LifecycleSemanticCheckException(
-                f"{app_constants.HELM_CHART_RABBITMQ} is currently running using "
-                f"StorageClass:\"{rabbitmq_current_storageclass}\" while is trying to reapply "
-                f"with StorageClass:\"{rabbitmq_new_storageclass}\" and migration is not supported. "
-                "Please backup your data and remove/apply the application to modify the current StorageClass."
+                f"{requirement['chart']} PVC \"{pvc_name}\" is currently using "
+                f"StorageClass \"{current_storageclass}\", but the new configuration "
+                f"resolves to \"{desired_storage_description}\". In-place PVC migration is not "
+                "supported. Back up the data and remove/apply the application "
+                "to modify the storage configuration."
             )
 
     def _semantic_check_netapp_san_storageclasses(self):

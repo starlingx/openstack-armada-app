@@ -169,9 +169,7 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
         ).get(
             app_constants.NETAPP_NFS_BACKEND_NAME
         )
-        if (getattr(self, "_migrated_pvc_priority", None) and
-                netapp_nfs_storage_class and
-                self._storage_class == netapp_nfs_storage_class):
+        if netapp_nfs_storage_class and self._storage_class == netapp_nfs_storage_class:
             default_access_modes = ["ReadWriteMany"]
 
         return _get_value_from_application(

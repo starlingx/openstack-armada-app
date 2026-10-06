@@ -964,8 +964,10 @@ class GlanceGenericPvcPodOverridesTest(GlanceHelmTestCase,
         )
 
     @mock.patch('k8sapp_openstack.helm.glance._get_value_from_application')
-    def test_new_pvc_nfs_keeps_rwo_default(self, mock_get_value):
-        """A new generic PVC configuration retains the documented default."""
+    def test_new_pvc_nfs_keeps_rwx_default(self, mock_get_value):
+        """A new generic PVC configuration retains the documented default.
+        The RWX access mode is preserved by default when netapp-nfs backend
+        is selected in order to stay compatible with legacy behavior."""
         helm = self._make_helm_instance()
         helm._backend = app_constants.GLANCE_BACKEND_PVC
         helm._storage_class = 'netapp-nfs-sc'
@@ -981,10 +983,13 @@ class GlanceGenericPvcPodOverridesTest(GlanceHelmTestCase,
 
         self.assertEqual(
             helm._get_pvc_access_modes(),
-            ['ReadWriteOnce'],
+            ['ReadWriteMany'],
         )
         overrides = helm._get_pod_overrides()
-        self.assertEqual(overrides['replicas']['api'], 1)
+        self.assertEqual(
+            overrides['replicas']['api'],
+            helm._num_provisioned_controllers(),
+        )
 
     @mock.patch('k8sapp_openstack.helm.glance._get_value_from_application')
     def test_legacy_nfs_unavailable_keeps_rwo_default(self, mock_get_value):

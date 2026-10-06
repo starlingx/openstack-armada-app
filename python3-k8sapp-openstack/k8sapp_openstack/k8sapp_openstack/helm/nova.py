@@ -91,7 +91,10 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
         overrides = {
             common.HELM_NS_OPENSTACK: {
-                'manifests': self._get_compute_ironic_manifests(),
+                'manifests': {
+                    **self._get_compute_ironic_manifests(),
+                    'daemonset_multipath_conf': self._enable_multipath(),
+                },
                 'pod': {
                     'mounts': {
                         'nova_compute': {

@@ -66,3 +66,5 @@
 0066-Retain-OpenStack-data-PVCs-on-application-removal.patch
 0067-Clean-stale-wrong-type-objects-at-libvirt-socket-and.patch
 0068-Re-provision-nova-compute_id-on-container-start.patch
+0069-Add-host-multipath-configuration-DaemonSet-to-Nova.patch
+0070-Allow-overriding-liveness-probe-port.patch

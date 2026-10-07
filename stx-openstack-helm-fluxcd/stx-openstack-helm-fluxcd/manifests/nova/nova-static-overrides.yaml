@@ -2298,18 +2298,19 @@ pod:
     api-osapi:
       default:
         liveness:
+          port: 1717
           enabled: True
           params:
             initialDelaySeconds: 5
             periodSeconds: 10
-            timeoutSeconds: 5
+            timeoutSeconds: 10
             failureThreshold: 6
         readiness:
           enabled: True
           params:
             initialDelaySeconds: 5
             periodSeconds: 10
-            timeoutSeconds: 5
+            timeoutSeconds: 10
             failureThreshold: 6
     conductor:
       default:

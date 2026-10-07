@@ -43,6 +43,15 @@ from k8sapp_openstack.common import constants as app_constants
 LOG = logging.getLogger(__name__)
 
 
+def find_openstack_app(db):
+    """Find an OpenStack app by name suffix, excluding inactive versions."""
+    for app in db.kube_app_get_all():
+        if app.name.endswith(constants.HELM_APP_OPENSTACK):
+            return app
+    raise exception.KubeAppNotFound(
+        name="endswith '{}'".format(constants.HELM_APP_OPENSTACK))
+
+
 def _get_value_from_application(default_value, chart_name, override_name):
     """
     Gets a value from the app constants or from the
@@ -64,7 +73,7 @@ def _get_value_from_application(default_value, chart_name, override_name):
     # If the database is available, get the Helm overrides
     # for it. Return the default value if no overrides are
     # present, and return the override if it exists.
-    app = cutils.find_openstack_app(db)
+    app = find_openstack_app(db)
 
     override = db.helm_override_get(
         app_id=app.id,

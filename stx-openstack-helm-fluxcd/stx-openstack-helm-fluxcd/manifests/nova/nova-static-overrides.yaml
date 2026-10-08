@@ -24,6 +24,11 @@ labels:
   job:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
+  multipath_conf:
+    - node_selector_key: openstack-compute-node
+      node_selector_value: enabled
+    - node_selector_key: openstack-control-plane
+      node_selector_value: enabled
   novncproxy:
     node_selector_key: openstack-control-plane
     node_selector_value: enabled
@@ -412,6 +417,7 @@ dependencies:
           labels:
             application: nova
             component: conductor
+    multipath_conf: {}
     compute:
       pod:
         - requireSameNode: true
@@ -1717,6 +1723,17 @@ conf:
     enabled: false
     max_workers: 4
   enable_iscsi: false
+  multipath:
+    defaults:
+      remove_retries: 5
+    devices:
+      netapp:
+        vendor: NETAPP
+        product: LUN
+        skip_kpartx: "yes"
+        user_friendly_names: "no"
+        flush_on_last_del: "always"
+        no_path_retry: "queue"
   archive_deleted_rows:
     purge_deleted_rows: false
     until_completion: true
@@ -2501,6 +2518,13 @@ pod:
         nova_sanitizer:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
+    multipath_conf:
+      pod:
+        runAsUser: 0
+      container:
+        nova_multipath_conf:
+          readOnlyRootFilesystem: true
+          privileged: true
     service_cleaner:
       pod:
         runAsUser: 42424
@@ -2638,6 +2662,10 @@ pod:
           enabled: true
           min_ready_seconds: 0
           max_unavailable: 1
+        multipath_conf:
+          enabled: true
+          min_ready_seconds: 0
+          max_unavailable: 1
     disruption_budget:
       metadata:
         min_available: 0
@@ -2692,6 +2720,13 @@ pod:
       limits:
         memory: "1024Mi"
         cpu: "2000m"
+    multipath_conf:
+      requests:
+        memory: "32Mi"
+        cpu: "10m"
+      limits:
+        memory: "128Mi"
+        cpu: "200m"
     sanitizer:
       requests:
         memory: "128Mi"
@@ -2900,6 +2935,7 @@ manifests:
   init_container_instances_sanitizer: true
   cron_job_instances_sanitizer: false
   daemonset_compute: true
+  daemonset_multipath_conf: false
   deployment_api_metadata: true
   deployment_api_osapi: true
   deployment_conductor: true

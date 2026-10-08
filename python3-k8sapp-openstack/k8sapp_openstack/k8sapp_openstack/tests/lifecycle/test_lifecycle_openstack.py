@@ -2604,6 +2604,199 @@ class OpenstackAppLifecycleEsbSemanticCheckTest(dbbase.BaseHostTestCase):
             self.lifecycle._semantic_check_secretref)
 
     # ------------------------------------------------------------------
+    # _semantic_check_reserved_backend_names
+    # ------------------------------------------------------------------
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_no_overrides_passes(self, mock_get):
+        """Default empty backends_conf → no violation, no exception."""
+        mock_get.return_value = []
+        # Must not raise.
+        self.lifecycle._semantic_check_reserved_backend_names()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_only_valid_esb_passes(self, mock_get):
+        """A legitimate ESB entry (non-reserved name) is accepted."""
+        mock_get.return_value = [
+            {"name": "dell-powerstore-iscsi", "protocol": "iscsi",
+             "k8s_storage_class": "none"},
+        ]
+        self.lifecycle._semantic_check_reserved_backend_names()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_netapp_nfs_rejected(self, mock_get):
+        """A backends_conf entry named 'netapp-nfs' is rejected."""
+        mock_get.return_value = [
+            {"name": "netapp-nfs", "protocol": "nfs",
+             "k8s_storage_class": "netapp-nas-backend",
+             "volume_backend": {"volume_backend_name": "netapp-nfs"}},
+        ]
+        try:
+            self.lifecycle._semantic_check_reserved_backend_names()
+        except exception.LifecycleSemanticCheckException as e:
+            msg = str(e)
+            self.assertIn("netapp-nfs", msg)
+            self.assertIn("reserved", msg.lower())
+            self.assertIn("user-defined cinder backend", msg)
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_netapp_iscsi_rejected(self, mock_get):
+        mock_get.return_value = [
+            {"name": "netapp-iscsi", "protocol": "iscsi"},
+        ]
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_reserved_backend_names)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_netapp_fc_rejected(self, mock_get):
+        mock_get.return_value = [
+            {"name": "netapp-fc", "protocol": "fcp"},
+        ]
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_reserved_backend_names)
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_case_insensitive_rejected(self, mock_get):
+        """Case-insensitive matching: 'NETAPP-NFS' collides with 'netapp-nfs'
+        and the operator's original spelling is quoted in the error."""
+        mock_get.return_value = [
+            {"name": "NETAPP-NFS", "protocol": "nfs"},
+        ]
+        try:
+            self.lifecycle._semantic_check_reserved_backend_names()
+        except exception.LifecycleSemanticCheckException as e:
+            # Original (operator-supplied) spelling must appear verbatim.
+            self.assertIn("'NETAPP-NFS'", str(e))
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_mixed_case_rejected(self, mock_get):
+        """Mixed-case 'NetApp-Nfs' also collides with the reserved name."""
+        mock_get.return_value = [
+            {"name": "NetApp-Nfs", "protocol": "nfs"},
+        ]
+        try:
+            self.lifecycle._semantic_check_reserved_backend_names()
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("'NetApp-Nfs'", str(e))
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_multiple_violations_reported(self, mock_get):
+        """All distinct reserved-name violations appear in a single message."""
+        mock_get.return_value = [
+            {"name": "netapp-nfs", "protocol": "nfs"},
+            {"name": "netapp-iscsi", "protocol": "iscsi"},
+            {"name": "my-good-esb", "protocol": "iscsi"},
+            {"name": "NETAPP-FC", "protocol": "fcp"},
+        ]
+        try:
+            self.lifecycle._semantic_check_reserved_backend_names()
+        except exception.LifecycleSemanticCheckException as e:
+            msg = str(e)
+            self.assertIn("'netapp-nfs'", msg)
+            self.assertIn("'netapp-iscsi'", msg)
+            self.assertIn("'NETAPP-FC'", msg)
+            # Non-reserved entry must not appear in the report.
+            self.assertNotIn("my-good-esb", msg)
+            # Suggested reference list is sorted alphabetically.
+            self.assertIn(
+                "netapp-fc, netapp-iscsi, netapp-nfs", msg)
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_duplicate_case_variants_deduplicated(
+            self, mock_get):
+        """Repeated reserved names (same spelling) are reported once."""
+        mock_get.return_value = [
+            {"name": "netapp-nfs", "protocol": "nfs"},
+            {"name": "netapp-nfs", "protocol": "nfs"},
+        ]
+        try:
+            self.lifecycle._semantic_check_reserved_backend_names()
+        except exception.LifecycleSemanticCheckException as e:
+            # 'netapp-nfs' appears once as the offending name and once in the
+            # suggested reference list — exactly two occurrences overall.
+            self.assertEqual(str(e).count("netapp-nfs"), 2)
+        else:
+            self.fail("LifecycleSemanticCheckException was not raised")
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_ceph_not_rejected(self, mock_get):
+        """Ceph is a strict name but is NOT in the NetApp reserved set.
+
+        The ticket limits the semantic check to NetApp names; a
+        backends_conf entry named 'ceph' is left to the downstream
+        availability check to handle (currently silently ignored by
+        get_available_volume_backends())."""
+        mock_get.return_value = [
+            {"name": "ceph", "protocol": "rbd"},
+        ]
+        # Must not raise.
+        self.lifecycle._semantic_check_reserved_backend_names()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_entry_without_name_is_skipped(
+            self, mock_get):
+        """Malformed entries without 'name' are skipped (handled elsewhere)."""
+        mock_get.return_value = [
+            {"protocol": "iscsi", "k8s_storage_class": "none"},
+            {"name": "", "protocol": "nfs"},
+            {"name": None, "protocol": "nfs"},
+        ]
+        # Must not raise — no reserved-name collisions.
+        self.lifecycle._semantic_check_reserved_backend_names()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_non_dict_entry_is_skipped(self, mock_get):
+        """Non-dict list entries are skipped silently."""
+        mock_get.return_value = [
+            "netapp-nfs",  # malformed, not a dict
+            None,
+            {"name": "my-good-esb", "protocol": "iscsi"},
+        ]
+        self.lifecycle._semantic_check_reserved_backend_names()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_non_list_payload_is_skipped(
+            self, mock_get):
+        """A non-list payload is tolerated — not this check's concern."""
+        mock_get.return_value = {"name": "netapp-nfs"}  # dict, not list
+        # Must not raise. A later/other check reports malformed overrides.
+        self.lifecycle._semantic_check_reserved_backend_names()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_none_payload_is_skipped(self, mock_get):
+        """None (no override at all) is a no-op."""
+        mock_get.return_value = None
+        self.lifecycle._semantic_check_reserved_backend_names()
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application')
+    def test_reserved_backend_names_singular_vs_plural_wording(self, mock_get):
+        """Error message uses singular 'name' for one violation, 'names' for
+        two or more."""
+        mock_get.return_value = [{"name": "netapp-nfs", "protocol": "nfs"}]
+        try:
+            self.lifecycle._semantic_check_reserved_backend_names()
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("Storage class name 'netapp-nfs'", str(e))
+
+        mock_get.return_value = [
+            {"name": "netapp-nfs", "protocol": "nfs"},
+            {"name": "netapp-fc", "protocol": "fcp"},
+        ]
+        try:
+            self.lifecycle._semantic_check_reserved_backend_names()
+        except exception.LifecycleSemanticCheckException as e:
+            self.assertIn("Storage class names ", str(e))
+
+    # ------------------------------------------------------------------
     # _semantic_check_storage_backends (generic orchestrator)
     # ------------------------------------------------------------------
     @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
@@ -2614,19 +2807,52 @@ class OpenstackAppLifecycleEsbSemanticCheckTest(dbbase.BaseHostTestCase):
                        '_semantic_check_storage_backend_available')
     @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
                        '_is_strict_backend_available')
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_semantic_check_reserved_backend_names')
     def test_storage_backends_orchestrates_all_subchecks(
-        self, mock_probe, mock_available, mock_secretref,
+        self, mock_reserved, mock_probe, mock_available, mock_secretref,
         mock_storageclass
     ):
         """The generic orchestrator probes strict availability once, shares it
         with the availability check, and runs every storage-backend sub-check
-        (including StorageClass resolution/immutability)."""
+        (including the reserved-name check and StorageClass
+        resolution/immutability)."""
         mock_probe.return_value = (True, "status-str")
         self.lifecycle._semantic_check_storage_backends()
+        mock_reserved.assert_called_once_with()
         mock_probe.assert_called_once_with()
         mock_available.assert_called_once_with(True, "status-str")
         mock_secretref.assert_called_once_with()
         mock_storageclass.assert_called_once_with()
+
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_semantic_check_backend_storageclass')
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_semantic_check_secretref')
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_semantic_check_storage_backend_available')
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_is_strict_backend_available')
+    @mock.patch.object(lifecycle_openstack.OpenstackAppLifecycleOperator,
+                       '_semantic_check_reserved_backend_names')
+    def test_storage_backends_reserved_name_fails_fast(
+        self, mock_reserved, mock_probe, mock_available, mock_secretref,
+        mock_storageclass
+    ):
+        """A reserved-name collision short-circuits the orchestrator before
+        any other sub-check runs."""
+        mock_reserved.side_effect = exception.LifecycleSemanticCheckException(
+            "reserved name 'netapp-nfs' in backends_conf")
+
+        self.assertRaises(
+            exception.LifecycleSemanticCheckException,
+            self.lifecycle._semantic_check_storage_backends)
+
+        mock_reserved.assert_called_once_with()
+        mock_probe.assert_not_called()
+        mock_available.assert_not_called()
+        mock_secretref.assert_not_called()
+        mock_storageclass.assert_not_called()
 
 
 class TestSemanticCheckNetappSanStorageclasses(

@@ -1071,6 +1071,11 @@ dependencies:
         - endpoint: internal
           service: identity
     compute:
+      pod:
+        - requireSameNode: true
+          labels:
+            application: libvirt
+            component: libvirt
       jobs:
         - ceilometer-rabbit-init
         - ceilometer-ks-user

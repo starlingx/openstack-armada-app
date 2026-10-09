@@ -1,0 +1,51 @@
+From b44b4afa4c29bd2422596d91ff43fe9599dbdcfa Mon Sep 17 00:00:00 2001
+From: Daniel Caires <DanielMarques.Caires@windriver.com>
+Date: Wed, 7 Oct 2026 07:38:35 -0300
+Subject: [PATCH] Allow overriding liveness probe port
+
+The nova-api-osapi liveness probe hardcodes its port via the
+helm-toolkit endpoint_port_lookup helper, so operators cannot point
+the probe at a different port when the osapi service is exposed on a
+non-default port. The probe port is derived solely from the service
+endpoint and ignores any pod.probes override.
+
+This patch makes the nova-api-osapi liveness probe port configurable
+through pod.probes.api-osapi.default.liveness.port. When that value is
+set it is used directly; otherwise the template falls back to the
+existing endpoint_port_lookup, preserving the current behavior for
+deployments that do not set an override.
+
+Change-Id: I27502cd6fb0e6d449e2cae70d9263dee694fa909
+---
+ nova/templates/deployment-api-osapi.yaml | 2 +-
+ nova/values.yaml                         | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/nova/templates/deployment-api-osapi.yaml b/nova/templates/deployment-api-osapi.yaml
+index 3800548c3..6a26eeaf9 100644
+--- a/nova/templates/deployment-api-osapi.yaml
++++ b/nova/templates/deployment-api-osapi.yaml
+@@ -16,7 +16,7 @@ limitations under the License.
+ httpGet:
+   scheme: {{ tuple "compute" "service" "api" . | include "helm-toolkit.endpoints.keystone_endpoint_scheme_lookup" | upper }}
+   path: /
+-  port: {{ tuple "compute" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}
++  port: {{ if (index .Values.pod.probes "api-osapi" "default" "liveness" "port") }}{{ index .Values.pod.probes "api-osapi" "default" "liveness" "port" }}{{ else }}{{ tuple "compute" "service" "api" . | include "helm-toolkit.endpoints.endpoint_port_lookup" }}{{ end }}
+ {{- end }}
+ 
+ {{- define "novaApiOsapiReadinessProbeTemplate" }}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 45457fb6c..7d641f767 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -2237,6 +2237,7 @@ pod:
+     api-osapi:
+       default:
+         liveness:
++          port: null
+           enabled: True
+           params:
+             initialDelaySeconds: 5
+-- 
+2.43.0
+

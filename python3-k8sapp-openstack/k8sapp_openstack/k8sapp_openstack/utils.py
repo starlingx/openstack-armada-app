@@ -2797,6 +2797,30 @@ def is_strict_backend(name: str) -> bool:
     return name in app_constants.STRICT_BACKEND_NAMES
 
 
+def is_reserved_storage_class_name(name: str) -> bool:
+    """Return True if ``name`` collides with a reserved storage class name.
+
+    The reserved set (``app_constants.RESERVED_STORAGE_CLASS_NAMES``) is
+    owned by the strict backends and cannot be reused for a user-defined
+    (ESB) backend in storage_conf.backends_conf; such a collision is
+    rejected by the pre-apply semantic check. The set may grow over time.
+
+    Matching is exact and case-insensitive: 'NETAPP-NFS', 'NetApp-Nfs'
+    and 'netapp-nfs' all collide with the reserved name 'netapp-nfs'.
+
+    Args:
+        name: Candidate backend / storage class name. Non-strings and
+            empty values are treated as non-reserved so callers can pass
+            raw user-override values without pre-validating them.
+
+    Returns:
+        True when ``name`` is a reserved storage class name, else False.
+    """
+    if not isinstance(name, str) or not name:
+        return False
+    return name.lower() in app_constants.RESERVED_STORAGE_CLASS_NAMES
+
+
 def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CINDER,
                                   override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS,
                                   default_storage_backends=None) -> dict:

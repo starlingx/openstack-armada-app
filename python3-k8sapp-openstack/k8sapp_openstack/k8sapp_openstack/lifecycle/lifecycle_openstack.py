@@ -708,6 +708,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
 
         Sub-checks, in order:
 
+        - ``_semantic_check_reserved_backend_names()`` fails fast when a
+          user-defined (ESB) backend in ``storage_conf.backends_conf``
+          collides with a reserved storage class name (currently
+          ``netapp-nfs``, ``netapp-iscsi``, ``netapp-fc``).
         - ``_semantic_check_storage_backend_available()`` verifies that at least
           one storage backend (strict or ESB) is available and ready, and
           validates the required fields (``protocol``) of every enabled
@@ -719,6 +723,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
           resolution (fail-fast) and immutability for PVC-backed charts.
 
         Blocking rules:
+        - Reserved-name collisions always block, before any other
+          storage-backend validation runs, so operators see a precise
+          cause rather than cascading errors from the downstream checks
+          that silently filter strict-named ``backends_conf`` entries.
         - Availability / required-field failures block only when no strict
           backend independently satisfies availability (a valid strict backend
           downgrades invalid ESB entries to a log).
@@ -731,10 +739,85 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             LifecycleSemanticCheckException: If any sub-check fails per the
                 blocking rules above.
         """
+        self._semantic_check_reserved_backend_names()
         strict_available, status = self._is_strict_backend_available()
         self._semantic_check_storage_backend_available(strict_available, status)
         self._semantic_check_secretref()
         self._semantic_check_backend_storageclass()
+
+    def _semantic_check_reserved_backend_names(self):
+        """Reject user-defined cinder backends that collide with reserved
+        storage class names.
+
+        ``storage_conf.backends_conf`` is the user-defined (ESB) backend
+        list: every entry there declares a Cinder volume backend
+        configured by the operator. Names in
+        ``app_constants.RESERVED_STORAGE_CLASS_NAMES`` (currently
+        ``netapp-nfs``, ``netapp-iscsi`` and ``netapp-fc``) are reserved
+        for the strict backends. Reusing any of them for an
+        operator-defined backend creates ambiguity between the genuine
+        strict backend and the user-configured one, so this check rejects
+        the application-apply. The reserved set may grow over time.
+
+        Matching is case-insensitive and exact against
+        ``app_constants.RESERVED_STORAGE_CLASS_NAMES``.
+
+        Scope note: Only ``storage_conf.backends_conf[].name`` is validated.
+        A reserved name appearing in ``storage_conf.storage_backends``,
+        ``storage_conf.volume_storage_class_priority``,
+        ``storage_conf.backup_storage_class_priority`` or
+        ``conf.cinder.DEFAULT.default_volume_type`` is a legitimate reference
+        to the strict backend (which may or may not be available — that is
+        the concern of the availability check) and is not rejected here.
+
+        Raises:
+            LifecycleSemanticCheckException: When at least one entry in
+                ``storage_conf.backends_conf`` has a ``name`` that collides
+                with a reserved storage class name.
+        """
+        backends_conf_list = app_utils._get_value_from_application(
+            default_value=[],
+            chart_name=app_constants.HELM_CHART_CINDER,
+            override_name=app_constants.OVERRIDE_BACKENDS_CONF,
+        )
+
+        # Defensive: an operator may hand in a malformed override. Non-list
+        # payloads are not iterated as backends; the availability check will
+        # surface a more targeted error if needed.
+        if not isinstance(backends_conf_list, list):
+            return
+
+        # Preserve the operator's original spelling in the error message so
+        # the offending token can be located verbatim in their overrides,
+        # and deduplicate case variants to avoid a noisy report when the
+        # same reserved name is repeated.
+        seen = set()
+        violations = []
+        for entry in backends_conf_list:
+            if not isinstance(entry, dict):
+                continue
+            if not app_utils.is_reserved_storage_class_name(entry.get("name")):
+                continue
+            name = entry["name"]
+            if name in seen:
+                continue
+            seen.add(name)
+            violations.append(name)
+
+        if not violations:
+            return
+
+        reserved_list = ", ".join(
+            sorted(app_constants.RESERVED_STORAGE_CLASS_NAMES))
+        offending = ", ".join(f"'{n}'" for n in violations)
+        noun = "name" if len(violations) == 1 else "names"
+        msg = (
+            f"Storage class {noun} {offending} is reserved and cannot be "
+            "used for a user-defined cinder backend. "
+            f"Reserved names: {reserved_list}."
+        )
+        LOG.error(msg)
+        raise exception.LifecycleSemanticCheckException(msg)
 
     def _is_strict_backend_available(self):
         """Probe strict (native) storage backend availability.

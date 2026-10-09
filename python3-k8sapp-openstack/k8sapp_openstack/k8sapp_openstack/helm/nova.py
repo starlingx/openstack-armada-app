@@ -19,6 +19,7 @@ from sysinv.helm import common
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import check_netapp_backends
+from k8sapp_openstack.utils import find_openstack_app
 from k8sapp_openstack.utils import get_backends_conf
 from k8sapp_openstack.utils import get_ceph_fsid
 from k8sapp_openstack.utils import get_hosts_uuids
@@ -223,7 +224,7 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
     def _get_compute_ironic_manifests(self):
         ironic_operator = self._get_chart_operator(app_constants.HELM_CHART_IRONIC)
-        openstack_app = utils.find_openstack_app(self.dbapi)
+        openstack_app = find_openstack_app(self.dbapi)
         enabled = ironic_operator._is_enabled(
             openstack_app.name,
             app_constants.HELM_CHART_IRONIC,

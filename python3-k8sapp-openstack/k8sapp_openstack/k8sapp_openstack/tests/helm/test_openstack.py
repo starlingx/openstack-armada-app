@@ -349,14 +349,14 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi.helm_override_get',
                 return_value=mock.Mock(system_overrides={'test': "name"}))
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
-    @mock.patch('sysinv.common.utils.find_openstack_app', return_value=mock.Mock(id=1))
+    @mock.patch('k8sapp_openstack.utils.find_openstack_app', return_value=mock.Mock(id=1))
     def test_get_or_generate_password(self, *_):
         """Tests on general purpose password retrieval or generation."""
         pw = self.helm._get_or_generate_password('chart', 'ns', 'test')
         self.assertEqual(pw, b'name')
 
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
-    @mock.patch('sysinv.common.utils.find_openstack_app', return_value=mock.Mock(id=1,))
+    @mock.patch('k8sapp_openstack.utils.find_openstack_app', return_value=mock.Mock(id=1,))
     def test_get_or_generate_password_fails_to_retrieve_and_create_overrides(self, *_):
         """Tests on general purpose password retrieval or generation. When it fails to get chart
         overrides and its password and also fails to create them, this method should return None"""
@@ -372,7 +372,7 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
             assert result is None
 
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
-    @mock.patch('sysinv.common.utils.find_openstack_app', return_value=mock.Mock(id=1))
+    @mock.patch('k8sapp_openstack.utils.find_openstack_app', return_value=mock.Mock(id=1))
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._generate_random_password',
                 return_value="generated_password")
     def test_get_or_generate_password_fails_to_store_generated_passsword(self, *_):
@@ -398,7 +398,7 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
             self.assertEqual(pw, b'generated_password')
 
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
-    @mock.patch('sysinv.common.utils.find_openstack_app', return_value=mock.Mock(id=1))
+    @mock.patch('k8sapp_openstack.utils.find_openstack_app', return_value=mock.Mock(id=1))
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._generate_random_password',
                 return_value="generated_password")
     def test_get_or_generate_password_gets_from_inactive_app(self, *_):

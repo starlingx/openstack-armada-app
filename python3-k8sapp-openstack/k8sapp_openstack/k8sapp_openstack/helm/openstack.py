@@ -23,7 +23,6 @@ from sqlalchemy.orm.exc import NoResultFound
 from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.common import kubernetes
-from sysinv.common import utils
 from sysinv.helm import base
 from sysinv.helm import common
 
@@ -242,7 +241,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             return None
 
         try:
-            app = utils.find_openstack_app(self.dbapi)
+            app = app_utils.find_openstack_app(self.dbapi)
             override = self.dbapi.helm_override_get(app_id=app.id,
                                                     name=chart,
                                                     namespace=namespace)
@@ -266,7 +265,7 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
         # The password is not present, dump from inactive app if available,
         # otherwise generate one and store it to the override
         try:
-            openstack_app = utils.find_openstack_app(self.dbapi)
+            openstack_app = app_utils.find_openstack_app(self.dbapi)
             inactive_apps = self.dbapi.kube_app_get_inactive(openstack_app.name)
             app_override = self.dbapi.helm_override_get(app_id=inactive_apps[0].id,
                                                         name=chart,

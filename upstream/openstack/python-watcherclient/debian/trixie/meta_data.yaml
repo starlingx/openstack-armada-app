@@ -1,0 +1,13 @@
+---
+debname: python-watcherclient
+debver: 4.10.0-2
+dl_path:
+  name: python-watcherclient-debian-4.10.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-watcherclient/-/archive/debian/4.10.0-2/python-watcherclient-debian-4.10.0-2.tar.gz
+  md5sum: b2b4e9433d6bba9110cf04c6743a3bb4
+  sha256sum: 25cb8bdd025736b6f5ce5adf6685e4613e33d3d6b1cd7576a8a99b9fa7831b9f
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 28b4e3d7cab010b7a3d175dd2e83d099209ad7fc
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-watcherclient

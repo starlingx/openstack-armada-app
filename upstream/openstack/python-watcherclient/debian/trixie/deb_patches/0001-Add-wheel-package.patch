@@ -1,0 +1,56 @@
+From afbc0d92433d4cea4f98cc4ff7a2e23ba616784f Mon Sep 17 00:00:00 2001
+From: cfigueir <carlos.figueiredofelipe@windriver.com>
+Date: Thu, 8 Oct 2026 21:33:38 -0300
+Subject: [PATCH] Add wheel package
+
+Add python3-watcherclient-wheel packaging.
+
+Signed-off-by: cfigueir <carlos.figueiredofelipe@windriver.com>
+---
+ debian/control | 18 ++++++++++++++++++
+ debian/rules   |  3 +++
+ 2 files changed, 21 insertions(+)
+
+diff --git a/debian/control b/debian/control
+index 5b0491e..156e046 100644
+--- a/debian/control
++++ b/debian/control
+@@ -86,3 +86,21 @@ Description: OpenStack Cloud Optimization as a Service client - Python 3.x
+  efficiency-and more!
+  .
+  This package contains the Python 3.x module and the Watcher CLI.
++
++Package: python3-watcherclient-wheel
++Architecture: all
+++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: OpenStack Cloud Optimization as a Service client - Python 3.x
++ OpenStack Watcher provides a flexible and scalable resource optimization
++ service for multi-tenant OpenStack-based clouds. Watcher provides a complete
++ optimization loop-including everything from a metrics receiver, complex event
++ processor and profiler, optimization processor and an action plan applier.
++ This provides a robust framework to realize a wide range of cloud optimization
++ goals, including the reduction of data center operating costs, increased
++ system performance via intelligent virtual machine migration, increased energy
++ efficiency-and more!
++ .
++ This package contains the Python wheel.
+diff --git a/debian/rules b/debian/rules
+index a2e93e9..ac0f260 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -21,6 +21,9 @@ override_dh_auto_install:
+ 	for i in $(PYTHON3S) ; do \
+ 		python3 setup.py install -f --install-layout=deb --root=$(CURDIR)/debian/tmp ; \
+ 	done
++	for i in $(PYTHON3S) ; do \
++		python3 setup.py bdist_wheel --universal -d $(CURDIR)/debian/python3-watcherclient-wheel/usr/share/python3-wheel ; \
++	done
+ ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+ 	PYTHONPATH=$(CURDIR)/debian/python3-watcherclient/usr/lib/python3/dist-packages pkgos-dh_auto_test --no-py2 --test-path=./watcherclient/tests/unit
+ endif
+-- 
+2.43.0
+

@@ -176,6 +176,14 @@ NETAPP_SUPPORTED_BACKENDS = [
     NETAPP_FC_BACKEND_NAME
 ]
 
+# Reserved storage class names that cannot be used by user-defined (ESB)
+# backends in storage_conf.backends_conf. The set may grow over time.
+RESERVED_STORAGE_CLASS_NAMES = frozenset([
+    NETAPP_NFS_BACKEND_NAME,
+    NETAPP_ISCSI_BACKEND_NAME,
+    NETAPP_FC_BACKEND_NAME,
+])
+
 # Strict (or "native") backend names
 # These are the backends with built-in discovery and configuration logic.
 # Any backend name NOT in this set is considered an Extended Storage Backend (ESB).

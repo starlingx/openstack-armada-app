@@ -3563,6 +3563,56 @@ class TestIsStrictBackend(dbbase.ControllerHostTestCase):
             self.assertNotIn(name, app_constants.NETAPP_SUPPORTED_BACKENDS)
 
 
+class TestIsReservedStorageClassName(dbbase.ControllerHostTestCase):
+    """Tests for is_reserved_storage_class_name() classifier.
+
+    The reserved set currently is (netapp-nfs, netapp-iscsi, netapp-fc).
+    Matching is exact and case-insensitive; ceph is NOT reserved by this
+    helper.
+    """
+
+    def test_netapp_nfs_is_reserved(self):
+        self.assertTrue(app_utils.is_reserved_storage_class_name("netapp-nfs"))
+
+    def test_netapp_iscsi_is_reserved(self):
+        self.assertTrue(app_utils.is_reserved_storage_class_name("netapp-iscsi"))
+
+    def test_netapp_fc_is_reserved(self):
+        self.assertTrue(app_utils.is_reserved_storage_class_name("netapp-fc"))
+
+    def test_match_is_case_insensitive(self):
+        """Operator-provided case variants collide with the canonical name."""
+        self.assertTrue(app_utils.is_reserved_storage_class_name("NETAPP-NFS"))
+        self.assertTrue(app_utils.is_reserved_storage_class_name("NetApp-Nfs"))
+        self.assertTrue(app_utils.is_reserved_storage_class_name("Netapp-ISCSI"))
+        self.assertTrue(app_utils.is_reserved_storage_class_name("NETAPP-FC"))
+
+    def test_ceph_is_not_reserved(self):
+        """Ceph is a strict backend but is NOT in the reserved set."""
+        self.assertFalse(app_utils.is_reserved_storage_class_name("ceph"))
+        self.assertFalse(app_utils.is_reserved_storage_class_name("ceph-rook"))
+
+    def test_arbitrary_name_is_not_reserved(self):
+        self.assertFalse(
+            app_utils.is_reserved_storage_class_name("dell-powerstore-iscsi"))
+        self.assertFalse(
+            app_utils.is_reserved_storage_class_name("my-custom-nfs"))
+
+    def test_partial_match_is_not_reserved(self):
+        """Only exact matches collide — substrings and extensions do not."""
+        self.assertFalse(app_utils.is_reserved_storage_class_name("netapp"))
+        self.assertFalse(
+            app_utils.is_reserved_storage_class_name("netapp-nfs-extra"))
+        self.assertFalse(app_utils.is_reserved_storage_class_name("my-netapp-nfs"))
+
+    def test_empty_and_non_string_are_not_reserved(self):
+        """Non-string / empty payloads collapse to False (safe caller contract)."""
+        self.assertFalse(app_utils.is_reserved_storage_class_name(""))
+        self.assertFalse(app_utils.is_reserved_storage_class_name(None))
+        self.assertFalse(app_utils.is_reserved_storage_class_name(123))
+        self.assertFalse(app_utils.is_reserved_storage_class_name(["netapp-nfs"]))
+
+
 class TestGetAvailableVolumeBackendsESB(dbbase.ControllerHostTestCase):
     """Tests for ESB (Extended Storage Backend) entries in get_available_volume_backends()."""
 

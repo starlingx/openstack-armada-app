@@ -81,6 +81,27 @@ class NovaGetOverrideTest(NovaHelmTestCase,
             },
         })
 
+    @mock.patch('k8sapp_openstack.helm.nova.NovaHelm._enable_multipath', return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_overrides_enable_multipath_conf_daemonset(self, *_):
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        self.assertTrue(overrides['manifests']['daemonset_multipath_conf'])
+        self.assertIn('statefulset_compute_ironic', overrides['manifests'])
+
+    @mock.patch('k8sapp_openstack.helm.nova.NovaHelm._enable_multipath', return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_overrides_disable_multipath_conf_daemonset(self, *_):
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+        self.assertFalse(overrides['manifests']['daemonset_multipath_conf'])
+
     @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
     @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
     def test_nova_overrides_use_cluster_host_subnet_for_host_and_migration(

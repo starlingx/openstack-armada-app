@@ -1,0 +1,421 @@
+From af5331821bc3edc161ccf44069cf34edfd8e787e Mon Sep 17 00:00:00 2001
+From: Mateus Nascimento <mateus.soaresdonascimento@windriver.com>
+Date: Fri, 2 Oct 2026 17:14:06 -0300
+Subject: [PATCH] Add host multipath configuration DaemonSet to Nova
+
+Volumes attached over iSCSI or Fibre Channel are multipath devices on
+the host, and the host needs settings of its own for them. Without
+skip_kpartx it builds partition mappings for the partitions a guest
+wrote, and udev probes them at the moment the instance releases the
+disk, which is when os-brick flushes the map. The flush then fails with
+"map or partition in use" and the detach is delayed or fails.
+
+Add a DaemonSet (nova-multipath-conf) that renders conf.multipath into
+/etc/multipath/conf.d/openstack.conf on the nodes that attach volumes
+and reloads multipathd when the content changes. The drop-in directory
+keeps these settings apart from /etc/multipath.conf, and device entries
+merge with the ones built into multipathd, so a setting can be limited
+to the array it is meant for.
+
+"multipathd reconfigure all" is used because a plain reconfigure does
+not reload the maps that already exist, so volumes attached before the
+change would keep the old behaviour. An empty conf.multipath removes
+the file. If multipathd cannot be reconfigured, the previous file is
+put back and the container exits, so the kubelet retries with a
+back-off instead of leaving a file that multipathd never loaded.
+
+When the DaemonSet itself is deleted, because the chart no longer
+renders it or the release is removed, each pod removes the file and
+reconfigures multipathd on SIGTERM. A pod tells this apart from a
+restart or an update by reading its DaemonSet from the API; the
+ServiceAccount and the Role are deleted together with the DaemonSet,
+so an authorization error also counts as deleted, and the file is kept
+when the API cannot be reached.
+
+The pod runs on compute and control plane nodes, since cinder-volume,
+cinder-backup and glance-api attach volumes too, and reuses the
+nova_compute image. It is rendered only when conf.enable_iscsi is set
+and manifests.daemonset_multipath_conf is enabled, which it is not by
+default.
+
+Signed-off-by: Mateus Nascimento <mateus.soaresdonascimento@windriver.com>
+---
+ nova/templates/bin/_multipath-conf.sh.tpl    | 119 ++++++++++++++
+ nova/templates/daemonset-multipath-conf.yaml | 156 +++++++++++++++++++
+ nova/values.yaml                             |  29 ++++
+ 3 files changed, 304 insertions(+)
+ create mode 100644 nova/templates/bin/_multipath-conf.sh.tpl
+ create mode 100644 nova/templates/daemonset-multipath-conf.yaml
+
+diff --git a/nova/templates/bin/_multipath-conf.sh.tpl b/nova/templates/bin/_multipath-conf.sh.tpl
+new file mode 100644
+index 0000000..afd12bf
+--- /dev/null
++++ b/nova/templates/bin/_multipath-conf.sh.tpl
+@@ -0,0 +1,119 @@
++#!/bin/bash
++
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++CONF_DIR=/etc/multipath/conf.d
++CONF_FILE=${CONF_DIR}/openstack.conf
++DESIRED=/tmp/multipath/openstack.conf
++DAEMONSET=nova-multipath-conf
++
++function on_host {
++  nsenter --target 1 --mount --net -- "$@"
++}
++
++function reconfigure {
++  # A plain reconfigure leaves the maps that already exist untouched.
++  if on_host systemctl is-active --quiet multipathd; then
++    on_host multipathd reconfigure all
++  fi
++}
++
++function apply_conf {
++  if [ -s "${DESIRED}" ]; then
++    if on_host cmp -s - "${CONF_FILE}" < "${DESIRED}"; then
++      echo "${CONF_FILE} is up to date"
++      return 0
++    fi
++  elif ! on_host test -e "${CONF_FILE}"; then
++    return 0
++  fi
++  on_host rm -f "${CONF_FILE}.old" || return 1
++  if on_host test -e "${CONF_FILE}"; then
++    on_host cp -p "${CONF_FILE}" "${CONF_FILE}.old" || return 1
++  fi
++  if [ -s "${DESIRED}" ]; then
++    on_host mkdir -p "${CONF_DIR}" || return 1
++    on_host sh -c "cat > ${CONF_FILE}.tmp && mv -f ${CONF_FILE}.tmp ${CONF_FILE}" < "${DESIRED}" || return 1
++    echo "${CONF_FILE} updated"
++  else
++    on_host rm -f "${CONF_FILE}" || return 1
++    echo "${CONF_FILE} removed"
++  fi
++  if ! reconfigure; then
++    if on_host test -e "${CONF_FILE}.old"; then
++      on_host mv -f "${CONF_FILE}.old" "${CONF_FILE}"
++    else
++      on_host rm -f "${CONF_FILE}"
++    fi
++    return 1
++  fi
++  on_host rm -f "${CONF_FILE}.old"
++}
++
++function daemonset_removed {
++  python3 - "${DAEMONSET}" <<'EOF'
++import json
++import os
++import ssl
++import sys
++import urllib.error
++import urllib.request
++
++sa = "/var/run/secrets/kubernetes.io/serviceaccount"
++host = os.environ["KUBERNETES_SERVICE_HOST"]
++if ":" in host:
++    host = "[%s]" % host
++with open(os.path.join(sa, "namespace")) as f:
++    namespace = f.read().strip()
++with open(os.path.join(sa, "token")) as f:
++    token = f.read().strip()
++url = "https://%s:%s/apis/apps/v1/namespaces/%s/daemonsets/%s" % (
++    host, os.environ["KUBERNETES_SERVICE_PORT"], namespace, sys.argv[1])
++request = urllib.request.Request(
++    url, headers={"Authorization": "Bearer " + token})
++context = ssl.create_default_context(cafile=os.path.join(sa, "ca.crt"))
++try:
++    with urllib.request.urlopen(request, timeout=10, context=context) as r:
++        sys.exit(0 if json.load(r)["metadata"].get("deletionTimestamp") else 1)
++except urllib.error.HTTPError as e:
++    # The ServiceAccount and the Role are deleted together with the DaemonSet.
++    sys.exit(0 if e.code in (401, 403, 404) else 1)
++except Exception as e:
++    print("Could not check the DaemonSet: %s" % e)
++    sys.exit(1)
++EOF
++}
++
++function remove_conf {
++  on_host test -e "${CONF_FILE}" || return 0
++  on_host rm -f "${CONF_FILE}" "${CONF_FILE}.old" || return 1
++  echo "${CONF_FILE} removed"
++  reconfigure
++}
++
++function stop {
++  if daemonset_removed; then
++    remove_conf || echo "ERROR: could not remove ${CONF_FILE}"
++  fi
++  exit 0
++}
++
++apply_conf || { echo "ERROR: could not apply ${CONF_FILE}"; exit 1; }
++
++trap stop TERM INT
++sleep infinity &
++wait
+diff --git a/nova/templates/daemonset-multipath-conf.yaml b/nova/templates/daemonset-multipath-conf.yaml
+new file mode 100644
+index 0000000..104ab0d
+--- /dev/null
++++ b/nova/templates/daemonset-multipath-conf.yaml
+@@ -0,0 +1,156 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- define "nova.multipath_conf.value" -}}
++{{- if kindIs "bool" . -}}
++{{ ternary "yes" "no" . | quote }}
++{{- else -}}
++{{ . | toString | quote }}
++{{- end -}}
++{{- end -}}
++
++{{- define "nova.multipath_conf" -}}
++{{- $multipath := .Values.conf.multipath | default dict -}}
++{{- with $multipath.defaults -}}
++defaults {
++{{- range $key, $value := . }}
++    {{ $key }} {{ include "nova.multipath_conf.value" $value }}
++{{- end }}
++}
++{{ end -}}
++{{- with $multipath.devices -}}
++devices {
++{{- range $name, $device := . }}
++{{- if $device }}
++    device {
++{{- range $key, $value := $device }}
++        {{ $key }} {{ include "nova.multipath_conf.value" $value }}
++{{- end }}
++    }
++{{- end }}
++{{- end }}
++}
++{{ end -}}
++{{- end -}}
++
++{{- if and .Values.manifests.daemonset_multipath_conf .Values.conf.enable_iscsi }}
++{{- $envAll := . }}
++
++{{- $serviceAccountName := "nova-multipath-conf" }}
++{{ tuple $envAll "multipath_conf" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: Role
++metadata:
++  name: nova-multipath-conf
++rules:
++  - apiGroups:
++      - apps
++    resources:
++      - daemonsets
++    resourceNames:
++      - nova-multipath-conf
++    verbs:
++      - get
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: RoleBinding
++metadata:
++  name: nova-multipath-conf
++roleRef:
++  apiGroup: rbac.authorization.k8s.io
++  kind: Role
++  name: nova-multipath-conf
++subjects:
++  - kind: ServiceAccount
++    name: {{ $serviceAccountName }}
++    namespace: {{ $envAll.Release.Namespace }}
++---
++apiVersion: v1
++kind: ConfigMap
++metadata:
++  name: nova-multipath-conf
++data:
++  multipath-conf.sh: |
++{{ tuple "bin/_multipath-conf.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++  openstack.conf: {{ include "nova.multipath_conf" . | quote }}
++---
++apiVersion: apps/v1
++kind: DaemonSet
++metadata:
++  name: nova-multipath-conf
++  annotations:
++    {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
++  labels:
++{{ tuple $envAll "nova" "multipath-conf" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++spec:
++  selector:
++    matchLabels:
++{{ tuple $envAll "nova" "multipath-conf" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
++{{ tuple $envAll "multipath_conf" | include "helm-toolkit.snippets.kubernetes_upgrades_daemonset" | indent 2 }}
++  template:
++    metadata:
++      labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
++{{ tuple $envAll "nova" "multipath-conf" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
++      annotations:
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
++{{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++        configmap-multipath-conf-hash: {{ printf "%s%s" (include "nova.multipath_conf" .) (tuple "bin/_multipath-conf.sh.tpl" . | include "helm-toolkit.utils.template") | sha256sum }}
++    spec:
++{{ tuple "multipath_conf" . | include "helm-toolkit.snippets.kubernetes_pod_priority_class" | indent 6 }}
++{{ tuple "multipath_conf" . | include "helm-toolkit.snippets.kubernetes_pod_runtime_class" | indent 6 }}
++      serviceAccountName: {{ $serviceAccountName }}
++{{ dict "envAll" $envAll "application" "multipath_conf" | include "helm-toolkit.snippets.kubernetes_pod_security_context" | indent 6 }}
++      affinity:
++        nodeAffinity:
++          requiredDuringSchedulingIgnoredDuringExecution:
++            nodeSelectorTerms:
++{{- range .Values.labels.multipath_conf }}
++              - matchExpressions:
++                  - key: {{ .node_selector_key }}
++                    operator: In
++                    values:
++                      - {{ .node_selector_value | quote }}
++{{- end }}
++{{ if $envAll.Values.pod.tolerations.nova.enabled }}
++{{ tuple $envAll "nova" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
++      hostPID: true
++      containers:
++        - name: nova-multipath-conf
++{{ tuple $envAll "nova_compute" | include "helm-toolkit.snippets.image" | indent 10 }}
++{{ tuple $envAll $envAll.Values.pod.resources.multipath_conf | include "helm-toolkit.snippets.kubernetes_resources" | indent 10 }}
++{{ dict "envAll" $envAll "application" "multipath_conf" "container" "nova_multipath_conf" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
++          command:
++            - /tmp/multipath-conf.sh
++          volumeMounts:
++            - name: pod-tmp
++              mountPath: /tmp
++            - name: nova-multipath-conf
++              mountPath: /tmp/multipath-conf.sh
++              subPath: multipath-conf.sh
++              readOnly: true
++            - name: nova-multipath-conf
++              mountPath: /tmp/multipath/openstack.conf
++              subPath: openstack.conf
++              readOnly: true
++      volumes:
++        - name: pod-tmp
++          emptyDir: {}
++        - name: nova-multipath-conf
++          configMap:
++            name: nova-multipath-conf
++            defaultMode: 0555
++{{- end }}
+diff --git a/nova/values.yaml b/nova/values.yaml
+index 45457fb..9c86d8f 100644
+--- a/nova/values.yaml
++++ b/nova/values.yaml
+@@ -36,6 +36,11 @@ labels:
+   job:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
++  multipath_conf:
++    - node_selector_key: openstack-compute-node
++      node_selector_value: enabled
++    - node_selector_key: openstack-control-plane
++      node_selector_value: enabled
+   novncproxy:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+@@ -416,6 +421,7 @@ dependencies:
+           labels:
+             application: nova
+             component: conductor
++    multipath_conf: {}
+     service_cleaner:
+       jobs:
+         - nova-db-sync
+@@ -1665,6 +1671,10 @@ conf:
+         apply-to: all
+         pattern: '^(?!(amq\.|reply_)).*'
+   enable_iscsi: false
++  # Host multipath settings, written to /etc/multipath/conf.d/openstack.conf
++  multipath:
++    defaults: {}
++    devices: {}
+   archive_deleted_rows:
+     purge_deleted_rows: false
+     until_completion: true
+@@ -2437,6 +2447,13 @@ pod:
+         nova_sanitizer:
+           readOnlyRootFilesystem: true
+           allowPrivilegeEscalation: false
++    multipath_conf:
++      pod:
++        runAsUser: 0
++      container:
++        nova_multipath_conf:
++          readOnlyRootFilesystem: true
++          privileged: true
+     service_cleaner:
+       pod:
+         runAsUser: 42424
+@@ -2574,6 +2591,10 @@ pod:
+           enabled: true
+           min_ready_seconds: 0
+           max_unavailable: 1
++        multipath_conf:
++          enabled: true
++          min_ready_seconds: 0
++          max_unavailable: 1
+     disruption_budget:
+       metadata:
+         min_available: 0
+@@ -2627,6 +2648,13 @@ pod:
+       limits:
+         memory: "1024Mi"
+         cpu: "2000m"
++    multipath_conf:
++      requests:
++        memory: "32Mi"
++        cpu: "10m"
++      limits:
++        memory: "128Mi"
++        cpu: "200m"
+     sanitizer:
+       requests:
+         memory: "128Mi"
+@@ -2832,6 +2860,7 @@ manifests:
+   cron_job_instances_sanitizer: false
+   init_container_instances_sanitizer: false
+   daemonset_compute: true
++  daemonset_multipath_conf: false
+   deployment_api_metadata: true
+   deployment_api_osapi: true
+   deployment_conductor: true
+-- 
+2.43.0
+

@@ -316,7 +316,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                     },
                     'replicas': {
                         'api': self._num_provisioned_controllers(),
-                        'volume': self._num_provisioned_controllers(),
+                        'volume': 1,  # Active-Passive/Active-Active not configured
                         'scheduler': self._num_provisioned_controllers(),
                         'backup': backup_replicas
                     },

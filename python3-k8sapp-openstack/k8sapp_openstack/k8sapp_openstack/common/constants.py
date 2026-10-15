@@ -253,6 +253,8 @@ NETAPP_DEFAULT_PASSWORD = "netapp-password"
 NETAPP_DEFAULT_VSERVER = "netapp-vserver"
 NETAPP_DEFAULT_NFS_SHARES = """127.0.0.1:/nfs_volume\n"""
 NFS_SHARES_CONFIG = "/etc/cinder/nfs.shares"
+
+ESB_NFS_SHARES_CONFIG_TEMPLATE = "/etc/cinder/nfs.shares_{}"
 NFS_MOUNT_OPTIONS = "nolock"
 
 # Storage TLS CA Certificate Configuration

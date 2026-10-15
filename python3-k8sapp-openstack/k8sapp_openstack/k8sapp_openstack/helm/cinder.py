@@ -190,6 +190,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         ceph_client_overrides = dict()
         self.available_backends = get_available_volume_backends()
         self._backends_conf = get_backends_conf()
+        self._esb_nfs_shares_files = {}
         self.available_netapp_backends = [
             be for be in self.available_backends
             if be in app_constants.NETAPP_SUPPORTED_BACKENDS and self.available_backends[be]
@@ -366,6 +367,17 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                                 'backup_share': app_constants.NETAPP_DEFAULT_NFS_SHARES
                             }
                         }
+                    }
+                }
+            )
+
+        if self._esb_nfs_shares_files:
+            overrides[common.HELM_NS_OPENSTACK] = self._update_overrides(
+                overrides[common.HELM_NS_OPENSTACK],
+                {
+                    'conf': {
+                        'esb_nfs_shares_files': dict(
+                            self._esb_nfs_shares_files)
                     }
                 }
             )
@@ -604,6 +616,57 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             # secretRef-declared credentials resolved and injected on top.
             section = self._resolve_esb_volume_backend(backend_name, conf_entry)
             backend_overrides[backend_name] = section
+
+            if protocol == app_constants.NFS_OPENSTACK_PROTOCOL:
+                nfs_shares = conf_entry.get('nfs_shares')
+                if nfs_shares:
+                    nfs_shares_config = section.get('nfs_shares_config')
+                    if not nfs_shares_config:
+                        volume_backend_name = section.get(
+                            'volume_backend_name', backend_name)
+                        nfs_shares_config = \
+                            app_constants.ESB_NFS_SHARES_CONFIG_TEMPLATE.format(
+                                volume_backend_name)
+                        section['nfs_shares_config'] = nfs_shares_config
+                    else:
+                        nfs_shares_dir = os.path.dirname(nfs_shares_config)
+                        if nfs_shares_dir != '/etc/cinder':
+                            LOG.warning(
+                                f"ESB backend '{backend_name}' sets "
+                                f"'nfs_shares_config' to '{nfs_shares_config}', "
+                                "but the chart always mounts the share file "
+                                "under /etc/cinder/. Ignoring the provided "
+                                "directory.")
+                            nfs_shares_config = os.path.join(
+                                '/etc/cinder',
+                                os.path.basename(nfs_shares_config))
+                            section['nfs_shares_config'] = nfs_shares_config
+                    if nfs_shares_config == app_constants.NFS_SHARES_CONFIG:
+                        LOG.error(
+                            f"ESB backend '{backend_name}' resolves "
+                            f"'nfs_shares_config' to '{nfs_shares_config}', "
+                            "which is reserved for the strict netapp-nfs "
+                            "backend. Skipping share file to avoid "
+                            "overwriting it; set a distinct "
+                            "volume_backend_name (or an explicit "
+                            "nfs_shares_config) for this backend.")
+                        section.pop('nfs_shares_config', None)
+                    else:
+                        filename = os.path.basename(nfs_shares_config)
+                        if filename in self._esb_nfs_shares_files:
+                            LOG.error(
+                                f"ESB backend '{backend_name}' resolves "
+                                f"'nfs_shares_config' to '{nfs_shares_config}', "
+                                "which is already claimed by another ESB "
+                                "backend (duplicate volume_backend_name or "
+                                "explicit nfs_shares_config). Skipping share "
+                                "file to avoid overwriting the other "
+                                "backend's shares; set a distinct "
+                                "volume_backend_name (or an explicit "
+                                "nfs_shares_config) for this backend.")
+                            section.pop('nfs_shares_config', None)
+                        else:
+                            self._esb_nfs_shares_files[filename] = nfs_shares
 
             LOG.info(f"ESB backend '{backend_name}' (protocol={protocol}) "
                      f"added to enabled_backends")

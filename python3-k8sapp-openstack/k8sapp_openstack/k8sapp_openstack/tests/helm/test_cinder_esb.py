@@ -546,6 +546,345 @@ class TestESBBackendEmission(testtools.TestCase):
 
         self.assertNotIn('bad-backend', backend_overrides)
 
+    def test_esb_nfs_derives_shares_config_from_volume_backend_name(self):
+        """Inline 'nfs_shares' with no 'nfs_shares_config' set: the plugin
+        derives the per-backend file path from volume_backend_name and
+        collects the file content, without leaking 'nfs_shares' into the
+        rendered section.
+        """
+        ch = self._make_helm(
+            available_backends={
+                'ceph': '', 'netapp-nfs': '', 'netapp-iscsi': '', 'netapp-fc': '',
+                'netapp-esb-green': ''
+            },
+            backends_conf={
+                'netapp-esb-green': {
+                    'name': 'netapp-esb-green',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'nfs_shares': '192.168.57.106:/vol_green\n',
+                    'volume_backend': {
+                        'volume_backend_name': 'netapp-esb-green',
+                        'netapp_vserver': 'svm_green',
+                    }
+                }
+            },
+            volume_priority=['netapp-esb-green']
+        )
+        ch._esb_nfs_shares_files = {}
+        cinder_overrides = {'DEFAULT': {}}
+        backend_overrides = {}
+
+        cinder_overrides, backend_overrides = ch._get_conf_esb_cinder_overrides(
+            cinder_overrides, backend_overrides)
+
+        self.assertEqual(
+            backend_overrides['netapp-esb-green']['nfs_shares_config'],
+            '/etc/cinder/nfs.shares_netapp-esb-green')
+        self.assertNotIn('nfs_shares', backend_overrides['netapp-esb-green'])
+        self.assertEqual(
+            ch._esb_nfs_shares_files,
+            {'nfs.shares_netapp-esb-green': '192.168.57.106:/vol_green\n'})
+
+    def test_esb_nfs_explicit_shares_config_respected(self):
+        """An operator-provided 'nfs_shares_config' is used as-is, instead
+        of the derived path.
+        """
+        ch = self._make_helm(
+            available_backends={
+                'ceph': '', 'netapp-nfs': '', 'netapp-iscsi': '', 'netapp-fc': '',
+                'netapp-esb-green': ''
+            },
+            backends_conf={
+                'netapp-esb-green': {
+                    'name': 'netapp-esb-green',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'nfs_shares': '192.168.57.106:/vol_green\n',
+                    'volume_backend': {
+                        'volume_backend_name': 'netapp-esb-green',
+                        'nfs_shares_config': '/etc/cinder/nfs.shares_custom_path',
+                    }
+                }
+            },
+            volume_priority=['netapp-esb-green']
+        )
+        ch._esb_nfs_shares_files = {}
+        cinder_overrides = {'DEFAULT': {}}
+        backend_overrides = {}
+
+        cinder_overrides, backend_overrides = ch._get_conf_esb_cinder_overrides(
+            cinder_overrides, backend_overrides)
+
+        self.assertEqual(
+            backend_overrides['netapp-esb-green']['nfs_shares_config'],
+            '/etc/cinder/nfs.shares_custom_path')
+        self.assertEqual(
+            ch._esb_nfs_shares_files,
+            {'nfs.shares_custom_path': '192.168.57.106:/vol_green\n'})
+
+    def test_esb_nfs_collision_with_strict_path_rejected(self):
+        """An 'nfs_shares_config' that resolves to the strict backend's
+        reserved file (/etc/cinder/nfs.shares) is rejected: no share file
+        is collected, so the chart never overwrites the strict file.
+        """
+        ch = self._make_helm(
+            available_backends={
+                'ceph': '', 'netapp-nfs': '', 'netapp-iscsi': '', 'netapp-fc': '',
+                'netapp-esb-green': ''
+            },
+            backends_conf={
+                'netapp-esb-green': {
+                    'name': 'netapp-esb-green',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'nfs_shares': '192.168.57.106:/vol_green\n',
+                    'volume_backend': {
+                        'volume_backend_name': 'netapp-esb-green',
+                        'nfs_shares_config': '/etc/cinder/nfs.shares',
+                    }
+                }
+            },
+            volume_priority=['netapp-esb-green']
+        )
+        ch._esb_nfs_shares_files = {}
+        cinder_overrides = {'DEFAULT': {}}
+        backend_overrides = {}
+
+        cinder_overrides, backend_overrides = ch._get_conf_esb_cinder_overrides(
+            cinder_overrides, backend_overrides)
+
+        # The backend is still emitted (it only loses its share file).
+        self.assertIn('netapp-esb-green', backend_overrides)
+        self.assertEqual(ch._esb_nfs_shares_files, {})
+        # It must not keep 'nfs_shares_config' pointing at the reserved
+        # strict file: that would make cinder-volume mount against it.
+        self.assertNotIn(
+            'nfs_shares_config', backend_overrides['netapp-esb-green'])
+
+    def test_esb_nfs_duplicate_derived_filename_second_backend_dropped(self):
+        """Two ESB NFS backends that resolve to the same derived
+        'nfs_shares_config' (e.g. a copy-pasted volume_backend_name) must
+        not silently overwrite each other's shares file: the first backend
+        processed keeps its file, the second is dropped with a logged
+        error, and the backend list order is deterministic (sorted by
+        priority index via VOLUME_PRIORITY_LIST).
+        """
+        ch = self._make_helm(
+            available_backends={
+                'ceph': '', 'netapp-nfs': '', 'netapp-iscsi': '', 'netapp-fc': '',
+                'netapp-esb-first': '', 'netapp-esb-second': ''
+            },
+            backends_conf={
+                'netapp-esb-first': {
+                    'name': 'netapp-esb-first',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'nfs_shares': '192.168.57.105:/vol_a\n',
+                    'volume_backend': {
+                        # Same volume_backend_name as the second entry below:
+                        # both derive to nfs.shares_netapp-esb-shared.
+                        'volume_backend_name': 'netapp-esb-shared',
+                    }
+                },
+                'netapp-esb-second': {
+                    'name': 'netapp-esb-second',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'nfs_shares': '192.168.57.106:/vol_b\n',
+                    'volume_backend': {
+                        'volume_backend_name': 'netapp-esb-shared',
+                    }
+                }
+            },
+            # Priority list order determines processing order.
+            volume_priority=['netapp-esb-first', 'netapp-esb-second']
+        )
+        ch._esb_nfs_shares_files = {}
+        cinder_overrides = {'DEFAULT': {}}
+        backend_overrides = {}
+
+        cinder_overrides, backend_overrides = ch._get_conf_esb_cinder_overrides(
+            cinder_overrides, backend_overrides)
+
+        # Both backends are still emitted in enabled_backends...
+        self.assertIn('netapp-esb-first', backend_overrides)
+        self.assertIn('netapp-esb-second', backend_overrides)
+        # ...but only the first one to claim the derived filename gets a
+        # share file. No silent overwrite: exactly one entry survives,
+        # with the first backend's content.
+        self.assertEqual(
+            ch._esb_nfs_shares_files,
+            {'nfs.shares_netapp-esb-shared': '192.168.57.105:/vol_a\n'})
+        # The dropped backend must not keep 'nfs_shares_config' pointing at
+        # the file now claimed by the first backend.
+        self.assertNotIn(
+            'nfs_shares_config', backend_overrides['netapp-esb-second'])
+
+    def test_esb_nfs_custom_shares_config_directory_normalized(self):
+        """An explicit 'nfs_shares_config' pointing at a directory other
+        than /etc/cinder is normalized to /etc/cinder/<basename>, since the
+        chart always mounts the share file there regardless of the
+        configured path.
+        """
+        ch = self._make_helm(
+            available_backends={
+                'ceph': '', 'netapp-nfs': '', 'netapp-iscsi': '', 'netapp-fc': '',
+                'netapp-esb-green': ''
+            },
+            backends_conf={
+                'netapp-esb-green': {
+                    'name': 'netapp-esb-green',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'nfs_shares': '192.168.57.106:/vol_green\n',
+                    'volume_backend': {
+                        'volume_backend_name': 'netapp-esb-green',
+                        'nfs_shares_config': '/custom/nfs.shares_green',
+                    }
+                }
+            },
+            volume_priority=['netapp-esb-green']
+        )
+        ch._esb_nfs_shares_files = {}
+        cinder_overrides = {'DEFAULT': {}}
+        backend_overrides = {}
+
+        cinder_overrides, backend_overrides = ch._get_conf_esb_cinder_overrides(
+            cinder_overrides, backend_overrides)
+
+        self.assertEqual(
+            backend_overrides['netapp-esb-green']['nfs_shares_config'],
+            '/etc/cinder/nfs.shares_green')
+        self.assertEqual(
+            ch._esb_nfs_shares_files,
+            {'nfs.shares_green': '192.168.57.106:/vol_green\n'})
+
+    def test_esb_nfs_bare_filename_shares_config_normalized(self):
+        """An explicit 'nfs_shares_config' with no directory at all (a bare
+        filename) is also normalized to /etc/cinder/<basename>, so it still
+        goes through the reserved-path and collision guards instead of
+        bypassing them with a relative path.
+        """
+        ch = self._make_helm(
+            available_backends={
+                'ceph': '', 'netapp-nfs': '', 'netapp-iscsi': '', 'netapp-fc': '',
+                'netapp-esb-green': ''
+            },
+            backends_conf={
+                'netapp-esb-green': {
+                    'name': 'netapp-esb-green',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'nfs_shares': '192.168.57.106:/vol_green\n',
+                    'volume_backend': {
+                        'volume_backend_name': 'netapp-esb-green',
+                        # Bare filename, no directory: dirname() is ''.
+                        'nfs_shares_config': 'nfs.shares',
+                    }
+                }
+            },
+            volume_priority=['netapp-esb-green']
+        )
+        ch._esb_nfs_shares_files = {}
+        cinder_overrides = {'DEFAULT': {}}
+        backend_overrides = {}
+
+        cinder_overrides, backend_overrides = ch._get_conf_esb_cinder_overrides(
+            cinder_overrides, backend_overrides)
+
+        # Normalized to /etc/cinder/nfs.shares, which collides with the
+        # strict backend's reserved path, so the reserved-path guard must
+        # catch it and drop the share file instead of silently writing it.
+        self.assertNotIn(
+            'nfs_shares_config', backend_overrides['netapp-esb-green'])
+        self.assertEqual(ch._esb_nfs_shares_files, {})
+
+    def test_esb_nfs_without_inline_shares_no_file(self):
+        """An NFS ESB backend without the inline 'nfs_shares' field does
+        not get a derived 'nfs_shares_config' and collects no share file.
+        """
+        ch = self._make_helm(
+            available_backends={
+                'ceph': '', 'netapp-nfs': '', 'netapp-iscsi': '', 'netapp-fc': '',
+                'netapp-esb-green': ''
+            },
+            backends_conf={
+                'netapp-esb-green': {
+                    'name': 'netapp-esb-green',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'volume_backend': {
+                        'volume_backend_name': 'netapp-esb-green',
+                    }
+                }
+            },
+            volume_priority=['netapp-esb-green']
+        )
+        ch._esb_nfs_shares_files = {}
+        cinder_overrides = {'DEFAULT': {}}
+        backend_overrides = {}
+
+        cinder_overrides, backend_overrides = ch._get_conf_esb_cinder_overrides(
+            cinder_overrides, backend_overrides)
+
+        self.assertNotIn('nfs_shares_config', backend_overrides['netapp-esb-green'])
+        self.assertEqual(ch._esb_nfs_shares_files, {})
+
+    def test_multiple_esb_nfs_backends_distinct_shares_files(self):
+        """Multiple NFS ESB backends, each with its own inline 'nfs_shares',
+        each derive a distinct per-backend shares file, with no leakage
+        between backends and no collision between the two files.
+        """
+        ch = self._make_helm(
+            available_backends={
+                'ceph': '', 'netapp-nfs': '', 'netapp-iscsi': '', 'netapp-fc': '',
+                'netapp-esb-green': '', 'netapp-esb-teal': ''
+            },
+            backends_conf={
+                'netapp-esb-green': {
+                    'name': 'netapp-esb-green',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'nfs_shares': '192.168.57.106:/vol_green\n',
+                    'volume_backend': {
+                        'volume_backend_name': 'netapp-esb-green',
+                        'netapp_vserver': 'svm_green',
+                    }
+                },
+                'netapp-esb-teal': {
+                    'name': 'netapp-esb-teal',
+                    'protocol': 'nfs',
+                    'k8s_storage_class': 'none',
+                    'nfs_shares': '192.168.57.105:/vol_teal\n',
+                    'volume_backend': {
+                        'volume_backend_name': 'netapp-esb-teal',
+                        'netapp_vserver': 'svm_blue',
+                    }
+                }
+            },
+            volume_priority=['netapp-esb-green', 'netapp-esb-teal']
+        )
+        ch._esb_nfs_shares_files = {}
+        cinder_overrides = {'DEFAULT': {}}
+        backend_overrides = {}
+
+        cinder_overrides, backend_overrides = ch._get_conf_esb_cinder_overrides(
+            cinder_overrides, backend_overrides)
+
+        self.assertEqual(
+            backend_overrides['netapp-esb-green']['nfs_shares_config'],
+            '/etc/cinder/nfs.shares_netapp-esb-green')
+        self.assertEqual(
+            backend_overrides['netapp-esb-teal']['nfs_shares_config'],
+            '/etc/cinder/nfs.shares_netapp-esb-teal')
+        self.assertEqual(
+            ch._esb_nfs_shares_files,
+            {
+                'nfs.shares_netapp-esb-green': '192.168.57.106:/vol_green\n',
+                'nfs.shares_netapp-esb-teal': '192.168.57.105:/vol_teal\n',
+            })
+
     def test_multiple_esb_backends(self):
         """Multiple ESB backends are all emitted."""
         ch = self._make_helm(

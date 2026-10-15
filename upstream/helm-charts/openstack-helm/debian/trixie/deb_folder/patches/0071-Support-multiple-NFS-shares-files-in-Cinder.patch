@@ -1,0 +1,71 @@
+From 098b0a32ec014bf7cbf2bee98092b6f7e751d8e5 Mon Sep 17 00:00:00 2001
+From: Kayo Costa <kayo.goncalvesdacosta@windriver.com>
+Date: Thu, 1 Oct 2026 15:10:34 -0300
+Subject: [PATCH] Support multiple NFS shares files in Cinder
+
+The cinder chart previously rendered a single nfs.shares file from
+conf.nfs_shares and mounted it at /etc/cinder/nfs.shares. This limited
+the deployment to one NFS backend, since every backend sharing that file
+is tied to a single storage virtual machine. Additional NFS backends
+configured as Extended Storage Backends declare their own
+nfs_shares_config path, but no file was created at that path, leaving the
+backend unable to mount its shares.
+
+This change adds a new conf.esb_nfs_shares_files value, a map keyed by
+filename whose values hold each backend's shares list. The configmap
+renders one entry per file into the cinder-etc secret, and the
+cinder-volume deployment mounts each file read-only at /etc/cinder/<filename>,
+mirroring the existing single nfs.shares handling and the rootwrap_filters
+rendering pattern.
+
+The map is populated by the openstack plugin from the inline nfs_shares
+field on each NFS Extended Storage Backend entry. The existing
+conf.nfs_shares path for the primary NFS backend is unchanged, so existing
+single-backend configurations keep working.
+
+Templates changed:
+- cinder/templates/configmap-etc.yaml: render one secret key per entry in
+  conf.esb_nfs_shares_files.
+- cinder/templates/deployment-volume.yaml: mount each rendered file into the
+  cinder-volume container at /etc/cinder/<filename>.
+
+Signed-off-by: Kayo Costa <kayo.goncalvesdacosta@windriver.com>
+---
+ cinder/templates/configmap-etc.yaml     | 3 +++
+ cinder/templates/deployment-volume.yaml | 6 ++++++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/cinder/templates/configmap-etc.yaml b/cinder/templates/configmap-etc.yaml
+index abf35af2f..f7a8522fe 100644
+--- a/cinder/templates/configmap-etc.yaml
++++ b/cinder/templates/configmap-etc.yaml
+@@ -126,6 +126,9 @@ data:
+   {{- if hasKey .Values.conf "nfs_shares" }}
+   nfs.shares: {{ $envAll.Values.conf.nfs_shares | b64enc }}
+   {{- end }}
++  {{- range $filename, $content := $envAll.Values.conf.esb_nfs_shares_files }}
++  {{ $filename }}: {{ $content | b64enc }}
++  {{- end }}
+ {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
+ {{- $filePrefix := replace "_" "-"  $key }}
+   {{ printf "%s.filters" $filePrefix }}: {{ $value.content | b64enc }}
+diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
+index d45f4c257..31fa1a1c9 100644
+--- a/cinder/templates/deployment-volume.yaml
++++ b/cinder/templates/deployment-volume.yaml
+@@ -212,6 +212,12 @@ spec:
+               subPath: nfs.shares
+               readOnly: true
+             {{- end }}
++            {{- range $filename, $content := .Values.conf.esb_nfs_shares_files }}
++            - name: cinder-etc
++              mountPath: /etc/cinder/{{ $filename }}
++              subPath: {{ $filename }}
++              readOnly: true
++            {{- end }}
+             {{- if eq "true" (include "cinder.utils.has_ceph_backend" $envAll) }}
+             - name: etcceph
+               mountPath: /etc/ceph
+-- 
+2.43.0
+

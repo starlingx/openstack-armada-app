@@ -1,0 +1,13 @@
+---
+debname: watcher
+debver: 16.0.2-1
+dl_path:
+  name: watcher-debian-16.0.2-1.tar.gz
+  url: https://salsa.debian.org/openstack-team/services/watcher/-/archive/debian/16.0.2-1/watcher-debian-16.0.2-1.tar.gz
+  md5sum: bbb1798615612600142d04a5223c0316
+  sha256sum: e54f6e45d86396c53837e689992a9a25d38a8218d4e5257ecc9c389367b7693d
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 533cfe4d83198746d4d3aa69bb65cc65ebae1739
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-watcher

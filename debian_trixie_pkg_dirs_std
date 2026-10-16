@@ -15,4 +15,5 @@ upstream/openstack/python-neutronclient
 upstream/openstack/python-novaclient
 upstream/openstack/python-openstackclient
 upstream/openstack/python-openstacksdk
+upstream/openstack/python-watcher
 upstream/openstack/python-watcherclient

@@ -1,0 +1,6 @@
+BUILDER=loci
+LABEL=stx-watcher
+PROJECT=infra
+PROJECT_REPO=nil
+DIST_REPOS="OS +openstack"
+DIST_PACKAGES="python3-watcher python3-pymemcache"

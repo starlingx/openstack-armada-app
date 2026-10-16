@@ -9,4 +9,4 @@ upstream/openstack/python-neutron
 upstream/openstack/python-nova
 upstream/openstack/python-openstackclient
 upstream/openstack/python-placement
-
+upstream/openstack/python-watcher

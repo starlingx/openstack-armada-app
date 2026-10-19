@@ -1,0 +1,13 @@
+---
+debname: aodh
+debver: 22.0.1-1
+dl_path:
+  name: aodh-debian-22.0.1-1.tar.gz
+  url: https://salsa.debian.org/openstack-team/services/aodh/-/archive/debian/22.0.1-1/aodh-debian-22.0.1-1.tar.gz
+  md5sum: fd0a243fc2820f2d110ecb4d07d74184
+  sha256sum: 385d539131a26eac3ed11aef427e32573e53a0d6e9ce339429aef87dbcbddd61
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 8fd3e2a6f4368f9ae7973cd2832387e7981938e8
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-aodh

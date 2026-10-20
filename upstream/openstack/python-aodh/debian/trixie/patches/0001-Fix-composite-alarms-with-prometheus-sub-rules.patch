@@ -1,0 +1,283 @@
+From 7e716e2755a4f58743be4e193cc1f97513839a47 Mon Sep 17 00:00:00 2001
+From: Mateus Nascimento <mateus.soaresdonascimento@windriver.com>
+Date: Tue, 29 Sep 2026 16:45:22 -0300
+Subject: [PATCH] Fix composite alarms with prometheus sub-rules
+
+PrometheusRule.validate_alarm() stored the project scope on the
+PrometheusRule class instead of on the rule being validated. Once an API
+worker had created or updated a prometheus alarm, as_dict() of every
+later PrometheusRule in that worker included scope_to_project. The
+composite rule validation, which runs twice per request, then rejected
+composite alarms with a prometheus sub-rule with "Unknown attribute for
+argument data: scope_to_project".
+
+Keep the scope on the rule, leave scope_to_project out of the WSME check
+of composite sub-rules, and set it on the prometheus sub-rules of a
+composite alarm the same way as for a prometheus alarm.
+
+Add functional tests for composite alarms with prometheus sub-rules,
+including one created after a prometheus alarm and one stored without
+a scope and then updated.
+
+Carried from the upstream review
+https://review.opendev.org/c/openstack/aodh/+/1007951 while it is still
+under review. Drop this patch once a Debian Salsa aodh release contains
+the fix.
+
+Closes-Bug: #2168896
+Change-Id: I85a9d66902f3486d65c30d525624c714df720c23
+Signed-off-by: Mateus Nascimento <mateus.soaresdonascimento@windriver.com>
+---
+ .../controllers/v2/alarm_rules/composite.py   |  18 ++-
+ .../controllers/v2/alarm_rules/prometheus.py  |   8 +-
+ .../functional/api/v2/test_alarm_scenarios.py | 129 ++++++++++++++++++
+ ...prometheus-sub-rules-2d157a26c8f69378.yaml |  12 ++
+ 4 files changed, 160 insertions(+), 7 deletions(-)
+ create mode 100644 releasenotes/notes/fix-composite-prometheus-sub-rules-2d157a26c8f69378.yaml
+
+diff --git a/aodh/api/controllers/v2/alarm_rules/composite.py b/aodh/api/controllers/v2/alarm_rules/composite.py
+index 9a2d6f40..3fca16ac 100644
+--- a/aodh/api/controllers/v2/alarm_rules/composite.py
++++ b/aodh/api/controllers/v2/alarm_rules/composite.py
+@@ -50,7 +50,7 @@ class CompositeRule(wtypes.UserType):
+         super().__init__()
+ 
+     @staticmethod
+-    def valid_composite_rule(rules):
++    def valid_composite_rule(rules, alarm=None):
+         if isinstance(rules, dict) and len(rules) == 1:
+             and_or_key = list(rules)[0]
+             if and_or_key not in ('and', 'or'):
+@@ -58,7 +58,7 @@ class CompositeRule(wtypes.UserType):
+                     _('Threshold rules should be combined with "and" or "or"'))
+             if isinstance(rules[and_or_key], list):
+                 for sub_rule in rules[and_or_key]:
+-                    CompositeRule.valid_composite_rule(sub_rule)
++                    CompositeRule.valid_composite_rule(sub_rule, alarm)
+             else:
+                 raise InvalidCompositeRule(rules)
+         elif isinstance(rules, dict):
+@@ -74,9 +74,17 @@ class CompositeRule(wtypes.UserType):
+                             'plugins': plugins}
+                 raise base.ClientSideError(err)
+             plugin = CompositeRule.threshold_plugins[rule_type].plugin
++            server_side = {}
++            if rule_type == 'prometheus':
++                server_side['scope_to_project'] = rules.pop(
++                    'scope_to_project', None)
+             wjson.fromjson(plugin, rules)
+-            rule_dict = plugin(**rules).as_dict()
+-            rules.update(rule_dict)
++            rule = plugin(**rules, **server_side)
++            if alarm is not None and rule_type == 'prometheus':
++                plugin.validate_alarm(type(alarm)(
++                    type=rule_type, project_id=alarm.project_id,
++                    prometheus_rule=rule))
++            rules.update(rule.as_dict())
+             rules.update(type=rule_type)
+         else:
+             raise InvalidCompositeRule(rules)
+@@ -102,7 +110,7 @@ class CompositeRule(wtypes.UserType):
+ 
+     @staticmethod
+     def validate_alarm(alarm):
+-        pass
++        CompositeRule.valid_composite_rule(alarm.composite_rule, alarm)
+ 
+     @staticmethod
+     def update_hook(alarm):
+diff --git a/aodh/api/controllers/v2/alarm_rules/prometheus.py b/aodh/api/controllers/v2/alarm_rules/prometheus.py
+index 8cb90caa..5dd2fcc1 100644
+--- a/aodh/api/controllers/v2/alarm_rules/prometheus.py
++++ b/aodh/api/controllers/v2/alarm_rules/prometheus.py
+@@ -36,6 +36,10 @@ class PrometheusRule(base.AlarmRule):
+     query = wsme.wsattr(wtypes.text, mandatory=True)
+     "The Prometheus query"
+ 
++    def __init__(self, scope_to_project=None, **kwargs):
++        super().__init__(**kwargs)
++        self.scope_to_project = scope_to_project
++
+     @classmethod
+     def validate_alarm(cls, alarm):
+         super().validate_alarm(alarm)
+@@ -43,9 +47,9 @@ class PrometheusRule(base.AlarmRule):
+         rule = alarm.prometheus_rule
+ 
+         auth_project = v2_utils.get_auth_project(alarm.project_id)
+-        cls.scope_to_project = None
++        rule.scope_to_project = None
+         if auth_project:
+-            cls.scope_to_project = auth_project
++            rule.scope_to_project = auth_project
+         return rule
+ 
+     def as_dict(self):
+diff --git a/aodh/tests/functional/api/v2/test_alarm_scenarios.py b/aodh/tests/functional/api/v2/test_alarm_scenarios.py
+index 1758b19c..363c39ac 100644
+--- a/aodh/tests/functional/api/v2/test_alarm_scenarios.py
++++ b/aodh/tests/functional/api/v2/test_alarm_scenarios.py
+@@ -1486,6 +1486,20 @@ class TestAlarmsCompositeRule(TestAlarmsBase):
+                    {
+                        "and": [self.sub_rule2, self.sub_rule3]
+                    }]}
++        self.prometheus_sub_rule1 = {
++            "type": "prometheus",
++            "query": "ceilometer_cpu",
++            "threshold": 80,
++            "comparison_operator": "gt"
++        }
++        self.prometheus_sub_rule2 = {
++            "type": "prometheus",
++            "query": "ceilometer_memory_usage",
++            "threshold": 90,
++            "comparison_operator": "gt"
++        }
++        self.prometheus_composite_rule = {
++            "or": [self.prometheus_sub_rule1, self.prometheus_sub_rule2]}
+ 
+     def test_post_with_composite_rule(self):
+         json = {
+@@ -1557,6 +1571,121 @@ class TestAlarmsCompositeRule(TestAlarmsBase):
+         self.assertEqual(faultstring,
+                          response.json['error_message']['faultstring'])
+ 
++    def _do_post_prometheus_composite_alarm(self, headers, project=None):
++        json = {
++            "type": "composite",
++            "name": "composite_alarm",
++            "composite_rule": self.prometheus_composite_rule,
++            "repeat_actions": False
++        }
++        if project:
++            json['project_id'] = project
++        return self.post_json('/alarms', params=json, status=201,
++                              headers=headers)
++
++    def test_post_with_prometheus_sub_rules(self):
++        resp = self._do_post_prometheus_composite_alarm(self.auth_headers)
++
++        alarms = list(self.alarm_conn.get_alarms(
++            alarm_id=resp.json['alarm_id']))
++        self.assertEqual(1, len(alarms))
++        for rule in alarms[0].rule['or']:
++            self.assertEqual(self.project_id, rule['scope_to_project'])
++
++    def test_post_with_prometheus_sub_rules_as_admin(self):
++        auth_headers = self.auth_headers
++        auth_headers['X-Roles'] = 'admin'
++        resp = self._do_post_prometheus_composite_alarm(auth_headers)
++
++        alarms = list(self.alarm_conn.get_alarms(
++            alarm_id=resp.json['alarm_id']))
++        self.assertEqual(1, len(alarms))
++        for rule in alarms[0].rule['or']:
++            self.assertIsNone(rule['scope_to_project'])
++
++    def test_post_prometheus_sub_rules_as_admin_on_behalf_of_another_project(
++        self
++    ):
++        auth_headers = self.auth_headers
++        auth_headers['X-Roles'] = 'admin'
++        project_id = uuidutils.generate_uuid()
++        resp = self._do_post_prometheus_composite_alarm(auth_headers,
++                                                        project=project_id)
++
++        alarms = list(self.alarm_conn.get_alarms(
++            alarm_id=resp.json['alarm_id']))
++        self.assertEqual(1, len(alarms))
++        for rule in alarms[0].rule['or']:
++            self.assertEqual(project_id, rule['scope_to_project'])
++
++    def test_post_with_prometheus_sub_rules_after_prometheus_alarm(self):
++        json = {
++            'name': 'prometheus_alarm',
++            'type': 'prometheus',
++            'prometheus_rule': {
++                'query': 'ceilometer_cpu',
++                'comparison_operator': 'gt',
++                'threshold': 80,
++            }
++        }
++        self.post_json('/alarms', params=json, status=201,
++                       headers=self.auth_headers)
++        resp = self._do_post_prometheus_composite_alarm(self.auth_headers)
++
++        alarms = list(self.alarm_conn.get_alarms(
++            alarm_id=resp.json['alarm_id']))
++        self.assertEqual(1, len(alarms))
++        for rule in alarms[0].rule['or']:
++            self.assertEqual(self.project_id, rule['scope_to_project'])
++
++    def test_post_with_prometheus_sub_rule_with_scope_to_project(self):
++        self.prometheus_sub_rule1['scope_to_project'] = 'another_project'
++        resp = self._do_post_prometheus_composite_alarm(self.auth_headers)
++
++        alarms = list(self.alarm_conn.get_alarms(
++            alarm_id=resp.json['alarm_id']))
++        self.assertEqual(1, len(alarms))
++        for rule in alarms[0].rule['or']:
++            self.assertEqual(self.project_id, rule['scope_to_project'])
++
++    def test_put_with_prometheus_sub_rules(self):
++        resp = self._do_post_prometheus_composite_alarm(self.auth_headers)
++        alarm_id = resp.json['alarm_id']
++        self._update_alarm(alarm_id, {'name': 'renamed_composite_alarm'})
++
++        alarms = list(self.alarm_conn.get_alarms(alarm_id=alarm_id))
++        self.assertEqual(1, len(alarms))
++        self.assertEqual('renamed_composite_alarm', alarms[0].name)
++        for rule in alarms[0].rule['or']:
++            self.assertEqual(self.project_id, rule['scope_to_project'])
++
++    def test_put_with_prometheus_sub_rules_stored_without_scope(self):
++        self.alarm_conn.create_alarm(models.Alarm(
++            name='composite_alarm',
++            type='composite',
++            enabled=True,
++            alarm_id='h',
++            description='h',
++            state='insufficient data',
++            state_reason='Not evaluated',
++            severity='low',
++            state_timestamp=constants.MIN_DATETIME,
++            timestamp=constants.MIN_DATETIME,
++            ok_actions=[],
++            insufficient_data_actions=[],
++            alarm_actions=[],
++            repeat_actions=False,
++            user_id=self.auth_headers['X-User-Id'],
++            project_id=self.auth_headers['X-Project-Id'],
++            time_constraints=[],
++            rule=self.prometheus_composite_rule))
++        self._update_alarm('h', {'name': 'renamed_composite_alarm'})
++
++        alarms = list(self.alarm_conn.get_alarms(alarm_id='h'))
++        self.assertEqual(1, len(alarms))
++        for rule in alarms[0].rule['or']:
++            self.assertEqual(self.project_id, rule['scope_to_project'])
++
+ 
+ class TestPaginationQuery(TestAlarmsBase):
+     def setUp(self):
+diff --git a/releasenotes/notes/fix-composite-prometheus-sub-rules-2d157a26c8f69378.yaml b/releasenotes/notes/fix-composite-prometheus-sub-rules-2d157a26c8f69378.yaml
+new file mode 100644
+index 00000000..74688692
+--- /dev/null
++++ b/releasenotes/notes/fix-composite-prometheus-sub-rules-2d157a26c8f69378.yaml
+@@ -0,0 +1,12 @@
++---
++fixes:
++  - |
++    [`bug 2168896 <https://bugs.launchpad.net/aodh/+bug/2168896>`_]
++    Fixed creating or updating a composite alarm with ``prometheus``
++    sub-rules, which failed with
++    ``Unknown attribute for argument data: scope_to_project`` once a
++    ``prometheus`` alarm had been created or updated by the same
++    ``aodh-api`` process. The ``prometheus`` sub-rules of a composite
++    alarm are now restricted to a project in the same way as
++    ``prometheus`` alarms. Existing composite alarms are restricted the
++    next time they are updated.
+-- 
+2.43.0
+

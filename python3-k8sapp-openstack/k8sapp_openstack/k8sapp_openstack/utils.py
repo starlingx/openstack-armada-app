@@ -1726,7 +1726,10 @@ def get_current_vswitch_label(label_combinations=None) -> set:
             LOG.info(f"Vswitch labels found: {','.join(map(str, vswitch_labels))}.")
             current_vswitch_labels = vswitch_labels
         else:
-            LOG.error("There are no openstack-enabled compute nodes.")
+            # On a DC System Controller (central cloud) there are no
+            # openstack-enabled compute nodes by design, so skip the error.
+            if not is_central_cloud():
+                LOG.error("There are no openstack-enabled compute nodes.")
     else:
         if len(conflicts) == 1:
             if app_constants.VSWITCH_LABEL_NONE in conflicts:

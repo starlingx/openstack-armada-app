@@ -25,6 +25,7 @@ resources:
   - placement
   - nova
   - nova-api-proxy
+  - masakari
   - neutron
   - libvirt
   - openvswitch

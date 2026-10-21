@@ -1,0 +1,56 @@
+#
+# Copyright (c) 2026 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2"
+kind: HelmRelease
+metadata:
+  name: masakari
+  labels:
+    chart_group: openstack-masakari
+spec:
+  releaseName: osh-openstack-masakari
+  chart:
+    spec:
+      chart: masakari
+      version: REPLACE_HELM_CHART_VERSION
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 1m
+  timeout: 30m
+  test:
+    enable: false
+  # disableWait must stay true. masakari-ks-user, masakari-ks-service,
+  # masakari-ks-endpoints, masakari-db-init and masakari-db-sync are
+  # post-install/post-upgrade Helm hooks, and the masakari-api and
+  # masakari-engine deployments' init containers list those jobs as
+  # kubernetes-entrypoint dependencies (masakari/values.yaml, under
+  # dependencies.static). Helm runs the readiness wait before the post-install
+  # hook phase, so with disableWait: false the deployments block on jobs Helm
+  # has not created yet while Helm blocks on those pods, and the release
+  # deadlocks until the timeout. This is the same pattern nova documents. It is
+  # scale-independent and would deadlock on a single-node system.
+  install:
+    disableHooks: false
+    disableWait: true
+  upgrade:
+    disableHooks: false
+    disableWait: true
+  # masakari-engine calls the Nova API on recovery, so Nova (and the Keystone,
+  # MariaDB and RabbitMQ it depends on, transitively) must be reconciled before
+  # Masakari. nova is the last link in that chain, so dependsOn nova is enough.
+  dependsOn:
+    - name: nova
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: masakari-static-overrides
+      valuesKey: masakari-static-overrides.yaml
+    - kind: Secret
+      name: masakari-system-overrides
+      valuesKey: masakari-system-overrides.yaml
+...

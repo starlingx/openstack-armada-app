@@ -71,3 +71,5 @@
 0071-Support-multiple-NFS-shares-files-in-Cinder.patch
 0072-Fix-mariadb-controller-DEBUG-log-level-truthiness.patch
 0073-Add-artifact-env-mounts-and-backup-rootwrap-to-Cinde.patch
+0074-Add-API-ingress-to-the-Masakari-chart.patch
+0075-Add-tolerations-to-the-Masakari-chart.patch

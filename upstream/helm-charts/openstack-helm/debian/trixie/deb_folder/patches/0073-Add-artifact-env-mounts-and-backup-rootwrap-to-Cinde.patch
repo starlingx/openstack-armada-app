@@ -1,0 +1,477 @@
+From 3cadd4a36eec0b6bc854c9c306556e7ab681f13a Mon Sep 17 00:00:00 2001
+From: Thiago Antonio Miranda <tmarques@windriver.com>
+Date: Thu, 22 Oct 2026 13:44:10 -0300
+Subject: [PATCH] Add artifact env, mounts and backup rootwrap to Cinder
+
+Support operator environment variables and plugin-generated artifact
+delivery in the cinder-volume and cinder-backup containers.
+
+- Add pod.env.<component>, rendered in the matching container only,
+  and compose a single PYTHONPATH from the operator literal followed
+  by the generated artifact paths, both used as supplied. A value that
+  is not a string, manual or generated, fails the render.
+- Combine pod.mounts with pod.artifacts volumes and volumeMounts,
+  keeping equivalent mappings once and failing the render on artifact
+  destinations that are not clean absolute paths, parent or child
+  destination overlaps, incompatible mappings at the same destination,
+  conflicts with the chart's own fixed and conditional destinations,
+  volume names the chart itself declares, and volume names reused
+  with a different definition. One artifact volume may back several
+  destinations. Without artifact values the operator mount lists are
+  passed through unchanged, so legacy-only configurations are
+  unaffected. The destination guard protects the chart's own mounts;
+  it does not confine an artifact, which runs with the privileges of
+  its container.
+- Mount additional rootwrap filter files in cinder-backup, honouring
+  pods: [backup] and pods: [volume, backup] and keeping
+  volume.filters exactly once.
+
+With the new inputs unset the rendered workloads are unchanged.
+
+Signed-off-by: Thiago Antonio Miranda <tmarques@windriver.com>
+---
+ cinder/templates/deployment-backup.yaml       |  22 +-
+ cinder/templates/deployment-volume.yaml       |  11 +-
+ cinder/templates/utils/_artifact_env.tpl      |  31 +++
+ cinder/templates/utils/_artifact_mounts.tpl   | 198 ++++++++++++++++++
+ .../templates/utils/_compose_pythonpath.tpl   |  49 +++++
+ cinder/values.yaml                            |  38 ++++
+ 6 files changed, 345 insertions(+), 4 deletions(-)
+ create mode 100644 cinder/templates/utils/_artifact_env.tpl
+ create mode 100644 cinder/templates/utils/_artifact_mounts.tpl
+ create mode 100644 cinder/templates/utils/_compose_pythonpath.tpl
+
+diff --git a/cinder/templates/deployment-backup.yaml b/cinder/templates/deployment-backup.yaml
+index 04b787e72..740129a46 100644
+--- a/cinder/templates/deployment-backup.yaml
++++ b/cinder/templates/deployment-backup.yaml
+@@ -170,6 +170,10 @@ spec:
+ {{ dict "envAll" $envAll "application" "cinder_backup" "container" "cinder_backup" | include "helm-toolkit.snippets.kubernetes_container_security_context" | indent 10 }}
+           command:
+             - /tmp/cinder-backup.sh
++{{- with (tuple $envAll "cinder_backup" | include "cinder.utils.artifact_env") }}
++          env:
++{{ . | indent 12 }}
++{{- end }}
+           terminationMessagePath: /var/log/termination-log
+           volumeMounts:
+             - name: pod-tmp
+@@ -272,6 +276,16 @@ spec:
+               mountPath: /etc/cinder/rootwrap.d/volume.filters
+               subPath: volume.filters
+               readOnly: true
++            {{- range $key, $value := $envAll.Values.conf.rootwrap_filters }}
++            {{- if and ( has "backup" $value.pods ) ( ne $key "volume" ) }}
++            {{- $filePrefix := replace "_" "-" $key }}
++            {{- $rootwrapFile := printf "/etc/cinder/rootwrap.d/%s.filters" $filePrefix }}
++            - name: cinder-etc
++              mountPath: {{ $rootwrapFile }}
++              subPath: {{ base $rootwrapFile }}
++              readOnly: true
++            {{- end }}
++            {{- end }}
+             {{- $active_protocols := (.Values.storage_conf.active_protocols | default list) -}}
+             {{- $has_san_protocol := or (has "iscsi" $active_protocols) (has "fcp" $active_protocols) -}}
+             {{- if or .Values.conf.enable_iscsi $has_san_protocol }}
+@@ -311,7 +325,9 @@ spec:
+               mountPropagation: Bidirectional
+               {{- end }}
+             {{- end }}
+-{{ if $mounts_cinder_backup.volumeMounts }}{{ toYaml $mounts_cinder_backup.volumeMounts | indent 12 }}{{ end }}
++{{- with (tuple $envAll "cinder_backup" | include "cinder.utils.artifact_volume_mounts") }}
++{{ . | indent 12 }}
++{{- end }}
+       volumes:
+         - name: pod-tmp
+           emptyDir: {}
+@@ -403,5 +419,7 @@ spec:
+           hostPath:
+             path: /etc/multipath
+         {{- end }}
+-{{ if $mounts_cinder_backup.volumes }}{{ toYaml $mounts_cinder_backup.volumes | indent 8 }}{{ end }}
++{{- with (tuple $envAll "cinder_backup" | include "cinder.utils.artifact_volumes") }}
++{{ . | indent 8 }}
++{{- end }}
+ {{- end }}
+diff --git a/cinder/templates/deployment-volume.yaml b/cinder/templates/deployment-volume.yaml
+index 47bb35607..be96df4e6 100644
+--- a/cinder/templates/deployment-volume.yaml
++++ b/cinder/templates/deployment-volume.yaml
+@@ -172,6 +172,9 @@ spec:
+ {{- if or .Values.manifests.certificates .Values.tls.identity }}
+             - name: REQUESTS_CA_BUNDLE
+               value: "/etc/ssl/certs/openstack-helm.crt"
++{{- end }}
++{{- with (tuple $envAll "cinder_volume" | include "cinder.utils.artifact_env") }}
++{{ . | indent 12 }}
+ {{- end }}
+           terminationMessagePath: /var/log/termination-log
+           volumeMounts:
+@@ -321,7 +324,9 @@ spec:
+               {{- end }}
+             {{- end }}
+ {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume_mount" | indent 12 }}
+-{{ if $mounts_cinder_volume.volumeMounts }}{{ toYaml $mounts_cinder_volume.volumeMounts | indent 12 }}{{ end }}
++{{- with (tuple $envAll "cinder_volume" | include "cinder.utils.artifact_volume_mounts") }}
++{{ . | indent 12 }}
++{{- end }}
+       volumes:
+         - name: pod-tmp
+           emptyDir: {}
+@@ -409,5 +414,7 @@ spec:
+             path: /sys
+         {{- end }}
+ {{- dict "enabled" .Values.manifests.certificates "name" .Values.secrets.tls.volumev3.api.public | include "helm-toolkit.snippets.tls_volume" | indent 8 }}
+-{{ if $mounts_cinder_volume.volumes }}{{ toYaml $mounts_cinder_volume.volumes | indent 8 }}{{ end }}
++{{- with (tuple $envAll "cinder_volume" | include "cinder.utils.artifact_volumes") }}
++{{ . | indent 8 }}
++{{- end }}
+ {{- end }}
+diff --git a/cinder/templates/utils/_artifact_env.tpl b/cinder/templates/utils/_artifact_env.tpl
+new file mode 100644
+index 000000000..5599fd2b1
+--- /dev/null
++++ b/cinder/templates/utils/_artifact_env.tpl
+@@ -0,0 +1,31 @@
++{{/*
++Copyright (c) 2026 Wind River Systems, Inc.
++
++SPDX-License-Identifier: Apache-2.0
++
++*/}}
++
++{{/*
++Operator env for a Cinder consumer as a container env list. PYTHONPATH is removed
++from the ordinary vars (never rendered twice) and re-emitted once as a composed value.
++Renders nothing when the consumer has neither ordinary vars nor a Python path.
++Usage: tuple $envAll "cinder_volume" | include "cinder.utils.artifact_env" | indent 12
++*/}}
++{{- define "cinder.utils.artifact_env" -}}
++  {{- $envAll := index . 0 -}}
++  {{- $component := index . 1 -}}
++  {{- $pod := $envAll.Values.pod | default dict -}}
++  {{- $env := index ($pod.env | default dict) $component | default dict | deepCopy -}}
++  {{- $_ := unset $env "PYTHONPATH" -}}
++  {{- $entries := list -}}
++  {{- if gt (len $env) 0 -}}
++    {{- $entries = append $entries (include "helm-toolkit.utils.to_k8s_env_vars" $env | trim) -}}
++  {{- end -}}
++  {{- $pythonpath := tuple $envAll $component | include "cinder.utils.compose_pythonpath" -}}
++  {{- if ne $pythonpath "" -}}
++    {{- $entries = append $entries (printf "- name: PYTHONPATH\n  value: %s" ($pythonpath | quote)) -}}
++  {{- end -}}
++  {{- if gt (len $entries) 0 -}}
++    {{- join "\n" $entries -}}
++  {{- end -}}
++{{- end -}}
+diff --git a/cinder/templates/utils/_artifact_mounts.tpl b/cinder/templates/utils/_artifact_mounts.tpl
+new file mode 100644
+index 000000000..cd40522f9
+--- /dev/null
++++ b/cinder/templates/utils/_artifact_mounts.tpl
+@@ -0,0 +1,198 @@
++{{/*
++Copyright (c) 2026 Wind River Systems, Inc.
++
++SPDX-License-Identifier: Apache-2.0
++
++*/}}
++
++{{/*
++True when destination b is the same as or nested under destination a (by path
++component), so /opt/vendor overlaps /opt/vendor/bin but not /opt/vendor2. Both sides
++are cleaned first (repeated slashes, "." and ".." resolved, trailing slash dropped),
++so a spelling such as //opt/vendor/ or /opt/../opt/vendor compares as /opt/vendor.
++Usage: tuple $a $b | include "cinder.utils.path_overlaps"
++*/}}
++{{- define "cinder.utils.path_overlaps" -}}
++  {{- $a := index . 0 | toString | clean | trimSuffix "/" -}}
++  {{- $b := index . 1 | toString | clean | trimSuffix "/" -}}
++  {{- $ca := splitList "/" $a -}}
++  {{- $cb := splitList "/" $b -}}
++  {{- $overlap := false -}}
++  {{- if le (len $ca) (len $cb) -}}
++    {{- $overlap = true -}}
++    {{- range $i, $seg := $ca -}}
++      {{- if ne $seg (index $cb $i) -}}{{- $overlap = false -}}{{- end -}}
++    {{- end -}}
++  {{- end -}}
++  {{- $overlap -}}
++{{- end -}}
++
++{{/*
++Comparison key for one container volumeMount: the whole mount object, so every field
++(source volume, selected content, destination and any mount option) takes part and a
++field this chart does not know about cannot be dropped silently. Two mappings with the
++same key are equivalent and are kept once; the same destination with a different key is
++a conflict. The only normalization is readOnly: false, which equals leaving it unset.
++Usage: include "cinder.utils.mount_key" $mount
++*/}}
++{{- define "cinder.utils.mount_key" -}}
++  {{- $m := deepCopy . -}}
++  {{- if not (index $m "readOnly" | default false) -}}
++    {{- $_ := unset $m "readOnly" -}}
++  {{- end -}}
++  {{- toYaml $m -}}
++{{- end -}}
++
++{{/*
++Destinations the chart itself mounts into a Cinder consumer, as a newline separated
++list. Artifact destinations are compared against these, because a conflict with a
++fixed or conditional chart mount is only visible while rendering.
++
++The list is a deliberately conservative union: parent destinations stand in for the
++files mounted beneath them (/etc/cinder covers cinder.conf, conf.d, backends.conf,
++nfs.shares and rootwrap.d/*; /var/lib/cinder covers the conversion and tmp scratch
++mounts, which do not follow state_path) and branch conditions are not evaluated, so the guard
++does not depend on which backends or protocols happen to be enabled. Artifacts are
++therefore kept out of the chart's own destinations on every deployment shape.
++
++This guard protects the chart's own mounts; it does not confine an artifact. Artifact
++content runs as the Cinder service with the privileges of its container, and nothing
++stops an operator from placing it on other system paths. Trust in an artifact comes
++from the platform that declares it, not from this list.
++Usage: tuple $envAll "cinder_volume" | include "cinder.utils.chart_mount_paths"
++*/}}
++{{- define "cinder.utils.chart_mount_paths" -}}
++  {{- $envAll := index . 0 -}}
++  {{- $conf := $envAll.Values.conf | default dict -}}
++  {{- $cinder := $conf.cinder | default dict -}}
++  {{- $default := $cinder.DEFAULT | default dict -}}
++  {{- $concurrency := $cinder.oslo_concurrency | default dict -}}
++  {{- $coordination := $cinder.coordination | default dict -}}
++  {{- /* /var/lock is a symlink to /run/lock; the guard compares strings, so list both. */ -}}
++  {{- $paths := list "/tmp" "/dev" "/sys" "/run/lock" "/var/lock" "/run/cryptsetup" "/mnt/host-rootfs" "/usr/local/sbin" "/etc/ceph" "/etc/cinder" "/etc/iscsi" "/etc/multipath" "/etc/sudoers.d" "/etc/ssl/certs/openstack-helm.crt" "/var/lib/cinder" -}}
++  {{- range $candidate := list ($concurrency.lock_path | default "") ($default.state_path | default "") ($default.log_config_append | default "") ($default.backup_posix_path | default "") -}}
++    {{- if ne ($candidate | toString) "" -}}
++      {{- $paths = append $paths ($candidate | toString) -}}
++    {{- end -}}
++  {{- end -}}
++  {{- $backendUrl := $coordination.backend_url | default "" | toString -}}
++  {{- if eq ( split "://" $backendUrl )._0 "file" -}}
++    {{- $paths = append $paths ( split "://" $backendUrl )._1 -}}
++  {{- end -}}
++  {{- join "\n" ($paths | uniq) -}}
++{{- end -}}
++
++{{/*
++Combined container volumeMounts for a Cinder consumer: operator pod.mounts first, then
++plugin artifact mounts. Equivalent mappings are kept once. An artifact destination that
++is not a clean absolute path (Kubernetes keeps mountPath as written and the runtime
++cleans it, so //etc/x or /opt/../etc/x would escape a literal comparison), that lands
++on, above or below another mapping or a chart mount, and an incompatible mapping at an
++artifact's destination, fail the render with the component and path.
++
++Without artifact mounts the operator list is passed through unchanged, so legacy-only
++mount behavior is not affected by these checks.
++Usage: tuple $envAll "cinder_volume" | include "cinder.utils.artifact_volume_mounts" | indent 12
++*/}}
++{{- define "cinder.utils.artifact_volume_mounts" -}}
++  {{- $envAll := index . 0 -}}
++  {{- $component := index . 1 -}}
++  {{- $pod := $envAll.Values.pod | default dict -}}
++  {{- $componentMounts := index ($pod.mounts | default dict) $component | default dict -}}
++  {{- $base := (index $componentMounts $component | default dict).volumeMounts | default list -}}
++  {{- $artMounts := (index ($pod.artifacts | default dict) $component | default dict).volumeMounts | default list -}}
++  {{- $kept := $base | deepCopy -}}
++  {{- if gt (len $artMounts) 0 -}}
++    {{- $chartPaths := splitList "\n" (tuple $envAll $component | include "cinder.utils.chart_mount_paths") -}}
++    {{- range $m := ($artMounts | deepCopy) -}}
++      {{- $mPath := $m.mountPath | default "" | toString -}}
++      {{- if eq $mPath "" -}}
++        {{- fail (printf "cinder %s: artifact volume %s has no mountPath" $component ($m.name | default "<unnamed>" | toString)) -}}
++      {{- end -}}
++      {{- if or (not (hasPrefix "/" $mPath)) (ne $mPath (clean $mPath)) -}}
++        {{- fail (printf "cinder %s: artifact mountPath %s is not a clean absolute path" $component $mPath) -}}
++      {{- end -}}
++      {{- range $c := $chartPaths -}}
++        {{- if or (eq "true" (tuple $c $mPath | include "cinder.utils.path_overlaps")) (eq "true" (tuple $mPath $c | include "cinder.utils.path_overlaps")) -}}
++          {{- fail (printf "cinder %s: artifact mountPath %s conflicts with chart mount %s" $component $mPath $c) -}}
++        {{- end -}}
++      {{- end -}}
++      {{- $key := include "cinder.utils.mount_key" $m -}}
++      {{- $dup := false -}}
++      {{- range $k := $kept -}}
++        {{- $kPath := $k.mountPath | default "" | toString -}}
++        {{- if eq $key (include "cinder.utils.mount_key" $k) -}}
++          {{- $dup = true -}}
++        {{- else if eq $mPath $kPath -}}
++          {{- fail (printf "cinder %s: incompatible mounts at the same destination %s" $component $mPath) -}}
++        {{- else if or (eq "true" (tuple $kPath $mPath | include "cinder.utils.path_overlaps")) (eq "true" (tuple $mPath $kPath | include "cinder.utils.path_overlaps")) -}}
++          {{- fail (printf "cinder %s: artifact mountPath %s overlaps %s" $component $mPath $kPath) -}}
++        {{- end -}}
++      {{- end -}}
++      {{- if not $dup -}}{{- $kept = append $kept $m -}}{{- end -}}
++    {{- end -}}
++  {{- end -}}
++  {{- if gt (len $kept) 0 -}}
++    {{- toYaml $kept -}}
++  {{- end -}}
++{{- end -}}
++
++{{/*
++Volume names the chart itself declares in a Cinder consumer, as a newline separated
++list. Like chart_mount_paths this is the union over both consumers and every branch, so
++an artifact volume can never collide with a chart volume on any deployment shape; a
++duplicate name would otherwise only be rejected by the API server at apply time.
++Usage: tuple $envAll "cinder_volume" | include "cinder.utils.chart_volume_names"
++*/}}
++{{- define "cinder.utils.chart_volume_names" -}}
++  {{- $envAll := index . 0 -}}
++  {{- $names := list "pod-tmp" "pod-var-cinder" "pod-shared" "oslo-lock-path" "cinder-bin" "cinder-etc" "cinder-etc-snippets" "cinder-tmp" "cinder-conversion" "cinder-coordination" "cinder-backup" "etcceph" "ceph-etc" "external-ceph-etc" "external-backup-ceph-etc" "ceph-keyring" "external-ceph-keyring" "ceph-backup-keyring" "host-rootfs" "host-dev" "runcryptsetup" "runlock" "etciscsi" "usrlocalsbin" "etcmultipath" "sys" -}}
++  {{- $tls := ((($envAll.Values.secrets | default dict).tls | default dict).volumev3 | default dict).api | default dict -}}
++  {{- if ne ($tls.public | default "" | toString) "" -}}
++    {{- $names = append $names ($tls.public | toString) -}}
++  {{- end -}}
++  {{- join "\n" $names -}}
++{{- end -}}
++
++{{/*
++Combined pod volumes for a Cinder consumer: operator pod.mounts first, then plugin
++artifact volumes. An artifact volume equivalent to an existing one is kept once; a name
++reused with a different definition, or a name the chart itself declares, fails the
++render. One artifact volume may back several destinations, so volume names are
++intentionally not compared against mount destinations.
++
++Without artifact volumes the operator list is passed through unchanged.
++Usage: tuple $envAll "cinder_volume" | include "cinder.utils.artifact_volumes" | indent 8
++*/}}
++{{- define "cinder.utils.artifact_volumes" -}}
++  {{- $envAll := index . 0 -}}
++  {{- $component := index . 1 -}}
++  {{- $pod := $envAll.Values.pod | default dict -}}
++  {{- $componentMounts := index ($pod.mounts | default dict) $component | default dict -}}
++  {{- $base := (index $componentMounts $component | default dict).volumes | default list -}}
++  {{- $artVols := (index ($pod.artifacts | default dict) $component | default dict).volumes | default list -}}
++  {{- $kept := $base | deepCopy -}}
++  {{- if gt (len $artVols) 0 -}}
++    {{- $chartNames := splitList "\n" (tuple $envAll $component | include "cinder.utils.chart_volume_names") -}}
++    {{- range $v := ($artVols | deepCopy) -}}
++      {{- $vName := $v.name | default "" | toString -}}
++      {{- if has $vName $chartNames -}}
++        {{- fail (printf "cinder %s: artifact volume %s reuses a chart volume name" $component $vName) -}}
++      {{- end -}}
++      {{- $dup := false -}}
++      {{- range $k := $kept -}}
++        {{- if eq ($v.name | default "" | toString) ($k.name | default "" | toString) -}}
++          {{- if eq (toYaml $v) (toYaml $k) -}}
++            {{- $dup = true -}}
++          {{- else -}}
++            {{- fail (printf "cinder %s: volume %s defined twice with different content" $component ($v.name | default "<unnamed>" | toString)) -}}
++          {{- end -}}
++        {{- end -}}
++      {{- end -}}
++      {{- if not $dup -}}{{- $kept = append $kept $v -}}{{- end -}}
++    {{- end -}}
++  {{- end -}}
++  {{- if gt (len $kept) 0 -}}
++    {{- toYaml $kept -}}
++  {{- end -}}
++{{- end -}}
+diff --git a/cinder/templates/utils/_compose_pythonpath.tpl b/cinder/templates/utils/_compose_pythonpath.tpl
+new file mode 100644
+index 000000000..070a8f5fa
+--- /dev/null
++++ b/cinder/templates/utils/_compose_pythonpath.tpl
+@@ -0,0 +1,49 @@
++{{/*
++Copyright (c) 2026 Wind River Systems, Inc.
++
++SPDX-License-Identifier: Apache-2.0
++
++*/}}
++
++{{/*
++PYTHONPATH for a Cinder consumer: operator literal first, then plugin-generated
++artifact paths as supplied and in their declared order. Nothing is expanded,
++normalized or de-duplicated; only empty entries are skipped, so an absent
++contribution adds no separator. Entries that are not strings fail the render.
++Empty when neither is set.
++Usage: tuple $envAll "cinder_volume" | include "cinder.utils.compose_pythonpath"
++*/}}
++{{- define "cinder.utils.compose_pythonpath" -}}
++  {{- $envAll := index . 0 -}}
++  {{- $component := index . 1 -}}
++  {{- $pod := $envAll.Values.pod | default dict -}}
++  {{- $env := index ($pod.env | default dict) $component | default dict -}}
++  {{- $parts := list -}}
++  {{- if hasKey $env "PYTHONPATH" -}}
++    {{- $manual := index $env "PYTHONPATH" -}}
++    {{- if ne (kindOf $manual) "invalid" -}}
++      {{- if not (kindIs "string" $manual) -}}
++        {{- fail (printf "cinder %s: pod.env.%s.PYTHONPATH must be a string, got %s" $component $component (kindOf $manual)) -}}
++      {{- end -}}
++      {{- if ne $manual "" -}}
++        {{- $parts = append $parts $manual -}}
++      {{- end -}}
++    {{- end -}}
++  {{- end -}}
++  {{- $artifacts := index ($pod.artifacts | default dict) $component | default dict -}}
++  {{- $paths := $artifacts.python_paths | default list -}}
++  {{- if not (kindIs "slice" $paths) -}}
++    {{- fail (printf "cinder %s: pod.artifacts.%s.python_paths must be a list, got %s" $component $component (kindOf $paths)) -}}
++  {{- end -}}
++  {{- range $path := $paths -}}
++    {{- if not (kindIs "string" $path) -}}
++      {{- fail (printf "cinder %s: pod.artifacts.%s.python_paths entries must be strings, got %s" $component $component (kindOf $path)) -}}
++    {{- end -}}
++    {{- if ne $path "" -}}
++      {{- $parts = append $parts $path -}}
++    {{- end -}}
++  {{- end -}}
++  {{- if gt (len $parts) 0 -}}
++    {{- join ":" $parts -}}
++  {{- end -}}
++{{- end -}}
+diff --git a/cinder/values.yaml b/cinder/values.yaml
+index 98a9d4373..6bd3f3916 100644
+--- a/cinder/values.yaml
++++ b/cinder/values.yaml
+@@ -258,6 +258,44 @@ pod:
+       cinder_db_sync:
+         volumeMounts:
+         volumes:
++  # -- Operator-supplied environment variables for the main Cinder containers,
++  # rendered in the matching container only. PYTHONPATH is a literal string that is
++  # kept verbatim and placed before any generated artifact path.
++  ## pod:
++  ##   env:
++  ##     cinder_volume:
++  ##       PYTHONPATH: /opt/company/python
++  env:
++    cinder_volume: {}
++    cinder_backup: {}
++  # -- Plugin-generated artifact delivery for the main Cinder containers. These values
++  # are produced by python3-k8sapp-openstack from storage_conf.artifacts; they are not an
++  # operator interface. volumes and volumeMounts are ordinary Kubernetes objects, used as
++  # supplied. python_paths is an ordered list of absolute directories appended to
++  # PYTHONPATH after the operator literal. One volume may back several destinations.
++  ## pod:
++  ##   artifacts:
++  ##     cinder_volume:
++  ##       volumes:
++  ##         - name: artifact-example
++  ##           image:
++  ##             reference: registry.local:9001/partner/sdk@sha256:<digest>
++  ##             pullPolicy: IfNotPresent
++  ##       volumeMounts:
++  ##         - name: artifact-example
++  ##           mountPath: /opt/artifacts/example
++  ##           readOnly: true
++  ##       python_paths:
++  ##         - /opt/artifacts/example
++  artifacts:
++    cinder_volume:
++      volumes: []
++      volumeMounts: []
++      python_paths: []
++    cinder_backup:
++      volumes: []
++      volumeMounts: []
++      python_paths: []
+   # -- This allows users to add Kubernetes Projected Volumes to be mounted at /etc/cinder/cinder.conf.d/
+   ## This is a list of projected volume source objects for each deployment/statefulset/daemonset/cronjob
+   ## https://kubernetes.io/docs/concepts/storage/projected-volumes/
+-- 
+2.43.0
+

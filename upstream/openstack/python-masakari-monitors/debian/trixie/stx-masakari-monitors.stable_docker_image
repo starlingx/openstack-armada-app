@@ -1,0 +1,6 @@
+BUILDER=loci
+LABEL=stx-masakari-monitors
+PROJECT=infra
+PROJECT_REPO=nil
+DIST_PACKAGES="python3-masakari-monitors"
+DIST_REPOS="OS +openstack"

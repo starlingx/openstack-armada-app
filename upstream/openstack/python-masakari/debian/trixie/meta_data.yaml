@@ -1,0 +1,13 @@
+---
+debname: masakari
+debver: 21.0.0-2
+dl_path:
+  name: masakari-debian-21.0.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/services/masakari/-/archive/debian/21.0.0-2/masakari-debian-21.0.0-2.tar.gz
+  md5sum: 5086abfe73f64c7946a4a4b702e2bd02
+  sha256sum: 866da14ba6c375926bfba108786fd176b09fc38ce58ec02ae52b8d5d43ef2974
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: c0fcecc64c45c786152d7608553c5db444fb7026
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-masakari

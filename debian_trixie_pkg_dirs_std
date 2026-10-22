@@ -12,6 +12,8 @@ upstream/openstack/python-glanceclient
 upstream/openstack/python-heatclient
 upstream/openstack/python-ironicclient
 upstream/openstack/python-keystoneclient
+upstream/openstack/python-masakari
+upstream/openstack/python-masakari-monitors
 upstream/openstack/python-neutronclient
 upstream/openstack/python-novaclient
 upstream/openstack/python-openstackclient

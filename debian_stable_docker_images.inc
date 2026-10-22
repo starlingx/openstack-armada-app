@@ -5,6 +5,8 @@ upstream/openstack/python-glance
 upstream/openstack/python-heat/openstack-heat
 upstream/openstack/python-horizon
 upstream/openstack/python-keystone
+upstream/openstack/python-masakari
+upstream/openstack/python-masakari-monitors
 upstream/openstack/python-neutron
 upstream/openstack/python-nova
 upstream/openstack/python-openstackclient

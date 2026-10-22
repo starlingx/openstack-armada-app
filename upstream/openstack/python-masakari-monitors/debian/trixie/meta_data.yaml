@@ -1,0 +1,13 @@
+---
+debname: masakari-monitors
+debver: 21.0.0-2
+dl_path:
+  name: masakari-monitors-debian-21.0.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/services/masakari-monitors/-/archive/debian/21.0.0-2/masakari-monitors-debian-21.0.0-2.tar.gz
+  md5sum: 9d2870cf7e78ea2da6203ff41453f1cb
+  sha256sum: 88b02f9c837a9d019f3495bc75ea16db0e2bc23643b82ac4c5cbe2835be494f5
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: c0fcecc64c45c786152d7608553c5db444fb7026
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-masakari-monitors

@@ -977,12 +977,18 @@ pod:
           params:
             periodSeconds: 10
             timeoutSeconds: 5
+        # Liveness on the uwsgi stats port (1717) so a busy worker does not
+        # fail liveness and restart the pod. Upstream wires this in
+        # openstack-helm 1004279; 967830 (in our pin) only opened the socket.
+        # Remove this override once the pin advances past 1004279.
         liveness:
           enabled: true
           params:
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
+            httpGet:
+              port: 1717
   resources:
     enabled: false
     api:

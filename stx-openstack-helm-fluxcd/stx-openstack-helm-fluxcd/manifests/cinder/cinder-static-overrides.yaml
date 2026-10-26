@@ -75,6 +75,10 @@ pod:
   probes:
     api:
       cinder-api:
+        # Liveness on the uwsgi stats port (1717) so a busy worker does not
+        # fail liveness and restart the pod. Upstream wires this in
+        # openstack-helm 1005976; 967830 (in our pin) only opened the socket.
+        # Remove this override once the pin advances past 1005976.
         liveness:
           enabled: True
           params:
@@ -83,6 +87,8 @@ pod:
             timeoutSeconds: 5
             failureThreshold: 5
             successThreshold: 1
+            httpGet:
+              port: 1717
         readiness:
           enabled: True
           params:

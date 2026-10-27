@@ -983,10 +983,6 @@ class TestCinderESBOverridesIntegration(CinderESBTestCase,
             }
         }
     )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
     def test_esb_iscsi_only_deployment(self, *_):
         """ESB-only iSCSI: correct pod security context and backend emission."""
         overrides = self.operator.get_helm_chart_overrides(
@@ -1052,10 +1048,6 @@ class TestCinderESBOverridesIntegration(CinderESBTestCase,
             }
         }
     )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
     def test_esb_local_protocol_most_restrictive(self, *_):
         """ESB local protocol: most restrictive pod security profile."""
         overrides = self.operator.get_helm_chart_overrides(
@@ -1098,19 +1090,15 @@ class TestCinderESBOverridesIntegration(CinderESBTestCase,
         return_value={}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_cinder_overrides',
         return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_overrides',
         return_value={'monitors': [], 'admin_keyring': 'null', 'pools': {}}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_backends_overrides',
         return_value={'ceph': {'volume_backend_name': 'ceph'}}
     )
     def test_ceph_only_regression(self, *_):

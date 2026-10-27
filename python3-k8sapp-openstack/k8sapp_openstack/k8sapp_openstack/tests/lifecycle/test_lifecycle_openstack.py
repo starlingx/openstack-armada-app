@@ -518,10 +518,10 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
     def test__pre_update_backup_actions_ceph_fallback(
             self, mock_app_utils, mock_get_provisioner,
             mock_get_snapshot_class, *_):
-        """On Ceph RBD with no existing class, fall back to 'rbd-snapshot'.
+        """On Rook Ceph RBD with no existing class, fall back to 'rbd-snapshot'.
 
         Preserves the legacy behaviour where create_pvc_snapshot() /
-        check_and_create_snapshot_class() auto-creates the Ceph class.
+        check_and_create_rook_ceph_snapshot_class() auto-creates the Ceph class.
         """
         app = mock.Mock(inst_path='test_path')
 
@@ -533,8 +533,8 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
 
         mock_app_utils.get_num_provisioned_controllers.return_value = \
             number_of_controllers
-        mock_get_provisioner.return_value = app_constants.CEPH_RBD_DRIVER
-        # No existing VolumeSnapshotClass matches the Ceph driver.
+        mock_get_provisioner.return_value = app_constants.CEPH_ROOK_RBD_DRIVER
+        # No existing VolumeSnapshotClass matches the Rook Ceph driver.
         mock_get_snapshot_class.return_value = ""
 
         calls = []
@@ -1620,38 +1620,25 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_kube.kube_read_config_map.assert_not_called()
 
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.is_ceph_backend_available')
-    def test_pre_apply_copy_storage_backend_config_rbd_storage_backend_success(
+    def test_pre_apply_copy_storage_backend_config_rook_unavailable_skips(
         self,
         mock_is_ceph_backend_available,
         *_
     ):
-        """Test host-ceph config map when rook-ceph is not available."""
+        """Host-based Ceph support has been removed.
+
+        When Rook Ceph is not available the Ceph ConfigMap copy is skipped
+        entirely; there is no longer a host-ceph fallback namespace.
+        """
         mock_kube = mock.Mock()
-        fake_configmap = mock.Mock()
-        fake_configmap.metadata.resource_version = "1.0"
-        fake_configmap.metadata.namespace = "kube-system"
-        fake_configmap.metadata.name = "rbd-storage-init"
 
-        def ceph_backend_availability(ceph_type):
-            if ceph_type == constants.SB_TYPE_CEPH_ROOK:
-                return False, "Other reason"
-            return True, ""
-
-        mock_is_ceph_backend_available.side_effect = ceph_backend_availability
-        mock_kube.kube_read_config_map.return_value = fake_configmap
+        mock_is_ceph_backend_available.return_value = (False, "Other reason")
+        mock_kube.kube_read_config_map.return_value = mock.Mock()
 
         self.lifecycle._pre_apply_copy_storage_backend_config(mock_kube)
 
-        mock_kube.kube_read_config_map.assert_called_once_with(
-            self.lifecycle.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP,
-            common.HELM_NS_RBD_PROVISIONER
-        )
-        mock_kube.kube_create_config_map.assert_called_once_with(
-            common.HELM_NS_OPENSTACK,
-            fake_configmap
-        )
-        assert fake_configmap.metadata.namespace == common.HELM_NS_OPENSTACK
-        assert fake_configmap.metadata.name == self.lifecycle.APP_OPENSTACK_RESOURCE_CONFIG_MAP
+        mock_kube.kube_read_config_map.assert_not_called()
+        mock_kube.kube_create_config_map.assert_not_called()
 
     @mock.patch('k8sapp_openstack.utils.delete_aodh_rest_notifier_ca_cert_secret')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.lifecycle_utils')

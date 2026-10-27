@@ -48,7 +48,6 @@ LOG = logging.getLogger(__name__)
 
 class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
     CHARTS_PENDING_INSTALL_ITERATIONS = 60
-    APP_KUBESYSTEM_RESOURCE_CONFIG_MAP = 'rbd-storage-init'
     APP_OPENSTACK_RESOURCE_CONFIG_MAP = 'ceph-etc'
     WAS_APPLIED = 'was_applied'
     MAX_HOSTS_FOR_DETAILED_MSG = 5
@@ -523,19 +522,14 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             LifecycleMissingInfo: Reports an issue when reading the source config map.
         """
         rook_ceph_available, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
-        host_ceph_available, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH)
+        # Host-based Ceph support has been removed; the Ceph
+        # ConfigMap is only ever sourced from the Rook Ceph namespace.
         if rook_ceph_available:
             LOG.info(f"Read {self.APP_OPENSTACK_RESOURCE_CONFIG_MAP} config map"
                      "from rook-ceph namespace "
                      f"({app_constants.HELM_NS_ROOK_CEPH})")
             src_config_map_name = self.APP_OPENSTACK_RESOURCE_CONFIG_MAP
             src_config_map_ns = app_constants.HELM_NS_ROOK_CEPH
-        elif host_ceph_available:
-            LOG.info(f"Read {self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP} config map"
-                     "from host-ceph namespace "
-                     f"({common.HELM_NS_RBD_PROVISIONER})")
-            src_config_map_name = self.APP_KUBESYSTEM_RESOURCE_CONFIG_MAP
-            src_config_map_ns = common.HELM_NS_RBD_PROVISIONER
         else:
             LOG.warning("Ceph is not available, skipping Ceph ConfigMap copy")
             return
@@ -836,9 +830,6 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         fsid_available = False
         rook_api_available = False
         backend_available = False
-        ceph_available, _ = app_utils.is_ceph_backend_available(
-            ceph_type=constants.SB_TYPE_CEPH
-        )
         rook_ceph_available, _ = app_utils.is_ceph_backend_available(
             ceph_type=constants.SB_TYPE_CEPH_ROOK
         )
@@ -855,8 +846,7 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             app_constants.NETAPP_FC_BACKEND_NAME,
             False
         )
-        status = f"ceph_available={ceph_available}, " \
-                 f"rook_ceph_available={rook_ceph_available}, " \
+        status = f"rook_ceph_available={rook_ceph_available}, " \
                  f"netapp_nfs_available={netapp_nfs_available}, " \
                  f"netapp_iscsi_available={netapp_iscsi_available}, " \
                  f"netapp_fc_available={netapp_fc_available}"
@@ -1345,14 +1335,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # the PVC and blocks upgrade rollback. So the class is discovered from
         # the PVC's provisioner instead.
         nc = max(1, app_utils.get_num_provisioned_controllers())
-        # Legacy Ceph behaviour: when the PVC is on a Ceph RBD backend but no
-        # VolumeSnapshotClass exists yet, create_pvc_snapshot() auto-creates
-        # this one. Preserved unchanged for existing Ceph deployments.
+        # Legacy Ceph behaviour: when the PVC is on the Rook Ceph RBD backend
+        # but no VolumeSnapshotClass exists yet, create_pvc_snapshot()
+        # auto-creates this one. Preserved unchanged for Rook Ceph deployments.
         CEPH_RBD_SNAPSHOT_CLASS_NAME = "rbd-snapshot"
-        CEPH_RBD_DRIVERS = (
-            app_constants.CEPH_RBD_DRIVER,
-            app_constants.CEPH_ROOK_RBD_DRIVER,
-        )
 
         for i in range(0, nc):
             pvc_name = f"mysql-data-mariadb-server-{i}"
@@ -1362,10 +1348,10 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             snapshot_class = get_snapshot_class_for_provisioner(provisioner)
 
             if not snapshot_class:
-                if provisioner in CEPH_RBD_DRIVERS:
-                    # Ceph RBD without an existing class: let
-                    # create_pvc_snapshot()/check_and_create_snapshot_class()
-                    # auto-create the Ceph class, as it did before this fix.
+                if provisioner == app_constants.CEPH_ROOK_RBD_DRIVER:
+                    # Rook Ceph RBD without an existing class: let
+                    # create_pvc_snapshot()/check_and_create_rook_ceph_snapshot_class()
+                    # auto-create the Rook Ceph class, as it did before this fix.
                     snapshot_class = CEPH_RBD_SNAPSHOT_CLASS_NAME
                 else:
                     # No VolumeSnapshotClass matches this PVC's backend and it

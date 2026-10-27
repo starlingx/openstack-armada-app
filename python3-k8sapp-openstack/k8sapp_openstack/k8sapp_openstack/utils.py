@@ -34,7 +34,6 @@ from sysinv.common import utils as cutils
 from sysinv.common.retrying import retry
 from sysinv.conductor import kube_app
 from sysinv.db import api as dbapi
-from sysinv.helm import common as helm_common
 from sysinv.helm import utils as helm_utils
 import yaml
 
@@ -889,32 +888,31 @@ def check_storageclass_change(
 def check_ceph_backends(chart_name: str = app_constants.HELM_CHART_CINDER,
                           override_name: str = app_constants.OVERRIDE_STORAGE_BACKENDS) -> dict:
     """
-    Check the availability of Ceph backends considering user overrides.
+    Check the availability of the Ceph (Rook) backend considering user overrides.
     To be considered an available backend, two conditions must be met:
     1. The backend must be discovered automatically via `is_ceph_backend_available`.
     2. If user overrides are defined for storage backends, the backend must be
        explicitly enabled in those overrides.
+
+    Host-based Ceph support has been removed; the only supported Ceph backend
+    is Rook Ceph, so the user-facing "ceph" name maps exclusively to it.
+
     Args:
         chart_name (str): The Helm chart name to check for user overrides.
                      Defaults to `app_constants.HELM_CHART_CINDER`.
         override_name (str): The name of the override field in values.yaml.
     Returns:
-        dict: A dictionary indicating the availability of each Ceph backend:
+        dict: A dictionary indicating the availability of the Ceph backend:
         ```
         {
-          "ceph": True/False,
           "ceph-rook-store": True/False,
         }
         ```
     """
-    ceph_backend_types = [
-        (app_constants.CEPH_BACKEND_NAME, constants.SB_TYPE_CEPH),
-        (app_constants.CEPH_ROOK_BACKEND_NAME, constants.SB_TYPE_CEPH_ROOK)
-    ]
-    ceph_backends_available = dict([
-        (name, is_ceph_backend_available(ceph_type)[0])
-        for name, ceph_type in ceph_backend_types
-    ])
+    ceph_backends_available = {
+        app_constants.CEPH_ROOK_BACKEND_NAME:
+            is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)[0]
+    }
 
     if is_user_overrides_available(chart_name=chart_name,
                                    override_name=override_name):
@@ -923,10 +921,9 @@ def check_ceph_backends(chart_name: str = app_constants.HELM_CHART_CINDER,
             override_name=override_name
         )
 
-        for ceph_backend, _ in ceph_backend_types:
-            ceph_backends_available[ceph_backend] &= (
-                app_constants.CEPH_BACKEND_NAME in enabled_backends
-            )
+        ceph_backends_available[app_constants.CEPH_ROOK_BACKEND_NAME] &= (
+            app_constants.CEPH_BACKEND_NAME in enabled_backends
+        )
 
     return ceph_backends_available
 
@@ -1310,11 +1307,13 @@ def is_netapp_available() -> bool:
 
 
 def is_ceph_backend_available(ceph_type: str =
-                              constants.SB_TYPE_CEPH) -> tuple[bool, str]:
+                              constants.SB_TYPE_CEPH_ROOK) -> tuple[bool, str]:
     """Checks if the given Ceph storage backend type is available
 
     Args:
-        backend (str): Ceph backend type (e.g., "ceph" or "ceph-rook").
+        ceph_type (str): Ceph backend type. Defaults to the Rook Ceph type,
+            which is the only Ceph backend supported since host-based Ceph
+            was removed.
 
     Returns:
         tuple[bool, str]:
@@ -1338,8 +1337,10 @@ def is_ceph_backend_available(ceph_type: str =
     task = ceph_backends[0].task
 
     if ceph_type == constants.SB_TYPE_CEPH:
-        # Based on tests, for host ceph the task value cannot be verified as
-        # 'applied'. Sometimes we can see the task=None even for healthy ceph
+        # Based on tests, for ceph the task value cannot be verified as
+        # 'applied'. Sometimes we can see the task=None even for healthy ceph.
+        # host-based Ceph is no longer provisioned by stx-openstack, but the
+        # function must still behave correctly if called with SB_TYPE_CEPH.
         available = (state == constants.SB_STATE_CONFIGURED)
     else:
         available = (state == constants.SB_STATE_CONFIGURED) \
@@ -2302,12 +2303,12 @@ def get_num_provisioned_controllers() -> int:
     return number_of_controllers
 
 
-def check_and_create_snapshot_class(snapshot_class: str, path: str):
+def check_and_create_rook_ceph_snapshot_class(snapshot_class: str, path: str):
     """
-    Check if a PVC Snapshot Class exists. If not, create the class.
+    Check if a SnapshotClass exists for Rook Ceph PVCs. If not, create the class.
 
     Params:
-        snapshot_class (str): Name of the snapshot class
+        snapshot_class (str): Name of the Rook Ceph snapshot class
         path (str): Path to temporary files
     """
 
@@ -2324,19 +2325,13 @@ def check_and_create_snapshot_class(snapshot_class: str, path: str):
         # Create class
         LOG.info(f"Trying to create snapshot class {snapshot_class}")
 
-        rook_ceph, _ = is_ceph_backend_available(
-                ceph_type=constants.SB_TYPE_CEPH_ROOK)
         try:
-            if rook_ceph:
-                secret_name = app_constants.CEPH_ROOK_RBD_SECRET_NAME
-                secret_ns = app_constants.HELM_NS_ROOK_CEPH
-                driver = app_constants.CEPH_ROOK_RBD_DRIVER
-                cluster_id = app_constants.HELM_APP_ROOK_CEPH
-            else:
-                secret_name = app_constants.CEPH_RBD_SECRET_NAME
-                secret_ns = helm_common.HELM_NS_RBD_PROVISIONER
-                driver = app_constants.CEPH_RBD_DRIVER
-                cluster_id = get_ceph_fsid()
+            # Host-based Ceph support has been removed; the only
+            # supported Ceph backend is Rook Ceph.
+            secret_name = app_constants.CEPH_ROOK_RBD_SECRET_NAME
+            secret_ns = app_constants.HELM_NS_ROOK_CEPH
+            driver = app_constants.CEPH_ROOK_RBD_DRIVER
+            cluster_id = app_constants.HELM_APP_ROOK_CEPH
             snapclass_dict = {
                 "apiVersion": 'snapshot.storage.k8s.io/v1',
                 "kind": "VolumeSnapshotClass",
@@ -2387,7 +2382,7 @@ def create_pvc_snapshot(snapshot_name: str, pvc_name: str, snapshot_class: str, 
     try:
         # Check if snapshot class exists. If not, create it
         LOG.info(f"Checking if snapshot class {snapshot_class} already exists.")
-        check_and_create_snapshot_class(snapshot_class, path)
+        check_and_create_rook_ceph_snapshot_class(snapshot_class, path)
 
         # Snapshot config
         snapshot_dict = {
@@ -2867,13 +2862,12 @@ def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CIN
     ceph_backends = check_ceph_backends(chart_name, override_name)
     ceph_storage_class = ""
 
-    # if there's a Ceph backend available we must report the correct storage class
+    # if there's a Ceph (Rook) backend available we must report the correct
+    # storage class. Host-based Ceph has been removed, so the "ceph" backend
+    # resolves solely from Rook.
     if ceph_backends.get(app_constants.CEPH_ROOK_BACKEND_NAME, False):
         LOG.info(f"Rook Ceph backend is available and enabled for {chart_name} Helm Chart.")
-        ceph_storage_class = get_ceph_rbd_storage_class_name(constants.SB_TYPE_CEPH_ROOK)
-    elif ceph_backends.get(app_constants.CEPH_BACKEND_NAME, False):
-        LOG.info(f"Host-based Ceph backend is available and enabled for {chart_name} Helm Chart.")
-        ceph_storage_class = get_ceph_rbd_storage_class_name(constants.SB_TYPE_CEPH)
+        ceph_storage_class = get_rook_ceph_rbd_storage_class_name()
     else:
         LOG.warning(f"No Ceph backend is available or enabled for {chart_name} Helm Chart.")
 
@@ -2925,31 +2919,21 @@ def get_available_volume_backends(chart_name: str = app_constants.HELM_CHART_CIN
     return available_volume_backends
 
 
-def get_ceph_rbd_storage_class_name(ceph_type: str =
-                                    constants.SB_TYPE_CEPH_ROOK) -> str:
+def get_rook_ceph_rbd_storage_class_name() -> str:
 
-    """Return the name of the first Ceph RBD StorageClass for the given Ceph type.
+    """Return the name of the first Rook Ceph RBD StorageClass.
 
-    Args:
-        ceph_type: The Ceph deployment type selector. It must be one of:
-            - ``constants.SB_TYPE_CEPH_ROOK`` - Rook-managed Ceph
-            - ``constants.SB_TYPE_CEPH`` - Host-based Ceph
+    The StorageClass is always resolved from the Rook RBD provisioner.
 
     Returns:
-        The name of the first matching Ceph RBD StorageClass as a string, or
-        an empty string if none are found.
+        The name of the first matching Rook Ceph RBD StorageClass as a string,
+        or an empty string if none are found.
 
     Examples:
-        >>> get_ceph_rbd_storage_class_name()
-        'ceph-rbd' or 'general'
-
-        >>> get_ceph_rbd_storage_class_name(constants.SB_TYPE_CEPH_ROOK)
+        >>> get_rook_ceph_rbd_storage_class_name()
         'rook-ceph-rbd' or 'general'
     """
-    if ceph_type == constants.SB_TYPE_CEPH_ROOK:
-        provisioner = app_constants.CEPH_ROOK_RBD_DRIVER
-    else:
-        provisioner = app_constants.CEPH_RBD_DRIVER
+    provisioner = app_constants.CEPH_ROOK_RBD_DRIVER
     ceph_rbd_sc_names = get_storage_class_names(provisioner)
     # Returns the first storage class found for the given Ceph RBD provisioner
     return ceph_rbd_sc_names[0] if ceph_rbd_sc_names else ""
@@ -4240,13 +4224,13 @@ def is_nova_ephemeral_ceph_enabled() -> bool:
     if not ceph_selected:
         return False
 
-    # Verify that a Ceph backend is actually deployed on the system
-    ceph_available, _ = is_ceph_backend_available(
-        ceph_type=constants.SB_TYPE_CEPH)
+    # Verify that a Ceph backend is actually deployed on the system.
+    # Host-based Ceph has been removed; only Rook Ceph
+    # is supported.
     rook_available, _ = is_ceph_backend_available(
         ceph_type=constants.SB_TYPE_CEPH_ROOK)
 
-    return ceph_available or rook_available
+    return rook_available
 
 
 def recover_error_servers(conductor_obj):

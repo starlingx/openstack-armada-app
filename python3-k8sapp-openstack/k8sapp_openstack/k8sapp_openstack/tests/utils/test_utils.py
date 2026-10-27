@@ -459,12 +459,12 @@ class UtilsTest(dbbase.ControllerHostTestCase):
     @mock.patch('k8sapp_openstack.utils.send_cmd_read_response')
     @mock.patch('builtins.open', new_callable=mock.mock_open)
     @mock.patch('json.dump')
-    def test_check_and_create_snapshot_class(self, mock_json_dump, mock_open, mock_send_cmd):
-        """Test check_and_create_snapshot_class creates the snapshot class if not present."""
+    def test_check_and_create_rook_ceph_snapshot_class(self, mock_json_dump, mock_open, mock_send_cmd):
+        """Test check_and_create_rook_ceph_snapshot_class creates the snapshot class if not present."""
         mock_send_cmd.side_effect = [Exception("Not found"), None]
         snapshot_class = "test-snapshot-class"
         path = "/tmp"
-        app_utils.check_and_create_snapshot_class(snapshot_class, path)
+        app_utils.check_and_create_rook_ceph_snapshot_class(snapshot_class, path)
         mock_send_cmd.assert_any_call([
             "kubectl", "--kubeconfig", mock.ANY,
             "-n", mock.ANY,
@@ -1897,26 +1897,20 @@ class UtilsTest(dbbase.ControllerHostTestCase):
                 return_value=False)
     @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
     def test_check_ceph_backends_no_overrides(self, mock_is_available, *_):
-        """Tests when a Ceph backend is available
+        """Tests when a Ceph (Rook) backend is available
         and there are no user defined overrides.
+
+        Host-based Ceph support has been removed; only the Rook
+        backend is reported.
         """
-        backend_states = map(
-            lambda t: (
-                {
-                    app_constants.CEPH_BACKEND_NAME: t[0],
-                    app_constants.CEPH_ROOK_BACKEND_NAME: t[1],
-                },
-                {
-                    constants.SB_TYPE_CEPH: t[0],
-                    constants.SB_TYPE_CEPH_ROOK: t[1],
-                }
-            ),
-            [(True, True), (True, False), (False, True), (False, False)]
-        )
-        for st_names, st_types in backend_states:
-            mock_is_available.side_effect = lambda t, ts = st_types: (ts[t], "")
+        for rook_available in (True, False):
+            mock_is_available.side_effect = \
+                lambda ceph_type, ra=rook_available: (ra, "")
             result = app_utils.check_ceph_backends()
-            self.assertEqual(result, st_names)
+            self.assertEqual(
+                result,
+                {app_constants.CEPH_ROOK_BACKEND_NAME: rook_available}
+            )
 
     @mock.patch("k8sapp_openstack.utils.is_user_overrides_available",
                 return_value=True)
@@ -1925,40 +1919,25 @@ class UtilsTest(dbbase.ControllerHostTestCase):
     def test_check_ceph_backends_with_user_overrides(self,
                                                      mock_from_override,
                                                      mock_is_available, *_):
-        """Tests when a Ceph backend is available
+        """Tests when a Ceph (Rook) backend is available
         with possible user overrides combinations.
         """
-        backend_states = map(
-            lambda t: (
-                {
-                    app_constants.CEPH_BACKEND_NAME: t[0],
-                    app_constants.CEPH_ROOK_BACKEND_NAME: t[1],
-                },
-                {
-                    constants.SB_TYPE_CEPH: t[0],
-                    constants.SB_TYPE_CEPH_ROOK: t[1],
-                }
-            ),
-            [(True, True), (True, False), (False, True), (False, False)]
-        )
         overrides_states = [
             [],
             [app_constants.CEPH_BACKEND_NAME],
             [app_constants.NETAPP_NFS_BACKEND_NAME],
         ]
-        for st_names, st_types in backend_states:
-            mock_is_available.side_effect = lambda t, ts = st_types: (ts[t], "")
+        for rook_available in (True, False):
+            mock_is_available.side_effect = \
+                lambda ceph_type, ra=rook_available: (ra, "")
             for ost in overrides_states:
                 mock_from_override.return_value = ost
                 result = app_utils.check_ceph_backends()
                 self.assertEqual(
                     result,
                     {
-                        app_constants.CEPH_BACKEND_NAME:
-                        st_names[app_constants.CEPH_BACKEND_NAME] &
-                            (app_constants.CEPH_BACKEND_NAME in ost),
                         app_constants.CEPH_ROOK_BACKEND_NAME:
-                        st_names[app_constants.CEPH_ROOK_BACKEND_NAME] &
+                        rook_available &
                             (app_constants.CEPH_BACKEND_NAME in ost),
                     }
                 )
@@ -2201,7 +2180,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: True,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: True,
                               app_constants.NETAPP_FC_BACKEND_NAME: False})
-    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+    @mock.patch("k8sapp_openstack.utils.get_rook_ceph_rbd_storage_class_name",
                 return_value="rook-ceph-rbd")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name")
     @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
@@ -2254,7 +2233,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: True,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
                               app_constants.NETAPP_FC_BACKEND_NAME: True})
-    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+    @mock.patch("k8sapp_openstack.utils.get_rook_ceph_rbd_storage_class_name",
                 return_value="ignored")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name")
     @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
@@ -2307,7 +2286,7 @@ class UtilsTest(dbbase.ControllerHostTestCase):
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
                               app_constants.NETAPP_FC_BACKEND_NAME: False})
-    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+    @mock.patch("k8sapp_openstack.utils.get_rook_ceph_rbd_storage_class_name",
                 return_value="ceph-rbd")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name")
     @mock.patch("k8sapp_openstack.utils.is_ceph_backend_available")
@@ -2414,30 +2393,18 @@ class UtilsTest(dbbase.ControllerHostTestCase):
         self.assertEqual(result, [])
 
     @mock.patch("k8sapp_openstack.utils.get_storage_class_names",
-                return_value=['ceph-rbd', 'general'])
-    def test_get_ceph_rbd_storage_class_name_ceph(self, mock_get_sc, *_):
-        """Test host-based Ceph (constants.SB_TYPE_CEPH)."""
-        result = app_utils.get_ceph_rbd_storage_class_name(
-            ceph_type=constants.SB_TYPE_CEPH
-        )
-        self.assertEqual(result, 'ceph-rbd')
-        mock_get_sc.assert_called_once_with(app_constants.CEPH_RBD_DRIVER)
-
-    @mock.patch("k8sapp_openstack.utils.get_storage_class_names",
                 return_value=['rook-ceph-rbd', 'general'])
-    def test_get_ceph_rbd_storage_class_name_rook(self, mock_get_sc, *_):
-        """Test Rook-managed Ceph (constants.SB_TYPE_CEPH_ROOK)."""
-        result = app_utils.get_ceph_rbd_storage_class_name(
-            ceph_type=constants.SB_TYPE_CEPH_ROOK
-        )
+    def test_get_rook_ceph_rbd_storage_class_name_rook(self, mock_get_sc, *_):
+        """Test the StorageClass is resolved from the Rook RBD provisioner."""
+        result = app_utils.get_rook_ceph_rbd_storage_class_name()
         self.assertEqual(result, 'rook-ceph-rbd')
         mock_get_sc.assert_called_once_with(app_constants.CEPH_ROOK_RBD_DRIVER)
 
     @mock.patch("k8sapp_openstack.utils.get_storage_class_names",
                 return_value=[])
-    def test_get_ceph_rbd_storage_class_name_empty(self, mock_get_sc, *_):
-        """Test default ceph_type when no RBD backends are available."""
-        result = app_utils.get_ceph_rbd_storage_class_name()
+    def test_get_rook_ceph_rbd_storage_class_name_empty(self, mock_get_sc, *_):
+        """Test when no RBD backends are available."""
+        result = app_utils.get_rook_ceph_rbd_storage_class_name()
         self.assertEqual(result, "")
         mock_get_sc.assert_called_once_with(app_constants.CEPH_ROOK_RBD_DRIVER)
 
@@ -3623,7 +3590,7 @@ class TestGetAvailableVolumeBackendsESB(dbbase.ControllerHostTestCase):
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
                               app_constants.NETAPP_FC_BACKEND_NAME: False})
-    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+    @mock.patch("k8sapp_openstack.utils.get_rook_ceph_rbd_storage_class_name",
                 return_value="")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
                 return_value="")
@@ -3656,7 +3623,7 @@ class TestGetAvailableVolumeBackendsESB(dbbase.ControllerHostTestCase):
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
                               app_constants.NETAPP_FC_BACKEND_NAME: False})
-    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+    @mock.patch("k8sapp_openstack.utils.get_rook_ceph_rbd_storage_class_name",
                 return_value="")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
                 return_value="")
@@ -3712,7 +3679,7 @@ class TestGetAvailableVolumeBackendsESB(dbbase.ControllerHostTestCase):
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
                               app_constants.NETAPP_FC_BACKEND_NAME: False})
-    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+    @mock.patch("k8sapp_openstack.utils.get_rook_ceph_rbd_storage_class_name",
                 return_value="")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
                 return_value="")
@@ -3747,7 +3714,7 @@ class TestGetAvailableVolumeBackendsESB(dbbase.ControllerHostTestCase):
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
                               app_constants.NETAPP_FC_BACKEND_NAME: False})
-    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+    @mock.patch("k8sapp_openstack.utils.get_rook_ceph_rbd_storage_class_name",
                 return_value="")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
                 return_value="")
@@ -3776,7 +3743,7 @@ class TestGetAvailableVolumeBackendsESB(dbbase.ControllerHostTestCase):
                 return_value={app_constants.NETAPP_NFS_BACKEND_NAME: False,
                               app_constants.NETAPP_ISCSI_BACKEND_NAME: False,
                               app_constants.NETAPP_FC_BACKEND_NAME: False})
-    @mock.patch("k8sapp_openstack.utils.get_ceph_rbd_storage_class_name",
+    @mock.patch("k8sapp_openstack.utils.get_rook_ceph_rbd_storage_class_name",
                 return_value="")
     @mock.patch("k8sapp_openstack.utils.get_netapp_storage_class_name",
                 return_value="")

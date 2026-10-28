@@ -640,6 +640,8 @@ Mem = collections.namedtuple(
     'Mem', ['numa_node', 'platform_reserved_mib',
             'vswitch_hugepages_size_mib', 'vswitch_hugepages_nr'])
 Host = collections.namedtuple('Host', ['id'])
+# Minimal ethernet_ports row stand-in for _get_interface_numa_nodes.
+Port = collections.namedtuple('Port', ['interface_id', 'numa_node'])
 
 
 def make_icpu(host_id, num_nodes, cores_per_node=8):
@@ -1041,3 +1043,89 @@ class NovaMultiNumaTest(testtools.TestCase):
             host_list = helm_obj._get_per_host_overrides()
 
         self.assertEqual(len(host_list), 2)
+
+    # ------------------------------------------------------------------
+    # _get_interface_numa_nodes
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _iface(iface_id, ifname, iftype=None):
+        if iftype is None:
+            iftype = constants.INTERFACE_TYPE_ETHERNET
+        return {'id': iface_id, 'ifname': ifname, 'iftype': iftype,
+                'used_by': []}
+
+    def test_interface_numa_nodes_missing_port_row_skipped(self):
+        """Ethernet interface with no port row is skipped, not a KeyError."""
+        helm_obj = nova.NovaHelm(None)
+        context = {
+            'interfaces': {'eth0': self._iface(1, 'eth0')},
+            'ports': {},
+        }
+        self.assertEqual(helm_obj._get_interface_numa_nodes(context), {})
+
+    def test_interface_numa_nodes_none_numa_node_skipped(self):
+        """numa_node None is skipped, not a TypeError; valid sibling kept."""
+        helm_obj = nova.NovaHelm(None)
+        context = {
+            'interfaces': {
+                'eth0': self._iface(1, 'eth0'),
+                'eth1': self._iface(2, 'eth1'),
+            },
+            'ports': {
+                1: Port(interface_id=1, numa_node=None),
+                2: Port(interface_id=2, numa_node=0),
+            },
+        }
+        result = helm_obj._get_interface_numa_nodes(context)
+        self.assertNotIn('eth0', result)
+        self.assertEqual(result, {'eth1': {0}})
+
+    def test_neutron_physnet_numa_node_none_sentinel_omitted(self):
+        """NUMA_NODE_NONE physnet omitted from physnets and the physnet groups.
+
+        NUMA_NODE_NONE (-1) is distinct from None and must stay excluded by the
+        existing >= 0 test; a valid-node sibling proves the omission is specific
+        to the sentinel row.
+        """
+        helm_obj = nova.NovaHelm(None)
+        host = Host(id=0)
+
+        ifaces = {
+            'eth0': self._iface(1, 'eth0'),
+            'eth1': self._iface(2, 'eth1'),
+        }
+        ports = {
+            1: Port(interface_id=1, numa_node=constants.NUMA_NODE_NONE),
+            2: Port(interface_id=2, numa_node=0),
+        }
+        datanets_by_ifname = {
+            'eth0': [{'name': 'physnet_none',
+                      'network_type': constants.DATANETWORK_TYPE_FLAT}],
+            'eth1': [{'name': 'physnet_ok',
+                      'network_type': constants.DATANETWORK_TYPE_FLAT}],
+        }
+
+        neutron_config = {}
+        per_physnet_numa_config = {}
+        with mock.patch.object(helm_obj, '_get_port_interface_id_index',
+                               return_value=ports), \
+                mock.patch.object(helm_obj, '_get_interface_name_index',
+                                  return_value=ifaces), \
+                mock.patch.object(helm_obj, '_get_interface_name_datanets',
+                                  return_value=datanets_by_ifname), \
+                mock.patch(
+                    'k8sapp_openstack.helm.nova.interface'
+                    '.get_interface_datanets',
+                    side_effect=lambda ctx, iface:
+                        datanets_by_ifname[iface['ifname']]):
+            helm_obj._update_host_neutron_physnet(
+                host, neutron_config, per_physnet_numa_config)
+
+        physnets = neutron_config.get('physnets', '').split(',')
+        self.assertNotIn('physnet_none', physnets)
+        self.assertNotIn('neutron_physnet_physnet_none', per_physnet_numa_config)
+        self.assertIn('physnet_ok', physnets)
+        self.assertEqual(
+            per_physnet_numa_config['neutron_physnet_physnet_ok'],
+            {'numa_nodes': '0'})

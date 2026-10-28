@@ -595,8 +595,8 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
         for iface in context['interfaces'].values():
             if iface['iftype'] == constants.INTERFACE_TYPE_ETHERNET:
-                port = context['ports'][iface['id']]
-                if port and port.numa_node >= 0:
+                port = context['ports'].get(iface['id'])
+                if port and port.numa_node is not None and port.numa_node >= 0:
                     update_iface_numa_node(iface, port.numa_node)
 
         return interface_numa_nodes

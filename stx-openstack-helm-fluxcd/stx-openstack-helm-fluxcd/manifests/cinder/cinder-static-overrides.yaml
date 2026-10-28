@@ -1528,6 +1528,7 @@ storage_conf:
     container_cert:
       - /usr/lib/ssl/cert.pem
   backends_conf: []
+  artifacts: []
   extra_mounts:
     cinder_volume:
       volumeMounts: []

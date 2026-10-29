@@ -69,3 +69,4 @@
 0069-Add-host-multipath-configuration-DaemonSet-to-Nova.patch
 0070-Allow-overriding-liveness-probe-port.patch
 0071-Support-multiple-NFS-shares-files-in-Cinder.patch
+0072-Fix-mariadb-controller-DEBUG-log-level-truthiness.patch

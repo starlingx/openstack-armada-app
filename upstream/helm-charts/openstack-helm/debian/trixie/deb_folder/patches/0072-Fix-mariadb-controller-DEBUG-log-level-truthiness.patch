@@ -1,0 +1,38 @@
+From 56faf828ca8d6c4bb7a91ff0e5edb367cdbe2e84 Mon Sep 17 00:00:00 2001
+From: build <build@wrs.com>
+Date: Wed, 28 Oct 2026 11:07:54 -0300
+Subject: [PATCH] Fix mariadb-controller DEBUG log level truthiness
+
+MARIADB_CONTROLLER_DEBUG is read with os.getenv, which returns the
+string "0" when values.yaml sets MARIADB_CONTROLLER_DEBUG: 0 (rendered
+via helm-toolkit "| quote"). A non-empty string is truthy in Python, so
+the DEBUG branch was always selected and the controller logged at DEBUG
+even when the flag was disabled.
+
+Compare the value strictly against "1" so only the literal "1" enables
+debug logging, matching the documented intent (the docstring already
+states the flag enables debug "when set to 1"). Only the log-level
+selection line changes.
+
+Relates-to: https://review.opendev.org/c/openstack/openstack-helm/+/1012919
+Closes-Bug: 2172440
+---
+ mariadb/templates/bin/_mariadb_controller.py.tpl | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mariadb/templates/bin/_mariadb_controller.py.tpl b/mariadb/templates/bin/_mariadb_controller.py.tpl
+index faf5195..a0c7b4d 100644
+--- a/mariadb/templates/bin/_mariadb_controller.py.tpl
++++ b/mariadb/templates/bin/_mariadb_controller.py.tpl
+@@ -39,7 +39,7 @@ MARIADB_MASTER_SERVICE_NAME = os.getenv(
+     "MARIADB_MASTER_SERVICE_NAME", "mariadb"
+ )
+ 
+-log_level = "DEBUG" if MARIADB_CONTROLLER_DEBUG else "INFO"
++log_level = "DEBUG" if MARIADB_CONTROLLER_DEBUG == "1" else "INFO"
+ logging.basicConfig(
+     stream=sys.stdout,
+     format="%(asctime)s %(levelname)s %(name)s %(message)s",
+-- 
+2.43.0
+

@@ -507,6 +507,12 @@ AODH_REST_NOTIFIER_CA_CERT_SECRET_KEY = 'ca.crt'
 AODH_REST_NOTIFIER_CA_CERT_DEFAULT_PATH = '/var/opt/openstack/certs/aodh-rest-notifier.pem'
 AODH_REST_NOTIFIER_CA_CERT_MOUNT_PATH = '/var/lib/openstack/certs/aodh-rest-notifier-ca.crt'
 
+# Watcher service-to-service client credentials
+WATCHER_CLIENTS_AUTH_TYPE = 'password'
+WATCHER_CLIENTS_AUTH_PROJECT_NAME = 'service'
+WATCHER_CLIENTS_AUTH_USER_DOMAIN_NAME = 'service'
+WATCHER_CLIENTS_AUTH_PROJECT_DOMAIN_NAME = 'service'
+
 # Keystone's built-in default auth method set. It already includes
 # "mapped", so when DEX is enabled only "openid" needs to be appended.
 KEYSTONE_DEFAULT_AUTH_METHODS = (

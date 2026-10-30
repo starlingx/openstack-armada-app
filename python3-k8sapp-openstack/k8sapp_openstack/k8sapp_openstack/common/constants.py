@@ -434,6 +434,13 @@ OPENSTACK_CERT = "openstack-cert"
 OPENSTACK_CERT_KEY = "openstack-cert-key"
 OPENSTACK_CERT_CA = "openstack-cert-ca"
 FORCE_READ_CERT_FILES = False
+# Default certificate file locations, used when the clients chart sets
+# no path override. Keep in sync with openstackCertificateFile,
+# openstackCertificateKeyFile and openstackCertificateCAFile in the clients
+# chart values.yaml; a unit test checks that they match.
+OPENSTACK_CERT_FILE_DEFAULT = "/etc/ssl/private/openstack/cert.pem"
+OPENSTACK_CERT_KEY_FILE_DEFAULT = "/etc/ssl/private/openstack/key.pem"
+OPENSTACK_CERT_CA_FILE_DEFAULT = "/etc/ssl/private/openstack/ca-cert.pem"
 SERVICES_FQDN_PATTERN = "{service_name}.{endpoint_domain}"
 OPENSTACK_NETAPP_NAMESPACE = "trident"
 

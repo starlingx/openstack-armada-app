@@ -4,8 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import contextlib
 import os
 import subprocess
+import types
 
 from kubernetes.client.rest import ApiException as KubeApiException
 import mock
@@ -3115,6 +3117,407 @@ class UtilsTest(dbbase.ControllerHostTestCase):
             with mock.patch('builtins.open', mock.mock_open(read_data='')):
                 app_utils.create_host_ca_cert_secret(mock_kube, host_cert, secret_name, secret_key)
                 mock_kube.kube_create_secret.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Certificate file fallback when the platform no longer defines the
+    # OPENSTACK_CERT_FILE / OPENSTACK_CERT_KEY_FILE / OPENSTACK_CERT_CA_FILE
+    # constants (bug condition exploration).
+    # ------------------------------------------------------------------
+
+    _REMOVED_PLATFORM_CERT_CONSTANTS = (
+        'OPENSTACK_CERT_FILE',
+        'OPENSTACK_CERT_KEY_FILE',
+        'OPENSTACK_CERT_CA_FILE',
+    )
+    _CERT_FILE_STATES = ('missing', 'empty', 'present')
+    _CERT_PEM = '-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n'
+    _CERT_PATH_OVERRIDES = {
+        'openstackCertificateFile': '/var/opt/openstack/certs/override-cert.pem',
+        'openstackCertificateKeyFile': '/var/opt/openstack/certs/override-key.pem',
+        'openstackCertificateCAFile': '/var/opt/openstack/certs/override-ca.pem',
+    }
+
+    def _platform_constants_without_cert_files(self):
+        """Build a copy of sysinv.common.constants minus the removed names.
+
+        The real module is left untouched; the copy is patched in place of
+        the `constants` name used by k8sapp_openstack.utils.
+        """
+        stub = types.ModuleType(constants.__name__)
+        for name, value in vars(constants).items():
+            if name not in self._REMOVED_PLATFORM_CERT_CONSTANTS:
+                setattr(stub, name, value)
+        for name in self._REMOVED_PLATFORM_CERT_CONSTANTS:
+            self.assertFalse(hasattr(stub, name))
+        return stub
+
+    def _run_cert_fallback(self, func, user_overrides, file_state):
+        """Run `func` under the removed-constants condition.
+
+        :param func: callable under test
+        :param user_overrides: dict of clients chart user overrides, or None
+        :param file_state: one of 'missing', 'empty', 'present'
+        :returns: (result, list of paths passed to os.path.isfile)
+        """
+        result, checked_paths, _ = self._run_cert_resolution(
+            func, user_overrides, file_state, stub_constants=True)
+        return result, checked_paths
+
+    def _run_cert_resolution(self, func, user_overrides, file_state,
+                             secret_data=None, stub_constants=False):
+        """Run `func` with controlled overrides, secret, and file state.
+
+        Overrides flow through the real _get_value_from_application: only the
+        DB lookup, the app lookup, the tls-public secret, and file access are
+        mocked. No real certificate path is touched.
+
+        :param func: callable under test
+        :param user_overrides: dict of clients chart user overrides, or None
+        :param file_state: one of 'missing', 'empty', 'present'
+        :param secret_data: dict used as the tls-public secret `data`, or
+                            None for no usable secret
+        :param stub_constants: if True, replace the platform constants used
+                               by k8sapp_openstack.utils with a copy lacking
+                               the removed certificate names; if False, use
+                               the real module
+        :returns: (result, paths passed to os.path.isfile,
+                   paths passed to open)
+        """
+        mock_db = mock.MagicMock()
+        mock_db.helm_override_get.return_value = mock.MagicMock(
+            user_overrides=(yaml.dump(user_overrides)
+                            if user_overrides is not None else None))
+
+        mock_kube = mock.MagicMock()
+        if secret_data is None:
+            # Secret absent: object without a `data` attribute.
+            mock_kube.kube_get_secret.return_value = mock.Mock(spec=[])
+        else:
+            mock_kube.kube_get_secret.return_value = mock.Mock(
+                data=secret_data)
+
+        checked_paths = []
+
+        def _isfile(path):
+            checked_paths.append(path)
+            return file_state != 'missing'
+
+        read_data = self._CERT_PEM if file_state == 'present' else ''
+        mock_file = mock.mock_open(read_data=read_data)
+
+        patches = [
+            mock.patch('k8sapp_openstack.utils.dbapi.get_instance',
+                       return_value=mock_db),
+            mock.patch('k8sapp_openstack.utils.find_openstack_app',
+                       return_value=mock.MagicMock(id=1)),
+            mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator',
+                       return_value=mock_kube),
+            mock.patch('k8sapp_openstack.utils.os.path.isfile',
+                       side_effect=_isfile),
+            mock.patch('builtins.open', mock_file),
+        ]
+        if stub_constants:
+            patches.append(mock.patch(
+                'k8sapp_openstack.utils.constants',
+                new=self._platform_constants_without_cert_files()))
+
+        with contextlib.ExitStack() as stack:
+            for patcher in patches:
+                stack.enter_context(patcher)
+            result = func()
+
+        opened_paths = [c[0][0] for c in mock_file.call_args_list]
+        return result, checked_paths, opened_paths
+
+    def _assert_cert_fallback_result(self, result, file_state):
+        """Assert the expected fallback result for a given file state."""
+        self.assertEqual(
+            {app_constants.OPENSTACK_CERT,
+             app_constants.OPENSTACK_CERT_KEY,
+             app_constants.OPENSTACK_CERT_CA},
+            set(result.keys()))
+        expected = {
+            'missing': None,
+            'empty': '',
+            'present': self._CERT_PEM,
+        }[file_state]
+        for key in (app_constants.OPENSTACK_CERT,
+                    app_constants.OPENSTACK_CERT_KEY,
+                    app_constants.OPENSTACK_CERT_CA):
+            self.assertEqual(expected, result[key])
+
+    def test_cert_files_fallback_direct_without_platform_constants(self):
+        """Bug condition 1: direct call to _get_openstack_certificate_files().
+
+        Enumerates path override present/absent x file missing/empty/present.
+        """
+        for overrides in (None, dict(self._CERT_PATH_OVERRIDES)):
+            for file_state in self._CERT_FILE_STATES:
+                with self.subTest(override=overrides is not None,
+                                  file_state=file_state):
+                    result, _ = self._run_cert_fallback(
+                        app_utils._get_openstack_certificate_files,
+                        overrides, file_state)
+                    self._assert_cert_fallback_result(result, file_state)
+
+    def test_cert_values_except_fallback_without_platform_constants(self):
+        """Bug condition 2: no tls-public secret and no override.
+
+        get_openstack_certificate_values() reaches the file fallback from its
+        except block. Enumerates file missing/empty/present.
+        """
+        for file_state in self._CERT_FILE_STATES:
+            with self.subTest(file_state=file_state):
+                result, _ = self._run_cert_fallback(
+                    app_utils.get_openstack_certificate_values,
+                    None, file_state)
+                self._assert_cert_fallback_result(result, file_state)
+
+    def test_cert_values_force_read_without_platform_constants(self):
+        """Bug condition 3: forceReadCertificateFiles is true.
+
+        get_openstack_certificate_values() calls the file fallback directly.
+        Enumerates path override present/absent x file missing/empty/present.
+        """
+        for with_paths in (False, True):
+            overrides = {'forceReadCertificateFiles': True}
+            if with_paths:
+                overrides.update(self._CERT_PATH_OVERRIDES)
+            for file_state in self._CERT_FILE_STATES:
+                with self.subTest(path_override=with_paths,
+                                  file_state=file_state):
+                    result, _ = self._run_cert_fallback(
+                        app_utils.get_openstack_certificate_values,
+                        overrides, file_state)
+                    self._assert_cert_fallback_result(result, file_state)
+
+    def test_cert_files_with_cert_override_without_platform_constants(self):
+        """Bug condition 4: a valid openstackCertificateFile override exists.
+
+        The override must be the path that is read, which requires the
+        default_value arguments to be resolvable. Enumerates file
+        missing/empty/present.
+        """
+        cert_override = self._CERT_PATH_OVERRIDES['openstackCertificateFile']
+        overrides = {'openstackCertificateFile': cert_override}
+        for file_state in self._CERT_FILE_STATES:
+            with self.subTest(file_state=file_state):
+                result, checked_paths = self._run_cert_fallback(
+                    app_utils._get_openstack_certificate_files,
+                    overrides, file_state)
+                self._assert_cert_fallback_result(result, file_state)
+                self.assertIn(cert_override, checked_paths)
+
+    # ------------------------------------------------------------------
+    # Preservation: secret, override, and file-read behavior of the
+    # certificate resolution, observed with the real platform constants.
+    # ------------------------------------------------------------------
+
+    # Literal default paths, deliberately not read from any constants
+    # module so the assertion holds regardless of where they are defined.
+    _CERT_DEFAULT_PATHS = (
+        '/etc/ssl/private/openstack/cert.pem',
+        '/etc/ssl/private/openstack/key.pem',
+        '/etc/ssl/private/openstack/ca-cert.pem',
+    )
+    _SECRET_CRT = 'secret-tls-crt'
+    _SECRET_KEY = 'secret-tls-key'
+    _SECRET_CA = 'secret-ca-crt'
+
+    def _tls_secret_data(self, with_ca):
+        data = {
+            'tls.crt': base64.encode_as_text(self._SECRET_CRT),
+            'tls.key': base64.encode_as_text(self._SECRET_KEY),
+        }
+        if with_ca:
+            data['ca.crt'] = base64.encode_as_text(self._SECRET_CA)
+        return data
+
+    def _expected_cert_resolution(self, secret_with_ca, override,
+                                  file_state):
+        """Expected (result, isfile paths, open paths) on unfixed code.
+
+        :param secret_with_ca: None for no secret, else bool for ca.crt
+        :param override: True if clients chart path overrides are set
+        :param file_state: one of 'missing', 'empty', 'present'
+        """
+        keys = (app_constants.OPENSTACK_CERT,
+                app_constants.OPENSTACK_CERT_KEY,
+                app_constants.OPENSTACK_CERT_CA)
+        if secret_with_ca is not None:
+            values = (self._SECRET_CRT, self._SECRET_KEY,
+                      self._SECRET_CA if secret_with_ca else None)
+            return dict(zip(keys, values)), [], []
+
+        if override:
+            paths = [self._CERT_PATH_OVERRIDES['openstackCertificateFile'],
+                     self._CERT_PATH_OVERRIDES['openstackCertificateKeyFile'],
+                     self._CERT_PATH_OVERRIDES['openstackCertificateCAFile']]
+        else:
+            paths = list(self._CERT_DEFAULT_PATHS)
+        content = {'missing': None, 'empty': '',
+                   'present': self._CERT_PEM}[file_state]
+        opened = [] if file_state == 'missing' else list(paths)
+        return dict.fromkeys(keys, content), paths, opened
+
+    def _cert_resolution_mismatches(self, func, secret_with_ca, override,
+                                    file_state):
+        """Run one combination with the real constants; return mismatches."""
+        user_overrides = (dict(self._CERT_PATH_OVERRIDES) if override
+                          else None)
+        secret_data = (None if secret_with_ca is None
+                       else self._tls_secret_data(secret_with_ca))
+        observed = self._run_cert_resolution(
+            func, user_overrides, file_state, secret_data=secret_data,
+            stub_constants=False)
+        expected = self._expected_cert_resolution(
+            secret_with_ca, override, file_state)
+        combo = 'secret=%s override=%s file=%s' % (
+            {None: 'absent', True: 'with-ca', False: 'no-ca'}[secret_with_ca],
+            override, file_state)
+        mismatches = []
+        for label, exp, obs in zip(('result', 'isfile', 'open'),
+                                   expected, observed):
+            if exp != obs:
+                mismatches.append('%s: %s expected %r, observed %r'
+                                  % (combo, label, exp, obs))
+        return mismatches
+
+    def _assert_real_platform_constants(self):
+        """Guard: preservation runs against the real constants module.
+
+        Whether the platform still defines the removed certificate names
+        depends on the platform version, so only the module identity is
+        checked here.
+        """
+        self.assertIs(constants, app_utils.constants)
+
+    def test_cert_resolution_preserved_secret_override_file_matrix(self):
+        """Preservation over secret x override x file state (12 combos).
+
+        Precedence is secret -> path override -> default path -> file
+        contents or None. Every combination is evaluated before asserting,
+        so one mismatch does not hide the others.
+        """
+        self._assert_real_platform_constants()
+        mismatches = []
+        count = 0
+        for secret_with_ca in (None, True):
+            for override in (False, True):
+                for file_state in self._CERT_FILE_STATES:
+                    count += 1
+                    mismatches.extend(self._cert_resolution_mismatches(
+                        app_utils.get_openstack_certificate_values,
+                        secret_with_ca, override, file_state))
+        self.assertEqual(12, count)
+        self.assertEqual([], mismatches)
+
+    def test_cert_resolution_preserved_secret_without_ca(self):
+        """Secret with tls.crt/tls.key but no ca.crt: CA is None.
+
+        The file fallback is not invoked for any override x file state.
+        """
+        self._assert_real_platform_constants()
+        mismatches = []
+        for override in (False, True):
+            for file_state in self._CERT_FILE_STATES:
+                mismatches.extend(self._cert_resolution_mismatches(
+                    app_utils.get_openstack_certificate_values,
+                    False, override, file_state))
+        self.assertEqual([], mismatches)
+
+    def test_cert_files_preserved_paths_and_contents(self):
+        """Direct fallback call: override paths when set, else exact defaults.
+
+        Missing file -> None, existing empty file -> "", otherwise contents.
+        """
+        self._assert_real_platform_constants()
+        mismatches = []
+        for override in (False, True):
+            for file_state in self._CERT_FILE_STATES:
+                mismatches.extend(self._cert_resolution_mismatches(
+                    app_utils._get_openstack_certificate_files,
+                    None, override, file_state))
+        self.assertEqual([], mismatches)
+
+    def test_cert_default_paths_match_clients_chart_values(self):
+        """The plugin defaults match the clients chart values.yaml defaults.
+
+        The plugin never reads the chart values.yaml, so both copies must be
+        kept in sync by hand. The chart tree is not part of the package
+        source used for the Debian build, so the test is skipped there.
+        """
+        repo_root = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), '..', '..', '..', '..', '..'))
+        chart_tree = os.path.join(repo_root, 'stx-openstack-helm-fluxcd')
+        if not os.path.isdir(chart_tree):
+            self.skipTest('clients chart is not available in this source tree')
+
+        values_file = os.path.join(
+            chart_tree, 'stx-openstack-helm-fluxcd', 'helm-charts',
+            'clients', 'values.yaml')
+        with open(values_file) as f:
+            values = yaml.safe_load(f)
+
+        self.assertEqual(
+            {
+                'openstackCertificateFile':
+                    app_constants.OPENSTACK_CERT_FILE_DEFAULT,
+                'openstackCertificateKeyFile':
+                    app_constants.OPENSTACK_CERT_KEY_FILE_DEFAULT,
+                'openstackCertificateCAFile':
+                    app_constants.OPENSTACK_CERT_CA_FILE_DEFAULT,
+            },
+            {
+                'openstackCertificateFile':
+                    values.get('openstackCertificateFile'),
+                'openstackCertificateKeyFile':
+                    values.get('openstackCertificateKeyFile'),
+                'openstackCertificateCAFile':
+                    values.get('openstackCertificateCAFile'),
+            })
+
+    def test_get_value_from_application_preserved_non_cert_key(self):
+        """_get_value_from_application for forceReadCertificateFiles.
+
+        Returns the override when set (including a false value) and the
+        default when the override, the key, or the database is absent.
+        """
+        default = 'default-sentinel'
+        cases = (
+            ('override true', {'forceReadCertificateFiles': True}, True),
+            ('override false', {'forceReadCertificateFiles': False}, False),
+            ('no user overrides', None, default),
+            ('key not overridden', dict(self._CERT_PATH_OVERRIDES), default),
+        )
+        mismatches = []
+        for label, user_overrides, expected in cases:
+            mock_db = mock.MagicMock()
+            mock_db.helm_override_get.return_value = mock.MagicMock(
+                user_overrides=(yaml.dump(user_overrides)
+                                if user_overrides is not None else None))
+            with mock.patch('k8sapp_openstack.utils.dbapi.get_instance',
+                            return_value=mock_db), \
+                    mock.patch('k8sapp_openstack.utils.find_openstack_app',
+                               return_value=mock.MagicMock(id=1)):
+                observed = app_utils._get_value_from_application(
+                    default_value=default,
+                    chart_name=app_constants.HELM_CHART_CLIENTS,
+                    override_name='forceReadCertificateFiles')
+            if observed != expected:
+                mismatches.append('%s: expected %r, observed %r'
+                                  % (label, expected, observed))
+
+        with mock.patch('k8sapp_openstack.utils.dbapi.get_instance',
+                        return_value=None):
+            observed = app_utils._get_value_from_application(
+                default_value=default,
+                chart_name=app_constants.HELM_CHART_CLIENTS,
+                override_name='forceReadCertificateFiles')
+        if observed != default:
+            mismatches.append('no database: expected %r, observed %r'
+                              % (default, observed))
+        self.assertEqual([], mismatches)
 
 
 class StorageCACertSecretTest(dbbase.ControllerHostTestCase):

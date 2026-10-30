@@ -369,17 +369,17 @@ def _get_openstack_certificate_files():
             in the dictionary will be `None`.
     """
     openstack_cert_file_path = _get_value_from_application(
-            default_value=constants.OPENSTACK_CERT_FILE,
+            default_value=app_constants.OPENSTACK_CERT_FILE_DEFAULT,
             chart_name=app_constants.HELM_CHART_CLIENTS,
             override_name="openstackCertificateFile")
 
     openstack_cert_key_file_path = _get_value_from_application(
-            default_value=constants.OPENSTACK_CERT_KEY_FILE,
+            default_value=app_constants.OPENSTACK_CERT_KEY_FILE_DEFAULT,
             chart_name=app_constants.HELM_CHART_CLIENTS,
             override_name="openstackCertificateKeyFile")
 
     openstack_cert_ca_file_path = _get_value_from_application(
-            default_value=constants.OPENSTACK_CERT_CA_FILE,
+            default_value=app_constants.OPENSTACK_CERT_CA_FILE_DEFAULT,
             chart_name=app_constants.HELM_CHART_CLIENTS,
             override_name="openstackCertificateCAFile")
 

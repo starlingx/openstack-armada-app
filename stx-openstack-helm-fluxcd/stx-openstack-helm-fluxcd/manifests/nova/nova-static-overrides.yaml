@@ -1574,7 +1574,7 @@ conf:
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     notifications:
       notify_on_state_change: vm_and_task_state
-      notification_format: unversioned
+      notification_format: both
     service_user:
       auth_type: password
       send_service_user_token: true

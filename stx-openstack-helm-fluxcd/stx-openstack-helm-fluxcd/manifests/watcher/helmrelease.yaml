@@ -1,0 +1,41 @@
+#
+# Copyright (c) 2026 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+apiVersion: "helm.toolkit.fluxcd.io/v2"
+kind: HelmRelease
+metadata:
+  name: watcher
+  labels:
+    chart_group: openstack-watcher
+spec:
+  releaseName: osh-openstack-watcher
+  chart:
+    spec:
+      chart: watcher
+      version: REPLACE_HELM_CHART_VERSION
+      sourceRef:
+        kind: HelmRepository
+        name: starlingx
+  interval: 1m
+  timeout: 30m
+  test:
+    enable: false
+  install:
+    disableHooks: false
+  upgrade:
+    disableHooks: false
+  dependsOn:
+    - name: ceilometer
+      namespace: openstack
+  valuesFrom:
+    - kind: Secret
+      name: watcher-static-overrides
+      valuesKey: watcher-static-overrides.yaml
+    - kind: Secret
+      name: watcher-system-overrides
+      valuesKey: watcher-system-overrides.yaml
+...

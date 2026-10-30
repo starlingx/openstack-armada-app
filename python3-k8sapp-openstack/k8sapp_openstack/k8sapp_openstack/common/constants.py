@@ -47,6 +47,7 @@ HELM_CHART_OPENVSWITCH = 'openvswitch'
 HELM_CHART_PLACEMENT = 'placement'
 HELM_CHART_RABBITMQ = 'rabbitmq'
 HELM_CHART_SWIFT = 'ceph-rgw'
+HELM_CHART_WATCHER = 'watcher'
 HELM_CHART_DCDBSYNC = 'dcdbsync'
 
 # Helm Release constants
@@ -80,6 +81,7 @@ FLUXCD_HELMRELEASE_OPENVSWITCH = 'openvswitch'
 FLUXCD_HELMRELEASE_PLACEMENT = 'placement'
 FLUXCD_HELMRELEASE_RABBITMQ = 'rabbitmq'
 FLUXCD_HELMRELEASE_SWIFT = 'ceph-rgw'
+FLUXCD_HELMRELEASE_WATCHER = 'watcher'
 FLUXCD_HELMRELEASE_DCDBSYNC = 'dcdbsync'
 
 # Nova PCI Alias types and names

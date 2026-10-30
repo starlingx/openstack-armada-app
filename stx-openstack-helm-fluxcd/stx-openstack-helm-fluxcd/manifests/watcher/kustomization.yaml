@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2026 Wind River Systems, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+namespace: openstack
+resources:
+  - helmrelease.yaml
+secretGenerator:
+  - name: watcher-static-overrides
+    files:
+      - watcher-static-overrides.yaml
+  - name: watcher-system-overrides
+    files:
+      - watcher-system-overrides.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+...

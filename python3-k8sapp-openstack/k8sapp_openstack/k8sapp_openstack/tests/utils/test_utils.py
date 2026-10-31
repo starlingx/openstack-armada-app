@@ -5,6 +5,7 @@
 #
 
 import contextlib
+from http import HTTPStatus
 import os
 import subprocess
 import types
@@ -5872,3 +5873,316 @@ class PreApplyCreateDexResourcesSecretTest(dbbase.ControllerHostTestCase):
             chart_name=app_constants.HELM_CHART_KEYSTONE,
             override_name=app_constants.KEYSTONE_OIDC_CLIENT_ID_OVERRIDE
         )
+
+
+class RemoveCleanupTest(dbbase.ControllerHostTestCase):
+    """Covers the remove-time cleanup helpers that recover a stx-openstack
+    application wedged by an aborted apply.
+    """
+
+    def setUp(self):
+        super(RemoveCleanupTest, self).setUp()
+
+    @staticmethod
+    def _hr(name, ready):
+        """Build a HelmRelease custom-resource dict with a Ready condition."""
+        cr = {"metadata": {"name": name},
+              "spec": {"releaseName": "osh-openstack-" + name},
+              "status": {"conditions": []}}
+        if ready is not None:
+            cr["status"]["conditions"].append(
+                {"type": "Ready", "status": ready})
+        return cr
+
+    @staticmethod
+    def _pvc(name, terminating):
+        pvc = mock.Mock()
+        pvc.metadata.name = name
+        pvc.metadata.deletion_timestamp = "2026-01-01T00:00:00Z" \
+            if terminating else None
+        return pvc
+
+    # ---- list_not_ready_helmreleases ----
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_list_not_ready_helmreleases_filters_ready(self, mock_kube):
+        """Only releases whose Ready status is not True are returned.
+
+        Covers Unknown, False, no-condition (None) and the healthy True case.
+        Each entry carries the CR name and its spec.releaseName.
+        """
+        mock_kube.return_value.list_namespaced_custom_resources.return_value = [
+            self._hr("mariadb", "Unknown"),
+            self._hr("rabbitmq", "False"),
+            self._hr("keystone", "True"),
+            self._hr("glance", None),
+        ]
+        result = app_utils.list_not_ready_helmreleases()
+        names = sorted(e["name"] for e in result)
+        self.assertEqual(names, sorted(["mariadb", "rabbitmq", "glance"]))
+        mariadb = next(e for e in result if e["name"] == "mariadb")
+        self.assertEqual(mariadb["release"], "osh-openstack-mariadb")
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_list_not_ready_helmreleases_empty(self, mock_kube):
+        mock_kube.return_value.list_namespaced_custom_resources.return_value = []
+        self.assertEqual(app_utils.list_not_ready_helmreleases(), [])
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_list_not_ready_helmreleases_api_failure(self, mock_kube):
+        """An API failure returns an empty list rather than raising."""
+        mock_kube.return_value.list_namespaced_custom_resources.side_effect = \
+            Exception("boom")
+        self.assertEqual(app_utils.list_not_ready_helmreleases(), [])
+
+    # ---- uninstall_stuck_helmreleases ----
+
+    @mock.patch('k8sapp_openstack.utils.helm_utils.delete_helm_release')
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.list_not_ready_helmreleases')
+    def test_uninstall_stuck_helmreleases_suspends_then_uninstalls(
+            self, mock_list, mock_kube, mock_delete):
+        """Each not-Ready release is suspended, then helm-uninstalled."""
+        mock_list.return_value = [
+            {"name": "mariadb", "release": "osh-openstack-mariadb"},
+            {"name": "rabbitmq", "release": "osh-openstack-rabbitmq"},
+        ]
+        # CRs are gone after a clean uninstall.
+        mock_kube.return_value.get_custom_resource.return_value = None
+        count = app_utils.uninstall_stuck_helmreleases()
+        self.assertEqual(count, 2)
+        # Suspended via spec.suspend=True.
+        mock_kube.return_value.patch_custom_resource.assert_any_call(
+            constants.FLUXCD_CRD_HELM_REL_GROUP,
+            constants.FLUXCD_CRD_HELM_REL_VERSION,
+            app_constants.HELM_NS_OPENSTACK,
+            constants.FLUXCD_CRD_HELM_REL_PLURAL,
+            "mariadb",
+            {"spec": {"suspend": True}})
+        # Uninstalled by release name, then the HelmRelease deleted.
+        mock_delete.assert_any_call(
+            "osh-openstack-mariadb",
+            namespace=app_constants.HELM_NS_OPENSTACK)
+        mock_kube.return_value.delete_custom_resource.assert_any_call(
+            constants.FLUXCD_CRD_HELM_REL_GROUP,
+            constants.FLUXCD_CRD_HELM_REL_VERSION,
+            app_constants.HELM_NS_OPENSTACK,
+            constants.FLUXCD_CRD_HELM_REL_PLURAL,
+            "mariadb")
+
+    @mock.patch('k8sapp_openstack.utils.helm_utils.delete_helm_release')
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.list_not_ready_helmreleases',
+                return_value=[])
+    def test_uninstall_stuck_helmreleases_none(
+            self, _mock_list, mock_kube, mock_delete):
+        """Healthy application: nothing not-Ready, nothing touched."""
+        count = app_utils.uninstall_stuck_helmreleases()
+        self.assertEqual(count, 0)
+        mock_kube.return_value.patch_custom_resource.assert_not_called()
+        mock_delete.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils.helm_utils.delete_helm_release')
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.list_not_ready_helmreleases')
+    def test_uninstall_stuck_helmreleases_fallback_on_failure(
+            self, mock_list, mock_kube, mock_delete):
+        """If helm uninstall fails, the fluxcd finalizer is cleared as a last
+        resort and that release is not counted as uninstalled."""
+        mock_list.return_value = [
+            {"name": "mariadb", "release": "osh-openstack-mariadb"},
+        ]
+        mock_delete.side_effect = Exception("helm timed out")
+        count = app_utils.uninstall_stuck_helmreleases()
+        self.assertEqual(count, 0)
+        # Finalizer cleared as the fallback.
+        mock_kube.return_value.patch_custom_resource.assert_any_call(
+            constants.FLUXCD_CRD_HELM_REL_GROUP,
+            constants.FLUXCD_CRD_HELM_REL_VERSION,
+            app_constants.HELM_NS_OPENSTACK,
+            constants.FLUXCD_CRD_HELM_REL_PLURAL,
+            "mariadb",
+            {"metadata": {"finalizers": []}})
+
+    @mock.patch('k8sapp_openstack.utils.helm_utils.delete_helm_release')
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.list_not_ready_helmreleases')
+    def test_uninstall_stuck_helmreleases_clears_finalizer_if_not_finalized(
+            self, mock_list, mock_kube, mock_delete):
+        """A HelmRelease the controller does not finalize within the wait
+        (its install was still running at the abort) has its finalizer
+        cleared after it was uninstalled and deleted."""
+        mock_list.return_value = [
+            {"name": "mariadb", "release": "osh-openstack-mariadb"},
+        ]
+        # Still present after the delete: the controller never finalizes it.
+        mock_kube.return_value.get_custom_resource.return_value = {
+            "metadata": {"name": "mariadb",
+                         "deletionTimestamp": "2026-01-01T00:00:00Z",
+                         "finalizers": ["finalizers.fluxcd.io"]}}
+        count = app_utils.uninstall_stuck_helmreleases(
+            finalize_timeout=0, interval=0)
+        self.assertEqual(count, 1)
+        mock_delete.assert_called_once()
+        mock_kube.return_value.delete_custom_resource.assert_called_once()
+        mock_kube.return_value.patch_custom_resource.assert_any_call(
+            constants.FLUXCD_CRD_HELM_REL_GROUP,
+            constants.FLUXCD_CRD_HELM_REL_VERSION,
+            app_constants.HELM_NS_OPENSTACK,
+            constants.FLUXCD_CRD_HELM_REL_PLURAL,
+            "mariadb",
+            {"metadata": {"finalizers": []}})
+
+    @mock.patch('k8sapp_openstack.utils.helm_utils.delete_helm_release')
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.list_not_ready_helmreleases')
+    def test_uninstall_stuck_helmreleases_no_forced_clear_when_finalized(
+            self, mock_list, mock_kube, mock_delete):
+        """Normal case: the controller finalizes the deleted HelmRelease, so
+        its finalizer is never touched directly."""
+        mock_list.return_value = [
+            {"name": "mariadb", "release": "osh-openstack-mariadb"},
+        ]
+        mock_kube.return_value.get_custom_resource.return_value = None
+        count = app_utils.uninstall_stuck_helmreleases()
+        self.assertEqual(count, 1)
+        mock_kube.return_value.delete_custom_resource.assert_called_once()
+        for call in mock_kube.return_value.patch_custom_resource.call_args_list:
+            self.assertNotEqual(
+                call.args[-1], {"metadata": {"finalizers": []}})
+
+    @mock.patch('k8sapp_openstack.utils.helm_utils.delete_helm_release')
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.list_not_ready_helmreleases')
+    def test_uninstall_stuck_helmreleases_continues_after_suspend_error(
+            self, mock_list, mock_kube, mock_delete):
+        """A suspend failure is non-fatal: uninstall is still attempted."""
+        mock_list.return_value = [
+            {"name": "mariadb", "release": "osh-openstack-mariadb"},
+        ]
+        mock_kube.return_value.patch_custom_resource.side_effect = \
+            Exception("suspend failed")
+        mock_kube.return_value.get_custom_resource.return_value = None
+        count = app_utils.uninstall_stuck_helmreleases()
+        # Uninstall still ran and succeeded.
+        self.assertEqual(count, 1)
+        mock_delete.assert_called_once_with(
+            "osh-openstack-mariadb",
+            namespace=app_constants.HELM_NS_OPENSTACK)
+
+    # ---- list_terminating_pvcs ----
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_list_terminating_pvcs(self, mock_kube):
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        pvc_list = mock.Mock()
+        pvc_list.items = [
+            self._pvc("mysql-data-mariadb-server-0", True),
+            self._pvc("rabbitmq-data-rabbitmq-0", True),
+            self._pvc("not-terminating", False),
+        ]
+        core.list_namespaced_persistent_volume_claim.return_value = pvc_list
+        result = app_utils.list_terminating_pvcs()
+        self.assertEqual(
+            result,
+            ["mysql-data-mariadb-server-0", "rabbitmq-data-rabbitmq-0"])
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_list_terminating_pvcs_api_failure(self, mock_kube):
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        core.list_namespaced_persistent_volume_claim.side_effect = \
+            Exception("boom")
+        self.assertEqual(app_utils.list_terminating_pvcs(), [])
+
+    # ---- strip_stuck_pvc_finalizers ----
+
+    @mock.patch('k8sapp_openstack.utils.time.sleep', return_value=None)
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.list_terminating_pvcs')
+    def test_strip_stuck_pvc_finalizers_patches_then_clears(
+            self, mock_list, mock_kube, _mock_sleep):
+        # Initial poll finds a stuck PVC; the post-wait re-list returns it too;
+        # the following iteration finds none.
+        mock_list.side_effect = [
+            ["mysql-data-mariadb-server-0"],
+            ["mysql-data-mariadb-server-0"],
+            [],
+        ]
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        app_utils.strip_stuck_pvc_finalizers(retries=5, interval=0)
+        core.patch_namespaced_persistent_volume_claim.assert_called_with(
+            "mysql-data-mariadb-server-0",
+            app_constants.HELM_NS_OPENSTACK,
+            {"metadata": {"finalizers": []}})
+
+    @mock.patch('k8sapp_openstack.utils.time.sleep', return_value=None)
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    @mock.patch('k8sapp_openstack.utils.list_terminating_pvcs',
+                return_value=[])
+    def test_strip_stuck_pvc_finalizers_nothing_stuck(
+            self, _mock_list, mock_kube, _mock_sleep):
+        app_utils.strip_stuck_pvc_finalizers(retries=5, interval=0)
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        core.patch_namespaced_persistent_volume_claim.assert_not_called()
+
+    # ---- force_finalize_namespace ----
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_force_finalize_namespace_clears_finalizers(self, mock_kube):
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        ns = mock.Mock()
+        ns.spec.finalizers = ["kubernetes"]
+        core.read_namespace.return_value = ns
+        # After finalize the namespace is gone.
+        mock_kube.return_value.kube_get_namespace.return_value = False
+        self.assertTrue(app_utils.force_finalize_namespace())
+        core.replace_namespace_finalize.assert_called_once()
+        self.assertEqual(ns.spec.finalizers, [])
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_force_finalize_namespace_already_gone(self, mock_kube):
+        """A 404 on read means the namespace is already gone -> True."""
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        core.read_namespace.side_effect = KubeApiException(
+            status=HTTPStatus.NOT_FOUND)
+        self.assertTrue(app_utils.force_finalize_namespace())
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_force_finalize_namespace_api_error_not_masked(self, mock_kube):
+        """A non-404 API error must NOT be reported as success."""
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        core.read_namespace.side_effect = KubeApiException(
+            status=HTTPStatus.INTERNAL_SERVER_ERROR)
+        self.assertFalse(app_utils.force_finalize_namespace())
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_force_finalize_namespace_no_finalizers_still_gone(self, mock_kube):
+        """No spec.finalizers and the namespace is actually gone -> True."""
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        ns = mock.Mock()
+        ns.spec.finalizers = []
+        core.read_namespace.return_value = ns
+        mock_kube.return_value.kube_get_namespace.return_value = False
+        self.assertTrue(app_utils.force_finalize_namespace())
+        core.replace_namespace_finalize.assert_not_called()
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_force_finalize_namespace_stuck_by_other_finalizer(self, mock_kube):
+        """A namespace held by something other than its own spec.finalizers
+        stays present, so the helper must report False, not success."""
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        ns = mock.Mock()
+        ns.spec.finalizers = []
+        core.read_namespace.return_value = ns
+        # Namespace is still present after the attempt.
+        mock_kube.return_value.kube_get_namespace.return_value = True
+        self.assertFalse(app_utils.force_finalize_namespace())
+
+    @mock.patch('k8sapp_openstack.utils.kubernetes.KubeOperator')
+    def test_force_finalize_namespace_replace_fails(self, mock_kube):
+        core = mock_kube.return_value._get_kubernetesclient_core.return_value
+        ns = mock.Mock()
+        ns.spec.finalizers = ["kubernetes"]
+        core.read_namespace.return_value = ns
+        core.replace_namespace_finalize.side_effect = Exception("replace failed")
+        self.assertFalse(app_utils.force_finalize_namespace())

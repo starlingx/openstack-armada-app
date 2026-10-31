@@ -5,6 +5,7 @@
 #
 from copy import deepcopy
 from grp import getgrnam
+from http import HTTPStatus
 import json
 import os
 from pathlib import Path
@@ -2038,6 +2039,274 @@ def update_helmrelease(release, patch):
         LOG.error(f"Failed to update helmrelease: {release}, with error: {e}")
     except Exception as e:
         LOG.error(f"Unexpected error while updating helmrelease: {e}")
+
+
+def list_not_ready_helmreleases(namespace=app_constants.HELM_NS_OPENSTACK):
+    """List HelmReleases in a namespace whose Ready condition is not True.
+
+    An aborted apply can leave a HelmRelease mid-install (that is, not yet
+    ready): the install action can never finish, so helm never completes the
+    uninstall and the fluxcd finalizer never clears. Those are the ones that
+    wedge the kustomize delete. A release reporting Ready=True is healthy and
+    is left out so the normal helm uninstall path handles it.
+
+    Returns:
+        list[dict]: for each not-Ready release, a dict with its ``name`` (the
+            HelmRelease CR name) and ``release`` (spec.releaseName, the helm
+            release to uninstall). ``release`` falls back to the CR name when
+            spec.releaseName is unset.
+    """
+    kube = kubernetes.KubeOperator()
+    try:
+        releases = kube.list_namespaced_custom_resources(
+            constants.FLUXCD_CRD_HELM_REL_GROUP,
+            constants.FLUXCD_CRD_HELM_REL_VERSION,
+            namespace,
+            constants.FLUXCD_CRD_HELM_REL_PLURAL)
+    except Exception as e:
+        LOG.error(f"Unexpected error while listing helmreleases in "
+                  f"{namespace}: {e}")
+        return []
+
+    not_ready = []
+    for release in releases or []:
+        name = release.get("metadata", {}).get("name")
+        if not name:
+            continue
+        conditions = release.get("status", {}).get("conditions", [])
+        ready = next((c.get("status") for c in conditions
+                      if c.get("type") == "Ready"), None)
+        if ready != "True":
+            release_name = release.get("spec", {}).get("releaseName") or name
+            not_ready.append({"name": name, "release": release_name})
+    return not_ready
+
+
+def _clear_helmrelease_finalizer(kube, namespace, name):
+    """Last-resort: blank the fluxcd finalizer on a HelmRelease CR.
+
+    Only used when the graceful suspend + helm uninstall could not complete,
+    so a genuinely wedged CR does not block the remove indefinitely.
+    """
+    try:
+        kube.patch_custom_resource(
+            constants.FLUXCD_CRD_HELM_REL_GROUP,
+            constants.FLUXCD_CRD_HELM_REL_VERSION,
+            namespace,
+            constants.FLUXCD_CRD_HELM_REL_PLURAL,
+            name,
+            {"metadata": {"finalizers": []}})
+        return True
+    except Exception as e:
+        LOG.error(f"Failed to clear finalizer on helmrelease "
+                  f"{namespace}/{name}: {e}")
+        return False
+
+
+def _helmrelease_present(kube, namespace, name):
+    """Return True if the HelmRelease CR still exists."""
+    try:
+        return bool(kube.get_custom_resource(
+            constants.FLUXCD_CRD_HELM_REL_GROUP,
+            constants.FLUXCD_CRD_HELM_REL_VERSION,
+            namespace,
+            constants.FLUXCD_CRD_HELM_REL_PLURAL,
+            name))
+    except Exception:
+        # Can't tell; the kustomize delete that follows is the backstop.
+        return False
+
+
+def uninstall_stuck_helmreleases(namespace=app_constants.HELM_NS_OPENSTACK,
+                                 finalize_timeout=30, interval=2):
+    """Tear down the HelmReleases an aborted apply left not-Ready.
+
+    Each one is suspended and helm uninstalled, then deleted and given
+    finalize_timeout seconds for the controller to clear its finalizer. A
+    release whose install was still running when the apply was aborted is
+    not finalized until that install times out, so its finalizer is cleared
+    once the wait expires; Helm has already removed the release by then.
+    The finalizer is also cleared if the uninstall itself fails.
+
+    Args:
+        namespace (str): namespace of the HelmReleases.
+        finalize_timeout (int): seconds to wait for the controller to
+            finalize the deleted HelmReleases.
+        interval (int): seconds between checks while waiting.
+
+    Returns:
+        int: number of HelmReleases successfully uninstalled.
+    """
+    not_ready = list_not_ready_helmreleases(namespace)
+    kube = kubernetes.KubeOperator()
+    uninstalled = []
+    for entry in not_ready:
+        name = entry["name"]
+        release = entry["release"]
+        LOG.info(f"Uninstalling stuck helmrelease {namespace}/{name} "
+                 f"(release {release}) so the application remove is not "
+                 f"blocked on it.")
+
+        # Stop the controller from reconciling/recreating during teardown.
+        try:
+            kube.patch_custom_resource(
+                constants.FLUXCD_CRD_HELM_REL_GROUP,
+                constants.FLUXCD_CRD_HELM_REL_VERSION,
+                namespace,
+                constants.FLUXCD_CRD_HELM_REL_PLURAL,
+                name,
+                {"spec": {"suspend": True}})
+        except Exception as e:
+            LOG.warning(f"Could not suspend helmrelease {namespace}/{name} "
+                        f"before uninstall: {e}")
+
+        # delete_helm_release has its own timeout, so a helm that cannot
+        # finish fails fast rather than wedging the remove.
+        try:
+            helm_utils.delete_helm_release(release, namespace=namespace)
+        except Exception as e:
+            LOG.warning(f"helm uninstall of {namespace}/{release} did not "
+                        f"complete ({e}); clearing the fluxcd finalizer as a "
+                        f"last resort so the remove is not blocked.")
+            _clear_helmrelease_finalizer(kube, namespace, name)
+            continue
+        uninstalled.append(name)
+
+    # Delete them here rather than leaving it to the kustomize delete, so a
+    # HelmRelease the controller won't finalize is caught now instead of
+    # blocking the remove until the 180s delete timeout.
+    for name in uninstalled:
+        try:
+            kube.delete_custom_resource(
+                constants.FLUXCD_CRD_HELM_REL_GROUP,
+                constants.FLUXCD_CRD_HELM_REL_VERSION,
+                namespace,
+                constants.FLUXCD_CRD_HELM_REL_PLURAL,
+                name)
+        except Exception as e:
+            LOG.warning(f"Could not delete helmrelease {namespace}/{name}: "
+                        f"{e}")
+
+    pending = list(uninstalled)
+    deadline = time.time() + finalize_timeout
+    while pending:
+        pending = [n for n in pending
+                   if _helmrelease_present(kube, namespace, n)]
+        if not pending or time.time() >= deadline:
+            break
+        time.sleep(interval)
+
+    for name in pending:
+        LOG.info(f"helmrelease {namespace}/{name} was not finalized within "
+                 f"{finalize_timeout}s; its release is already uninstalled, "
+                 f"so clearing the fluxcd finalizer to let the remove "
+                 f"complete.")
+        _clear_helmrelease_finalizer(kube, namespace, name)
+    return len(uninstalled)
+
+
+def list_terminating_pvcs(namespace=app_constants.HELM_NS_OPENSTACK):
+    """List PVCs in a namespace that are stuck with a deletionTimestamp set.
+
+    Returns:
+        list[str]: names of PVCs that have been marked for deletion.
+    """
+    kube = kubernetes.KubeOperator()
+    try:
+        core = kube._get_kubernetesclient_core()
+        pvcs = core.list_namespaced_persistent_volume_claim(namespace)
+    except Exception as e:
+        LOG.error(f"Unexpected error while listing PVCs in {namespace}: {e}")
+        return []
+    return [pvc.metadata.name for pvc in pvcs.items
+            if pvc.metadata.deletion_timestamp is not None]
+
+
+def strip_stuck_pvc_finalizers(namespace=app_constants.HELM_NS_OPENSTACK,
+                               retries=10, interval=3):
+    """Clear finalizers on PVCs stuck terminating so the namespace can go.
+
+    After the PVCs are deleted, poll briefly to give them a chance to be
+    reclaimed on their own; any still terminating after the wait have their
+    finalizers cleared so they are not orphaned when the namespace is removed.
+
+    Args:
+        namespace (str): namespace to scan for stuck PVCs.
+        retries (int): number of poll iterations.
+        interval (int): seconds to wait between iterations.
+    """
+    kube = kubernetes.KubeOperator()
+    for _ in range(retries):
+        stuck = list_terminating_pvcs(namespace)
+        if not stuck:
+            return
+        # Give the normal delete a chance before forcing the finalizers off.
+        time.sleep(interval)
+        for pvc in list_terminating_pvcs(namespace):
+            LOG.info(f"Clearing finalizer on PVC {namespace}/{pvc} stuck "
+                     f"terminating so the namespace can be removed.")
+            try:
+                core = kube._get_kubernetesclient_core()
+                core.patch_namespaced_persistent_volume_claim(
+                    pvc, namespace, {"metadata": {"finalizers": []}})
+            except Exception as e:
+                LOG.error(f"Failed to clear finalizer on PVC "
+                          f"{namespace}/{pvc}: {e}")
+
+
+def force_finalize_namespace(namespace=app_constants.HELM_NS_OPENSTACK):
+    """Force a namespace stuck in Terminating to finalize.
+
+    Clears the namespace's spec.finalizers through the finalize subresource.
+    Used as a fallback when the normal namespace delete times out.
+
+    Returns:
+        bool: True if the namespace was finalized or is already gone,
+              False if the finalize could not be completed.
+    """
+    kube = kubernetes.KubeOperator()
+    try:
+        core = kube._get_kubernetesclient_core()
+        ns = core.read_namespace(namespace)
+    except KubeApiException as e:
+        if e.status == HTTPStatus.NOT_FOUND:
+            # Namespace already gone, nothing to do.
+            return True
+        LOG.error(f"Failed to read namespace {namespace}: {e}")
+        return False
+    except Exception as e:
+        LOG.error(f"Failed to read namespace {namespace}: {e}")
+        return False
+
+    if ns.spec is not None and ns.spec.finalizers:
+        ns.spec.finalizers = []
+        try:
+            core.replace_namespace_finalize(namespace, ns)
+            LOG.info(f"Force-finalized namespace {namespace}.")
+        except KubeApiException as e:
+            if e.status != HTTPStatus.NOT_FOUND:
+                LOG.error(f"Failed to force-finalize namespace "
+                          f"{namespace}: {e}")
+                return False
+        except Exception as e:
+            LOG.error(f"Failed to force-finalize namespace {namespace}: {e}")
+            return False
+
+    # Clearing spec.finalizers only unblocks a namespace held by its own
+    # finalizers. A namespace can stay in Terminating for other reasons (a
+    # resource inside it holding a finalizer, an unavailable APIService), so
+    # confirm it is actually gone rather than assuming success.
+    try:
+        still_present = kube.kube_get_namespace(namespace)
+    except Exception as e:
+        LOG.error(f"Failed to confirm namespace {namespace} removal: {e}")
+        return False
+    if still_present:
+        LOG.warning(f"Namespace {namespace} is still present after "
+                    f"force-finalize; it is held by something other than "
+                    f"its own finalizers.")
+        return False
+    return True
 
 
 def get_app_version_list(base_dir: str, app_name: str) -> list:

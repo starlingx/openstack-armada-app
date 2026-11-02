@@ -431,6 +431,33 @@ class OpenstackHelmUnitTests(OpenstackBaseHelmTestCase,
             )
             self.assertEqual(pw, b'pw_from_inactive_app')
 
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=mock.Mock())
+    @mock.patch('k8sapp_openstack.utils.find_openstack_app', return_value=mock.Mock(id=9))
+    @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm._generate_random_password',
+                return_value="generated_password")
+    def test_get_or_generate_password_skips_inactive_apps_without_it(self, *_):
+        """A chart added in a later version has no overrides in older inactive
+        apps, so those are skipped and the password is taken from one that has it."""
+        overrides = {
+            9: {'key_dummy': 'value_dummy'},
+            1: {'other_field': 'other_value'},
+            3: None,
+            2: {'pw_field': 'pw_from_app_2'},
+        }
+
+        def _get(app_id, name, namespace):
+            if overrides.get(app_id) is None:
+                raise exception.HelmOverrideNotFound("test")
+            return mock.Mock(system_overrides=dict(overrides[app_id]))
+
+        with mock.patch.object(self.helm.dbapi, 'helm_override_update'), \
+                mock.patch.object(self.helm.dbapi, 'kube_app_get_inactive',
+                                  return_value=[mock.Mock(id=1), mock.Mock(id=3),
+                                                mock.Mock(id=2)]), \
+                mock.patch.object(self.helm.dbapi, 'helm_override_get', side_effect=_get):
+            pw = self.helm._get_or_generate_password('chart', 'ns', 'pw_field')
+            self.assertEqual(pw, b'pw_from_app_2')
+
     @mock.patch('k8sapp_openstack.helm.openstack.OpenstackBaseHelm.dbapi', new=None)
     def test_get_or_generate_password_dbapi_unavailable(self, *_):
         """Tests on general purpose password retrieval or generation. When dbapi not available this

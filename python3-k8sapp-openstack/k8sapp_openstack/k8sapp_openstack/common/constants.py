@@ -113,8 +113,6 @@ CEPH_ROOK_POLL_CRUSH_RULE = 'kube-rbd'
 CEPH_ROOK_RBD_SECRET_NAME = 'rook-csi-rbd-provisioner'
 CEPH_ROOK_RBD_DRIVER = 'rook-ceph.rbd.csi.ceph.com'
 
-CEPH_RBD_SECRET_NAME = 'ceph-pool-kube-rbd'
-CEPH_RBD_DRIVER = 'rbd.csi.ceph.com'
 CEPH_RBD_SNAPSHOT_PREFIX = 'rbd-snap-'
 
 CEPH_RBD_POOL_USER_CINDER = "cinder"

@@ -26,7 +26,6 @@ from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import get_storage_backup_priority_list
 from k8sapp_openstack.utils import get_storage_tls_container_certs
 from k8sapp_openstack.utils import get_storage_tls_host_cert
-from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_storage_ca_cert_secret_available
 from k8sapp_openstack.utils import is_strict_backend
 from k8sapp_openstack.utils import resolve_secret_ref
@@ -185,7 +184,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         self.default_volume_type = app_constants.BACKEND_DEFAULT_BACKEND_NAME
         self.default_backup_driver = self._get_backup_driver_name()
         self.default_backup_type = app_constants.BACKEND_DEFAULT_BACKEND_NAME
-        self._rook_ceph = False
         ceph_overrides = dict()
         ceph_client_overrides = dict()
         self.available_backends = get_available_volume_backends()
@@ -226,18 +224,13 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
         # Check if ceph is enabled by the user or if there are no user overrides (default)
         if self._ceph_enabled:
-            self._rook_ceph, _ = is_ceph_backend_available(ceph_type=constants.SB_TYPE_CEPH_ROOK)
-            # Ceph and Rook Ceph are mutually exclusive, so it's either one or the other
-            if self._rook_ceph:
-                cinder_overrides = self._get_conf_rook_ceph_cinder_overrides(cinder_overrides)
-                backend_overrides = self._get_conf_rook_ceph_backends_overrides(backend_overrides)
-                ceph_overrides = self._get_conf_rook_ceph_overrides()
-                ceph_client_overrides = self._get_ceph_client_rook_overrides()
-            else:
-                cinder_overrides = self._get_conf_ceph_cinder_overrides(cinder_overrides)
-                backend_overrides = self._get_conf_ceph_backends_overrides(backend_overrides)
-                ceph_overrides = self._get_conf_ceph_overrides()
-                ceph_client_overrides = self._get_ceph_client_overrides()
+            # Host-based Ceph support has been removed; the only
+            # supported Ceph backend is Rook Ceph, so the user-facing "ceph"
+            # backend always resolves to Rook.
+            cinder_overrides = self._get_conf_rook_ceph_cinder_overrides(cinder_overrides)
+            backend_overrides = self._get_conf_rook_ceph_backends_overrides(backend_overrides)
+            ceph_overrides = self._get_conf_rook_ceph_overrides()
+            ceph_client_overrides = self._get_ceph_client_rook_overrides()
 
         # Add NetApp configuration
         if any(self.available_netapp_backends):
@@ -267,7 +260,7 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                 break
         if self.default_volume_type != app_constants.CEPH_BACKEND_NAME:
             # Only set if not ceph, as ceph is handled separately by
-            # _get_conf_ceph_cinder_overrides and _get_conf_rook_ceph_cinder_overrides
+            # _get_conf_rook_ceph_cinder_overrides
             cinder_overrides['DEFAULT']['default_volume_type'] = self.default_volume_type
 
         # Setting default backup driver based on priority list.
@@ -394,89 +387,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         else:
             return overrides
 
-    def _get_conf_ceph_overrides(self):
-        ceph_backend = self._get_primary_ceph_backend()
-        if not ceph_backend:
-            return {}
-
-        primary_tier_name =\
-            constants.SB_TIER_DEFAULT_NAMES[constants.SB_TIER_TYPE_CEPH]
-
-        replication, min_replication = storage_backend_conf\
-            .StorageBackendConfig.get_ceph_pool_replication(self.dbapi)
-
-        pools = {}
-        for backend in self.dbapi.storage_ceph_get_list():
-            if backend.tier_name == primary_tier_name:
-                pool_name = app_constants.CEPH_POOL_VOLUMES_NAME
-            else:
-                pool_name = "%s-%s" % (app_constants.CEPH_POOL_VOLUMES_NAME,
-                                      backend.tier_name)
-            rule_name = "{0}{1}{2}".format(
-                backend.tier_name, constants.CEPH_CRUSH_TIER_SUFFIX,
-                "-ruleset").replace('-', '_')
-
-            chunk_size = self._estimate_ceph_pool_pg_num(self.dbapi.istor_get_all())
-
-            pool = {
-                'replication': replication,
-                'crush_rule': rule_name.encode('utf8', 'strict'),
-                'chunk_size': min(chunk_size, app_constants.CEPH_POOL_VOLUMES_CHUNK_SIZE),
-                'app_name': app_constants.CEPH_POOL_VOLUMES_APP_NAME
-            }
-            pools[pool_name.encode('utf8', 'strict')] = pool
-            if backend.name == constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH]:
-                # Backup uses the same replication and crush rule as
-                # the default storage backend
-                pool_backup = {
-                    'replication': replication,
-                    'crush_rule': rule_name.encode('utf8', 'strict'),
-                    'chunk_size': min(chunk_size, app_constants.CEPH_POOL_BACKUP_CHUNK_SIZE),
-                    'app_name': app_constants.CEPH_POOL_BACKUP_APP_NAME
-                }
-                pools['backup'] = dict(pool_backup)
-
-        return {
-            'monitors': self._get_formatted_ceph_monitor_ips(),
-            'admin_keyring': 'null',
-            'pools': pools
-        }
-
-    def _get_conf_ceph_cinder_overrides(self, cinder_overrides):
-        if app_constants.CEPH_BACKEND_NAME not in self.VOLUME_PRIORITY_LIST:
-            LOG.warning("Skipping ceph Cinder overrides. The backend is available"
-                        " but not included in the volume priority list")
-            return cinder_overrides
-        # Ensure 'DEFAULT' key exists in cinder_overrides
-        cinder_overrides.setdefault('DEFAULT', {})
-
-        # Get all the internal CEPH backends and construct enabled_backends string
-        backends = self.dbapi.storage_backend_get_list_by_type(
-            backend_type=constants.SB_TYPE_CEPH)
-        new_backends_list = [
-            str(b.name.encode('utf8', 'strict').decode('utf-8')) for b in backends
-        ]
-
-        # Retrieve existing enabled_backends, merge with new_backends_list, and remove duplicates
-        existing_backends = cinder_overrides['DEFAULT'].get('enabled_backends', '').split(',')
-        backends_list = list(filter(None, set(existing_backends + new_backends_list)))
-        cinder_overrides['DEFAULT']['enabled_backends'] = ','.join(backends_list)
-
-        # Always set the default_volume_type to the volume type associated with the
-        # primary Ceph backend/tier which is available on all StarlingX platform
-        # configurations. This will guarantee that any Cinder API requests for
-        # this value will be fulfilled as part of determining a safe volume type to
-        # use during volume creation. This can be overrides by the user when/if
-        # additional backends are added to the platform.
-        default = next(
-            (b.name for b in backends
-                if b.name == constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH]), None)
-        if default:
-            cinder_overrides['DEFAULT']['default_volume_type'] = \
-                default.encode('utf8', 'strict')
-
-        return cinder_overrides
-
     def _get_conf_netapp_cinder_overrides(self, cinder_overrides):
         # Ensure 'DEFAULT' key exists in cinder_overrides
         cinder_overrides.setdefault('DEFAULT', {})
@@ -491,52 +401,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         cinder_overrides['DEFAULT']['enabled_backends'] = ','.join(backends_list)
 
         return cinder_overrides
-
-    def _get_conf_ceph_backends_overrides(self, backend_overrides):
-        if app_constants.CEPH_BACKEND_NAME not in self.VOLUME_PRIORITY_LIST:
-            LOG.warning("Skipping ceph backend config. The backend is available"
-                        " but not included in the volume priority list")
-            return backend_overrides
-        # Get tier info.
-        tiers = self.dbapi.storage_tier_get_list()
-        primary_tier_name =\
-            constants.SB_TIER_DEFAULT_NAMES[constants.SB_TIER_TYPE_CEPH]
-
-        # We support primary and secondary CEPH tiers.
-        backends = self.dbapi.storage_backend_get_list_by_type(
-            backend_type=constants.SB_TYPE_CEPH)
-
-        # No data if there are no CEPH backends.
-        if not backends:
-            return {}
-
-        ceph_uuid = get_ceph_fsid()
-        for bk in backends:
-            bk_name = bk.name.encode('utf8', 'strict')
-            tier = next((t for t in tiers if t.forbackendid == bk.id), None)
-            if not tier:
-                raise Exception("No tier present for backend %s" % bk_name)
-
-            if tier.name == primary_tier_name:
-                rbd_pool = app_constants.CEPH_POOL_VOLUMES_NAME
-            else:
-                rbd_pool = "%s-%s" % (app_constants.CEPH_POOL_VOLUMES_NAME,
-                                      tier.name)
-
-            backend_overrides[bk_name] = {
-                'image_volume_cache_enabled': 'True',
-                'volume_backend_name': bk_name,
-                'volume_driver': 'cinder.volume.drivers.rbd.RBDDriver',
-                'rbd_pool': rbd_pool.encode('utf8', 'strict'),
-                'rbd_user': app_constants.CEPH_RBD_POOL_USER_CINDER,
-                'rbd_ceph_conf':
-                    (constants.CEPH_CONF_PATH +
-                     constants.SB_TYPE_CEPH_CONF_FILENAME),
-            }
-            if ceph_uuid:
-                backend_overrides[bk_name]['rbd_secret_uuid'] = ceph_uuid
-
-        return backend_overrides
 
     def _get_conf_netapp_backends_overrides(self, backend_overrides):
         nfs_constant_configs = {
@@ -839,16 +703,6 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
         }
 
-    def _get_primary_ceph_backend(self):
-        try:
-            backend = self.dbapi.storage_backend_get_by_name(
-                constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH])
-        except Exception:
-            backend = None
-            pass
-
-        return backend
-
     def get_region_name(self):
         return self._get_service_region_name(self.SERVICE_NAME)
 
@@ -1023,10 +877,4 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         return {
             'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
             'internal_ceph_backend': app_constants.CEPH_ROOK_BACKEND_NAME,
-        }
-
-    def _get_ceph_client_overrides(self):
-        return {
-            'user_secret_name': constants.K8S_RBD_PROV_ADMIN_SECRET_NAME,
-            'internal_ceph_backend': constants.SB_DEFAULT_NAMES[constants.SB_TYPE_CEPH],
         }

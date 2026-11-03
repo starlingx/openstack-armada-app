@@ -206,15 +206,11 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=app_constants.DEFAULT_BACKUP_PRIORITY_LIST
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_cinder_overrides',
         return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_overrides',
         return_value={
             'monitors': [],
             'admin_keyring': 'AQCr/DJpZLb4MxAAPXEg+LMODSJ+AB0mb/D+Rg==',
@@ -235,7 +231,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         }
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_backends_overrides',
         return_value={
             'ceph': {
                 'image_volume_cache_enabled': 'True',
@@ -327,19 +323,15 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_cinder_overrides',
         return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_overrides',
         return_value=dict()
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_backends_overrides',
         return_value=dict()
     )
     def test_set_default_storage_backend_netapp_ceph_disabled(self, *_):
@@ -390,15 +382,11 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_cinder_overrides',
         return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_overrides',
         return_value={
             'monitors': [],
             'admin_keyring': 'AQCr/DJpZLb4MxAAPXEg+LMODSJ+AB0mb/D+Rg==',
@@ -419,7 +407,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         }
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_backends_overrides',
         return_value={
             'ceph': {
                 'image_volume_cache_enabled': 'True',
@@ -501,15 +489,11 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_cinder_overrides',
         return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_overrides',
         return_value={
             'monitors': [],
             'admin_keyring': 'AQCr/DJpZLb4MxAAPXEg+LMODSJ+AB0mb/D+Rg==',
@@ -530,7 +514,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         }
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_backends_overrides',
         return_value={
             'ceph': {
                 'image_volume_cache_enabled': 'True',
@@ -613,15 +597,11 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_cinder_overrides',
         return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_overrides',
         return_value={
             'monitors': [],
             'admin_keyring': 'AQCr/DJpZLb4MxAAPXEg+LMODSJ+AB0mb/D+Rg==',
@@ -642,7 +622,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         }
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_backends_overrides',
         return_value={
             'ceph': {
                 'image_volume_cache_enabled': 'True',
@@ -714,15 +694,11 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_cinder_overrides',
         return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_overrides',
         return_value={
             'monitors': [],
             'admin_keyring': 'AQCr/DJpZLb4MxAAPXEg+LMODSJ+AB0mb/D+Rg==',
@@ -743,7 +719,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         }
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_backends_overrides',
         return_value={
             'ceph': {
                 'image_volume_cache_enabled': 'True',
@@ -815,15 +791,11 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         return_value=app_constants.DEFAULT_VOLUME_PRIORITY_LIST
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.is_ceph_backend_available',
-        return_value=(False, "")
-    )
-    @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_cinder_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_cinder_overrides',
         return_value={'DEFAULT': {'enabled_backends': 'ceph', 'default_volume_type': 'ceph'}}
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_overrides',
         return_value={
             'monitors': [],
             'admin_keyring': 'AQCr/DJpZLb4MxAAPXEg+LMODSJ+AB0mb/D+Rg==',
@@ -844,7 +816,7 @@ class CinderGetOverrideTest(CinderConversionTestCase,
         }
     )
     @mock.patch(
-        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_ceph_backends_overrides',
+        'k8sapp_openstack.helm.cinder.CinderHelm._get_conf_rook_ceph_backends_overrides',
         return_value={
             'ceph': {
                 'image_volume_cache_enabled': 'True',

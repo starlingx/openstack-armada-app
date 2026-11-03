@@ -223,6 +223,10 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
         tunnel_types = None
         bridge_mappings = ""
         index = 0
+        # One bridge per data network; a data network shared by two interfaces
+        # (e.g. data + pci-sriov) must not emit a duplicate key, which would
+        # make Neutron's parse_mappings() abort the agent at startup.
+        seen_datanets = set()
         # With OVS-DPDK the physical bridges are created by the platform, so
         # their names are derived from the platform's algorithm instead of being
         # numbered locally.  With OVS-kernel the agent creates the bridges it is
@@ -255,6 +259,14 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                     elif (datanet.datanetwork_network_type in
                           [constants.DATANETWORK_TYPE_FLAT,
                            constants.DATANETWORK_TYPE_VLAN]):
+                        # Skip if this data network was already mapped.
+                        if dn_name in seen_datanets:
+                            LOG.info(
+                                "_get_dynamic_ovs_agent_config: host=%s "
+                                "iface=%s: data network %s already mapped, "
+                                "skipping duplicate bridge_mappings entry",
+                                host.hostname, iface['ifname'], dn_name)
+                            continue
                         port_name = self._get_interface_port_name(host, iface)
                         # Skip bridge mapping if port name could not be resolved
                         if port_name:
@@ -278,6 +290,7 @@ class NeutronHelm(openstack.OpenstackBaseHelm):
                                     host.hostname, iface['ifname'], dn_name)
                                 continue
                             bridge_mappings += ('%s:%s,' % (dn_name, brname))
+                            seen_datanets.add(dn_name)
                             LOG.debug("_get_dynamic_ovs_agent_config: host=%s iface=%s dn=%s "
                                       "-> bridge %s for port %s",
                                       host.hostname, iface['ifname'], dn_name, brname, port_name)

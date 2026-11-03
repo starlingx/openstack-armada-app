@@ -70,3 +70,4 @@
 0070-Allow-overriding-liveness-probe-port.patch
 0071-Support-multiple-NFS-shares-files-in-Cinder.patch
 0072-Fix-mariadb-controller-DEBUG-log-level-truthiness.patch
+0073-Add-artifact-env-mounts-and-backup-rootwrap-to-Cinde.patch

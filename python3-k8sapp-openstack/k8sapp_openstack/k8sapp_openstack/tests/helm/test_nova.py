@@ -4,9 +4,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import collections
+import random
+
 import mock
 from sysinv.common import constants
 from sysinv.common import exception
+from sysinv.common import utils as cutils
 from sysinv.helm import common
 from sysinv.helm import helm
 from sysinv.tests.db import base as dbbase
@@ -625,3 +629,415 @@ class TestEnableMultipath(testtools.TestCase):
         }
         result = self._make_helm()._enable_multipath()
         self.assertTrue(result)
+
+
+# ---------------------------------------------------------------------------
+# Multi-NUMA fixtures
+# ---------------------------------------------------------------------------
+Cpu = collections.namedtuple(
+    'Cpu', ['cpu', 'thread', 'allocated_function', 'numa_node'])
+Mem = collections.namedtuple(
+    'Mem', ['numa_node', 'platform_reserved_mib',
+            'vswitch_hugepages_size_mib', 'vswitch_hugepages_nr'])
+Host = collections.namedtuple('Host', ['id'])
+
+
+def make_icpu(host_id, num_nodes, cores_per_node=8):
+    """Build an icpu list spread across num_nodes NUMA nodes.
+
+    On every node one core each is assigned PLATFORM, VSWITCH, SHARED and
+    ISOLATED; the remaining cores on the node are APPLICATION. CPU ids are
+    globally unique and ascending, so the APPLICATION and ISOLATED sets drawn
+    back out span every node rather than collapsing onto node 0 -- a fixture
+    that only produced node-0 CPUs would pass against a socket-shaped
+    implementation and defeat the point of the multi-node check.
+    """
+    functions = [
+        constants.PLATFORM_FUNCTION,
+        constants.VSWITCH_FUNCTION,
+        constants.SHARED_FUNCTION,
+        constants.ISOLATED_FUNCTION,
+    ]
+    cpus = []
+    cpu_id = 0
+    for node in range(num_nodes):
+        for i in range(cores_per_node):
+            if i < len(functions):
+                fn = functions[i]
+            else:
+                fn = constants.APPLICATION_FUNCTION
+            cpus.append(Cpu(cpu=cpu_id, thread=0,
+                            allocated_function=fn, numa_node=node))
+            cpu_id += 1
+    return cpus
+
+
+def make_imemory(host_id, num_nodes, platform_mib=1000,
+                 vswitch_size_mib=2, vswitch_nr=512):
+    """Build an imemory list, one cell per NUMA node.
+
+    vswitch_size_mib may be a scalar (applied to every node) or a per-node
+    list, allowing a mix of 2 MiB and 1 GiB pages across nodes.
+    """
+    cells = []
+    for node in range(num_nodes):
+        if isinstance(vswitch_size_mib, (list, tuple)):
+            size = vswitch_size_mib[node]
+        else:
+            size = vswitch_size_mib
+        cells.append(Mem(numa_node=node,
+                         platform_reserved_mib=platform_mib,
+                         vswitch_hugepages_size_mib=size,
+                         vswitch_hugepages_nr=vswitch_nr))
+    return cells
+
+
+def helm_with(cpus=None, memory=None, host_id=0):
+    """Return a fresh NovaHelm(None) with inventory assigned directly.
+
+    No dbapi, no mocking of format_range_set or _oslo_multistring_override --
+    the real utils.format_range_set and OpenstackBaseHelm._oslo_multistring_override
+    run, so the assertions pin end-to-end output.
+    """
+    helm_obj = nova.NovaHelm(None)
+    if cpus is not None:
+        helm_obj.cpus_by_hostid = {host_id: cpus}
+    if memory is not None:
+        helm_obj.memory_by_hostid = {host_id: memory}
+    return helm_obj
+
+
+class NovaMultiNumaTest(testtools.TestCase):
+    """Regression fence for the NUMA-facing NovaHelm methods.
+
+    NovaHelm._update_host_cpu_maps and NovaHelm._update_reserved_memory read
+    per-node inventory out of instance attributes and format it without any
+    assumption that node count equals socket count, so they are expected to
+    stay correct when a host reports more NUMA nodes than it has sockets (for
+    example a 2-socket host exposing 4 or 8 nodes under sub-NUMA clustering).
+    These tests assert that behaviour at 1, 4 and 8 NUMA nodes so that a later
+    change to helm/nova.py that broke it would be caught.
+
+    Each case constructs its own nova.NovaHelm(None) via helm_with() and
+    assigns cpus_by_hostid / memory_by_hostid on it, so no inventory state is
+    shared between cases. Those attributes are plain instance state initialised
+    in NovaHelm.__init__, so a fresh instance per case is the whole isolation
+    requirement; there is no memoised node count that can leak from an 8-node
+    case into a 4-node one.
+    """
+
+    def setUp(self):
+        super(NovaMultiNumaTest, self).setUp()
+        self._clear_module_caches()
+
+    def tearDown(self):
+        super(NovaMultiNumaTest, self).tearDown()
+        self._clear_module_caches()
+
+    @staticmethod
+    def _clear_module_caches():
+        """Clear any module-level @lru_cache reachable from the call path.
+
+        Precedent: TestNumaNodes in sysinv/tests/agent/test_node.py clears
+        node_module._read_numa_nodes.cache_clear() in both setUp and tearDown
+        so a sticky node count from one case cannot let a later case pass. The
+        two methods here read only instance attributes and reach no
+        node-count-bearing cache, but any module-level cache in the shared
+        sysinv.common.utils call path is cleared defensively -- guarded by
+        hasattr, because the installed sysinv may expose none -- so this test
+        cannot inherit cached state from whatever ran before it.
+        """
+        for name in ('format_range_set', 'get_debian_codename'):
+            fn = getattr(cutils, name, None)
+            if fn is not None and hasattr(fn, 'cache_clear'):
+                fn.cache_clear()
+
+    # ------------------------------------------------------------------
+    # _update_host_cpu_maps
+    # ------------------------------------------------------------------
+
+    def test_cpu_maps_1_4_8_nodes(self):
+        """cpu_shared_set / cpu_dedicated_set at 1, 4 and 8 nodes.
+
+        Asserts the exact strings, including the embedded double quotes,
+        written as literals rather than recomputed from the fixture. Also
+        asserts that CPUs drawn from every node in the fixture appear in the
+        output, since a fixture producing only node-0 CPUs would pass against a
+        socket-shaped implementation and defeat the multi-node check. The
+        1-node fixture is a regression guard so a later fix cannot assume
+        multi-node input.
+
+        make_icpu(.., N, cores_per_node=8) lays out, per node:
+          node k cpus = [8k .. 8k+7]; 8k=PLATFORM 8k+1=VSWITCH 8k+2=SHARED
+          8k+3=ISOLATED, 8k+4..8k+7 = APPLICATION
+        so APPLICATION (-> cpu_shared_set) is cpus 4-7 on every node and
+        ISOLATED (-> cpu_dedicated_set) is cpu 3 on every node.
+        """
+        expected = {
+            1: ('"4-7"', '"3"'),
+            4: ('"4-7,12-15,20-23,28-31"', '"3,11,19,27"'),
+            8: ('"4-7,12-15,20-23,28-31,36-39,44-47,52-55,60-63"',
+                '"3,11,19,27,35,43,51,59"'),
+        }
+        for num_nodes, (shared, dedicated) in expected.items():
+            helm_obj = helm_with(cpus=make_icpu(0, num_nodes))
+            compute_config = {}
+            helm_obj._update_host_cpu_maps(Host(id=0), compute_config)
+            self.assertEqual(compute_config['cpu_shared_set'], shared)
+            self.assertEqual(compute_config['cpu_dedicated_set'], dedicated)
+
+            # CPUs from every node must appear, not just node 0.
+            for node in range(num_nodes):
+                app_cpu_on_node = str(8 * node + 4)
+                self.assertIn(app_cpu_on_node, compute_config['cpu_shared_set'])
+
+    def test_cpu_maps_shared_function_absent(self):
+        """SHARED_FUNCTION negative control.
+
+        The word "shared" appears in both constants.SHARED_FUNCTION and the
+        cpu_shared_set key and means different things: SHARED_FUNCTION is a
+        StarlingX CPU role, while cpu_shared_set is Nova's pool of floating VM
+        CPUs. _update_host_cpu_maps derives cpu_shared_set from
+        constants.APPLICATION_FUNCTION alone and reads SHARED_FUNCTION nowhere,
+        so the SHARED cpus (cpu 2 on every node in the fixture) must be absent
+        from cpu_shared_set.
+        """
+        for num_nodes in (1, 4, 8):
+            helm_obj = helm_with(cpus=make_icpu(0, num_nodes))
+            compute_config = {}
+            helm_obj._update_host_cpu_maps(Host(id=0), compute_config)
+            for node in range(num_nodes):
+                shared_cpu_on_node = str(8 * node + 2)
+                # Match the token exactly so e.g. '2' does not match '12'/'20'.
+                tokens = compute_config['cpu_shared_set'].strip('"').replace(
+                    '-', ',').split(',')
+                self.assertNotIn(shared_cpu_on_node, tokens)
+
+    def test_cpu_maps_icpu_permutation_byte_identical(self):
+        """icpu permutation -> byte-identical output.
+
+        This is a stronger claim than the reserved-memory permutation test
+        (test_reserved_memory_row_permutation_multiset), which only asserts
+        multiset equality: here the formatted string is identical regardless
+        of input row order. It holds because utils.format_range_set in
+        sysinv/common/utils.py sorts before grouping into ranges, so the input
+        row order cannot affect the formatted string.
+        """
+        cpus = make_icpu(0, 4)
+        ordered = helm_with(cpus=cpus)
+        ordered_config = {}
+        ordered._update_host_cpu_maps(Host(id=0), ordered_config)
+
+        shuffled = list(cpus)
+        random.Random(1234).shuffle(shuffled)
+        shuffled_helm = helm_with(cpus=shuffled)
+        shuffled_config = {}
+        shuffled_helm._update_host_cpu_maps(Host(id=0), shuffled_config)
+
+        self.assertEqual(shuffled_config, ordered_config)
+
+    # ------------------------------------------------------------------
+    # _update_reserved_memory
+    # ------------------------------------------------------------------
+
+    def test_reserved_memory_cardinality_4_8_nodes(self):
+        """Exactly 2N reserved_huge_pages entries at 4 and 8 nodes.
+
+        One size:4 (4K) entry and one vswitch-page entry per node, each
+        carrying only its own row's node: key. Expected values are derived from
+        the fixture, not transcribed: the 4K count is
+        platform_reserved_mib * constants.NUM_4K_PER_MiB and the vswitch page
+        size is vswitch_hugepages_size_mib * constants.Ki.
+        """
+        for num_nodes in (4, 8):
+            cells = make_imemory(0, num_nodes)
+            helm_obj = helm_with(memory=cells)
+            default_config = {}
+            helm_obj._update_reserved_memory(Host(id=0), default_config)
+            values = default_config['reserved_huge_pages']['values']
+
+            self.assertEqual(len(values), 2 * num_nodes)
+
+            expected = []
+            for cell in cells:
+                count_4k = cell.platform_reserved_mib * constants.NUM_4K_PER_MiB
+                expected.append(
+                    'node:%d,size:4,count:%d' % (cell.numa_node, count_4k))
+                page_size = cell.vswitch_hugepages_size_mib * constants.Ki
+                expected.append(
+                    'node:%d,size:%d,count:%d' % (
+                        cell.numa_node, page_size, cell.vswitch_hugepages_nr))
+            self.assertEqual(values, expected)
+
+            # Each entry carries only its own row's node, no other.
+            for node in range(num_nodes):
+                node_entries = [v for v in values
+                                if v.startswith('node:%d,' % node)]
+                self.assertEqual(len(node_entries), 2)
+
+    def test_reserved_memory_total_both_terms(self):
+        """reserved_host_memory_mb is the sum of both terms.
+
+        Equals the sum over all rows of
+        platform_reserved_mib + (vswitch_hugepages_size_mib * vswitch_hugepages_nr),
+        derived here from both terms rather than hard-coded. The vswitch
+        hugepage term is included alongside platform_reserved_mib; omitting it
+        is an easy mistake.
+        """
+        for num_nodes in (4, 8):
+            cells = make_imemory(0, num_nodes)
+            helm_obj = helm_with(memory=cells)
+            default_config = {}
+            helm_obj._update_reserved_memory(Host(id=0), default_config)
+
+            expected_total = sum(
+                cell.platform_reserved_mib
+                + cell.vswitch_hugepages_size_mib * cell.vswitch_hugepages_nr
+                for cell in cells)
+            self.assertEqual(
+                default_config['reserved_host_memory_mb'], expected_total)
+
+    def test_reserved_memory_row_permutation_multiset(self):
+        """Row permutation asserted as a multiset, not list identity.
+
+        _oslo_multistring_override in k8sapp_openstack/helm/openstack.py builds
+        values in row order, so list equality against a reordered input fails
+        for a reason unrelated to correctness; the invariant that actually
+        holds is multiset equality of values plus exact equality of
+        reserved_host_memory_mb.
+
+        The complementary list-order assertion is kept here to document the
+        syntactic behaviour: the values list order tracks the supplied row
+        order. That same row-order dependence is why the two-host
+        de-duplication test fixes each host's row order explicitly -- two
+        hosts with semantically identical memory but different row order would
+        otherwise produce unequal conf dicts.
+        """
+        ascending = make_imemory(0, 4)
+        base = helm_with(memory=ascending)
+        base_config = {}
+        base._update_reserved_memory(Host(id=0), base_config)
+        ascending_values = base_config['reserved_huge_pages']['values']
+
+        # Reversed, then shuffled.
+        for reordered in (list(reversed(ascending)),
+                          random.Random(99).sample(ascending, len(ascending))):
+            helm_obj = helm_with(memory=reordered)
+            cfg = {}
+            helm_obj._update_reserved_memory(Host(id=0), cfg)
+            values = cfg['reserved_huge_pages']['values']
+
+            # Multiset equality: same entries, order may differ.
+            self.assertEqual(sorted(values), sorted(ascending_values))
+            # Exact total regardless of row order.
+            self.assertEqual(cfg['reserved_host_memory_mb'],
+                             base_config['reserved_host_memory_mb'])
+
+            # Complementary syntactic fact: the values list order tracks the
+            # supplied row order. List equality against the ascending output is
+            # therefore WRONG here (the rows differ in order), which is exactly
+            # why the assertion above is a multiset comparison.
+            expected_for_this_order = []
+            for cell in reordered:
+                count_4k = cell.platform_reserved_mib * constants.NUM_4K_PER_MiB
+                expected_for_this_order.append(
+                    'node:%d,size:4,count:%d' % (cell.numa_node, count_4k))
+                page_size = cell.vswitch_hugepages_size_mib * constants.Ki
+                expected_for_this_order.append(
+                    'node:%d,size:%d,count:%d' % (
+                        cell.numa_node, page_size, cell.vswitch_hugepages_nr))
+            self.assertEqual(values, expected_for_this_order)
+
+    def test_reserved_memory_heterogeneous_page_size(self):
+        """Each row emits its own page size.
+
+        vswitch_size_mib alternates 1 GiB (1024 MiB) and 2 MiB per node; each
+        row must emit size:1048576 for the 1 GiB rows and size:2048 for the
+        2 MiB rows (1024 * Ki and 2 * Ki respectively). This pins the per-node
+        keyed emission so that each NUMA node keeps its own page size rather
+        than collapsing to a single host-wide value.
+        """
+        sizes = [1024, 2, 1024, 2, 1024, 2, 1024, 2]
+        cells = make_imemory(0, 8, vswitch_size_mib=sizes)
+        helm_obj = helm_with(memory=cells)
+        default_config = {}
+        helm_obj._update_reserved_memory(Host(id=0), default_config)
+        values = default_config['reserved_huge_pages']['values']
+
+        for cell in cells:
+            if cell.vswitch_hugepages_size_mib == 1024:
+                expected_page = 'node:%d,size:1048576,count:%d' % (
+                    cell.numa_node, cell.vswitch_hugepages_nr)
+            else:
+                expected_page = 'node:%d,size:2048,count:%d' % (
+                    cell.numa_node, cell.vswitch_hugepages_nr)
+            self.assertIn(expected_page, values)
+
+    # ------------------------------------------------------------------
+    # _get_per_host_overrides de-duplication
+    # ------------------------------------------------------------------
+
+    def test_per_host_dedup_two_divergent_hosts(self):
+        """Two hosts whose per-node memory diverges -> two entries.
+
+        _get_per_host_overrides collapses hosts with identical conf into a
+        single entry; two hosts whose per-node memory differs must stay
+        distinct. Asserted on the entry count (2), never on "the shared entry".
+
+        Each host's row order is fixed by the fixture: reserved_huge_pages.values
+        is an ordered list, so two hosts with semantically identical memory but
+        different row order would produce unequal conf dicts for a reason
+        unrelated to what this test asserts.
+
+        _get_per_host_overrides needs more than the two instance caches --
+        dbapi.ihost_get_list(), utils.get_personalities(host),
+        utils.has_openstack_compute(host_labels), and _update_host_pci_whitelist
+        reaching dbapi.pci_device_get_by_host -- so a mock.Mock() dbapi
+        returning stub worker hosts and empty PCI device lists is used in
+        preference to the DB-backed NovaGetOverrideTest style.
+        """
+        host_a = mock.Mock()
+        host_a.id = 0
+        host_a.hostname = 'compute-0'
+        host_a.invprovision = constants.PROVISIONED
+        host_a.ihost_action = None
+        host_b = mock.Mock()
+        host_b.id = 1
+        host_b.hostname = 'compute-1'
+        host_b.invprovision = constants.PROVISIONED
+        host_b.ihost_action = None
+
+        dbapi = mock.Mock()
+        dbapi.ihost_get_list.return_value = [host_a, host_b]
+        dbapi.pci_device_get_by_host.return_value = []
+
+        # NovaHelm.dbapi is a read-only property backed by operator.dbapi
+        # (sysinv/helm/base.py), so the stub dbapi is supplied through a stub
+        # operator rather than assigned on the helm instance directly.
+        operator = mock.Mock()
+        operator.dbapi = dbapi
+        helm_obj = nova.NovaHelm(operator)
+        # Divergent per-node memory: host A has 4 nodes, host B has 8.
+        helm_obj.cpus_by_hostid = {0: make_icpu(0, 4), 1: make_icpu(1, 8)}
+        helm_obj.memory_by_hostid = {0: make_imemory(0, 4),
+                                     1: make_imemory(1, 8)}
+        helm_obj.labels_by_hostid = {0: [], 1: []}
+        # Empty per-host interface/port/address/datanet caches so the PCI
+        # whitelist pass finds no devices and emits nothing.
+        helm_obj.ethernet_ports_by_hostid = {}
+        helm_obj.interfaces_by_hostid = {}
+        helm_obj.ifdatanets_by_ifaceid = {}
+        helm_obj.datanets_by_netuuid = {}
+        helm_obj.addresses_by_hostid = {}
+
+        with mock.patch(
+                'k8sapp_openstack.helm.nova.utils.get_personalities',
+                return_value=[constants.WORKER]), \
+                mock.patch(
+                    'k8sapp_openstack.helm.nova.utils.has_openstack_compute',
+                    return_value=True), \
+                mock.patch.object(
+                    helm_obj, '_update_host_storage'):
+            host_list = helm_obj._get_per_host_overrides()
+
+        self.assertEqual(len(host_list), 2)

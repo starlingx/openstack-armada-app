@@ -197,9 +197,10 @@ manifests:
 # but are used to store various STX-Openstack configuration values.
 
 # Certificate file paths.
-# These default values are the paths to the PEM files if the
-# certificates were installed by the `system os-certificate-install`
-# command.
+# These default values are the legacy PEM file locations, kept for
+# compatibility with systems where certificates were previously
+# installed there. Certificates can instead be provided by overriding
+# these paths or through the <service>-tls-public Kubernetes secret.
 openstackCertificateFile: /etc/ssl/private/openstack/cert.pem
 openstackCertificateKeyFile: /etc/ssl/private/openstack/key.pem
 openstackCertificateCAFile: /etc/ssl/private/openstack/ca-cert.pem

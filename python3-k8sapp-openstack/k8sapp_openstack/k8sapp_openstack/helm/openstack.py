@@ -263,17 +263,23 @@ class OpenstackBaseHelm(FluxCDBaseHelm):
             return password.encode('utf8', 'strict')
 
         # The password is not present, dump from inactive app if available,
-        # otherwise generate one and store it to the override
-        try:
-            openstack_app = app_utils.find_openstack_app(self.dbapi)
-            inactive_apps = self.dbapi.kube_app_get_inactive(openstack_app.name)
-            app_override = self.dbapi.helm_override_get(app_id=inactive_apps[0].id,
-                                                        name=chart,
-                                                        namespace=namespace)
+        # otherwise generate one and store it to the override. Skip inactive
+        # apps without it: they may predate this chart.
+        openstack_app = app_utils.find_openstack_app(self.dbapi)
+        inactive_apps = self.dbapi.kube_app_get_inactive(openstack_app.name)
+        for inactive_app in inactive_apps:
+            try:
+                app_override = self.dbapi.helm_override_get(
+                    app_id=inactive_app.id, name=chart, namespace=namespace)
+            except exception.HelmOverrideNotFound:
+                LOG.debug("No %s overrides in inactive app %s",
+                          chart, inactive_app.id)
+                continue
             password = app_override.system_overrides.get(field, None)
-        except (IndexError, exception.HelmOverrideNotFound):
-            # No inactive app or no overrides for the inactive app
-            pass
+            if password:
+                LOG.debug("Using %s %s from inactive app %s",
+                          chart, field, inactive_app.id)
+                break
 
         if not password:
             password = self._generate_random_password()

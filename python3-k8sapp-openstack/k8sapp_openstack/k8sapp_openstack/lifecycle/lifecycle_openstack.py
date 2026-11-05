@@ -284,6 +284,19 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         # stx-openstack application
         conductor_obj._config_sm_stx_openstack(context)
 
+        # Tear down HelmReleases left reconciling by an aborted apply before
+        # the kustomize delete, which would otherwise block on their stuck
+        # finalizers. Best effort; must not stop the remove.
+        try:
+            uninstalled = app_utils.uninstall_stuck_helmreleases()
+            if uninstalled:
+                LOG.info("openstack pre_remove: uninstalled %d stuck "
+                         "helmrelease(s) before manifest delete.",
+                         uninstalled)
+        except Exception as e:
+            LOG.error("openstack pre_remove: failed to uninstall stuck "
+                      "helmreleases: %s", e)
+
     def post_remove(self, context, conductor_obj, hook_info):
         """Post remove actions
 
@@ -302,6 +315,19 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
             # Update the VIM configuration.
             conductor_obj._update_vim_config(context)
             conductor_obj._update_radosgw_config(context)
+        else:
+            # Remove failed, usually a HelmRelease still wedged from an
+            # earlier aborted apply. Retry the teardown as a fallback so the
+            # next remove succeeds without manual kubectl.
+            try:
+                uninstalled = app_utils.uninstall_stuck_helmreleases()
+                if uninstalled:
+                    LOG.info("openstack post_remove: uninstalled %d stuck "
+                             "helmrelease(s) after a failed remove.",
+                             uninstalled)
+            except Exception as e:
+                LOG.error("openstack post_remove: failed to uninstall stuck "
+                          "helmreleases: %s", e)
 
     def pre_delete(self, app_op, app):
         """Pre delete actions.
@@ -465,7 +491,21 @@ class OpenstackAppLifecycleOperator(base.AppLifecycleOperator):
         app_utils.delete_dex_secret()
         app_utils.delete_storage_ca_cert_secret()
         app_utils.delete_aodh_rest_notifier_ca_cert_secret()
-        lifecycle_utils.delete_namespace(app_op, common.HELM_NS_OPENSTACK)
+
+        # Clear finalizers on PVCs stuck Terminating from an aborted apply so
+        # they are reclaimed instead of blocking the namespace delete.
+        app_utils.strip_stuck_pvc_finalizers()
+
+        # delete_namespace raises KubeNamespaceDeleteTimeout if the namespace
+        # will not terminate. Force-finalize as a last resort, and fail the
+        # remove if it is still present afterwards.
+        try:
+            lifecycle_utils.delete_namespace(app_op, common.HELM_NS_OPENSTACK)
+        except exception.KubeNamespaceDeleteTimeout:
+            LOG.warning("openstack namespace delete timed out; "
+                        "force-finalizing it.")
+            if not app_utils.force_finalize_namespace():
+                raise
 
         # Perform post remove LDAP-related actions.
         self._post_remove_ldap_actions()

@@ -1640,6 +1640,8 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_kube.kube_read_config_map.assert_not_called()
         mock_kube.kube_create_config_map.assert_not_called()
 
+    @mock.patch('k8sapp_openstack.utils.force_finalize_namespace')
+    @mock.patch('k8sapp_openstack.utils.strip_stuck_pvc_finalizers')
     @mock.patch('k8sapp_openstack.utils.delete_aodh_rest_notifier_ca_cert_secret')
     @mock.patch('k8sapp_openstack.lifecycle.lifecycle_openstack.lifecycle_utils')
     @mock.patch('k8sapp_openstack.utils.delete_storage_ca_cert_secret')
@@ -1653,7 +1655,9 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
             mock_delete_dex_secret,
             mock_delete_storage_ca_cert_secret,
             mock_lifecycle_utils,
-            mock_delete_aodh_rest_notifier_ca_cert_secret):
+            mock_delete_aodh_rest_notifier_ca_cert_secret,
+            mock_strip_stuck_pvc_finalizers,
+            mock_force_finalize_namespace):
         """ Test the post-remove actions for deleting app-specific resources. """
 
         app_op = mock.Mock()
@@ -1668,6 +1672,7 @@ class OpenstackAppLifecycleOperatorTest(dbbase.BaseHostTestCase):
         mock_delete_dex_secret.assert_called_once()
         mock_delete_storage_ca_cert_secret.assert_called_once()
         mock_delete_aodh_rest_notifier_ca_cert_secret.assert_called_once()
+        mock_strip_stuck_pvc_finalizers.assert_called_once()
         mock_lifecycle_utils.delete_namespace.assert_called_once()
         mock_post_remove_ldap_actions.assert_called_once()
 
@@ -3843,3 +3848,105 @@ class RabbitmqFeatureFlagsTest(dbbase.BaseHostTestCase):
         """pre_update wires the feature-flag enable in."""
         self.lifecycle.pre_update(mock.Mock(), mock.Mock())
         mock_enable.assert_called_once()
+
+
+class OpenstackRemoveCleanupLifecycleTest(dbbase.BaseHostTestCase):
+    """Covers the remove lifecycle hooks that recover a stx-openstack
+    application wedged by an aborted apply.
+    """
+
+    def setUp(self):
+        super(OpenstackRemoveCleanupLifecycleTest, self).setUp()
+        self.lifecycle = lifecycle_openstack.OpenstackAppLifecycleOperator()
+
+    @mock.patch(_LIFECYCLE_MOD + '.app_utils.uninstall_stuck_helmreleases',
+                return_value=2)
+    def test_pre_remove_uninstalls_stuck_releases(self, mock_uninstall):
+        """pre_remove uninstalls stuck releases before the manifest delete."""
+        conductor = mock.Mock()
+        self.lifecycle.pre_remove(mock.Mock(), conductor, mock.Mock())
+        conductor._config_sm_stx_openstack.assert_called_once()
+        mock_uninstall.assert_called_once()
+
+    @mock.patch(_LIFECYCLE_MOD + '.app_utils.uninstall_stuck_helmreleases',
+                side_effect=Exception("boom"))
+    def test_pre_remove_uninstall_failure_does_not_raise(self, _mock_uninstall):
+        """A cleanup failure in pre_remove must not abort the remove."""
+        conductor = mock.Mock()
+        # Should not raise.
+        self.lifecycle.pre_remove(mock.Mock(), conductor, mock.Mock())
+        conductor._config_sm_stx_openstack.assert_called_once()
+
+    @mock.patch(_LIFECYCLE_MOD + '.app_utils.uninstall_stuck_helmreleases',
+                return_value=1)
+    def test_post_remove_recovers_after_failed_remove(self, mock_uninstall):
+        """When the remove did not complete, post_remove retries the uninstall
+        so a system left wedged by an earlier load recovers.
+        """
+        conductor = mock.Mock()
+        hook_info = {LifecycleConstants.EXTRA:
+                     {LifecycleConstants.APP_REMOVED: False}}
+        self.lifecycle.post_remove(mock.Mock(), conductor, hook_info)
+        mock_uninstall.assert_called_once()
+        conductor._update_vim_config.assert_not_called()
+
+    @mock.patch(_LIFECYCLE_MOD + '.app_utils.uninstall_stuck_helmreleases')
+    def test_post_remove_success_path_untouched(self, mock_uninstall):
+        """On a successful remove, post_remove does its normal VIM/radosgw
+        update and does not run the fallback cleanup.
+        """
+        conductor = mock.Mock()
+        hook_info = {LifecycleConstants.EXTRA:
+                     {LifecycleConstants.APP_REMOVED: True}}
+        self.lifecycle.post_remove(mock.Mock(), conductor, hook_info)
+        mock_uninstall.assert_not_called()
+        conductor._update_vim_config.assert_called_once()
+        conductor._update_radosgw_config.assert_called_once()
+
+    @mock.patch(_LIFECYCLE_MOD + '.app_utils')
+    @mock.patch(_LIFECYCLE_MOD + '.lifecycle_utils')
+    def test_resource_post_remove_hardens_pvc_and_namespace(
+            self, mock_lifecycle_utils, mock_app_utils):
+        """The resource cleanup strips PVC finalizers before deleting the
+        namespace and finalizes it normally when no timeout occurs.
+        """
+        self.lifecycle._post_remove_ldap_actions = mock.Mock()
+        self.lifecycle._delete_app_specific_resources_post_remove(
+            mock.Mock(), mock.Mock(), mock.Mock())
+        mock_app_utils.strip_stuck_pvc_finalizers.assert_called_once()
+        mock_lifecycle_utils.delete_namespace.assert_called_once()
+        mock_app_utils.force_finalize_namespace.assert_not_called()
+
+    @mock.patch(_LIFECYCLE_MOD + '.app_utils')
+    @mock.patch(_LIFECYCLE_MOD + '.lifecycle_utils')
+    def test_resource_post_remove_force_finalizes_on_timeout(
+            self, mock_lifecycle_utils, mock_app_utils):
+        """When delete_namespace times out, the namespace is force-finalized
+        instead of failing the remove.
+        """
+        mock_lifecycle_utils.delete_namespace.side_effect = \
+            exception.KubeNamespaceDeleteTimeout(name=common.HELM_NS_OPENSTACK)
+        mock_app_utils.force_finalize_namespace.return_value = True
+        self.lifecycle._post_remove_ldap_actions = mock.Mock()
+        # Should not raise.
+        self.lifecycle._delete_app_specific_resources_post_remove(
+            mock.Mock(), mock.Mock(), mock.Mock())
+        mock_app_utils.force_finalize_namespace.assert_called_once()
+
+    @mock.patch(_LIFECYCLE_MOD + '.app_utils')
+    @mock.patch(_LIFECYCLE_MOD + '.lifecycle_utils')
+    def test_resource_post_remove_fails_if_namespace_still_stuck(
+            self, mock_lifecycle_utils, mock_app_utils):
+        """If force-finalize cannot remove the namespace, the timeout is
+        raised again so the remove is reported as failed.
+        """
+        mock_lifecycle_utils.delete_namespace.side_effect = \
+            exception.KubeNamespaceDeleteTimeout(name=common.HELM_NS_OPENSTACK)
+        mock_app_utils.force_finalize_namespace.return_value = False
+        self.lifecycle._post_remove_ldap_actions = mock.Mock()
+        self.assertRaises(
+            exception.KubeNamespaceDeleteTimeout,
+            self.lifecycle._delete_app_specific_resources_post_remove,
+            mock.Mock(), mock.Mock(), mock.Mock())
+        # The LDAP step after the namespace delete is not reached.
+        self.lifecycle._post_remove_ldap_actions.assert_not_called()

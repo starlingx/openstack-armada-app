@@ -1,0 +1,273 @@
+From df50bb7015740fdb0f0e28ab55278d90a30c7dcb Mon Sep 17 00:00:00 2001
+From: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+Date: Thu, 5 Nov 2026 18:12:14 -0300
+Subject: [PATCH 74/75] Fix watcher decision-engine and add pod tolerations
+
+The upstream watcher chart has three problems on its decision engine
+and one on every pod:
+- the decision-engine StatefulSet reads .Values.pod.replicas.engine,
+  while values.yaml declares pod.replicas.decision_engine, so it always
+  runs a single replica;
+- the same StatefulSet resolves its entrypoint dependencies from the
+  "decision-engine" key, while values.yaml only defines
+  dependencies.static.decision_engine, so its init container waits for
+  nothing and, on a first install, the decision engine starts before
+  the database schema exists and restarts until db-sync completes;
+- its pod template lacks the configmap-bin-hash and configmap-etc-hash
+  annotations that the API and applier carry, so a configuration
+  change does not roll the decision-engine pods;
+- no watcher pod or job renders tolerations, so they cannot be
+  scheduled on tainted controllers.
+
+Point the StatefulSet at the documented replica and dependency keys,
+add the two hash annotations, and add pod.tolerations.watcher (disabled
+by default) rendered by the API, applier, decision engine, test pod
+and every job, as in aodh.
+
+The replica and dependency key fixes are already merged upstream [1].
+The hash annotations and tolerations are proposed upstream in [2]: drop
+this patch once the chart is rebased on a revision that includes [2].
+Upstream names the etc hash secret-etc-hash, after its rename of
+configmap-etc.yaml, and defaults the toleration list to the
+control-plane key only. Neither affects stx-openstack, whose static
+overrides set the full toleration list.
+
+[1] https://review.opendev.org/c/openstack/openstack-helm/+/1011020
+[2] https://review.opendev.org/c/openstack/openstack-helm/+/1014897
+
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
+---
+ watcher/templates/deployment-api.yaml              |  3 +++
+ watcher/templates/deployment-applier.yaml          |  3 +++
+ watcher/templates/job-bootstrap.yaml               |  3 +++
+ watcher/templates/job-db-drop.yaml                 |  3 +++
+ watcher/templates/job-db-init.yaml                 |  3 +++
+ watcher/templates/job-db-sync.yaml                 |  3 +++
+ watcher/templates/job-image-repo-sync.yaml         |  3 +++
+ watcher/templates/job-ks-endpoints.yaml            |  3 +++
+ watcher/templates/job-ks-service.yaml              |  3 +++
+ watcher/templates/job-ks-user.yaml                 |  3 +++
+ watcher/templates/job-rabbit-init.yaml             |  3 +++
+ watcher/templates/pod-rally-test.yaml              |  3 +++
+ watcher/templates/statefulset-decision-engine.yaml |  9 +++++++--
+ watcher/values.yaml                                | 10 ++++++++++
+ 14 files changed, 53 insertions(+), 2 deletions(-)
+
+diff --git a/watcher/templates/deployment-api.yaml b/watcher/templates/deployment-api.yaml
+index 6538339ca..2b3a50aa6 100644
+--- a/watcher/templates/deployment-api.yaml
++++ b/watcher/templates/deployment-api.yaml
+@@ -51,6 +51,9 @@ spec:
+ {{ tuple $envAll "watcher" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.api.node_selector_key }}: {{ .Values.labels.api.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.watcher.enabled }}
++{{ tuple $envAll "watcher" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.api.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "api" $mounts_watcher_api_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+diff --git a/watcher/templates/deployment-applier.yaml b/watcher/templates/deployment-applier.yaml
+index af90424bb..fade180f1 100644
+--- a/watcher/templates/deployment-applier.yaml
++++ b/watcher/templates/deployment-applier.yaml
+@@ -51,6 +51,9 @@ spec:
+ {{ tuple $envAll "watcher" "applier" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.applier.node_selector_key }}: {{ .Values.labels.applier.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.watcher.enabled }}
++{{ tuple $envAll "watcher" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "applier" $mounts_watcher_applier_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/watcher/templates/job-bootstrap.yaml b/watcher/templates/job-bootstrap.yaml
+index b88f2f942..20bf4d3f1 100644
+--- a/watcher/templates/job-bootstrap.yaml
++++ b/watcher/templates/job-bootstrap.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+ 
+ {{- if and .Values.manifests.job_bootstrap .Values.bootstrap.enabled }}
+ {{- $bootstrapJob := dict "envAll" . "serviceName" "watcher" "keystoneUser" .Values.bootstrap.ks_user "logConfigFile" .Values.conf.watcher.DEFAULT.log_config_append -}}
++{{- if .Values.pod.tolerations.watcher.enabled -}}
++{{- $_ := set $bootstrapJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $bootstrapJob | include "helm-toolkit.manifests.job_bootstrap" }}
+ {{- end }}
+diff --git a/watcher/templates/job-db-drop.yaml b/watcher/templates/job-db-drop.yaml
+index a9aacb2e1..2a0e2ddf1 100644
+--- a/watcher/templates/job-db-drop.yaml
++++ b/watcher/templates/job-db-drop.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "watcher" -}}
++{{- if .Values.pod.tolerations.watcher.enabled -}}
++{{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbDropJob | include "helm-toolkit.manifests.job_db_drop_mysql" }}
+ {{- end }}
+diff --git a/watcher/templates/job-db-init.yaml b/watcher/templates/job-db-init.yaml
+index 81d56c01b..00b4df009 100644
+--- a/watcher/templates/job-db-init.yaml
++++ b/watcher/templates/job-db-init.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "watcher" -}}
++{{- if .Values.pod.tolerations.watcher.enabled -}}
++{{- $_ := set $dbInitJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbInitJob | include "helm-toolkit.manifests.job_db_init_mysql" }}
+ {{- end }}
+diff --git a/watcher/templates/job-db-sync.yaml b/watcher/templates/job-db-sync.yaml
+index 76b9ef346..98a87f527 100644
+--- a/watcher/templates/job-db-sync.yaml
++++ b/watcher/templates/job-db-sync.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_db_sync }}
+ {{- $dbSyncJob := dict "envAll" . "serviceName" "watcher" -}}
++{{- if .Values.pod.tolerations.watcher.enabled -}}
++{{- $_ := set $dbSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbSyncJob | include "helm-toolkit.manifests.job_db_sync" }}
+ {{- end }}
+diff --git a/watcher/templates/job-image-repo-sync.yaml b/watcher/templates/job-image-repo-sync.yaml
+index 9f1bffd6d..839d75d04 100644
+--- a/watcher/templates/job-image-repo-sync.yaml
++++ b/watcher/templates/job-image-repo-sync.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+ 
+ {{- if and .Values.manifests.job_image_repo_sync .Values.images.local_registry.active }}
+ {{- $imageRepoSyncJob := dict "envAll" . "serviceName" "watcher" -}}
++{{- if .Values.pod.tolerations.watcher.enabled -}}
++{{- $_ := set $imageRepoSyncJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $imageRepoSyncJob | include "helm-toolkit.manifests.job_image_repo_sync" }}
+ {{- end }}
+diff --git a/watcher/templates/job-ks-endpoints.yaml b/watcher/templates/job-ks-endpoints.yaml
+index 5d7ec5337..2ea243ca7 100644
+--- a/watcher/templates/job-ks-endpoints.yaml
++++ b/watcher/templates/job-ks-endpoints.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_ks_endpoints }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "watcher" "serviceTypes" ( tuple "infra-optim" ) -}}
++{{- if .Values.pod.tolerations.watcher.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
+ {{- end }}
+diff --git a/watcher/templates/job-ks-service.yaml b/watcher/templates/job-ks-service.yaml
+index 236a0a92f..24c411f77 100644
+--- a/watcher/templates/job-ks-service.yaml
++++ b/watcher/templates/job-ks-service.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_ks_service }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "watcher" "serviceTypes" ( tuple "infra-optim" ) -}}
++{{- if .Values.pod.tolerations.watcher.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_service" }}
+ {{- end }}
+diff --git a/watcher/templates/job-ks-user.yaml b/watcher/templates/job-ks-user.yaml
+index 809630159..19fda2b3d 100644
+--- a/watcher/templates/job-ks-user.yaml
++++ b/watcher/templates/job-ks-user.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_ks_user }}
+ {{- $ksUserJob := dict "envAll" . "serviceName" "watcher" -}}
++{{- if .Values.pod.tolerations.watcher.enabled -}}
++{{- $_ := set $ksUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
+ {{- end }}
+diff --git a/watcher/templates/job-rabbit-init.yaml b/watcher/templates/job-rabbit-init.yaml
+index 7c9037d87..c6eccf2d4 100644
+--- a/watcher/templates/job-rabbit-init.yaml
++++ b/watcher/templates/job-rabbit-init.yaml
+@@ -14,5 +14,8 @@ limitations under the License.
+ 
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "watcher" -}}
++{{- if .Values.pod.tolerations.watcher.enabled -}}
++{{- $_ := set $rmqUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $rmqUserJob | include "helm-toolkit.manifests.job_rabbit_init" }}
+ {{- end }}
+diff --git a/watcher/templates/pod-rally-test.yaml b/watcher/templates/pod-rally-test.yaml
+index a20279b6f..90137d566 100644
+--- a/watcher/templates/pod-rally-test.yaml
++++ b/watcher/templates/pod-rally-test.yaml
+@@ -35,6 +35,9 @@ metadata:
+ spec:
+   nodeSelector:
+     {{ .Values.labels.test.node_selector_key }}: {{ .Values.labels.test.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.watcher.enabled }}
++{{ tuple $envAll "watcher" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 2 }}
++{{ end }}
+   restartPolicy: Never
+   serviceAccountName: {{ $serviceAccountName }}
+   initContainers:
+diff --git a/watcher/templates/statefulset-decision-engine.yaml b/watcher/templates/statefulset-decision-engine.yaml
+index 8c3e1a299..597a78170 100644
+--- a/watcher/templates/statefulset-decision-engine.yaml
++++ b/watcher/templates/statefulset-decision-engine.yaml
+@@ -31,7 +31,7 @@ metadata:
+ {{ tuple $envAll "watcher" "decision-engine" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+ spec:
+   serviceName: watcher-decision-engine
+-  replicas: {{ .Values.pod.replicas.engine }}
++  replicas: {{ .Values.pod.replicas.decision_engine }}
+   selector:
+     matchLabels:
+ {{ tuple $envAll "watcher" "decision-engine" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 6 }}
+@@ -42,6 +42,8 @@ spec:
+ {{ tuple $envAll "watcher" "decision-engine" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++        configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
++        configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
+         configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+@@ -49,8 +51,11 @@ spec:
+ {{ tuple $envAll "watcher" "decision-engine" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.decision_engine.node_selector_key }}: {{ .Values.labels.decision_engine.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.watcher.enabled }}
++{{ tuple $envAll "watcher" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+-{{ tuple $envAll "decision-engine" $mounts_watcher_decision_engine_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
++{{ tuple $envAll "decision_engine" $mounts_watcher_decision_engine_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+         - name: watcher-decision-engine
+ {{ tuple $envAll "watcher_decision_engine" | include "helm-toolkit.snippets.image" | indent 10 }}
+diff --git a/watcher/values.yaml b/watcher/values.yaml
+index 2a483c535..ae1592218 100644
+--- a/watcher/values.yaml
++++ b/watcher/values.yaml
+@@ -435,6 +435,16 @@ pod:
+         default: preferredDuringSchedulingIgnoredDuringExecution
+       topologyKey:
+         default: kubernetes.io/hostname
++  tolerations:
++    watcher:
++      enabled: false
++      tolerations:
++        - key: node-role.kubernetes.io/master
++          operator: Exists
++          effect: NoSchedule
++        - key: node-role.kubernetes.io/control-plane
++          operator: Exists
++          effect: NoSchedule
+   mounts:
+     watcher_api:
+       init_container: null
+-- 
+2.34.1
+

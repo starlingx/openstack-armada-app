@@ -32,6 +32,8 @@ Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windri
 [ Adapt OSH patches to Gazpacho release ]
 Removed hunks for templates no longer present in Gazpacho
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Added labels to the new watcher chart ]
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 ---
  aodh/templates/cron-job-alarms-cleaner.yaml                | 3 +++
  aodh/templates/deployment-api.yaml                         | 2 ++
@@ -168,7 +170,12 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  rabbitmq/templates/pod-test.yaml                           | 2 ++
  rabbitmq/templates/statefulset.yaml                        | 2 ++
  rabbitmq/values.yaml                                       | 1 +
- 135 files changed, 291 insertions(+)
+ watcher/templates/deployment-api.yaml                      | 2 ++
+ watcher/templates/deployment-applier.yaml                  | 2 ++
+ watcher/templates/pod-rally-test.yaml                      | 2 ++
+ watcher/templates/statefulset-decision-engine.yaml         | 2 ++
+ watcher/values.yaml                                        | 1 +
+ 140 files changed, 300 insertions(+)
 
 diff --git a/aodh/templates/cron-job-alarms-cleaner.yaml b/aodh/templates/cron-job-alarms-cleaner.yaml
 index 5cf07d2cd..aeb3b9356 100644
@@ -2356,6 +2363,85 @@ index 5f6467659..ffa48c66d 100644
  labels:
 +  isApplication: false
    server:
+     node_selector_key: openstack-control-plane
+     node_selector_value: enabled
+diff --git a/watcher/templates/deployment-api.yaml b/watcher/templates/deployment-api.yaml
+index 0f353b587..6538339ca 100644
+--- a/watcher/templates/deployment-api.yaml
++++ b/watcher/templates/deployment-api.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "watcher" "api" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       affinity:
+diff --git a/watcher/templates/deployment-applier.yaml b/watcher/templates/deployment-applier.yaml
+index 2217e93d2..af90424bb 100644
+--- a/watcher/templates/deployment-applier.yaml
++++ b/watcher/templates/deployment-applier.yaml
+@@ -38,11 +38,13 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "watcher" "applier" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
+         configmap-bin-hash: {{ tuple "configmap-bin.yaml" . | include "helm-toolkit.utils.hash" }}
+         configmap-etc-hash: {{ tuple "configmap-etc.yaml" . | include "helm-toolkit.utils.hash" }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       affinity:
+diff --git a/watcher/templates/pod-rally-test.yaml b/watcher/templates/pod-rally-test.yaml
+index 2f0b4bc4c..a20279b6f 100644
+--- a/watcher/templates/pod-rally-test.yaml
++++ b/watcher/templates/pod-rally-test.yaml
+@@ -26,8 +26,10 @@ kind: Pod
+ metadata:
+   name: {{ print $envAll.Release.Name "-test" }}
+   labels:
++    app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "watcher" "test" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
+   annotations:
++    configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     "helm.sh/hook": test-success
+     {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" }}
+ spec:
+diff --git a/watcher/templates/statefulset-decision-engine.yaml b/watcher/templates/statefulset-decision-engine.yaml
+index f0a8410c5..8c3e1a299 100644
+--- a/watcher/templates/statefulset-decision-engine.yaml
++++ b/watcher/templates/statefulset-decision-engine.yaml
+@@ -38,9 +38,11 @@ spec:
+   template:
+     metadata:
+       labels:
++        app.starlingx.io/component: {{ ternary "application" "platform" .Values.labels.isApplication }}
+ {{ tuple $envAll "watcher" "decision-engine" | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 8 }}
+       annotations:
+ {{ tuple $envAll | include "helm-toolkit.snippets.release_uuid" | indent 8 }}
++        configchecksum: {{ toYaml .Values.labels.isApplication | sha256sum | trunc 63 }}
+     spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       affinity:
+diff --git a/watcher/values.yaml b/watcher/values.yaml
+index e0bee929f..a9d0a07dd 100644
+--- a/watcher/values.yaml
++++ b/watcher/values.yaml
+@@ -17,6 +17,7 @@
+ 
+ ---
+ labels:
++  isApplication: false
+   api:
      node_selector_key: openstack-control-plane
      node_selector_value: enabled
 -- 

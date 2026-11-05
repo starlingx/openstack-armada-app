@@ -28,6 +28,8 @@ Signed-off-by: Luis Henrique Silva Cazuriaga <LuisHenrique.SilvaCazuriaga@windri
 [ Adapt OSH patches to Gazpacho release ]
 Updated docker image references from all charts.
 Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
+[ Added job_pre_apply_cleanup to the new watcher chart ]
+Signed-off-by: Alex Figueiredo <alex.fernandesfigueiredo@windriver.com>
 ---
  aodh/templates/job-pre-apply-cleanup.yaml     | 18 ++++
  aodh/values.yaml                              |  2 +
@@ -70,7 +72,9 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  prometheus-openstack-exporter/values.yaml     |  2 +
  rabbitmq/templates/job-pre-apply-cleanup.yaml | 18 ++++
  rabbitmq/values.yaml                          |  2 +
- 41 files changed, 493 insertions(+)
+ watcher/templates/job-pre-apply-cleanup.yaml  | 18 ++++
+ watcher/values.yaml                           |  2 +
+ 43 files changed, 513 insertions(+)
  create mode 100644 aodh/templates/job-pre-apply-cleanup.yaml
  create mode 100644 barbican/templates/job-pre-apply-cleanup.yaml
  create mode 100644 ceilometer/templates/job-pre-apply-cleanup.yaml
@@ -92,6 +96,7 @@ Signed-off-by: Daniel Caires <DanielMarques.Caires@windriver.com>
  create mode 100644 placement/templates/job-pre-apply-cleanup.yaml
  create mode 100644 prometheus-openstack-exporter/templates/job-pre-apply-cleanup.yaml
  create mode 100644 rabbitmq/templates/job-pre-apply-cleanup.yaml
+ create mode 100644 watcher/templates/job-pre-apply-cleanup.yaml
 
 diff --git a/aodh/templates/job-pre-apply-cleanup.yaml b/aodh/templates/job-pre-apply-cleanup.yaml
 new file mode 100644
@@ -1093,6 +1098,50 @@ index ffa48c66d..d327a39df 100644
    job_cluster_wait: true
    job_image_repo_sync: true
    monitoring:
+diff --git a/watcher/templates/job-pre-apply-cleanup.yaml b/watcher/templates/job-pre-apply-cleanup.yaml
+new file mode 100644
+index 000000000..e894bd62c
+--- /dev/null
++++ b/watcher/templates/job-pre-apply-cleanup.yaml
+@@ -0,0 +1,18 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- if .Values.manifests.job_pre_apply_cleanup }}
++{{- $preApplyCleanupJob := dict "envAll" . "serviceName" "watcher" -}}
++{{ $preApplyCleanupJob | include "helm-toolkit.manifests.job_pre_apply_cleanup" }}
++{{- end }}
+diff --git a/watcher/values.yaml b/watcher/values.yaml
+index a9d0a07dd..2a483c535 100644
+--- a/watcher/values.yaml
++++ b/watcher/values.yaml
+@@ -52,6 +52,7 @@ images:
+     watcher_decision_engine: quay.io/airshipit/watcher:2025.1-ubuntu_noble
+     watcher_applier: quay.io/airshipit/watcher:2025.1-ubuntu_noble
+     image_repo_sync: docker.io/docker:17.07.0
++    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+   pull_policy: "IfNotPresent"
+   local_registry:
+     active: false
+@@ -596,6 +597,7 @@ manifests:
+   deployment_api: true
+   deployment_applier: true
+   ingress_api: true
++  job_pre_apply_cleanup: true
+   job_bootstrap: true
+   job_db_init: true
+   job_db_sync: true
 -- 
 2.34.1
 

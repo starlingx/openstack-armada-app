@@ -41,6 +41,7 @@ override_dh_auto_build:
 	make SKIP_CHANGELOG=1 nova
 	make SKIP_CHANGELOG=1 placement
 	make SKIP_CHANGELOG=1 watcher
+	make SKIP_CHANGELOG=1 masakari
 
 override_dh_auto_install:
 	# Install the chart tar files.

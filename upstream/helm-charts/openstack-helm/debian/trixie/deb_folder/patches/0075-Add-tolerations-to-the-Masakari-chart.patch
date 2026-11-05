@@ -1,0 +1,199 @@
+From 9ccbeee3451cdc0a7be4cd6c74aaae934d549dc5 Mon Sep 17 00:00:00 2001
+From: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+Date: Tue, 3 Nov 2026 20:00:23 -0500
+Subject: [PATCH] Add tolerations to the Masakari chart
+
+The Masakari pods carry only the default not-ready/unreachable
+tolerations, so on a dedicated-controller deployment they cannot be
+scheduled onto the controllers, which are tainted
+node-role.kubernetes.io/control-plane:NoSchedule (and master). The
+masakari-api and masakari-engine deployments and the control-plane jobs
+(db-init, db-sync, ks-*, rabbit-init) all target the
+openstack-control-plane nodes, so they stay Pending and Masakari never
+deploys on Standard/AIO-DX-with-dedicated-controllers.
+
+Add a pod.tolerations.masakari block and wire it into the deployments,
+the control-plane jobs, and the instance-monitor DaemonSet the same way
+the other OpenStack charts (nova, keystone) do: a gate on
+pod.tolerations.masakari.enabled that renders the helm-toolkit
+tolerations snippet. The block defaults to disabled; the StarlingX
+static overrides enable it and add the openstack-compute-node
+toleration, matching nova and keystone. The instance-monitor DaemonSet
+needs it because StarlingX taints every compute node
+openstack-compute-node:NoSchedule, which otherwise leaves the monitor
+Pending on every compute so Masakari gets no instance-failure
+notifications.
+
+Signed-off-by: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+---
+ masakari/templates/daemonset-instance-monitor.yaml |  3 +++
+ masakari/templates/deployment-api.yaml             |  3 +++
+ masakari/templates/deployment-engine.yaml          |  3 +++
+ masakari/templates/job-db-drop.yaml                |  3 +++
+ masakari/templates/job-db-init.yaml                |  3 +++
+ masakari/templates/job-db-sync.yaml                |  3 +++
+ masakari/templates/job-ks-endpoints.yaml           |  3 +++
+ masakari/templates/job-ks-service.yaml             |  3 +++
+ masakari/templates/job-ks-user.yaml                |  3 +++
+ masakari/templates/job-rabbitmq-init.yaml          |  3 +++
+ masakari/values.yaml                               | 10 ++++++++++
+ 11 files changed, 40 insertions(+)
+
+diff --git a/masakari/templates/daemonset-instance-monitor.yaml b/masakari/templates/daemonset-instance-monitor.yaml
+index eca68c4f0..446ad2014 100644
+--- a/masakari/templates/daemonset-instance-monitor.yaml
++++ b/masakari/templates/daemonset-instance-monitor.yaml
+@@ -50,6 +50,9 @@ spec:
+       serviceAccountName: {{ $serviceAccountName }}
+       nodeSelector:
+         {{ .Values.labels.monitors.node_selector_key }}: {{ .Values.labels.monitors.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.masakari.enabled }}
++{{ tuple $envAll "masakari" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "masakari_instance_monitor" $mounts_masakari_instance_monitor_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+         - name: instancemonitor-init
+diff --git a/masakari/templates/deployment-api.yaml b/masakari/templates/deployment-api.yaml
+index 948f5fda0..9936fe5df 100644
+--- a/masakari/templates/deployment-api.yaml
++++ b/masakari/templates/deployment-api.yaml
+@@ -67,6 +67,9 @@ spec:
+ {{ tuple $envAll "masakari" "api" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.masakari.node_selector_key }}: {{ .Values.labels.masakari.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.masakari.enabled }}
++{{ tuple $envAll "masakari" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.masakari_api.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "masakari_api" $mounts_masakari_api_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+diff --git a/masakari/templates/deployment-engine.yaml b/masakari/templates/deployment-engine.yaml
+index e0471a3d7..12828dfa6 100644
+--- a/masakari/templates/deployment-engine.yaml
++++ b/masakari/templates/deployment-engine.yaml
+@@ -52,6 +52,9 @@ spec:
+ {{ tuple $envAll "masakari" "engine" | include "helm-toolkit.snippets.kubernetes_pod_anti_affinity" | indent 8 }}
+       nodeSelector:
+         {{ .Values.labels.masakari.node_selector_key }}: {{ .Values.labels.masakari.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.masakari.enabled }}
++{{ tuple $envAll "masakari" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       terminationGracePeriodSeconds: {{ .Values.pod.lifecycle.termination_grace_period.masakari_engine.timeout | default "30" }}
+       initContainers:
+ {{ tuple $envAll "masakari_engine" $mounts_masakari_engine_init | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+diff --git a/masakari/templates/job-db-drop.yaml b/masakari/templates/job-db-drop.yaml
+index 5fd13229d..b49d5e014 100644
+--- a/masakari/templates/job-db-drop.yaml
++++ b/masakari/templates/job-db-drop.yaml
+@@ -15,5 +15,8 @@ limitations under the License.
+ {{- if .Values.manifests.job_db_drop }}
+ {{- $dbToDrop := dict "inputType" "secret" "adminSecret" .Values.secrets.oslo_db.admin "userSecret" .Values.secrets.oslo_db.masakari -}}
+ {{- $dbDropJob := dict "envAll" . "serviceName" "masakari" "dbToDrop" $dbToDrop -}}
++{{- if .Values.pod.tolerations.masakari.enabled -}}
++{{- $_ := set $dbDropJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbDropJob | include "helm-toolkit.manifests.job_db_drop_mysql" }}
+ {{- end }}
+diff --git a/masakari/templates/job-db-init.yaml b/masakari/templates/job-db-init.yaml
+index 7f551100a..b931904de 100644
+--- a/masakari/templates/job-db-init.yaml
++++ b/masakari/templates/job-db-init.yaml
+@@ -20,5 +20,8 @@ helm.sh/hook-weight: "-5"
+ {{- if .Values.manifests.job_db_init }}
+ {{- $dbInitJob := dict "envAll" . "serviceName" "masakari" -}}
+ {{- $_ := set $dbInitJob "jobAnnotations" (include "metadata.annotations.job.db_init" . | fromYaml ) }}
++{{- if .Values.pod.tolerations.masakari.enabled -}}
++{{- $_ := set $dbInitJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $dbInitJob | include "helm-toolkit.manifests.job_db_init_mysql" }}
+ {{- end }}
+diff --git a/masakari/templates/job-db-sync.yaml b/masakari/templates/job-db-sync.yaml
+index 019391455..686fb9a10 100644
+--- a/masakari/templates/job-db-sync.yaml
++++ b/masakari/templates/job-db-sync.yaml
+@@ -38,6 +38,9 @@ spec:
+       restartPolicy: OnFailure
+       nodeSelector:
+         {{ .Values.labels.job.node_selector_key }}: {{ .Values.labels.job.node_selector_value }}
++{{ if $envAll.Values.pod.tolerations.masakari.enabled }}
++{{ tuple $envAll "masakari" | include "helm-toolkit.snippets.kubernetes_tolerations" | indent 6 }}
++{{ end }}
+       initContainers:
+ {{ tuple $envAll "db_migrate" list | include "helm-toolkit.snippets.kubernetes_entrypoint_init_container" | indent 8 }}
+       containers:
+diff --git a/masakari/templates/job-ks-endpoints.yaml b/masakari/templates/job-ks-endpoints.yaml
+index a95e6274d..e1355f963 100644
+--- a/masakari/templates/job-ks-endpoints.yaml
++++ b/masakari/templates/job-ks-endpoints.yaml
+@@ -20,5 +20,8 @@ helm.sh/hook-weight: "-2"
+ {{- if .Values.manifests.job_ks_endpoints }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "masakari" "serviceTypes" ( tuple "instance-ha" ) -}}
+ {{- $_ := set $ksServiceJob "jobAnnotations" (include "metadata.annotations.job.ks_endpoints" . | fromYaml ) }}
++{{- if .Values.pod.tolerations.masakari.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_endpoints" }}
+ {{- end }}
+diff --git a/masakari/templates/job-ks-service.yaml b/masakari/templates/job-ks-service.yaml
+index 9a32b818a..123b475bf 100644
+--- a/masakari/templates/job-ks-service.yaml
++++ b/masakari/templates/job-ks-service.yaml
+@@ -20,5 +20,8 @@ helm.sh/hook-weight: "-3"
+ {{- if .Values.manifests.job_ks_service }}
+ {{- $ksServiceJob := dict "envAll" . "serviceName" "masakari" "serviceTypes" ( tuple "instance-ha" ) -}}
+ {{- $_ := set $ksServiceJob "jobAnnotations" (include "metadata.annotations.job.ks_service" . | fromYaml ) }}
++{{- if .Values.pod.tolerations.masakari.enabled -}}
++{{- $_ := set $ksServiceJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksServiceJob | include "helm-toolkit.manifests.job_ks_service" }}
+ {{- end }}
+diff --git a/masakari/templates/job-ks-user.yaml b/masakari/templates/job-ks-user.yaml
+index 93a029e5c..8fd69ca4e 100644
+--- a/masakari/templates/job-ks-user.yaml
++++ b/masakari/templates/job-ks-user.yaml
+@@ -20,5 +20,8 @@ helm.sh/hook-weight: "-1"
+ {{- if .Values.manifests.job_ks_user }}
+ {{- $ksUserJob := dict "envAll" . "serviceName" "masakari" -}}
+ {{- $_ := set $ksUserJob "jobAnnotations" (include "metadata.annotations.job.ks_user" . | fromYaml ) }}
++{{- if .Values.pod.tolerations.masakari.enabled -}}
++{{- $_ := set $ksUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $ksUserJob | include "helm-toolkit.manifests.job_ks_user" }}
+ {{- end }}
+diff --git a/masakari/templates/job-rabbitmq-init.yaml b/masakari/templates/job-rabbitmq-init.yaml
+index 32adb57ba..e6c39e955 100644
+--- a/masakari/templates/job-rabbitmq-init.yaml
++++ b/masakari/templates/job-rabbitmq-init.yaml
+@@ -20,5 +20,8 @@ helm.sh/hook-weight: "-4"
+ {{- if .Values.manifests.job_rabbit_init }}
+ {{- $rmqUserJob := dict "envAll" . "serviceName" "masakari" -}}
+ {{- $_ := set $rmqUserJob "jobAnnotations" (include "metadata.annotations.job.rabbit_init" . | fromYaml) }}
++{{- if .Values.pod.tolerations.masakari.enabled -}}
++{{- $_ := set $rmqUserJob "tolerationsEnabled" true -}}
++{{- end -}}
+ {{ $rmqUserJob | include "helm-toolkit.manifests.job_rabbit_init" }}
+ {{- end }}
+diff --git a/masakari/values.yaml b/masakari/values.yaml
+index 17f502886..6f95b5d0e 100644
+--- a/masakari/values.yaml
++++ b/masakari/values.yaml
+@@ -291,6 +291,16 @@ dependencies:
+           service: identity
+ 
+ pod:
++  tolerations:
++    masakari:
++      enabled: false
++      tolerations:
++        - key: node-role.kubernetes.io/master
++          operator: Exists
++          effect: NoSchedule
++        - key: node-role.kubernetes.io/control-plane
++          operator: Exists
++          effect: NoSchedule
+   security_context:
+     masakari:
+       pod:
+-- 
+2.34.1
+

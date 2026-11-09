@@ -386,11 +386,9 @@ pod:
   affinity:
     anti:
       type:
-        default: preferredDuringSchedulingIgnoredDuringExecution
+        default: requiredDuringSchedulingIgnoredDuringExecution
       topologyKey:
         default: kubernetes.io/hostname
-      weight:
-        default: 10
   replicas:
     masakari_api: 1
     masakari_engine: 1

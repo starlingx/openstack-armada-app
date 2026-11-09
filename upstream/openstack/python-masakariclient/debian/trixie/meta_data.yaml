@@ -1,0 +1,13 @@
+---
+debname: python-masakariclient
+debver: 8.8.0-2
+dl_path:
+  name: python-masakariclient-debian-8.8.0-2.tar.gz
+  url: https://salsa.debian.org/openstack-team/clients/python-masakariclient/-/archive/debian/8.8.0-2/python-masakariclient-debian-8.8.0-2.tar.gz
+  md5sum: 8bdf4956e07e0e80a9f4752f87b9bd62
+  sha256sum: 364659d30cce71fdf04e588eaf8a614f9a12b7ded2eb1c091939acb00cf17dff
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 81a3b17a3d145fca95c0165ed75c2700a9797635
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-masakariclient

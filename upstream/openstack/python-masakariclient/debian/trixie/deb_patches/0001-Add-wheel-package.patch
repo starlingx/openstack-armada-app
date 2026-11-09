@@ -1,0 +1,49 @@
+From cd2f94db501d068681e2ee7c800198b62855becd Mon Sep 17 00:00:00 2001
+From: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+Date: Mon, 9 Nov 2026 11:48:08 -0500
+Subject: [PATCH] Add wheel package
+
+Add python3-masakariclient-wheel.
+
+Signed-off-by: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+---
+ debian/control | 12 ++++++++++++
+ debian/rules   |  2 +-
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/debian/control b/debian/control
+index dddc4b6..c87811c 100644
+--- a/debian/control
++++ b/debian/control
+@@ -56,3 +56,15 @@ Description: OpenStack Virtual Machine High Availability (VMHA) client
+  Machine(VM)s from failure events such as VM process down, provisioning
+  process down, and nova-compute host failure. It also provides API service for
+  manage and control the automated rescue mechanism.
++
++Package: python3-masakariclient-wheel
++Architecture: all
++Depends:
++ python3-wheel,
++ ${misc:Depends},
++ ${python3:Depends},
++Description: OpenStack Virtual Machine High Availability (VMHA) client
++ This is a client for the OpenStack Masakari service Virtual Machine High
++ Availability (VMHA) API.
++ .
++ This package contains the Python wheel.
+diff --git a/debian/rules b/debian/rules
+index c8de4c2..9248eae 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -14,7 +14,7 @@ override_dh_auto_build:
+ 	echo "Do nothing..."
+ 
+ override_dh_auto_install:
+-	pkgos-dh_auto_install --no-py2
++	pkgos-dh_auto_install --no-py2 --wheel
+ 
+ override_dh_auto_test:
+ ifeq (,$(findstring nocheck, $(DEB_BUILD_OPTIONS)))
+-- 
+2.34.1
+

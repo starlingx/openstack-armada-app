@@ -20,6 +20,7 @@ DIST_PACKAGES="
   python3-glanceclient \
   python3-heatclient \
   python3-keystoneclient \
+  python3-masakariclient \
   python3-neutronclient \
   python3-novaclient \
   python3-openstackclient \

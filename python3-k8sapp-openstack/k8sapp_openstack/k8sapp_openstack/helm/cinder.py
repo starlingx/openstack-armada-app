@@ -5,6 +5,7 @@
 #
 
 import os
+import posixpath
 
 from oslo_log import log as logging
 from sysinv.common import constants
@@ -13,6 +14,7 @@ from sysinv.common import storage_backend_conf
 from sysinv.helm import common
 from tsconfig import tsconfig as tsc
 
+from k8sapp_openstack.common import artifacts
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 from k8sapp_openstack.utils import _get_value_from_application
@@ -315,6 +317,20 @@ class CinderHelm(openstack.OpenstackBaseHelm):
                                 include_backup_mount=True)
                         }
                     },
+                    # Plugin-generated artifact delivery, filled by
+                    # _process_artifacts. Empty defaults render nothing.
+                    'artifacts': {
+                        'cinder_volume': {
+                            'volumes': [],
+                            'volumeMounts': [],
+                            'python_paths': [],
+                        },
+                        'cinder_backup': {
+                            'volumes': [],
+                            'volumeMounts': [],
+                            'python_paths': [],
+                        },
+                    },
                     'replicas': {
                         'api': self._num_provisioned_controllers(),
                         'volume': 1,  # Active-Passive/Active-Active not configured
@@ -354,6 +370,9 @@ class CinderHelm(openstack.OpenstackBaseHelm):
         }
 
         overrides[common.HELM_NS_OPENSTACK] = self._process_extra_mounts(
+            overrides[common.HELM_NS_OPENSTACK])
+
+        overrides[common.HELM_NS_OPENSTACK] = self._process_artifacts(
             overrides[common.HELM_NS_OPENSTACK])
 
         if self._netapp_nfs_enabled:
@@ -1016,6 +1035,89 @@ class CinderHelm(openstack.OpenstackBaseHelm):
 
             for volume_mounts_entry in extra_mounts_backup.get('volumeMounts', []):
                 mounts['volumeMounts'].append(volume_mounts_entry)
+
+        return overrides
+
+    def _build_python_contribution(self, record):
+        """Build the delivery contribution for one Python artifact.
+
+        Mounts the whole image read-only at the generated mount root and
+        resolves each pythonPath beneath it, in order. '.' is the mount root.
+        """
+        mount_root = artifacts.artifact_mount_root(record['id'])
+        volume = artifacts.make_image_volume(record)
+
+        python_paths = []
+        for rel_path in record['consumption']['paths']:
+            if rel_path == '.':
+                python_paths.append(mount_root)
+            else:
+                python_paths.append(posixpath.join(mount_root, rel_path))
+
+        return {
+            'volumes': [volume],
+            'volumeMounts': [{
+                'name': volume['name'],
+                'mountPath': mount_root,
+                'readOnly': True,
+            }],
+            'python_paths': python_paths,
+        }
+
+    def _process_artifacts(self, overrides):
+        """Generate Python artifact delivery from storage_conf.artifacts.
+
+        Normalizes storage_conf.artifacts with the shared parser and, for
+        each Python-kind record, emits image volumes, read-only mounts and
+        ordered PYTHONPATH entries into pod.artifacts.cinder_volume /
+        cinder_backup. Mounts-kind records are skipped (separate story).
+
+        Writes to pod.artifacts.<component> only, never the pod.env PYTHONPATH
+        scalar; the chart composes the final value. With no artifacts the
+        empty defaults are left untouched.
+        """
+        entries = _get_value_from_application(
+            default_value=None,
+            chart_name=self.CHART,
+            override_name=app_constants.OVERRIDE_ARTIFACTS
+        )
+
+        # Unset means no delivery; keep the defaults. Any other value,
+        # including falsy non-lists, is validated by normalize_artifacts.
+        if entries is None:
+            return overrides
+
+        records = artifacts.normalize_artifacts(entries)
+        if not records:
+            return overrides
+
+        # Per-component contributions, in declaration order.
+        contributions = {
+            app_constants.ARTIFACT_COMPONENT_VOLUME: [],
+            app_constants.ARTIFACT_COMPONENT_BACKUP: [],
+        }
+        for record in records:
+            if record['consumption']['kind'] != app_constants.ARTIFACT_KIND_PYTHON:
+                continue
+
+            # Build per target so components never share objects.
+            for target in record['targets']:
+                contributions[target].append(
+                    self._build_python_contribution(record))
+
+        # compose_component_delivery de-duplicates and keeps path order.
+        component_keys = {
+            app_constants.ARTIFACT_COMPONENT_VOLUME: 'cinder_volume',
+            app_constants.ARTIFACT_COMPONENT_BACKUP: 'cinder_backup',
+        }
+        for target, component_key in component_keys.items():
+            composed = artifacts.compose_component_delivery(
+                contributions[target])
+            overrides['pod']['artifacts'][component_key] = {
+                'volumes': composed['volumes'],
+                'volumeMounts': composed['volumeMounts'],
+                'python_paths': composed['python_paths'],
+            }
 
         return overrides
 

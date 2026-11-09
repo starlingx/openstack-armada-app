@@ -1482,6 +1482,7 @@ conf:
       reserved_host_memory_mb: 0
       compute_monitors: cpu.virt_driver
       running_deleted_instance_poll_interval: 60
+      running_deleted_instance_action: log
       mkisofs_cmd: /usr/bin/genisoimage
       network_allocate_retries: 2
       # Set number of block device allocate retries and interval

@@ -18,7 +18,6 @@ from k8sapp_openstack.utils import _get_value_from_application
 from k8sapp_openstack.utils import get_available_volume_backends
 from k8sapp_openstack.utils import get_backend_protocol
 from k8sapp_openstack.utils import get_backends_conf
-from k8sapp_openstack.utils import get_external_service_url
 from k8sapp_openstack.utils import get_storage_backends_priority_list
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_strict_backend
@@ -329,10 +328,6 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                 'cinder': {
                     'cinder_api_insecure': not self._is_openstack_https_ready(self.SERVICE_NAME),
                     'cinder_catalog_info': app_constants.GLANCE_CINDER_CATALOG_INFO,
-                    'cinder_store_auth_address': self._get_service_public_endpoint(
-                        app_constants.HELM_CHART_KEYSTONE,
-                        path="v3"
-                    ),
                     'cinder_store_user_name': self._get_admin_user_name(),
                     'cinder_store_password': self._get_admin_password(),
                     'cinder_store_project_name': self._get_admin_project_name(),
@@ -357,18 +352,6 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
             }
 
         if self._is_openstack_https_ready(self.SERVICE_NAME):
-            # Configure the proper Keystone URL for the certificate in use
-            external_keystone_url = get_external_service_url(self.dbapi, 'keystone', True)
-            if external_keystone_url:
-                keystone_versioned_url = f"{external_keystone_url}/{app_constants.KEYSTONE_CURRENT_VERSION}"
-                conf = self._update_overrides(conf, {
-                    'glance': {
-                        'cinder': {
-                            'cinder_store_auth_address': keystone_versioned_url,
-                        },
-                    },
-                })
-
             conf = self._update_overrides(conf, {
                 'glance': {
                     'keystone_authtoken': {
@@ -376,9 +359,6 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                     },
                     'glance_store': {
                         'https_ca_certificates_file': self.get_ca_file(),
-                    },
-                    'cinder': {
-                        'cinder_ca_certificates_file': self.get_ca_file(),
                     },
                 },
                 'glance_registry': {

@@ -13,7 +13,8 @@ PIP_PACKAGES="\
   ldap \
   pycryptodomex \
   pyudev \
-  pymemcache
+  pymemcache \
+  watcher-dashboard
 "
 PROFILES="fluent horizon apache"
 CUSTOMIZATION="\

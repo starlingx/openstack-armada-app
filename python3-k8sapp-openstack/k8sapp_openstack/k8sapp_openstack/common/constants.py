@@ -340,6 +340,36 @@ OVERRIDE_BACKENDS_CONF = "storage_conf.backends_conf"
 OVERRIDE_EXTRA_MOUNTS_VOLUME = "storage_conf.extra_mounts.cinder_volume"
 OVERRIDE_EXTRA_MOUNTS_BACKUP = "storage_conf.extra_mounts.cinder_backup"
 
+# Artifact delivery overrides
+OVERRIDE_ARTIFACTS = "storage_conf.artifacts"
+
+# Target components (fixed order: used in the identity hash)
+ARTIFACT_COMPONENT_VOLUME = "volume"
+ARTIFACT_COMPONENT_BACKUP = "backup"
+ARTIFACT_COMPONENTS = (ARTIFACT_COMPONENT_VOLUME, ARTIFACT_COMPONENT_BACKUP)
+
+# Allowed keys per level (any other key is rejected)
+ARTIFACT_ALLOWED_KEYS = frozenset(
+    ("name", "source", "targets", "pythonPaths", "mounts"))
+ARTIFACT_SOURCE_ALLOWED_KEYS = frozenset(("image",))
+ARTIFACT_MOUNT_ALLOWED_KEYS = frozenset(("mountPath",))
+
+# Image-only default: Python search at the image root
+ARTIFACT_DEFAULT_PYTHON_PATHS = (".",)
+
+# Generated name/path prefixes
+ARTIFACT_MOUNT_ROOT_PREFIX = "/opt/artifacts/"
+ARTIFACT_RESOURCE_NAME_PREFIX = "artifact-"
+# Pull policy for generated Image Volumes
+ARTIFACT_IMAGE_PULL_POLICY = "IfNotPresent"
+
+# Consumption record kinds
+ARTIFACT_KIND_PYTHON = "python"
+ARTIFACT_KIND_MOUNTS = "mounts"
+
+# Short id length in hex chars
+ARTIFACT_ID_LENGTH = 16
+
 # Volume priority
 OVERRIDE_STORAGE_PRIORITY = "storage_conf.volume_storage_class_priority"
 DEFAULT_VOLUME_PRIORITY_LIST = [

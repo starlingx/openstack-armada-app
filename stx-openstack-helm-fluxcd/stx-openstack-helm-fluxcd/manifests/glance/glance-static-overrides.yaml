@@ -338,6 +338,8 @@ conf:
     oslo_policy:
       policy_file: /etc/glance/policy.yaml
     cors: {}
+    cinder:
+      cinder_store_auth_address: http://keystone-api.openstack.svc.cluster.local:5000/v3
   logging:
     loggers:
       keys:

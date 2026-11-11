@@ -73,3 +73,5 @@
 0073-Add-artifact-env-mounts-and-backup-rootwrap-to-Cinde.patch
 0074-Add-API-ingress-to-the-Masakari-chart.patch
 0075-Add-tolerations-to-the-Masakari-chart.patch
+0076-Fix-watcher-decision-engine-and-add-pod-tolerations.patch
+0077-Add-TLS-ingress-secret-support-to-watcher.patch

@@ -39,6 +39,7 @@ images:
     watcher_decision_engine: docker.io/starlingx/stx-watcher:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     watcher_applier: docker.io/starlingx/stx-watcher:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     image_repo_sync: null
+    pre_apply_cleanup: docker.io/starlingx/stx-vault-manager:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   pull_policy: "IfNotPresent"
   local_registry:
     active: false
@@ -630,6 +631,7 @@ manifests:
   service_ingress_api: true
   service_api: true
   statefulset_decision_engine: true
+  job_pre_apply_cleanup: true
 # -- Array of extra K8s manifests to deploy
 ## Note: Supports use of custom Helm templates
 extraObjects: []

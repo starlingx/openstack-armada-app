@@ -77,3 +77,4 @@
 0077-Add-TLS-ingress-secret-support-to-watcher.patch
 0078-Fix-Horizon-start-up-with-the-watcher-dashboard-pane.patch
 0079-Add-host-monitor-Node-read-RBAC-to-the-Masakari-chart.patch
+0080-Add-a-bootstrap-Job-to-the-Masakari-chart.patch

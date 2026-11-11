@@ -1,0 +1,310 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+Date: Wed, 11 Nov 2026 12:23:07 -0500
+Subject: [PATCH] Add a bootstrap Job to the Masakari chart
+
+The Masakari chart has no bootstrap Job, so failover segments and their
+hosts can only be created by hand after the chart is deployed, and
+Masakari has nowhere to evacuate to until someone does.
+
+Add job-bootstrap.yaml, built with the helm-toolkit job_bootstrap macro
+and run as a post-install/post-upgrade hook like the nova, neutron and
+glance bootstrap Jobs, so it runs again on every release upgrade.
+bootstrap.structured.segments lists the segments to keep in place. Each
+is created if missing, and its recovery_method and description are
+updated when they change. Hosts are names or maps with name, reserved,
+type and control_attributes; missing hosts are added and existing ones
+kept in line. With remove_unlisted_hosts, a host that is not listed is
+removed. Removals run for every segment before any host is added, since
+host names are unique across segments and a host can move. A segment
+with enabled set to false is left as it is.
+
+A delete masakari-api refuses with 409 (the segment is recovering a
+host) is logged and left for the next run. Any other failed delete, or a
+host that can't be added, fails the Job, so it is retried. Any other API
+error stops the Job with the client's message. The Job waits for the
+identity and instance_ha endpoints and uses the admin credentials, as
+the other charts' bootstrap Jobs do. Bootstrap is off by default.
+
+The change is proposed to openstack-helm. This patch must be removed
+when the pinned openstack-helm revision includes it.
+
+Relates-to: https://review.opendev.org/c/openstack/openstack-helm/+/1015467
+Signed-off-by: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+---
+ masakari/templates/bin/_bootstrap.sh.tpl | 130 +++++++++++++++++++++++
+ masakari/templates/configmap-bin.yaml    |   4 +
+ masakari/templates/job-bootstrap.yaml    |  27 +++++
+ masakari/values.yaml                     |  44 ++++++++
+ 4 files changed, 205 insertions(+)
+ create mode 100644 masakari/templates/bin/_bootstrap.sh.tpl
+ create mode 100644 masakari/templates/job-bootstrap.yaml
+
+diff --git a/masakari/templates/bin/_bootstrap.sh.tpl b/masakari/templates/bin/_bootstrap.sh.tpl
+new file mode 100644
+index 0000000..2cedf8c
+--- /dev/null
++++ b/masakari/templates/bin/_bootstrap.sh.tpl
+@@ -0,0 +1,130 @@
++#!/bin/bash
++
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++set -ex
++
++failed=0
++
++# Create the segment, or update its recovery method and description.
++# Lookups are plain assignments so set -e stops on an API, auth or TLS
++# error with the client's message instead of treating it as "missing".
++reconcile_segment() {
++  local segment="$1" method="$2" service_type="$3" description="$4" current
++  current=$(openstack segment list -f value -c name)
++  if ! grep -Fxq "${segment}" <<< "${current}"; then
++    openstack segment create ${description:+--description "${description}"} \
++      "${segment}" "${method}" "${service_type}"
++    return
++  fi
++  current=$(openstack segment show "${segment}" -f value -c recovery_method)
++  if [ "${current}" != "${method}" ]; then
++    openstack segment update --recovery_method "${method}" "${segment}"
++  fi
++  if [ -n "${description}" ]; then
++    current=$(openstack segment show "${segment}" -f value -c description)
++    if [ "${current}" != "${description}" ]; then
++      openstack segment update --description "${description}" "${segment}"
++    fi
++  fi
++}
++
++# Remove the segment's hosts that are not in the given list. masakari-api
++# refuses the delete (409) while the segment is recovering a host; leave it
++# for the next run. Any other failure fails the Job at the end.
++remove_unlisted() {
++  local segment="$1" host current out
++  shift
++  current=$(openstack segment host list "${segment}" -f value -c name)
++  for host in ${current}; do
++    if ! printf '%s\n' "$@" | grep -Fxq "${host}"; then
++      if ! out=$(openstack segment host delete "${segment}" "${host}" 2>&1); then
++        echo "${out}"
++        if grep -q "409" <<< "${out}"; then
++          echo "Could not remove ${host} from ${segment}, retrying on the next run"
++        else
++          echo "Could not remove ${host} from ${segment}"
++          failed=1
++        fi
++      fi
++    fi
++  done
++}
++
++# Add the host to the segment, or update its reserved flag, type and
++# control attributes. A host that can't be added fails the Job at the end,
++# so it is retried.
++ensure_host() {
++  local segment="$1" host="$2" reserved="$3" host_type="$4" control="$5" current
++  # The client only takes True or False.
++  [ "${reserved,,}" = true ] && reserved=True || reserved=False
++  current=$(openstack segment host list "${segment}" -f value -c name)
++  if ! grep -Fxq "${host}" <<< "${current}"; then
++    openstack segment host create --reserved "${reserved}" \
++      "${host}" "${host_type}" "${control}" "${segment}" || {
++        echo "Could not add ${host} to ${segment}"
++        failed=1
++      }
++    return
++  fi
++  current=$(openstack segment host show "${segment}" "${host}" -f json \
++    -c reserved -c type -c control_attributes)
++  current=$(python3 -c \
++    'import json,sys; h=json.load(sys.stdin); print("%s|%s|%s" % (str(h["reserved"]).lower(), h["type"], h["control_attributes"]))' \
++    <<< "${current}")
++  if [ "${current}" != "${reserved,,}|${host_type}|${control}" ]; then
++    openstack segment host update --reserved "${reserved}" --type "${host_type}" \
++      --control_attributes "${control}" "${segment}" "${host}"
++  fi
++}
++
++{{- $segments := .Values.bootstrap.structured.segments | default dict }}
++
++# Segments first, then removals across all segments, then additions, so a
++# host can move between segments (host names are unique across segments).
++{{- range $key, $segment := $segments }}
++{{- if ne (toString $segment.enabled) "false" }}
++reconcile_segment {{ $segment.name | default $key | quote }} \
++  {{ $segment.recovery_method | default "auto" | quote }} \
++  {{ $segment.service_type | default "COMPUTE" | quote }} \
++  {{ $segment.description | default "" | quote }}
++{{- end }}
++{{- end }}
++
++{{- range $key, $segment := $segments }}
++{{- if and (ne (toString $segment.enabled) "false") $segment.remove_unlisted_hosts }}
++remove_unlisted {{ $segment.name | default $key | quote }}
++{{- range $segment.hosts }}{{ if kindIs "map" . }} {{ .name | quote }}{{ else }} {{ . | quote }}{{ end }}{{ end }}
++{{- end }}
++{{- end }}
++
++{{- range $key, $segment := $segments }}
++{{- if ne (toString $segment.enabled) "false" }}
++{{- $name := $segment.name | default $key }}
++{{- $type := $segment.host_type | default "COMPUTE" }}
++{{- $control := $segment.control_attributes | default "SSH" }}
++{{- range $segment.hosts }}
++{{- if kindIs "map" . }}
++ensure_host {{ $name | quote }} {{ .name | quote }} {{ .reserved | default false | quote }} {{ .type | default $type | quote }} {{ .control_attributes | default $control | quote }}
++{{- else }}
++ensure_host {{ $name | quote }} {{ . | quote }} "false" {{ $type | quote }} {{ $control | quote }}
++{{- end }}
++{{- end }}
++{{- end }}
++{{- end }}
++
++{{ .Values.bootstrap.script | default "" }}
++
++exit ${failed}
+diff --git a/masakari/templates/configmap-bin.yaml b/masakari/templates/configmap-bin.yaml
+index 837af84..f5eb25a 100644
+--- a/masakari/templates/configmap-bin.yaml
++++ b/masakari/templates/configmap-bin.yaml
+@@ -49,4 +49,8 @@ data:
+ {{ tuple "bin/_masakari-introspective-instance-monitor.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
+   masakari-monitors-init.sh: |
+ {{ tuple "bin/_masakari-monitors-init.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++{{- if .Values.bootstrap.enabled }}
++  bootstrap.sh: |
++{{ tuple "bin/_bootstrap.sh.tpl" . | include "helm-toolkit.utils.template" | indent 4 }}
++{{- end }}
+ {{- end }}
+diff --git a/masakari/templates/job-bootstrap.yaml b/masakari/templates/job-bootstrap.yaml
+new file mode 100644
+index 0000000..9aa13a4
+--- /dev/null
++++ b/masakari/templates/job-bootstrap.yaml
+@@ -0,0 +1,27 @@
++{{/*
++Licensed under the Apache License, Version 2.0 (the "License");
++you may not use this file except in compliance with the License.
++You may obtain a copy of the License at
++
++   http://www.apache.org/licenses/LICENSE-2.0
++
++Unless required by applicable law or agreed to in writing, software
++distributed under the License is distributed on an "AS IS" BASIS,
++WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++See the License for the specific language governing permissions and
++limitations under the License.
++*/}}
++
++{{- define "metadata.annotations.job.bootstrap" }}
++helm.sh/hook: post-install,post-upgrade
++helm.sh/hook-weight: "5"
++{{- end }}
++
++{{- if and .Values.manifests.job_bootstrap .Values.bootstrap.enabled }}
++{{- $bootstrapJob := dict "envAll" . "serviceName" "masakari" "keystoneUser" .Values.bootstrap.ks_user -}}
++{{- $_ := set $bootstrapJob "jobAnnotations" (include "metadata.annotations.job.bootstrap" . | fromYaml) }}
++{{- if .Values.pod.tolerations.masakari.enabled -}}
++{{- $_ := set $bootstrapJob "tolerationsEnabled" true -}}
++{{- end -}}
++{{ $bootstrapJob | include "helm-toolkit.manifests.job_bootstrap" }}
++{{- end }}
+diff --git a/masakari/values.yaml b/masakari/values.yaml
+index 59d2c3b..616605e 100644
+--- a/masakari/values.yaml
++++ b/masakari/values.yaml
+@@ -13,6 +13,7 @@
+ ---
+ images:
+   tags:
++    bootstrap: quay.io/airshipit/openstack-client:2025.1-ubuntu_noble
+     db_init: quay.io/airshipit/openstack-client:2025.1-ubuntu_noble
+     db_sync: quay.io/airshipit/masakari:2025.1-ubuntu_noble
+     db_drop: quay.io/airshipit/openstack-client:2025.1-ubuntu_noble
+@@ -249,6 +250,35 @@ secrets:
+       masakari_api:
+         public: masakari-tls-public
+ 
++bootstrap:
++  enabled: false
++  ks_user: admin
++  script: null
++  # Failover segments the bootstrap Job keeps in place, keyed by any name.
++  # Each segment is created if missing, and its recovery_method and
++  # description are updated when they change. Hosts are names, or maps with
++  # name, reserved, type and control_attributes. A host missing from the
++  # segment is added and its attributes are kept in line. With
++  # remove_unlisted_hosts, a segment host that is not listed is removed.
++  # A segment with enabled: false is left as it is. Host names are unique
++  # across segments, so to move a host, list it in its new segment and set
++  # remove_unlisted_hosts on the old one.
++  structured:
++    segments: {}
++    # compute:
++    #   enabled: true
++    #   name: compute
++    #   description: Compute hosts
++    #   recovery_method: auto
++    #   service_type: COMPUTE
++    #   host_type: COMPUTE
++    #   control_attributes: SSH
++    #   remove_unlisted_hosts: false
++    #   hosts:
++    #     - compute-0
++    #     - name: compute-1
++    #       reserved: true
++
+ dependencies:
+   static:
+     masakari_api:
+@@ -293,6 +323,12 @@ dependencies:
+       services:
+         - endpoint: internal
+           service: identity
++    bootstrap:
++      services:
++        - endpoint: internal
++          service: identity
++        - endpoint: internal
++          service: instance_ha
+ 
+ pod:
+   tolerations:
+@@ -552,6 +588,13 @@ pod:
+         limits:
+           memory: "1024Mi"
+           cpu: "2000m"
++      bootstrap:
++        requests:
++          memory: "128Mi"
++          cpu: "100m"
++        limits:
++          memory: "1024Mi"
++          cpu: "2000m"
+ conf:
+   paste:
+     composite:masakari_api:
+@@ -650,6 +693,7 @@ network:
+     external_policy_local: false
+ 
+ manifests:
++  job_bootstrap: true
+   job_ks_user: true
+   job_db_sync: true
+   job_db_init: true
+-- 
+2.34.1
+

@@ -1,0 +1,69 @@
+From 87d32f385cbca230dfdacf941610518167c0ef18 Mon Sep 17 00:00:00 2001
+From: ssajeev <sravan.sajeev@windriver.com>
+Date: Wed, 11 Nov 2026 14:53:33 -0500
+Subject: [PATCH] Retry l2-agent RPC handshake on version mismatch
+
+OVSNeutronAgent.setup_rpc() loops waiting for a usable neutron server,
+but only retries on MessagingTimeout. A server still serving an older
+agent state namespace RPC contract answers rather than timing out, so
+the failure arrives as RemoteError, escapes the loop and kills the
+agent's main thread. The process does not exit, so nothing restarts it
+and the host silently stops managing its dataplane.
+
+Retry on RemoteError as well. Catching it broadly, rather than only when
+exc_type is UnsupportedVersion, is deliberate: no RemoteError from this
+handshake should be fatal, because being fatal here leaves an agent
+process that is alive but no longer doing anything.
+
+Also add the report_interval sleep the MessagingTimeout branch was
+missing. A RemoteError returns immediately and would otherwise
+busy-loop.
+
+Proposed upstream as https://review.opendev.org/c/openstack/neutron/+/1005771,
+which has not been accepted. Keep this patch until an equivalent fix
+merges upstream and reaches the packaged neutron version.
+
+Related-Bug: #2167373
+Signed-off-by: ssajeev <sravan.sajeev@windriver.com>
+---
+ .../ml2/drivers/openvswitch/agent/ovs_neutron_agent.py | 10 +++++++---
+ .../openvswitch/agent/test_ovs_neutron_agent.py        |  3 +++
+ 2 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py b/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py
+index 9199a1135..d8b2f25bd 100644
+--- a/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py
++++ b/neutron/plugins/ml2/drivers/openvswitch/agent/ovs_neutron_agent.py
+@@ -595,11 +595,15 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
+                         'from neutron server to db. Retrying... ')
+                     time.sleep(self.conf.AGENT.report_interval)
+                     continue
+-            except oslo_messaging.MessagingTimeout as e:
+-                LOG.warning('l2-agent cannot contact neutron server. '
+-                            'Check connectivity to neutron server. '
++            except (oslo_messaging.MessagingTimeout,
++                    oslo_messaging.RemoteError) as e:
++                LOG.warning('l2-agent could not reach a compatible neutron '
++                            'server. '
++                            'Check connectivity and RPC version '
++                            'compatibility. '
+                             'Retrying... '
+                             'Detailed message: %(msg)s.', {'msg': e})
++                time.sleep(self.conf.AGENT.report_interval)
+                 continue
+             break
+ 
+diff --git a/neutron/tests/unit/plugins/ml2/drivers/openvswitch/agent/test_ovs_neutron_agent.py b/neutron/tests/unit/plugins/ml2/drivers/openvswitch/agent/test_ovs_neutron_agent.py
+index 070a42452..91cbfb942 100644
+--- a/neutron/tests/unit/plugins/ml2/drivers/openvswitch/agent/test_ovs_neutron_agent.py
++++ b/neutron/tests/unit/plugins/ml2/drivers/openvswitch/agent/test_ovs_neutron_agent.py
+@@ -3160,6 +3160,9 @@ class TestOvsNeutronAgent:
+                 'has_alive_neutron_server') as mock_has_alive:
+             mock_has_alive.side_effect = [
+                 oslo_messaging.MessagingTimeout,
++                oslo_messaging.RemoteError(
++                    exc_type='UnsupportedVersion',
++                    value='Endpoint does not support RPC version 1.4'),
+                 False,
+                 True
+             ]

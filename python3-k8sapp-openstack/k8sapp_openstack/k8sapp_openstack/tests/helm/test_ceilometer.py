@@ -4,12 +4,17 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import os
+
 import mock
+from sysinv.common import constants
 from sysinv.common import exception
 from sysinv.helm import common
 from sysinv.tests.db import base as dbbase
 from sysinv.tests.db import utils as dbutils
 from sysinv.tests.helm import base
+import testtools
+import yaml
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.tests import test_plugins
@@ -195,3 +200,138 @@ class CeilometerGetOverrideTest(CeilometerHelmTestCase,
             app_constants.HELM_CHART_CEILOMETER)
         self.assertIsInstance(overrides, dict)
         self.assertIn(common.HELM_NS_OPENSTACK, overrides)
+
+    def _enable_watcher_chart_flag(self):
+        """Seeds the application-level flag of the watcher chart as ON."""
+        dbutils.create_test_helm_overrides(
+            app_id=self.app.id,
+            name=app_constants.HELM_CHART_WATCHER,
+            namespace=common.HELM_NS_OPENSTACK,
+            system_overrides={common.HELM_CHART_ATTR_ENABLED: True})
+
+    def _add_compute_worker(self, unit):
+        worker = self._create_test_host(
+            personality=constants.WORKER,
+            administrative=constants.ADMIN_LOCKED,
+            unit=unit)
+        dbutils.create_test_label(host_id=worker.id,
+                                  label_key=common.LABEL_COMPUTE_LABEL,
+                                  label_value=common.LABEL_VALUE_ENABLED)
+        return worker
+
+    def _get_overrides(self):
+        return self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_CEILOMETER,
+            cnamespace=common.HELM_NS_OPENSTACK)
+
+    def _assert_no_watcher_settings(self, overrides):
+        self.assertNotIn('compute', overrides['conf']['ceilometer'])
+        self.assertNotIn('polling', overrides['conf'])
+
+    def _assert_watcher_settings(self, overrides):
+        compute = overrides['conf']['ceilometer']['compute']
+        self.assertEqual(
+            app_constants.CEILOMETER_WATCHER_INSTANCE_DISCOVERY_METHOD,
+            compute['instance_discovery_method'])
+        self.assertIs(False, compute['fetch_extra_metadata'])
+        sources = overrides['conf']['polling']['sources']
+        self.assertEqual(
+            ['openstack_compute', 'openstack_image_service',
+             'openstack_block_storage', 'openstack_networking'],
+            [source['name'] for source in sources])
+        self.assertEqual(
+            app_constants.CEILOMETER_WATCHER_COMPUTE_POLLING_INTERVAL,
+            sources[0]['interval'])
+        # Only the compute interval changes. The meters and the other
+        # sources are sent as they are in the static overrides.
+        self.assertEqual(
+            app_constants.CEILOMETER_POLLING_SOURCES[0]['meters'],
+            sources[0]['meters'])
+        self.assertEqual(app_constants.CEILOMETER_POLLING_SOURCES[1:],
+                         sources[1:])
+
+    @mock.patch('k8sapp_openstack.helm.ceilometer.is_watcher_enabled',
+                return_value=False)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_rabbit_notification_url',
+        side_effect=lambda rabbit_path: 'rabbit://fake%s' % rabbit_path)
+    def test_ceilometer_no_watcher_settings_when_gate_closed(
+            self, _url, _https, _gate):
+        """Asserts that a system without Watcher gets no Watcher setting from
+        the plugin, so the static overrides (600 s polling,
+        workload_partitioning discovery) apply unchanged."""
+        self._assert_no_watcher_settings(self._get_overrides())
+
+    @mock.patch('k8sapp_openstack.helm.ceilometer.is_watcher_enabled',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_rabbit_notification_url',
+        side_effect=lambda rabbit_path: 'rabbit://fake%s' % rabbit_path)
+    def test_ceilometer_watcher_settings_when_gate_open(
+            self, _url, _https, _gate):
+        """Asserts the Watcher settings while Watcher is deployed: libvirt
+        discovery, no extra metadata fetch, and the compute meters polled at
+        the Watcher interval with every other source unchanged.
+
+        The constant is copied before it is changed, so the copy kept in
+        constants still holds the static interval afterwards.
+        """
+        self._assert_watcher_settings(self._get_overrides())
+        self.assertEqual(
+            600, app_constants.CEILOMETER_POLLING_SOURCES[0]['interval'])
+        # The plugin keeps what it already emitted.
+        overrides = self._get_overrides()
+        self.assertIn('notification', overrides['conf']['ceilometer'])
+        self.assertIn('meter', overrides['conf']['ceilometer'])
+
+    @mock.patch('k8sapp_openstack.utils.is_platform_app_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_rabbit_notification_url',
+        side_effect=lambda rabbit_path: 'rabbit://fake%s' % rabbit_path)
+    def test_ceilometer_watcher_settings_follow_gate_not_flag(
+            self, _url, _https, _prometheus):
+        """Asserts that the application-level flag alone does not apply the
+        Watcher settings. With the flag ON and Prometheus available but one
+        compute-labelled host, the real gate is closed."""
+        self._enable_watcher_chart_flag()
+        self._add_compute_worker(unit=0)
+        self._assert_no_watcher_settings(self._get_overrides())
+
+    @mock.patch('k8sapp_openstack.utils.is_platform_app_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    @mock.patch(
+        'k8sapp_openstack.helm.openstack.OpenstackBaseHelm._get_rabbit_notification_url',
+        side_effect=lambda rabbit_path: 'rabbit://fake%s' % rabbit_path)
+    def test_ceilometer_watcher_settings_when_real_gate_opens(
+            self, _url, _https, _prometheus):
+        """Asserts the Watcher settings once the real gate opens: flag ON,
+        two compute-labelled hosts, Prometheus available."""
+        self._enable_watcher_chart_flag()
+        self._add_compute_worker(unit=0)
+        self._add_compute_worker(unit=1)
+        self._assert_watcher_settings(self._get_overrides())
+
+
+class CeilometerPollingSourcesSyncTest(testtools.TestCase):
+    """Keeps the constants copy of the polling sources in sync with the
+    static overrides."""
+
+    STATIC_OVERRIDES = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        *([os.pardir] * 5),
+        'stx-openstack-helm-fluxcd', 'stx-openstack-helm-fluxcd',
+        'manifests', 'ceilometer', 'ceilometer-static-overrides.yaml')
+
+    def test_polling_sources_match_static_overrides(self):
+        """Asserts CEILOMETER_POLLING_SOURCES equals conf.polling.sources in
+        ceilometer-static-overrides.yaml, so an edit of only one of them
+        does not get silently replaced by the other."""
+        with open(self.STATIC_OVERRIDES) as static_file:
+            static = yaml.safe_load(static_file)
+        self.assertEqual(static['conf']['polling']['sources'],
+                         app_constants.CEILOMETER_POLLING_SOURCES)

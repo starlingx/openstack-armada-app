@@ -92,8 +92,10 @@ conf:
       enable_prometheus_exporter: true
       prometheus_listen_addresses: "[::]:9101"
     compute:
-      fetch_extra_metadata: false
-      instance_discovery_method: libvirt_metadata
+      # Without Watcher. CeilometerHelm sets libvirt_metadata discovery and
+      # fetch_extra_metadata: false while Watcher is deployed.
+      resource_update_interval: 60
+      instance_discovery_method: workload_partitioning
   event_definitions:
     - event_type: 'compute.instance.*'
       traits: &instance_traits
@@ -691,7 +693,10 @@ conf:
   polling:
     sources:
       - name: openstack_compute
-        interval: 120
+        # Without Watcher. CeilometerHelm sets 120 while Watcher is deployed,
+        # from its own copy of this list (CEILOMETER_POLLING_SOURCES in
+        # common/constants.py). Change the list there too.
+        interval: 600
         meters:
           - memory
           - memory.usage

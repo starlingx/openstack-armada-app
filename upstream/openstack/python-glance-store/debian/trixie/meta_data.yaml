@@ -1,0 +1,13 @@
+---
+debname: python-glance-store
+debver: 5.4.0-4
+dl_path:
+  name: python-glance-store-debian-5.4.0-4.tar.gz
+  url: https://salsa.debian.org/openstack-team/libs/python-glance-store/-/archive/debian/5.4.0-4/python-glance-store-debian-5.4.0-4.tar.gz
+  md5sum: dceda901b91dfccd6154808d74069a6c
+  sha256sum: 9f479682518cdc6378d8d80fb6d8c3c019876f7373387abc1440ba54a5dfab37
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 0ac6948082027246dc1060f7f8a9bc886dbde4f3
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-glance-store

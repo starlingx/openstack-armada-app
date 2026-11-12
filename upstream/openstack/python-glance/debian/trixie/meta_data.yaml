@@ -1,0 +1,13 @@
+---
+debname: glance
+debver: 2:32.0.0-5
+dl_path:
+  name: glance-debian-32.0.0-5.tar.gz
+  url: https://salsa.debian.org/openstack-team/services/glance/-/archive/debian/32.0.0-5/glance-debian-32.0.0-5.tar.gz
+  md5sum: dd7ab62c8cb9d32a58ca65f43fae79a6
+  sha256sum: f7fea50c49dd44d02e531c42938bd4fbcb0461345a24fb186e26b40d3fe14a61
+revision:
+  dist: $STX_DIST
+  GITREVCOUNT:
+    BASE_SRCREV: 0ac6948082027246dc1060f7f8a9bc886dbde4f3
+    SRC_DIR: ${MY_REPO}/stx/openstack-armada-app/upstream/openstack/python-glance

@@ -327,7 +327,6 @@ class GlanceHelm(openstack.OpenstackBaseHelm):
                 },
                 'cinder': {
                     'cinder_api_insecure': not self._is_openstack_https_ready(self.SERVICE_NAME),
-                    'cinder_catalog_info': app_constants.GLANCE_CINDER_CATALOG_INFO,
                     'cinder_store_user_name': self._get_admin_user_name(),
                     'cinder_store_password': self._get_admin_password(),
                     'cinder_store_project_name': self._get_admin_project_name(),

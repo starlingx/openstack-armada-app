@@ -8,7 +8,7 @@
 
 Cover CinderHelm._process_artifacts: the empty baseline, image-only root
 import to both consumers, nested and multiple ordered paths, target
-selection and mount-only entries that add no Python paths.
+selection, whole-image mounts and their use together with Python entries.
 
 Only the shared artifacts helpers are real; storage_conf.artifacts is
 supplied through _get_value_from_application, so these are plain testtools
@@ -42,8 +42,12 @@ class ProcessArtifactsBase(testtools.TestCase):
     def setUp(self):
         super(ProcessArtifactsBase, self).setUp()
         self.helm = cinder.CinderHelm(None)
-        # Empty artifact defaults, as get_overrides builds them.
-        self.overrides = {
+        self.overrides = self._empty_overrides()
+
+    @staticmethod
+    def _empty_overrides():
+        """Empty artifact defaults, as get_overrides builds them."""
+        return {
             "pod": {
                 "artifacts": {
                     "cinder_volume": {
@@ -157,21 +161,178 @@ class MultipleArtifactsTestCase(ProcessArtifactsBase):
         self.assertEqual(2, len(vol["volumeMounts"]))
 
 
-class MountsKindTestCase(ProcessArtifactsBase):
-    """Whole-image mounts entries add no Python delivery here."""
+def _mounts_id(image, targets, mount_paths):
+    """Return the generated artifact id of a whole-image entry."""
+    consumption = {"kind": app_constants.ARTIFACT_KIND_MOUNTS,
+                   "mounts": [{"mountPath": p} for p in mount_paths]}
+    artifact_id, _ = artifacts.compute_artifact_id(
+        image, tuple(targets), consumption)
+    return artifact_id
 
-    def test_mounts_only_entry_adds_nothing(self):
+
+class MountsKindTestCase(ProcessArtifactsBase):
+    """Whole-image mounts entries mount the complete image read-only."""
+
+    def test_single_destination_in_both_consumers(self):
+        result = self._run([{
+            "source": {"image": IMG_HELPER},
+            "mounts": [{"mountPath": "/opt/partner/helpers"}],
+        }])
+        name = artifacts.artifact_resource_name(
+            _mounts_id(IMG_HELPER, ("volume", "backup"),
+                       ["/opt/partner/helpers"]))
+        for component in ("cinder_volume", "cinder_backup"):
+            art = self._artifacts(result, component)
+            self.assertEqual(
+                [{"name": name,
+                  "image": {"reference": IMG_HELPER,
+                            "pullPolicy": "IfNotPresent"}}],
+                art["volumes"])
+            self.assertEqual(
+                [{"name": name, "mountPath": "/opt/partner/helpers",
+                  "readOnly": True}],
+                art["volumeMounts"])
+            self.assertEqual([], art["python_paths"])
+
+    def test_several_destinations_share_one_volume(self):
+        result = self._run([{
+            "source": {"image": IMG_HELPER},
+            "targets": ["volume"],
+            "mounts": [{"mountPath": "/opt/partner/helpers"},
+                       {"mountPath": "/usr/local/partner"}],
+        }])
+        vol = self._artifacts(result, "cinder_volume")
+        self.assertEqual(1, len(vol["volumes"]))
+        self.assertEqual(
+            ["/opt/partner/helpers", "/usr/local/partner"],
+            [m["mountPath"] for m in vol["volumeMounts"]])
+        self.assertEqual(
+            {vol["volumes"][0]["name"]},
+            {m["name"] for m in vol["volumeMounts"]})
+        self.assertTrue(all(m["readOnly"] for m in vol["volumeMounts"]))
+
+    def test_volume_only_target_leaves_backup_empty(self):
         result = self._run([{
             "source": {"image": IMG_HELPER},
             "targets": ["volume"],
             "mounts": [{"mountPath": "/opt/partner/helpers"}],
         }])
-        vol = self._artifacts(result, "cinder_volume")
-        self.assertEqual([], vol["python_paths"])
-        self.assertEqual([], vol["volumes"])
-        self.assertEqual([], vol["volumeMounts"])
+        backup = self._artifacts(result, "cinder_backup")
+        self.assertEqual([], backup["volumes"])
+        self.assertEqual([], backup["volumeMounts"])
 
-    def test_mixed_entries_only_python_contributes(self):
+    def test_backup_only_target_leaves_volume_empty(self):
+        result = self._run([{
+            "source": {"image": IMG_HELPER},
+            "targets": ["backup"],
+            "mounts": [{"mountPath": "/opt/partner/helpers"}],
+        }])
+        self.assertEqual(
+            [], self._artifacts(result, "cinder_volume")["volumeMounts"])
+        self.assertEqual(
+            1, len(self._artifacts(result, "cinder_backup")["volumeMounts"]))
+
+    def test_consumers_do_not_share_objects(self):
+        result = self._run([{
+            "source": {"image": IMG_HELPER},
+            "mounts": [{"mountPath": "/opt/partner/helpers"}],
+        }])
+        vol = self._artifacts(result, "cinder_volume")
+        backup = self._artifacts(result, "cinder_backup")
+        self.assertEqual(vol["volumes"], backup["volumes"])
+        self.assertIsNot(vol["volumes"][0], backup["volumes"][0])
+        self.assertIsNot(vol["volumeMounts"][0], backup["volumeMounts"][0])
+
+    def test_mounts_do_not_add_python_paths(self):
+        result = self._run([{
+            "source": {"image": IMG_HELPER},
+            "mounts": [{"mountPath": "/opt/partner/helpers"}],
+        }])
+        for component in ("cinder_volume", "cinder_backup"):
+            self.assertEqual(
+                [], self._artifacts(result, component)["python_paths"])
+
+    def test_mount_path_is_normalized(self):
+        result = self._run([{
+            "source": {"image": IMG_HELPER},
+            "targets": ["volume"],
+            "mounts": [{"mountPath": "//opt/partner/helpers/"}],
+        }])
+        self.assertEqual(
+            "/opt/partner/helpers",
+            self._artifacts(result, "cinder_volume")["volumeMounts"][0][
+                "mountPath"])
+
+    def test_equivalent_entries_are_deduplicated(self):
+        entry = {"source": {"image": IMG_HELPER}, "targets": ["volume"],
+                 "mounts": [{"mountPath": "/opt/partner/helpers"}]}
+        result = self._run([entry, dict(entry)])
+        vol = self._artifacts(result, "cinder_volume")
+        self.assertEqual(1, len(vol["volumes"]))
+        self.assertEqual(1, len(vol["volumeMounts"]))
+
+    def test_names_do_not_change_the_generated_delivery(self):
+        plain = {"source": {"image": IMG_HELPER}, "targets": ["volume"],
+                 "mounts": [{"mountPath": "/opt/partner/helpers"}]}
+        named = dict(plain, name="helpers")
+        self.assertEqual(
+            self._artifacts(self._run([plain]), "cinder_volume"),
+            self._artifacts(self._run([named]), "cinder_volume"))
+
+
+class MountsConflictTestCase(ProcessArtifactsBase):
+    """Incompatible whole-image destinations fail instead of replacing."""
+
+    def test_same_destination_from_different_images_is_rejected(self):
+        self.assertRaises(artifacts.ArtifactError, self._run, [
+            {"source": {"image": IMG_HELPER}, "targets": ["volume"],
+             "mounts": [{"mountPath": "/opt/partner/helpers"}]},
+            {"source": {"image": IMG_B}, "targets": ["volume"],
+             "mounts": [{"mountPath": "/opt/partner/helpers"}]},
+        ])
+
+    def test_nested_destinations_are_rejected(self):
+        self.assertRaises(artifacts.ArtifactError, self._run, [
+            {"source": {"image": IMG_HELPER}, "targets": ["volume"],
+             "mounts": [{"mountPath": "/opt/partner"}]},
+            {"source": {"image": IMG_B}, "targets": ["volume"],
+             "mounts": [{"mountPath": "/opt/partner/helpers"}]},
+        ])
+
+    def test_sibling_destinations_are_accepted(self):
+        result = self._run([
+            {"source": {"image": IMG_HELPER}, "targets": ["volume"],
+             "mounts": [{"mountPath": "/opt/partner"}]},
+            {"source": {"image": IMG_B}, "targets": ["volume"],
+             "mounts": [{"mountPath": "/opt/partner2"}]},
+        ])
+        self.assertEqual(
+            2, len(self._artifacts(result, "cinder_volume")["volumeMounts"]))
+
+    def test_same_destination_in_separate_consumers_is_accepted(self):
+        result = self._run([
+            {"source": {"image": IMG_HELPER}, "targets": ["volume"],
+             "mounts": [{"mountPath": "/opt/partner/helpers"}]},
+            {"source": {"image": IMG_B}, "targets": ["backup"],
+             "mounts": [{"mountPath": "/opt/partner/helpers"}]},
+        ])
+        self.assertEqual(
+            1, len(self._artifacts(result, "cinder_volume")["volumeMounts"]))
+        self.assertEqual(
+            1, len(self._artifacts(result, "cinder_backup")["volumeMounts"]))
+
+    def test_subpath_is_rejected(self):
+        self.assertRaises(artifacts.ArtifactError, self._run, [{
+            "source": {"image": IMG_HELPER},
+            "mounts": [{"mountPath": "/usr/local/bin/x",
+                        "subPath": "bin/x"}],
+        }])
+
+
+class MixedModesTestCase(ProcessArtifactsBase):
+    """Python and whole-image entries coexist without overwriting."""
+
+    def test_python_and_mounts_both_reach_the_consumer(self):
         result = self._run([
             {"source": {"image": IMG_A}, "targets": ["volume"]},
             {"source": {"image": IMG_HELPER}, "targets": ["volume"],
@@ -180,4 +341,37 @@ class MountsKindTestCase(ProcessArtifactsBase):
         root_a = _mount_root(IMG_A, ("volume",), ["."])
         vol = self._artifacts(result, "cinder_volume")
         self.assertEqual([root_a], vol["python_paths"])
+        self.assertEqual(2, len(vol["volumes"]))
+        self.assertEqual(
+            [root_a, "/opt/partner/helpers"],
+            [m["mountPath"] for m in vol["volumeMounts"]])
+
+    def test_same_image_in_python_and_mounts_entries(self):
+        result = self._run([
+            {"source": {"image": IMG_A}, "targets": ["volume"]},
+            {"source": {"image": IMG_A}, "targets": ["volume"],
+             "mounts": [{"mountPath": "/opt/partner/helpers"}]},
+        ])
+        vol = self._artifacts(result, "cinder_volume")
+        self.assertEqual(2, len(vol["volumeMounts"]))
+        # Both volumes reference the same image under distinct names.
+        self.assertEqual(2, len({v["name"] for v in vol["volumes"]}))
+        self.assertEqual({IMG_A},
+                         {v["image"]["reference"] for v in vol["volumes"]})
+        self.assertEqual(1, len(vol["python_paths"]))
+
+    def test_removing_the_mounts_entry_removes_its_delivery(self):
+        both = [
+            {"source": {"image": IMG_A}, "targets": ["volume"]},
+            {"source": {"image": IMG_HELPER}, "targets": ["volume"],
+             "mounts": [{"mountPath": "/opt/partner/helpers"}]},
+        ]
+        self.assertEqual(
+            2, len(self._artifacts(self._run(both), "cinder_volume")[
+                "volumeMounts"]))
+        # A new apply starts again from the empty defaults.
+        self.overrides = self._empty_overrides()
+        python_only = self._run(both[:1])
+        vol = self._artifacts(python_only, "cinder_volume")
+        self.assertEqual(1, len(vol["volumeMounts"]))
         self.assertEqual(1, len(vol["volumes"]))

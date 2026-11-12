@@ -1064,13 +1064,35 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             'python_paths': python_paths,
         }
 
-    def _process_artifacts(self, overrides):
-        """Generate Python artifact delivery from storage_conf.artifacts.
+    def _build_mounts_contribution(self, record):
+        """Build the delivery contribution for one whole-image artifact.
 
-        Normalizes storage_conf.artifacts with the shared parser and, for
-        each Python-kind record, emits image volumes, read-only mounts and
-        ordered PYTHONPATH entries into pod.artifacts.cinder_volume /
-        cinder_backup. Mounts-kind records are skipped (separate story).
+        One image volume is shared by all destinations; each mountPath gets
+        a read-only mount of the whole image. PATH, LD_LIBRARY_PATH and
+        rootwrap stay operator configuration.
+        """
+        volume = artifacts.make_image_volume(record)
+
+        return {
+            'volumes': [volume],
+            'volumeMounts': [
+                {
+                    'name': volume['name'],
+                    'mountPath': mount['mountPath'],
+                    'readOnly': True,
+                }
+                for mount in record['consumption']['mounts']
+            ],
+            'python_paths': [],
+        }
+
+    def _process_artifacts(self, overrides):
+        """Generate artifact delivery from storage_conf.artifacts.
+
+        Normalizes storage_conf.artifacts with the shared parser and emits,
+        per consumer, image volumes and read-only mounts into
+        pod.artifacts.cinder_volume / cinder_backup. Python entries also add
+        PYTHONPATH entries in order; whole-image entries add none.
 
         Writes to pod.artifacts.<component> only, never the pod.env PYTHONPATH
         scalar; the chart composes the final value. With no artifacts the
@@ -1097,13 +1119,14 @@ class CinderHelm(openstack.OpenstackBaseHelm):
             app_constants.ARTIFACT_COMPONENT_BACKUP: [],
         }
         for record in records:
-            if record['consumption']['kind'] != app_constants.ARTIFACT_KIND_PYTHON:
-                continue
+            if record['consumption']['kind'] == app_constants.ARTIFACT_KIND_PYTHON:
+                build = self._build_python_contribution
+            else:
+                build = self._build_mounts_contribution
 
             # Build per target so components never share objects.
             for target in record['targets']:
-                contributions[target].append(
-                    self._build_python_contribution(record))
+                contributions[target].append(build(record))
 
         # compose_component_delivery de-duplicates and keeps path order.
         component_keys = {

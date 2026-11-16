@@ -26,6 +26,7 @@ from k8sapp_openstack.utils import get_hosts_uuids
 from k8sapp_openstack.utils import get_services_fqdn_pattern
 from k8sapp_openstack.utils import is_ceph_backend_available
 from k8sapp_openstack.utils import is_nova_ephemeral_ceph_enabled
+from k8sapp_openstack.utils import is_watcher_enabled
 
 LOG = logging.getLogger(__name__)
 
@@ -233,6 +234,11 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         return {
             'statefulset_compute_ironic': enabled
         }
+
+    def _get_notification_format(self):
+        if is_watcher_enabled():
+            return app_constants.NOVA_NOTIFICATION_FORMAT_BOTH
+        return app_constants.NOVA_NOTIFICATION_FORMAT_UNVERSIONED
 
     def _get_endpoints_overrides(self):
         overrides = {
@@ -893,6 +899,9 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                 'oslo_messaging_notifications': {
                     'transport_url':
                         self._get_rabbit_notification_url('/nova')
+                },
+                'notifications': {
+                    'notification_format': self._get_notification_format(),
                 },
             },
             'overrides': {

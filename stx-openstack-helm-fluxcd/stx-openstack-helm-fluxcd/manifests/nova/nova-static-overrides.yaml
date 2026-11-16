@@ -1575,7 +1575,8 @@ conf:
       auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     notifications:
       notify_on_state_change: vm_and_task_state
-      notification_format: both
+      # Without Watcher. NovaHelm sets "both" while Watcher is deployed.
+      notification_format: unversioned
     service_user:
       auth_type: password
       send_service_user_token: true

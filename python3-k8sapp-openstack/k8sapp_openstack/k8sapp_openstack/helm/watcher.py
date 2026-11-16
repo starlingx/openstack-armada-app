@@ -7,6 +7,7 @@
 from sysinv.common import exception
 from sysinv.helm import common
 
+from k8sapp_openstack import utils as app_utils
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
 
@@ -19,6 +20,31 @@ class WatcherHelm(openstack.OpenstackBaseHelm):
 
     SERVICE_NAME = app_constants.HELM_CHART_WATCHER
     AUTH_USERS = ['watcher']
+
+    def _is_enabled(self, app_name, chart_name, namespace):
+        """Determine whether the Watcher chart should be deployed.
+
+        Returns the Watcher gate, app_utils.is_watcher_enabled(). NovaHelm
+        and CeilometerHelm read the same function, so the HelmRelease and
+        the Watcher settings of those charts always agree. The inherited
+        execute_kustomize_updates() removes the HelmRelease when this
+        returns False.
+
+        :param app_name: Application name
+        :param chart_name: Chart name, always 'watcher'
+        :param namespace: Chart namespace, always 'openstack'
+        :returns: True if Watcher should be deployed, False otherwise
+        """
+        return app_utils.is_watcher_enabled(app_name)
+
+    def execute_manifest_updates(self, operator):
+        # Armada-era hook, retained for consistency with the other gated
+        # plugins. The FluxCD path does not call it.
+        if not self._is_enabled(operator.APP, self.CHART,
+                                common.HELM_NS_OPENSTACK):
+            operator.chart_group_chart_delete(
+                operator.CHART_GROUPS_LUT[self.CHART],
+                operator.CHARTS_LUT[self.CHART])
 
     def get_overrides(self, namespace=None):
         overrides = {
@@ -91,8 +117,12 @@ class WatcherHelm(openstack.OpenstackBaseHelm):
         return self._get_rabbit_notification_url('/nova')
 
     def _get_service_user_password(self):
-        """Same (chart, namespace, field) triple as the identity override,
-        so this matches endpoints.identity.auth.watcher.password.
+        """Get the Watcher service user password.
+
+        Uses the same (chart, namespace, field) triple as the identity
+        override, so it matches endpoints.identity.auth.watcher.password.
+
+        :returns: the service user password
         """
         return self._get_or_generate_password(
             self.SERVICE_NAME, common.HELM_NS_OPENSTACK, self.SERVICE_NAME)

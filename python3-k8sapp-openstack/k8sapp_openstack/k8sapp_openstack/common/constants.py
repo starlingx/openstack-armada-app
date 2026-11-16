@@ -550,6 +550,88 @@ WATCHER_CLIENTS_AUTH_PROJECT_NAME = 'service'
 WATCHER_CLIENTS_AUTH_USER_DOMAIN_NAME = 'service'
 WATCHER_CLIENTS_AUTH_PROJECT_DOMAIN_NAME = 'service'
 
+# Watcher deployment requires at least two nodes with openstack compute nodes
+WATCHER_MIN_COMPUTE_HOSTS = 2
+
+# Ceilometer settings required to support Watcher deployments
+CEILOMETER_WATCHER_INSTANCE_DISCOVERY_METHOD = 'libvirt_metadata'
+CEILOMETER_COMPUTE_POLLING_SOURCE = 'openstack_compute'
+CEILOMETER_WATCHER_COMPUTE_POLLING_INTERVAL = 120
+# Copy of conf.polling.sources in ceilometer-static-overrides.yaml to support
+# Ceilometer config updates when Watcher is deployed.
+CEILOMETER_POLLING_SOURCES = [
+    {
+        'name': 'openstack_compute',
+        'interval': 600,
+        'meters': [
+            'memory',
+            'memory.usage',
+            'memory.resident',
+            'cpu',
+            'vcpus',
+            'disk.device.read.requests',
+            'disk.device.write.requests',
+            'disk.device.read.bytes',
+            'disk.device.write.bytes',
+            'disk.root.size',
+            'disk.ephemeral.size',
+            'disk.device.capacity',
+            'disk.device.allocation',
+            'disk.device.usage',
+            'network.incoming.bytes',
+            'network.outgoing.bytes',
+            'network.incoming.bytes.rate',
+            'network.outgoing.bytes.rate',
+            'network.incoming.bytes.delta',
+            'network.outgoing.bytes.delta',
+            'network.incoming.packets',
+            'network.outgoing.packets',
+            'perf.cpu.cycles',
+            'perf.instructions',
+            'perf.cache.references',
+            'perf.cache.misses',
+            'network.incoming.packets.drop',
+            'network.outgoing.packets.drop',
+            'network.incoming.packets.error',
+            'network.outgoing.packets.error',
+            'memory.swap.in',
+            'memory.swap.out',
+            'disk.device.read.latency',
+            'disk.device.write.latency',
+            'power.state',
+            'memory.available',
+        ],
+    },
+    {
+        'name': 'openstack_image_service',
+        'interval': 600,
+        'meters': [
+            'image.size',
+        ],
+    },
+    {
+        'name': 'openstack_block_storage',
+        'interval': 600,
+        'meters': [
+            'volume.size',
+            'volume.snapshot.size',
+            'volume.backup.size',
+            'volume.provider.pool.capacity.total',
+            'volume.provider.pool.capacity.free',
+            'volume.provider.pool.capacity.allocated',
+            'volume.provider.pool.capacity.provisioned',
+            'volume.provider.pool.capacity.virtual_free',
+        ],
+    },
+    {
+        'name': 'openstack_networking',
+        'interval': 600,
+        'meters': [
+            'ip.floating',
+        ],
+    },
+]
+
 # Keystone's built-in default auth method set. It already includes
 # "mapped", so when DEX is enabled only "openid" needs to be appended.
 KEYSTONE_DEFAULT_AUTH_METHODS = (
@@ -582,6 +664,10 @@ VIM_CONFIG_COMPUTE_PLUGIN_DISABLED = "compute_plugin_disabled"
 # Reduced from the upstream default (160s) to fit within sysinv's
 # hardcoded 150s kubectl drain timeout on AIO-SX.
 AIO_SX_NOVA_MANAGER_SHUTDOWN_TIMEOUT = 60
+
+# Nova [notifications] notification_format values
+NOVA_NOTIFICATION_FORMAT_BOTH = 'both'
+NOVA_NOTIFICATION_FORMAT_UNVERSIONED = 'unversioned'
 
 
 class RestoreResult(enum.Enum):

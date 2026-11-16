@@ -515,6 +515,112 @@ class NovaGetOverrideTest(NovaHelmTestCase,
         self.assertNotIn('rbd_pool', overrides)
         mock_is_nova_ephemeral_ceph_enabled.assert_called_once_with()
 
+    def _notification_format(self, overrides):
+        return overrides['conf']['nova']['notifications'][
+            'notification_format']
+
+    def _enable_watcher_chart_flag(self):
+        """Seeds the application-level flag of the watcher chart as ON."""
+        dbutils.create_test_helm_overrides(
+            app_id=self.app.id,
+            name=app_constants.HELM_CHART_WATCHER,
+            namespace=common.HELM_NS_OPENSTACK,
+            system_overrides={common.HELM_CHART_ATTR_ENABLED: True})
+
+    def _label_compute(self, host):
+        dbutils.create_test_label(host_id=host.id,
+                                  label_key=common.LABEL_COMPUTE_LABEL,
+                                  label_value=common.LABEL_VALUE_ENABLED)
+
+    @mock.patch('k8sapp_openstack.helm.nova.is_watcher_enabled',
+                return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_notification_format_unversioned_without_watcher(
+            self, _https, _value, mock_gate):
+        """Asserts that Nova publishes unversioned notifications only,
+        explicitly, while Watcher is not deployed."""
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        self.assertEqual(app_constants.NOVA_NOTIFICATION_FORMAT_UNVERSIONED,
+                         self._notification_format(overrides))
+        mock_gate.assert_called_with()
+
+    @mock.patch('k8sapp_openstack.helm.nova.is_watcher_enabled',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_notification_format_both_with_watcher(
+            self, _https, _value, _gate):
+        """Asserts that Nova also publishes versioned notifications, for the
+        Watcher Decision Engine, while Watcher is deployed."""
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        self.assertEqual(app_constants.NOVA_NOTIFICATION_FORMAT_BOTH,
+                         self._notification_format(overrides))
+
+    @mock.patch('k8sapp_openstack.helm.nova.is_watcher_enabled',
+                return_value=False)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_notifications_carry_only_the_format(
+            self, _https, _value, _gate):
+        """Asserts that the plugin emits no other [notifications] key.
+
+        notify_on_state_change stays a static override, and deep merge keeps
+        it next to the key the plugin emits.
+        """
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        self.assertEqual({'notification_format'},
+                         set(overrides['conf']['nova']['notifications']))
+
+    @mock.patch('k8sapp_openstack.utils.is_platform_app_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_notification_format_follows_gate_not_flag(
+            self, _https, _value, _prometheus):
+        """Asserts that the application-level flag alone does not turn on
+        versioned notifications.
+
+        The flag is ON and Prometheus is available, but only one host carries
+        the compute label, so Watcher is not deployed. Nova must then stay
+        unversioned. This runs the real gate, without mocking it.
+        """
+        self._enable_watcher_chart_flag()
+        self._label_compute(self.worker)
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        self.assertEqual(app_constants.NOVA_NOTIFICATION_FORMAT_UNVERSIONED,
+                         self._notification_format(overrides))
+
+    @mock.patch('k8sapp_openstack.utils.is_platform_app_available',
+                return_value=True)
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application', return_value={})
+    @mock.patch('k8sapp_openstack.utils.is_openstack_https_ready', return_value=False)
+    def test_nova_notification_format_both_when_gate_opens(
+            self, _https, _value, _prometheus):
+        """Asserts that Nova publishes versioned notifications once the real
+        gate opens: flag ON, two compute-labelled hosts, Prometheus
+        available."""
+        self._enable_watcher_chart_flag()
+        self._label_compute(self.worker)
+        second_worker = self._create_test_host(
+            personality=constants.WORKER,
+            administrative=constants.ADMIN_LOCKED,
+            unit=1)
+        self._label_compute(second_worker)
+        overrides = self.operator.get_helm_chart_overrides(
+            app_constants.HELM_CHART_NOVA,
+            cnamespace=common.HELM_NS_OPENSTACK)
+        self.assertEqual(app_constants.NOVA_NOTIFICATION_FORMAT_BOTH,
+                         self._notification_format(overrides))
+
 
 class TestEnableMultipath(testtools.TestCase):
     """Unit tests for NovaHelm._enable_multipath()."""

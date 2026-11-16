@@ -35,6 +35,7 @@ from sysinv.common import utils as cutils
 from sysinv.common.retrying import retry
 from sysinv.conductor import kube_app
 from sysinv.db import api as dbapi
+from sysinv.helm import common as helm_common
 from sysinv.helm import utils as helm_utils
 import yaml
 
@@ -5025,3 +5026,64 @@ def is_platform_app_available(app_name, available_states=None):
             constants.APP_APPLY_IN_PROGRESS,
         ]
     return get_platform_app_status(app_name) in available_states
+
+
+def is_watcher_enabled(app_name=app_constants.HELM_APP_OPENSTACK) -> bool:
+    """Decide whether Watcher is deployed on this system.
+
+    This is the single Watcher enablement gate. WatcherHelm returns it
+    from _is_enabled to keep or remove the Watcher HelmRelease. NovaHelm
+    and CeilometerHelm read it so that the settings they carry only for
+    Watcher apply only while Watcher is deployed.
+
+    The checks run in a fixed order and each one can only close the
+    gate:
+
+    1. System Controller: always enabled, before anything else, so
+       that "application-upload --images" includes the Watcher images
+       for subclouds. The application-level flag is not read.
+    2. Application-level flag: an operator OFF stops here. An operator
+       ON does not override the checks below; the flag cannot
+       distinguish an explicit ON from the default.
+    3. At least WATCHER_MIN_COMPUTE_HOSTS openstack-compute-node
+       labelled hosts, counted with no host-state filter, so locking a
+       host for maintenance does not uninstall Watcher.
+    4. The platform Prometheus application is available, as it is
+       Watcher's only datasource. This is re-evaluated only when the
+       application is applied or reapplied.
+
+    Args:
+        app_name (str): Name of the application. Any name ending in
+            "openstack" resolves to the installed OpenStack application.
+
+    Returns:
+        bool: True if Watcher is deployed, False otherwise.
+    """
+    if is_central_cloud():
+        return True
+
+    db = dbapi.get_instance()
+    if not cutils.is_chart_enabled(db, app_name,
+                                   app_constants.HELM_CHART_WATCHER,
+                                   app_constants.HELM_NS_OPENSTACK):
+        LOG.info("Watcher is disabled at the application level")
+        return False
+
+    num_computes = int(db.count_hosts_by_label(
+        helm_common.LABEL_COMPUTE_LABEL))
+    if num_computes < app_constants.WATCHER_MIN_COMPUTE_HOSTS:
+        LOG.info("Watcher is not deployed: %d host(s) labelled %s, "
+                 "at least %d required to rebalance",
+                 num_computes, helm_common.LABEL_COMPUTE_LABEL,
+                 app_constants.WATCHER_MIN_COMPUTE_HOSTS)
+        return False
+
+    if not is_platform_app_available(
+            app_constants.PROMETHEUS_PLATFORM_APP_NAME):
+        LOG.info("Watcher is not deployed: platform application %s is "
+                 "not available; reapply the application after "
+                 "applying it",
+                 app_constants.PROMETHEUS_PLATFORM_APP_NAME)
+        return False
+
+    return True

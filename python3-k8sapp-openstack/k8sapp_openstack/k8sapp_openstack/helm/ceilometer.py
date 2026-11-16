@@ -4,12 +4,15 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import copy
+
 from oslo_log import log as logging
 from sysinv.common import exception
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import is_watcher_enabled
 
 LOG = logging.getLogger(__name__)
 
@@ -96,7 +99,35 @@ class CeilometerHelm(openstack.OpenstackBaseHelm):
             ceilometer_conf['service_credentials'] = {
                 'cafile': self.get_ca_file()
             }
-        return {'ceilometer': ceilometer_conf}
+        conf = {'ceilometer': ceilometer_conf}
+        if is_watcher_enabled():
+            conf = self._update_overrides(
+                conf, self._get_watcher_conf_overrides())
+        return conf
+
+    def _get_watcher_conf_overrides(self):
+        """Build the Ceilometer overrides required when Watcher is deployed.
+
+        The polling sources list is sent whole, since a list override
+        replaces the entire list, with only the compute interval changed.
+
+        :returns: dict of Ceilometer chart conf overrides
+        """
+        sources = copy.deepcopy(app_constants.CEILOMETER_POLLING_SOURCES)
+        for source in sources:
+            if source['name'] == app_constants.CEILOMETER_COMPUTE_POLLING_SOURCE:
+                source['interval'] = app_constants.CEILOMETER_WATCHER_COMPUTE_POLLING_INTERVAL
+        return {
+            'ceilometer': {
+                'compute': {
+                    'instance_discovery_method': app_constants.CEILOMETER_WATCHER_INSTANCE_DISCOVERY_METHOD,
+                    'fetch_extra_metadata': False,
+                },
+            },
+            'polling': {
+                'sources': sources,
+            },
+        }
 
     def _get_notification_messaging_urls(self):
         rabbit_paths = ['/ceilometer', '/cinder', '/glance', '/nova',

@@ -8,6 +8,8 @@ upstream/openstack/python-aodh
 upstream/openstack/python-aodhclient
 upstream/openstack/python-ceilometer
 upstream/openstack/python-cinderclient
+upstream/openstack/python-glance
+upstream/openstack/python-glance-store
 upstream/openstack/python-glanceclient
 upstream/openstack/python-heatclient
 upstream/openstack/python-ironicclient

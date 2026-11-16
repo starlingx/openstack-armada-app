@@ -1,22 +1,44 @@
 BUILDER=loci
 LABEL=stx-glance
-PROJECT=glance
-PROJECT_REPO=https://opendev.org/openstack/glance.git
-PROJECT_REF=0c8228ca0236a2c33a31d395063edf75ad75aeab
-DIST_REPOS="OS"
-UPDATE_SYSTEM_ACCOUNT="yes"
-NON_UNIQUE_SYSTEM_ACCOUNT="yes"
+PROJECT=infra
+PROJECT_REPO=nil
+DIST_REPOS="OS +openstack"
+# PROJECT=infra skips loci's pydep.txt, so list uwsgi and fluent-logger here.
+# Do not add pip packages that pull in cryptography: a venv at
+# /var/lib/openstack shadows Debian's pinned cryptography 3.3.2 and breaks
+# pyOpenSSL 20.0.1.
 PIP_PACKAGES="\
-  os-brick \
-  oslo.rootwrap \
-  pycryptodomex \
-  python-cinderclient \
-  python-swiftclient \
-  psutil
+  uwsgi \
+  fluent-logger \
 "
-DIST_PACKAGES="libpq5 \
-               nfs-common \
-               udev \
-               lsscsi
+PROFILES="glance ceph"
+# glance-api is skipped: it adds only an unused uwsgi ini and
+# uwsgi-plugin-python3. python3-glance-store is the patched build (1004991).
+# Packages pulled in by python3-glance and python3-glance-store (cinderclient,
+# swiftclient, os-brick, oslo.rootwrap, psutil, libpq5) are not listed.
+# python3-glance is listed so it stays manually installed and survives
+# loci's apt-get purge --auto-remove. nfs-common, udev and lsscsi are not
+# depended on by any package, but os-brick calls them at runtime.
+DIST_PACKAGES="\
+  glance-common \
+  python3-glance \
+  python3-glance-store \
+  nfs-common \
+  udev \
+  lsscsi
 "
-PROFILES="fluent glance ceph"
+# Reinstall glance-common after loci's cleanup (it removed aodh-common too).
+# Move the glance user to UID/GID 42424, which the chart runs as, and re-own
+# files created under the old IDs. Copy the metadefs where the chart's
+# glance-metadefs-load job reads them (Debian ships them in /etc/glance).
+CUSTOMIZATION="\
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends glance-common && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /var/lib/openstack/etc/glance/metadefs && \
+    cp /etc/glance/metadefs/*.json /var/lib/openstack/etc/glance/metadefs/ && \
+    chmod 0644 /var/lib/openstack/etc/glance/metadefs/*.json && \
+    old_uid=\$(id -u glance) && old_gid=\$(id -g glance) && \
+    groupmod -g 42424 glance && usermod -u 42424 -g 42424 glance && \
+    find /etc /var /usr/share -xdev \( -uid \$old_uid -o -gid \$old_gid \) -exec chown -h 42424:42424 {} +
+"

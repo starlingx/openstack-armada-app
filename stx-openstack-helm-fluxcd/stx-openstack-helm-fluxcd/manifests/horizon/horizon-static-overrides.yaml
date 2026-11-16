@@ -1108,6 +1108,7 @@ conf:
     extra_panels:
       - heat_dashboard
       - neutron_taas_dashboard
+      - watcher_dashboard
 
 dependencies:
   dynamic:

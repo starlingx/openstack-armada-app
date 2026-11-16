@@ -1,0 +1,64 @@
+From 5b7c8f080f4668a17fc11ef3c16759aa8592e3ac Mon Sep 17 00:00:00 2001
+From: Pedro <pedro.portoramalho@windriver.com>
+Date: Fri, 13 Nov 2026 11:50:11 -0300
+Subject: [PATCH] Fix Horizon start-up with the watcher-dashboard panel
+
+Backport of two upstream fixes to the Horizon start script, required to
+support the watcher-dashboard plugin. Both landed after the chart pin
+and can be dropped once the pin advances past them.
+
+The first [1] fixes the script compiling translations for every package
+listed in extra_panels while verifying only that the package directory
+exists. watcher-dashboard 15.0.0 ships no locale directory, so Django's
+compilemessages fails and the Horizon pod never reaches Ready.
+
+The second [2] stops the script changing into each panel directory
+without returning, which left Apache starting there. That directory is
+on sys.path and watcher_dashboard/local shadows openstack_dashboard's
+local.local_settings, leaving ALLOWED_HOSTS empty so every request,
+probes included, gets 400 DisallowedHost. watcher-dashboard 15.0.0 does
+not reach this because the first fix skips it, but 16.0.0 ships both
+'local' and 'locale' and would.
+
+[1] https://opendev.org/openstack/openstack-helm/commit/5051dc00d12eec927892936aab73d2e5708b135d
+    https://review.opendev.org/c/openstack/openstack-helm/+/1011425
+[2] https://opendev.org/openstack/openstack-helm/commit/b0b61f634734831d47f70f7eadb00abcaddcd93a
+    https://review.opendev.org/c/openstack/openstack-helm/+/1012155
+
+Signed-off-by: Pedro <pedro.portoramalho@windriver.com>
+---
+ horizon/templates/bin/_horizon.sh.tpl | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/horizon/templates/bin/_horizon.sh.tpl b/horizon/templates/bin/_horizon.sh.tpl
+index a1b732c1b..693a535e4 100644
+--- a/horizon/templates/bin/_horizon.sh.tpl
++++ b/horizon/templates/bin/_horizon.sh.tpl
+@@ -75,14 +75,20 @@ function start () {
+   unset PANEL_DIR
+   {{- end }}
+ 
+-  # If the image has support for it, compile the translations
++  # If the image has support for it, compile the translations. Each in a
++  # subshell: the server below starts in the current directory, which is on
++  # its sys.path, and a panel directory with a local/ package of its own
++  # (watcher_dashboard) shadows openstack_dashboard's local.local_settings,
++  # so Horizon starts without its settings and rejects every Host header.
+   if type -p gettext >/dev/null 2>/dev/null; then
+-    cd ${SITE_PACKAGES_ROOT}/openstack_dashboard; /tmp/manage.py compilemessages
++    (cd ${SITE_PACKAGES_ROOT}/openstack_dashboard; /tmp/manage.py compilemessages)
+     # if there are extra panels and the image has support for it, compile the translations
+     {{- range .Values.conf.horizon.extra_panels }}
+     PANEL_DIR="${SITE_PACKAGES_ROOT}/{{ . }}"
+-    if [ -d ${PANEL_DIR} ]; then
+-      cd ${PANEL_DIR}; /tmp/manage.py compilemessages
++    # compilemessages fails when it finds no locale directory, which
++    # would abort the start-up for panels that ship no translations.
++    if [ -n "$(find ${PANEL_DIR} -type d -name locale 2>/dev/null)" ]; then
++      (cd ${PANEL_DIR}; /tmp/manage.py compilemessages)
+     fi
+     {{- end }}
+     unset PANEL_DIR
+-- 
+2.43.0
+

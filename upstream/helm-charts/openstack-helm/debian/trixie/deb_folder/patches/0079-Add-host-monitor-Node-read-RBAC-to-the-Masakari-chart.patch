@@ -1,0 +1,69 @@
+From 716a358831c47729193e72eefb867a86c514b96b Mon Sep 17 00:00:00 2001
+From: Ahmed Syed <ahmed.syed@windriver.com>
+Date: Mon, 9 Nov 2026 09:17:01 -0500
+Subject: [PATCH] Add host monitor Node read RBAC to the Masakari chart
+
+The Masakari host monitor's kubernetes driver lists Nodes to read their
+Ready condition. Nodes are cluster-scoped, but the chart gives the host
+monitor ServiceAccount only namespaced RBAC, so every poll is rejected
+with HTTP 403.
+
+Add a ClusterRole that allows list on nodes, and a ClusterRoleBinding
+that grants it to the host monitor ServiceAccount. Both are rendered
+only inside the manifests.host_monitor gate and only with the kubernetes
+monitoring driver.
+
+The fix is proposed to openstack-helm. This patch must be removed
+when the pinned openstack-helm revision includes it.
+
+Relates-to: https://review.opendev.org/c/openstack/openstack-helm/+/1007847
+Signed-off-by: Ahmed Syed <ahmed.syed@windriver.com>
+---
+ .../templates/daemonset-host-monitor.yaml     | 31 +++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/masakari/templates/daemonset-host-monitor.yaml b/masakari/templates/daemonset-host-monitor.yaml
+index e37eef3e1..49e7b630b 100644
+--- a/masakari/templates/daemonset-host-monitor.yaml
++++ b/masakari/templates/daemonset-host-monitor.yaml
+@@ -22,6 +22,37 @@ limitations under the License.
+ {{- $serviceAccountName := "masakari-host-monitor" }}
+ {{- tuple $envAll "masakari_host_monitor" $serviceAccountName | include "helm-toolkit.snippets.kubernetes_pod_rbac_serviceaccount" }}
+ ---
++{{- if eq (.Values.conf.masakarimonitors.host.monitoring_driver | default "") "kubernetes" }}
++apiVersion: rbac.authorization.k8s.io/v1
++kind: ClusterRole
++metadata:
++  name: {{ $serviceAccountName }}-{{ $envAll.Release.Namespace }}
++  labels:
++{{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++rules:
++  - apiGroups:
++      - ""
++    resources:
++      - nodes
++    verbs:
++      - list
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: ClusterRoleBinding
++metadata:
++  name: {{ $serviceAccountName }}-{{ $envAll.Release.Namespace }}
++  labels:
++{{ tuple $envAll .Chart.Name $daemonset | include "helm-toolkit.snippets.kubernetes_metadata_labels" | indent 4 }}
++roleRef:
++  apiGroup: rbac.authorization.k8s.io
++  kind: ClusterRole
++  name: {{ $serviceAccountName }}-{{ $envAll.Release.Namespace }}
++subjects:
++  - kind: ServiceAccount
++    name: {{ $serviceAccountName }}
++    namespace: {{ $envAll.Release.Namespace }}
++---
++{{- end }}
+ apiVersion: apps/v1
+ kind: DaemonSet
+ metadata:
+-- 
+2.43.0
+

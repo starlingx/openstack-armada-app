@@ -556,6 +556,13 @@ class NovaHelm(openstack.OpenstackBaseHelm):
         else:
             libvirt_config.update({'images_type': 'default'})
 
+    def _is_numa_aware_vswitch_enabled(self, host):
+        for label in self.labels_by_hostid.get(host.id, []):
+            if (label.label_key == common.LABEL_NUMA_AWARE_VSWITCH and
+                    label.label_value == common.LABEL_VALUE_ENABLED):
+                return True
+        return False
+
     def _get_cluster_host_subnets(self):
         return self._get_network_subnets(self.cluster_host_network)
 
@@ -581,8 +588,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             default_config.update(multistring)
         default_config.update({'reserved_host_memory_mb': reserved_host_memory})
 
-    # (LP 1881672): method not currently used, but leaving it present in case we implement
-    # an automatic mechanism for users to enable NUMA-aware vswitch features.
     def _get_interface_numa_nodes(self, context):
         # Process all ethernet interfaces with physical port and add each port numa_node to
         # the dict of interface_numa_nodes
@@ -607,8 +612,6 @@ class NovaHelm(openstack.OpenstackBaseHelm):
 
         return interface_numa_nodes
 
-    # (LP 1881672): method not currently used, but leaving it present in case we implement
-    # an automatic mechanism for users to enable NUMA-aware vswitch features.
     def _update_host_neutron_physnet(self, host, neutron_config, per_physnet_numa_config):
         '''
         Generate physnets configuration option and dynamically-generate
@@ -646,14 +649,14 @@ class NovaHelm(openstack.OpenstackBaseHelm):
             physnet_names = ','.join(physnet_numa_nodes.keys())
             neutron_config.update({'physnets': physnet_names})
             # For L2-type networks, configuration group name must be set with 'neutron_physnet_{datanet.name}'
-            # For L3-type networks, configuration group name must be set with 'neutron_tunneled'
+            # For L3-type networks, configuration group name must be set with 'neutron_tunnel'
             for dname in physnet_numa_nodes.keys():
                 group_name = 'neutron_physnet_' + dname
                 numa_nodes = ','.join('%s' % n for n in physnet_numa_nodes[dname])
                 per_physnet_numa_config.update({group_name: {'numa_nodes': numa_nodes}})
         if tunneled_net_numa_nodes:
             numa_nodes = ','.join('%s' % n for n in tunneled_net_numa_nodes)
-            per_physnet_numa_config.update({'neutron_tunneled': {'numa_nodes': numa_nodes}})
+            per_physnet_numa_config.update({'neutron_tunnel': {'numa_nodes': numa_nodes}})
 
     def _get_host_ethernet_ports(self):
         """
@@ -757,15 +760,32 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                     self._update_host_storage(host, default_config, libvirt_config)
                     self._update_host_pci_whitelist(host, pci_config)
                     self._update_reserved_memory(host, default_config)
+                    nova_conf = {
+                        'DEFAULT': default_config,
+                        'compute': compute_config if compute_config else None,
+                        'libvirt': libvirt_config,
+                        'pci': pci_config if pci_config else None,
+                    }
+
+                    # numa-aware-vswitches, enabled per-host by label,
+                    # default off. When off the host entry is unchanged.
+                    if self._is_numa_aware_vswitch_enabled(host):
+                        neutron_config = {}
+                        per_physnet_numa_config = {}
+                        self._update_host_neutron_physnet(
+                            host, neutron_config, per_physnet_numa_config)
+                        if neutron_config:
+                            nova_conf['neutron'] = neutron_config
+                            nova_conf.update(per_physnet_numa_config)
+                        else:
+                            LOG.info(
+                                "numa-aware-vswitch enabled on %s but no "
+                                "physnet resolved a NUMA node.", hostname)
+
                     host_nova = {
                         'name': hostname,
                         'conf': {
-                            'nova': {
-                                'DEFAULT': default_config,
-                                'compute': compute_config if compute_config else None,
-                                'libvirt': libvirt_config,
-                                'pci': pci_config if pci_config else None,
-                            }
+                            'nova': nova_conf
                         }
                     }
                     # add first host to config_map

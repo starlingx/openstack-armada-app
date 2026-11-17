@@ -12,6 +12,7 @@ from sysinv.tests.db import utils as dbutils
 from sysinv.tests.helm import base
 
 from k8sapp_openstack.common import constants as app_constants
+from k8sapp_openstack.helm import masakari
 from k8sapp_openstack.tests import test_plugins
 
 
@@ -138,3 +139,49 @@ class MasakariGetOverrideTest(MasakariHelmTestCase,
         # conf carries only the api bind host, not a keystone_authtoken cafile.
         self.assertEqual(list(overrides['conf']['masakari']), ['DEFAULT'])
         self.assertNotIn('certificates', overrides['manifests'])
+
+
+class MasakariBootstrapOverrideTest(dbbase.ControllerHostTestCase):
+    def setUp(self):
+        super(MasakariBootstrapOverrideTest, self).setUp()
+        self.masakari = masakari.MasakariHelm(mock.Mock(dbapi=self.dbapi))
+
+    @mock.patch('k8sapp_openstack.helm.masakari.get_hosts_uuids',
+                return_value=[{'name': 'compute-1', 'uuid': 'b'},
+                              {'name': 'compute-0', 'uuid': 'a'}])
+    @mock.patch('sysinv.common.utils.is_aio_simplex_system',
+                return_value=False)
+    def test_bootstrap_segment(self, *_):
+        bootstrap = self.masakari._get_bootstrap_overrides()
+
+        # Only the host list comes from the plugin; the segment itself is
+        # defined in the static overrides. Sorted, so the overrides only
+        # change with the host list.
+        self.assertEqual(bootstrap, {
+            'enabled': True,
+            'structured': {
+                'segments': {
+                    'stx_compute': {'hosts': ['compute-0', 'compute-1']},
+                },
+            },
+        })
+
+    @mock.patch('k8sapp_openstack.helm.masakari.get_hosts_uuids',
+                return_value=[])
+    @mock.patch('sysinv.common.utils.is_aio_simplex_system',
+                return_value=False)
+    def test_bootstrap_no_compute_hosts(self, *_):
+        # An empty list is still passed so the Job removes the last host.
+        bootstrap = self.masakari._get_bootstrap_overrides()
+
+        self.assertTrue(bootstrap['enabled'])
+        self.assertEqual(
+            bootstrap['structured']['segments']['stx_compute']['hosts'], [])
+
+    @mock.patch('k8sapp_openstack.helm.masakari.get_hosts_uuids')
+    @mock.patch('sysinv.common.utils.is_aio_simplex_system',
+                return_value=True)
+    def test_bootstrap_disabled_on_aio_simplex(self, _simplex, get_hosts):
+        self.assertEqual(self.masakari._get_bootstrap_overrides(),
+                         {'enabled': False})
+        get_hosts.assert_not_called()

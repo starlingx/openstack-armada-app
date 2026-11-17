@@ -25,7 +25,7 @@ images:
     masakari_introspective_instance_monitor: docker.io/starlingx/stx-masakari-monitors:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
     rabbit_init: docker.io/library/rabbitmq:3.11.28-management
     dep_check: quay.io/airshipit/kubernetes-entrypoint:7a6a594d2efec8b402ad970d18906863b2f04d4f-ubuntu_noble
-    bootstrap: docker.io/starlingx/stx-heat:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
+    bootstrap: docker.io/starlingx/stx-openstackclients:@IMAGE_PREFIX@-@OS@-@OS_CODENAME@-@OS_ARCH@-@BUILD_STREAM@-@IMAGE_SUFFIX@
   pull_policy: "IfNotPresent"
   local_registry:
     active: false
@@ -253,6 +253,29 @@ secrets:
       masakari_api:
         public: masakari-tls-public
 
+# Default failover segment. The plugin turns bootstrap on (except on AIO-SX)
+# and fills in the provisioned compute hosts. The app owns this segment:
+# with remove_unlisted_hosts, hosts added to it by hand are removed on the
+# next masakari upgrade. To use your own segments instead, set its hosts to
+# an empty list through user overrides and define the others there; the
+# hosts are removed from it before they are added elsewhere.
+bootstrap:
+  enabled: false
+  ks_user: admin
+  script: null
+  structured:
+    segments:
+      stx_compute:
+        enabled: true
+        name: stx-compute
+        description: Default compute segment, managed by stx-openstack
+        recovery_method: auto
+        service_type: COMPUTE
+        host_type: COMPUTE
+        control_attributes: SSH
+        remove_unlisted_hosts: true
+        hosts: []
+
 dependencies:
   static:
     masakari_api:
@@ -297,6 +320,12 @@ dependencies:
       services:
         - endpoint: internal
           service: identity
+    bootstrap:
+      services:
+        - endpoint: internal
+          service: identity
+        - endpoint: internal
+          service: instance_ha
 
 pod:
   tolerations:
@@ -560,6 +589,13 @@ pod:
         limits:
           memory: "1024Mi"
           cpu: "2000m"
+      bootstrap:
+        requests:
+          memory: "128Mi"
+          cpu: "100m"
+        limits:
+          memory: "1024Mi"
+          cpu: "2000m"
 conf:
   paste:
     composite:masakari_api:
@@ -675,6 +711,7 @@ network:
     external_policy_local: false
 
 manifests:
+  job_bootstrap: true
   job_ks_user: true
   job_db_sync: true
   job_db_init: true

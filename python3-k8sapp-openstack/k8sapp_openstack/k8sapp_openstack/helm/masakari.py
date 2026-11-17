@@ -5,10 +5,12 @@
 #
 
 from sysinv.common import exception
+from sysinv.common import utils
 from sysinv.helm import common
 
 from k8sapp_openstack.common import constants as app_constants
 from k8sapp_openstack.helm import openstack
+from k8sapp_openstack.utils import get_hosts_uuids
 
 
 class MasakariHelm(openstack.OpenstackBaseHelm):
@@ -23,6 +25,7 @@ class MasakariHelm(openstack.OpenstackBaseHelm):
     def get_overrides(self, namespace=None):
         overrides = {
             common.HELM_NS_OPENSTACK: {
+                'bootstrap': self._get_bootstrap_overrides(),
                 'conf': self._get_conf_overrides(),
                 'pod': self._get_pod_overrides(),
                 'endpoints': self._get_endpoints_overrides(),
@@ -37,6 +40,23 @@ class MasakariHelm(openstack.OpenstackBaseHelm):
                                                  namespace=namespace)
         else:
             return overrides
+
+    def _get_bootstrap_overrides(self):
+        # The default segment is defined in the static overrides; only its
+        # host list comes from the inventory. AIO-SX has no other host to
+        # evacuate to, so no bootstrap there.
+        if utils.is_aio_simplex_system(self.dbapi):
+            return {'enabled': False}
+
+        hosts = sorted(host['name'] for host in get_hosts_uuids())
+        return {
+            'enabled': True,
+            'structured': {
+                'segments': {
+                    'stx_compute': {'hosts': hosts},
+                },
+            },
+        }
 
     def _get_conf_overrides(self):
         # masakari-api defaults to binding 0.0.0.0, which is unreachable on an

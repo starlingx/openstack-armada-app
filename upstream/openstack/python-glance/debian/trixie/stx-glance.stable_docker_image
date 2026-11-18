@@ -29,7 +29,9 @@ DIST_PACKAGES="\
 "
 # Reinstall glance-common after loci's cleanup (it removed aodh-common too).
 # Move the glance user to UID/GID 42424, which the chart runs as, and re-own
-# files created under the old IDs. Copy the metadefs where the chart's
+# files created under the old IDs. Use -o because the base image's
+# base-passwd already gives keystone 42424; the other OpenStack images get
+# the same with NON_UNIQUE_SYSTEM_ACCOUNT. Copy the metadefs where the chart's
 # glance-metadefs-load job reads them (Debian ships them in /etc/glance).
 CUSTOMIZATION="\
     apt-get update && \
@@ -39,6 +41,6 @@ CUSTOMIZATION="\
     cp /etc/glance/metadefs/*.json /var/lib/openstack/etc/glance/metadefs/ && \
     chmod 0644 /var/lib/openstack/etc/glance/metadefs/*.json && \
     old_uid=\$(id -u glance) && old_gid=\$(id -g glance) && \
-    groupmod -g 42424 glance && usermod -u 42424 -g 42424 glance && \
+    groupmod -o -g 42424 glance && usermod -o -u 42424 -g 42424 glance && \
     find /etc /var /usr/share -xdev \( -uid \$old_uid -o -gid \$old_gid \) -exec chown -h 42424:42424 {} +
 "

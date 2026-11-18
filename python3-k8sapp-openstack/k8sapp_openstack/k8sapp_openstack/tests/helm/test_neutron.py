@@ -568,6 +568,7 @@ class NeutronBridgeTestCase(NeutronHelmTestCase, dbbase.ControllerHostTestCase):
             invprovision=constants.PROVISIONED,
             unit=0)
         self.port_index = 0
+        self.datanetworks = {}
 
     # ------------------------------------------------------------------
     # topology helpers
@@ -610,8 +611,11 @@ class NeutronBridgeTestCase(NeutronHelmTestCase, dbbase.ControllerHostTestCase):
                 dev_id=1)
             self.port_index += 1
         for name, network_type in datanets:
-            datanetwork = dbutils.create_test_datanetwork(
-                name=name, network_type=network_type)
+            datanetwork = self.datanetworks.get(name)
+            if datanetwork is None:
+                datanetwork = dbutils.create_test_datanetwork(
+                    name=name, network_type=network_type)
+                self.datanetworks[name] = datanetwork
             dbutils.create_test_interface_datanetwork(
                 interface_id=interface.id, datanetwork_id=datanetwork.id)
         return interface
@@ -753,6 +757,21 @@ class NeutronBridgeTestCase(NeutronHelmTestCase, dbbase.ControllerHostTestCase):
                             datanets=[('physnet1',
                                        constants.DATANETWORK_TYPE_VLAN)])
 
+    def _topology_data_and_sriov_same_datanet(self):
+        """A data interface and an SR-IOV interface on the same data network.
+
+        Without dedup, bridge_mappings emits 'group0-data0' twice -> duplicate
+        key -> agent aborts at startup.
+        """
+        self._add_interface('data0', constants.INTERFACE_CLASS_DATA,
+                            constants.INTERFACE_TYPE_ETHERNET,
+                            datanets=[('group0-data0',
+                                       constants.DATANETWORK_TYPE_VLAN)])
+        self._add_interface('sriov0', constants.INTERFACE_CLASS_PCI_SRIOV,
+                            constants.INTERFACE_TYPE_ETHERNET,
+                            datanets=[('group0-data0',
+                                       constants.DATANETWORK_TYPE_VLAN)])
+
     def _topology_sriov_only(self):
         """An SR-IOV interface with no data interface on the host."""
         self._add_interface('sriov0', constants.INTERFACE_CLASS_PCI_SRIOV,
@@ -887,6 +906,25 @@ class NeutronBridgeTestCase(NeutronHelmTestCase, dbbase.ControllerHostTestCase):
                          self._get_bridge_mappings_as_dict(conf))
         self.assertEqual({'br-phy0': 'eth2', 'br-phy1': 'bond0'},
                          self._get_auto_bridge_add(conf))
+
+    @mock.patch('k8sapp_openstack.utils._get_value_from_application',
+                return_value=app_constants.VSWITCH_LABEL_NONE)
+    def test_openvswitch_data_and_sriov_same_datanet_no_duplicate(self, *_):
+        """Regression test: no duplicate bridge_mappings key."""
+        self._set_vswitch_mode()
+        self._topology_data_and_sriov_same_datanet()
+
+        conf = self._get_host_config()
+
+        raw = self._get_bridge_mappings(conf)
+        entries = [e for e in raw.rstrip(',').split(',') if e]
+        keys = [e.split(':')[0] for e in entries]
+
+        self.assertEqual(['group0-data0'], keys)
+        self.assertEqual(len(keys), len(set(keys)),
+                         "bridge_mappings has a duplicate key: %r" % raw)
+        self.assertEqual({'group0-data0': 'br-phy0'},
+                         self._get_bridge_mappings_as_dict(conf))
 
     # ==================================================================
     # OVS-DPDK, bridge_mappings of the configurations already supported.

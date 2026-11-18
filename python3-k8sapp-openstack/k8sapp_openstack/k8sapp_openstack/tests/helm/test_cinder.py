@@ -19,6 +19,13 @@ from k8sapp_openstack.helm import cinder
 from k8sapp_openstack.tests import test_plugins
 
 
+def _get_value_no_artifacts(default_value, chart_name, override_name):
+    """Return False for overrides, None for storage_conf.artifacts."""
+    if override_name == app_constants.OVERRIDE_ARTIFACTS:
+        return None
+    return False
+
+
 class CinderConversionTestCase(test_plugins.K8SAppOpenstackAppMixin,
                                base.HelmTestCaseMixin):
     def setUp(self):
@@ -46,7 +53,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                side_effect=_get_value_no_artifacts)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -93,7 +101,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             }
         })
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                side_effect=_get_value_no_artifacts)
     @mock.patch(
             'os.path.exists',
             return_value=True
@@ -192,7 +201,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
             },
         })
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                side_effect=_get_value_no_artifacts)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
         return_value=False
@@ -277,7 +287,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                side_effect=_get_value_no_artifacts)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -356,7 +367,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                side_effect=_get_value_no_artifacts)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -443,7 +455,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                side_effect=_get_value_no_artifacts)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -551,7 +564,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert pass_condition_1 and pass_condition_2 and pass_condition_3
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                side_effect=_get_value_no_artifacts)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -648,7 +662,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert default_backup_driver == app_constants.CEPH_BACKUP_DRIVER
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                side_effect=_get_value_no_artifacts)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',
@@ -745,7 +760,8 @@ class CinderGetOverrideTest(CinderConversionTestCase,
 
         assert default_backup_driver == app_constants.NFS_BACKUP_DRIVER
 
-    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application', return_value=False)
+    @mock.patch('k8sapp_openstack.helm.cinder._get_value_from_application',
+                side_effect=_get_value_no_artifacts)
     @mock.patch('os.path.isfile', return_value=True)
     @mock.patch(
         'k8sapp_openstack.utils.is_openstack_https_ready',

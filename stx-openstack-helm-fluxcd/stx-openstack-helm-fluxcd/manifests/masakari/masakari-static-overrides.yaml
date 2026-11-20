@@ -677,6 +677,10 @@ conf:
     api:
       api_version: v1
       api_interface: internal
+      # Without it a call to a masakari-api that never answers blocks the
+      # monitor's poll loop, and with it the re-send. The client retries a
+      # timed-out call once, so one send takes up to twice this.
+      timeout: 30
     callback:
       retry_max: 10
       retry_interval: 10
@@ -687,6 +691,10 @@ conf:
       monitoring_driver: default
       monitoring_interval: 120
       monitoring_samples: 1
+      # A host that isn't delivered stays pending and is sent again on the
+      # next poll, so one send shouldn't retry for long while the poll loop
+      # waits (the upstream default is 12 retries, 10 s apart).
+      api_retry_max: 1
       disable_ipmi_checks: true
       corosync_multicast_ports: 5405
       pacemaker_node_type: remote

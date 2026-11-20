@@ -1,0 +1,217 @@
+From b60e496d25c820e27bc412b9c14ec4309c0ab08b Mon Sep 17 00:00:00 2001
+From: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+Date: Thu, 19 Nov 2026 23:47:27 -0500
+Subject: [PATCH] Keep re-sending a host-failure notification
+
+The Kubernetes host monitor sends a host-failure notification only on
+the poll where a host first goes down. If masakari-api keeps failing for
+longer than the retry window (api_retry_max x api_retry_interval, about
+2 minutes by default), send_notification gives up and the host is never
+reported, so it is not recovered.
+
+On AIO-DX a crash of one controller restarts the database and identity
+services on the other one, and masakari-api returns 503 for several
+minutes, so the notification for the crashed host was dropped.
+
+send_notification now says whether masakari-api answered. When it did
+not, the monitor keeps the host as pending and sends again on the next
+poll. It stops once the notification is accepted or rejected (400/409,
+which covers a duplicate or a host in maintenance), or once the host is
+Ready again. The other monitors ignore the new return value.
+
+Relates-to: https://review.opendev.org/c/openstack/masakari-monitors/+/1016318
+Signed-off-by: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+---
+ masakarimonitors/ha/masakari.py               |  8 ++--
+ .../hostmonitor/kubernetes_check/manager.py   | 28 ++++++++---
+ .../tests/unit/ha/test_masakari.py            | 12 ++---
+ .../kubernetes_check/test_manager.py          | 48 +++++++++++++++++++
+ 4 files changed, 81 insertions(+), 15 deletions(-)
+
+diff --git a/masakarimonitors/ha/masakari.py b/masakarimonitors/ha/masakari.py
+index bec13fb8c..ea2d6c8b8 100644
+--- a/masakarimonitors/ha/masakari.py
++++ b/masakarimonitors/ha/masakari.py
+@@ -55,6 +55,8 @@ class SendNotification(object):
+         :param api_retry_interval: Trial interval of time of the notification
+             processing is error.
+         :param event: dictionary of event that included in notification.
++        :returns: True if masakari-api answered (accepted, or rejected the
++            notification with 400/409), False if it could not be sent.
+         """
+ 
+         LOG.info("Send a notification. %s", event)
+@@ -70,13 +72,13 @@ class SendNotification(object):
+                     payload=event['notification']['payload'])
+ 
+                 LOG.info("Response: %s", response)
+-                break
++                return True
+ 
+             except Exception as e:
+                 if isinstance(e, exceptions.HttpException):
+                     if e.status_code in [400, 409]:
+                         LOG.info(e)
+-                        break
++                        return True
+ 
+                 if retry_count < api_retry_max:
+                     LOG.warning("Retry sending a notification. (%s)", e)
+@@ -85,4 +87,4 @@ class SendNotification(object):
+                 else:
+                     LOG.exception("Exception caught: %s", e)
+                     self._masakari_client = None
+-                    break
++                    return False
+diff --git a/masakarimonitors/hostmonitor/kubernetes_check/manager.py b/masakarimonitors/hostmonitor/kubernetes_check/manager.py
+index cad8abea0..8ccd237dd 100644
+--- a/masakarimonitors/hostmonitor/kubernetes_check/manager.py
++++ b/masakarimonitors/hostmonitor/kubernetes_check/manager.py
+@@ -44,6 +44,8 @@ class KubernetesCheck(driver.DriverBase):
+         self.notifier = masakari.SendNotification()
+         self.monitoring_data = {}
+         self.last_status = {}
++        # Hosts found down whose notification has not got through yet.
++        self.notify_pending = set()
+         self.running = False
+ 
+         config.load_incluster_config()
+@@ -61,6 +63,7 @@ class KubernetesCheck(driver.DriverBase):
+             node: status for node, status in self.monitoring_data.items()
+             if node in [i.metadata.name for i in node_list]
+         }
++        self.notify_pending &= {i.metadata.name for i in node_list}
+ 
+         for host in node_list:
+             hostname = host.metadata.name
+@@ -113,15 +116,28 @@ class KubernetesCheck(driver.DriverBase):
+ 
+             is_host_alive = "True" in health_history
+ 
+-            if not is_host_alive and self.last_status.get(host):
+-                event = self._event(host, is_host_alive)
+-                self.notifier.send_notification(
+-                    CONF.host.api_retry_max,
+-                    CONF.host.api_retry_interval,
+-                    event)
++            if is_host_alive:
++                self.notify_pending.discard(host)
++            elif host in self.notify_pending:
++                # Already found down; send again.
++                self._notify(host, is_host_alive)
++            elif self.last_status.get(host):
++                self._notify(host, is_host_alive)
+ 
+             self.last_status[host] = is_host_alive
+ 
++    def _notify(self, host, is_host_alive):
++        """Notify Masakari, keeping the host pending if the send fails."""
++        event = self._event(host, is_host_alive)
++        if self.notifier.send_notification(CONF.host.api_retry_max,
++                                           CONF.host.api_retry_interval,
++                                           event):
++            self.notify_pending.discard(host)
++        else:
++            LOG.warning("Notification for host %s did not get through; "
++                        "sending it again on the next poll.", host)
++            self.notify_pending.add(host)
++
+     def stop(self):
+         self.running = False
+ 
+diff --git a/masakarimonitors/tests/unit/ha/test_masakari.py b/masakarimonitors/tests/unit/ha/test_masakari.py
+index 7d33335f8..6f38bb85f 100644
+--- a/masakarimonitors/tests/unit/ha/test_masakari.py
++++ b/masakarimonitors/tests/unit/ha/test_masakari.py
+@@ -73,8 +73,8 @@ class TestSendNotification(testtools.TestCase):
+         mock_connection.return_value = mock_conn
+ 
+         notifier = masakari.SendNotification()
+-        notifier.send_notification(
+-            self.api_retry_max, self.api_retry_interval, self.event)
++        self.assertTrue(notifier.send_notification(
++            self.api_retry_max, self.api_retry_interval, self.event))
+ 
+         mock_conn.instance_ha.create_notification.assert_called_once_with(
+             type=self.event['notification']['type'],
+@@ -102,8 +102,8 @@ class TestSendNotification(testtools.TestCase):
+ 
+         mock_conn.instance_ha.create_notification.side_effect = status_ex
+         notifier = masakari.SendNotification()
+-        notifier.send_notification(
+-            self.api_retry_max, self.api_retry_interval, self.event)
++        self.assertTrue(notifier.send_notification(
++            self.api_retry_max, self.api_retry_interval, self.event))
+ 
+         mock_conn.instance_ha.create_notification.assert_called_once_with(
+             type=self.event['notification']['type'],
+@@ -130,8 +130,8 @@ class TestSendNotification(testtools.TestCase):
+         mock_sleep.return_value = None
+ 
+         notifier = masakari.SendNotification()
+-        notifier.send_notification(
+-            self.api_retry_max, self.api_retry_interval, self.event)
++        self.assertFalse(notifier.send_notification(
++            self.api_retry_max, self.api_retry_interval, self.event))
+ 
+         mock_conn.instance_ha.create_notification.assert_called_with(
+             type=self.event['notification']['type'],
+diff --git a/masakarimonitors/tests/unit/hostmonitor/kubernetes_check/test_manager.py b/masakarimonitors/tests/unit/hostmonitor/kubernetes_check/test_manager.py
+index 0e447902e..52d83b986 100644
+--- a/masakarimonitors/tests/unit/hostmonitor/kubernetes_check/test_manager.py
++++ b/masakarimonitors/tests/unit/hostmonitor/kubernetes_check/test_manager.py
+@@ -194,3 +194,51 @@ class TestKubernetesCheck(testtools.TestCase):
+ 
+         self.host_monitor.poll_hosts()
+         mock_send_notification.assert_not_called()
++
++    @mock.patch.object(masakari.SendNotification, 'send_notification')
++    @mock.patch.object(manager.KubernetesCheck, '_event')
++    def test_poll_hosts_resends_undelivered_notification(
++            self, mock_event, mock_send_notification):
++        # A notification that didn't get through is sent again on the next
++        # poll, even though the host was already down on the last one.
++        self.host_monitor.last_status = {"node02": True}
++        self.host_monitor.monitoring_data = {
++            "node02": deque(['Unknown'],
++                            maxlen=self.host_monitor.monitoring_samples),
++        }
++        mock_event.return_value = {'notification': 'test'}
++        mock_send_notification.side_effect = [False, True]
++
++        self.host_monitor.poll_hosts()
++        self.assertEqual({"node02"}, self.host_monitor.notify_pending)
++
++        self.host_monitor.poll_hosts()
++        self.assertEqual(2, mock_send_notification.call_count)
++        self.assertEqual(set(), self.host_monitor.notify_pending)
++
++        self.host_monitor.poll_hosts()
++        self.assertEqual(2, mock_send_notification.call_count)
++
++    @mock.patch.object(masakari.SendNotification, 'send_notification')
++    def test_poll_hosts_drops_pending_when_host_returns(
++            self, mock_send_notification):
++        self.host_monitor.notify_pending = {"node02"}
++        self.host_monitor.monitoring_data = {
++            "node02": deque(['True'],
++                            maxlen=self.host_monitor.monitoring_samples),
++        }
++
++        self.host_monitor.poll_hosts()
++        mock_send_notification.assert_not_called()
++        self.assertEqual(set(), self.host_monitor.notify_pending)
++
++    def test_update_monitoring_data_prunes_removed_nodes_from_pending(self):
++        self.host_monitor.notify_pending = {"node01", "node02"}
++        nodes = V1NodeList(items=[V1Node(
++            metadata=V1ObjectMeta(name="node01"),
++            status=V1NodeStatus(conditions=[
++                V1NodeCondition(status="True", type="Ready")]))])
++        with mock.patch.object(self.host_monitor.kube_client, 'list_node',
++                               return_value=nodes):
++            self.host_monitor.update_monitoring_data()
++        self.assertEqual({"node01"}, self.host_monitor.notify_pending)
+-- 
+2.34.1
+

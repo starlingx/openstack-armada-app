@@ -70,8 +70,6 @@ conf:
       auth_type: password
       memcache_security_strategy: ENCRYPT
       service_type: placement
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     oslo_concurrency:
       lock_path: /var/lib/oslo-lock
   logging:

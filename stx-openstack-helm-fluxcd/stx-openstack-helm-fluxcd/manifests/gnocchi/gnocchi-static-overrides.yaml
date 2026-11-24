@@ -52,8 +52,6 @@ conf:
       url: ''
     keystone_authtoken:
       interface: internal
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       auth_type: password
       auth_version: v3
       memcache_security_strategy: ENCRYPT

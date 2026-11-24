@@ -342,15 +342,12 @@ conf:
       auth_version: v3
       memcache_security_strategy: ENCRYPT
       service_type: orchestration
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     database:
       max_retries: -1
       connection: ""
     trustee:
       auth_type: password
       auth_version: v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     heat_api:
       # NOTE(portdirect): the bind port should not be defined, and is manipulated
       # via the endpoints section.
@@ -371,7 +368,6 @@ conf:
       endpoint_type: publicURL
     clients_keystone:
       endpoint_type: internalURL
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
     oslo_messaging_notifications:
       driver: messagingv2
     oslo_middleware:

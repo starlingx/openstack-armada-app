@@ -60,13 +60,9 @@ conf:
   ceilometer:
     DEFAULT:
       transport_url: null
-    keystone_authtoken:
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     service_credentials:
       auth_type: password
       interface: internal
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     notification:
       messaging_urls:
         type: multistring

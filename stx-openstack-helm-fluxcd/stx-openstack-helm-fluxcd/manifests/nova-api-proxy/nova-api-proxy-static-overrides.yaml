@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022-2025 Wind River Systems, Inc.
+# Copyright (c) 2022-2026 Wind River Systems, Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -66,6 +66,4 @@ conf:
       osapi_compute_listen_port: 8774
     keystone_authtoken:
       interface: internal
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
 ...

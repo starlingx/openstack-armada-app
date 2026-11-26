@@ -3,6 +3,9 @@ export DH_VERBOSE = 1
 
 export ROOT = debian/tmp
 export HELM_FOLDER = $(ROOT)/usr/lib/helm
+# Chart version for this release. Bump once per release to match the target
+# version
+export CHART_VERSION = 2026.1.1
 
 %:
 	dh $@
@@ -20,28 +23,28 @@ override_dh_auto_build:
 	    {} +
 	# Create the chart TGZ files.
 	make SKIP_CHANGELOG=1 helm-toolkit
-	make SKIP_CHANGELOG=1 gnocchi
-	make SKIP_CHANGELOG=1 libvirt
-	make SKIP_CHANGELOG=1 mariadb
-	make SKIP_CHANGELOG=1 memcached
-	make SKIP_CHANGELOG=1 openvswitch
-	make SKIP_CHANGELOG=1 rabbitmq
-	make SKIP_CHANGELOG=1 ceph-rgw
-	make SKIP_CHANGELOG=1 prometheus-openstack-exporter
-	make SKIP_CHANGELOG=1 aodh
-	make SKIP_CHANGELOG=1 barbican
-	make SKIP_CHANGELOG=1 ceilometer
-	make SKIP_CHANGELOG=1 cinder
-	make SKIP_CHANGELOG=1 glance
-	make SKIP_CHANGELOG=1 heat
-	make SKIP_CHANGELOG=1 horizon
-	make SKIP_CHANGELOG=1 ironic
-	make SKIP_CHANGELOG=1 keystone
-	make SKIP_CHANGELOG=1 neutron
-	make SKIP_CHANGELOG=1 nova
-	make SKIP_CHANGELOG=1 placement
-	make SKIP_CHANGELOG=1 watcher
-	make SKIP_CHANGELOG=1 masakari
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) gnocchi
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) libvirt
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) mariadb
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) memcached
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) openvswitch
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) rabbitmq
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) ceph-rgw
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) prometheus-openstack-exporter
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) aodh
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) barbican
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) ceilometer
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) cinder
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) glance
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) heat
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) horizon
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) ironic
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) keystone
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) neutron
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) nova
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) placement
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) watcher
+	make SKIP_CHANGELOG=1 BASE_VERSION=$(CHART_VERSION) masakari
 
 override_dh_auto_install:
 	# Install the chart tar files.

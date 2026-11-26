@@ -105,6 +105,11 @@ class PythonPathsTestCase(testtools.TestCase):
         self.assertEqual(["opt/vendor/drivers", "opt/vendor/sdks"],
                          records[0]["consumption"]["paths"])
 
+    def test_null_python_paths_rejected(self):
+        self.assertRaises(
+            artifacts.ArtifactError, artifacts.normalize_artifacts,
+            [{"source": {"image": IMG_A}, "pythonPaths": None}])
+
     def test_empty_python_paths_rejected(self):
         self.assertRaises(
             artifacts.ArtifactError, artifacts.normalize_artifacts,
@@ -146,7 +151,34 @@ class MountsTestCase(testtools.TestCase):
             artifacts.ArtifactError, artifacts.normalize_artifacts,
             [{"source": {"image": IMG_B},
               "mounts": [{"subPath": "bin/x", "mountPath": "/usr/local/bin/x"}]}])
+        self.assertIn("storage_conf.artifacts[0].mounts[0]", str(err))
         self.assertIn("subPath", str(err))
+
+    def test_unknown_mount_key_rejected(self):
+        err = self.assertRaises(
+            artifacts.ArtifactError, artifacts.normalize_artifacts,
+            [{"source": {"image": IMG_B},
+              "mounts": [{"bogus": "x", "mountPath": "/usr/local/bin/x"}]}])
+        self.assertIn("storage_conf.artifacts[0].mounts[0]", str(err))
+        self.assertIn("bogus", str(err))
+
+    def test_null_mounts_rejected(self):
+        self.assertRaises(
+            artifacts.ArtifactError, artifacts.normalize_artifacts,
+            [{"source": {"image": IMG_B}, "mounts": None}])
+
+    def test_mount_path_parent_traversal_rejected(self):
+        self.assertRaises(
+            artifacts.ArtifactError, artifacts.normalize_artifacts,
+            [{"source": {"image": IMG_B},
+              "mounts": [{"mountPath": "/opt/../etc"}]}])
+
+    def test_mount_path_is_normalized(self):
+        for raw in ("//opt/x", "///opt/x", "/opt/x/", "/opt//x"):
+            records = artifacts.normalize_artifacts(
+                [{"source": {"image": IMG_B}, "mounts": [{"mountPath": raw}]}])
+            self.assertEqual([{"mountPath": "/opt/x"}],
+                             records[0]["consumption"]["mounts"], raw)
 
     def test_relative_mount_path_rejected(self):
         self.assertRaises(
@@ -179,7 +211,7 @@ class StrictSchemaTestCase(testtools.TestCase):
             artifacts.ArtifactError, artifacts.normalize_artifacts,
             [{"source": {"image": IMG_A}, "bogus": 1}])
 
-    def test_obsolete_module_rejected(self):
+    def test_module_key_rejected(self):
         self.assertRaises(
             artifacts.ArtifactError, artifacts.normalize_artifacts,
             [{"source": {"image": IMG_A}, "module": "foo"}])
@@ -195,14 +227,23 @@ class StrictSchemaTestCase(testtools.TestCase):
             [{"source": {"image": IMG_A}, "id": "abc"}])
 
     def test_source_unknown_key_rejected(self):
-        self.assertRaises(
+        err = self.assertRaises(
             artifacts.ArtifactError, artifacts.normalize_artifacts,
             [{"source": {"image": IMG_A, "tag": "x"}}])
+        self.assertEqual("storage_conf.artifacts[0].source", err.config_path)
 
     def test_missing_source_image_rejected(self):
-        self.assertRaises(
+        err = self.assertRaises(
             artifacts.ArtifactError, artifacts.normalize_artifacts,
             [{"source": {}}])
+        self.assertEqual("storage_conf.artifacts[0].source.image",
+                         err.config_path)
+
+    def test_null_source_rejected(self):
+        err = self.assertRaises(
+            artifacts.ArtifactError, artifacts.normalize_artifacts,
+            [{"source": None}])
+        self.assertEqual("storage_conf.artifacts[0].source", err.config_path)
 
     def test_entry_not_mapping_rejected(self):
         self.assertRaises(
@@ -365,12 +406,24 @@ class ComposeTestCase(testtools.TestCase):
             [self._contribution("a", "/opt/same"),
              self._contribution("b", "/opt/same")])
 
-    def test_parent_child_destination_rejected(self):
-        self.assertRaises(
+    def test_same_destination_error_names_both_mounts(self):
+        err = self.assertRaises(
             artifacts.ArtifactError,
             artifacts.compose_component_delivery,
-            [self._contribution("a", "/opt/vendor"),
-             self._contribution("b", "/opt/vendor/bin")])
+            [self._contribution("artifact-a", "/opt/same"),
+             self._contribution("artifact-b", "/opt/same")])
+        self.assertIn("artifact-a", str(err))
+        self.assertIn("artifact-b", str(err))
+        self.assertIn("/opt/same", str(err))
+
+    def test_parent_child_destination_rejected(self):
+        err = self.assertRaises(
+            artifacts.ArtifactError,
+            artifacts.compose_component_delivery,
+            [self._contribution("artifact-a", "/opt/vendor"),
+             self._contribution("artifact-b", "/opt/vendor/bin")])
+        self.assertIn("artifact-a", str(err))
+        self.assertIn("artifact-b", str(err))
 
     def test_sibling_destinations_allowed(self):
         result = artifacts.compose_component_delivery([

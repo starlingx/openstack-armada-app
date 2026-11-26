@@ -68,22 +68,23 @@ def _reject_traversal(path, config_path, name=None):
 
 def _validate_source(source, config_path, name=None):
     """Validate the ``source`` mapping and return the image reference."""
+    source_path = config_path + ".source"
     if not isinstance(source, dict):
         raise ArtifactError(
-            config_path, "'source' must be a mapping", name=name)
+            source_path, "'source' must be a mapping", name=name)
 
     unknown = set(source) - app_constants.ARTIFACT_SOURCE_ALLOWED_KEYS
     if unknown:
         raise ArtifactError(
-            config_path,
-            "unknown key(s) in 'source': %s; only 'image' is accepted"
+            source_path,
+            "unknown key(s): %s; only 'image' is accepted"
             % ", ".join(sorted(unknown)),
             name=name)
 
     image = source.get("image")
     if not _is_nonempty_str(image):
         raise ArtifactError(
-            config_path + ".source.image",
+            source_path + ".image",
             "required non-empty string image reference is missing",
             name=name)
     return image
@@ -190,7 +191,9 @@ def _validate_mounts(mounts, config_path, name=None):
                 "mountPath must be an absolute path, got %r" % mount_path,
                 name=name)
         _reject_traversal(mount_path, item_path + ".mountPath", name=name)
-        normalized.append({"mountPath": posixpath.normpath(mount_path)})
+        # normpath keeps a leading '//' as is, so reduce it to one '/' first.
+        normalized.append(
+            {"mountPath": posixpath.normpath("/" + mount_path.lstrip("/"))})
     return normalized
 
 
@@ -283,9 +286,7 @@ def normalize_artifacts(entries):
         if unknown:
             raise ArtifactError(
                 config_path,
-                "unknown key(s): %s; allowed keys are %s (obsolete 'module', "
-                "artifact-level 'mountPath'/'subPath' and operator 'id' are "
-                "rejected)"
+                "unknown key(s): %s; allowed keys are %s"
                 % (", ".join(sorted(unknown)),
                    sorted(app_constants.ARTIFACT_ALLOWED_KEYS)),
                 name=name)
@@ -393,19 +394,21 @@ def _mounts_conflict(existing, candidate):
 
     Same destination with identical mounts is not a conflict (the caller
     deduplicates). Same destination with any difference, or a parent/child
-    destination overlap, is a conflict.
+    destination overlap, is a conflict. The reason names the two volumes.
     """
     e_path = existing["mountPath"]
     c_path = candidate["mountPath"]
+    names = (existing.get("name"), candidate.get("name"))
 
     if e_path == c_path:
         if existing == candidate:
             return None
-        return "conflicting mounts at the same destination %r" % c_path
+        return ("mounts %r and %r conflict at destination %r"
+                % (names + (c_path,)))
 
     if _parent_or_equal(e_path, c_path) or _parent_or_equal(c_path, e_path):
-        return ("overlapping parent/child mount destinations %r and %r"
-                % (e_path, c_path))
+        return ("mounts %r and %r overlap: destinations %r and %r"
+                % (names + (e_path, c_path)))
     return None
 
 

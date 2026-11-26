@@ -68,7 +68,7 @@ bootstrap:
     #STX: exempt admin from auth faillockout
     TOKEN=$(openstack token issue -c id -f value)
     USER_ID=$(openstack user show ${OS_USERNAME} -c id -f value)
-    REQ_URL="http://keystone.openstack.svc.cluster.local/v3/users/${USER_ID}"
+    REQ_URL="http://keystone-api.openstack.svc.cluster.local:5000/v3/users/${USER_ID}"
     DATA_JSON="{\"user\": {\"options\": {\"ignore_lockout_failure_attempts\": true}}}"
     curl -X PATCH -H "X-Auth-Token: ${TOKEN}" -H "Content-Type: application/json" -d "${DATA_JSON}" "${REQ_URL}"
 network:
@@ -1229,6 +1229,7 @@ endpoints:
     hosts:
       default: keystone
       internal: keystone-api
+      admin: keystone-api
     host_fqdn_override:
       default: null
       # NOTE(portdirect): this chart supports TLS for fqdn over-ridden public
@@ -1250,6 +1251,7 @@ endpoints:
         # NOTE(portdirect): to retain portability across images, and allow
         # running under a unprivileged user simply, we default to a port > 1000.
         internal: 5000
+        admin: 5000
         service: 5000
   oslo_db:
     namespace: null

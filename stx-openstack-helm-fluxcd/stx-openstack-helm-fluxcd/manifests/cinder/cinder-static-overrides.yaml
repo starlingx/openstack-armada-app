@@ -865,7 +865,6 @@ conf:
       internal_project_name: internal_cinder
       internal_user_name: internal_cinder
       osapi_volume_listen: "::"
-      glance_api_servers: http://glance.openstack.svc.cluster.local:80/
     database:
       max_retries: -1
       connection: ""
@@ -877,8 +876,6 @@ conf:
       memcache_security_strategy: ENCRYPT
       service_type: volumev3
       interface: internal
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     nova:
       auth_type: password
       auth_version: v3

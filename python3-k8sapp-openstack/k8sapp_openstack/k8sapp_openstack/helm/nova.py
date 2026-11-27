@@ -575,12 +575,15 @@ class NovaHelm(openstack.OpenstackBaseHelm):
                                 cell.platform_reserved_mib * constants.NUM_4K_PER_MiB)
             reserved_pages.append(reserved_4K_pages)
             # vswitch pages will be either 2M or 1G
-            reserved_vswitch_pages = 'node:%d,size:%d,count:%d' % (cell.numa_node,
-                                     cell.vswitch_hugepages_size_mib * constants.Ki,
-                                     cell.vswitch_hugepages_nr)
-            reserved_pages.append(reserved_vswitch_pages)
+            if cell.vswitch_hugepages_nr:
+                reserved_vswitch_pages = 'node:%d,size:%d,count:%d' % (
+                    cell.numa_node,
+                    cell.vswitch_hugepages_size_mib * constants.Ki,
+                    cell.vswitch_hugepages_nr)
+                reserved_pages.append(reserved_vswitch_pages)
+                reserved_host_memory += (cell.vswitch_hugepages_size_mib *
+                                         cell.vswitch_hugepages_nr)
             reserved_host_memory += cell.platform_reserved_mib
-            reserved_host_memory += cell.vswitch_hugepages_size_mib * cell.vswitch_hugepages_nr
 
         multistring = self._oslo_multistring_override(
             name='reserved_huge_pages', values=reserved_pages)

@@ -1235,3 +1235,141 @@ class NovaMultiNumaTest(testtools.TestCase):
         self.assertEqual(
             per_physnet_numa_config['neutron_physnet_physnet_ok'],
             {'numa_nodes': '0'})
+
+
+class TestUpdateReservedMemory(testtools.TestCase):
+    """Unit tests for NovaHelm._update_reserved_memory()."""
+
+    def _make_helm(self):
+        helm_obj = nova.NovaHelm(None)
+        helm_obj.memory_by_hostid = {}
+        return helm_obj
+
+    def _mock_cell(self, numa_node, platform_reserved_mib,
+                   vswitch_hugepages_size_mib, vswitch_hugepages_nr):
+        """Create a mock memory cell object."""
+        cell = mock.MagicMock()
+        cell.numa_node = numa_node
+        cell.platform_reserved_mib = platform_reserved_mib
+        cell.vswitch_hugepages_size_mib = vswitch_hugepages_size_mib
+        cell.vswitch_hugepages_nr = vswitch_hugepages_nr
+        return cell
+
+    def _mock_host(self, host_id=1):
+        """Create a mock host object."""
+        host = mock.MagicMock()
+        host.id = host_id
+        return host
+
+    def test_vswitch_entry_emitted_when_count_nonzero(self):
+        """Non-zero vswitch count emits both 4K and vswitch reserved_huge_pages entries."""
+        helm_obj = self._make_helm()
+        host = self._mock_host()
+        cell = self._mock_cell(numa_node=0, platform_reserved_mib=1200,
+                               vswitch_hugepages_size_mib=2, vswitch_hugepages_nr=128)
+        helm_obj.memory_by_hostid = {host.id: [cell]}
+
+        default_config = {}
+        helm_obj._update_reserved_memory(host, default_config)
+
+        self.assertIn('reserved_huge_pages', default_config)
+        pages = default_config['reserved_huge_pages']['values']
+        self.assertEqual(len(pages), 2)
+        self.assertIn('size:4', pages[0])
+        self.assertIn('node:0', pages[0])
+        self.assertIn('size:2048', pages[1])
+        self.assertIn('count:128', pages[1])
+        self.assertEqual(default_config['reserved_host_memory_mb'], 1200 + 2 * 128)
+
+    def test_vswitch_entry_skipped_when_count_zero(self):
+        """Zero vswitch count skips the vswitch entry; only 4K entry emitted."""
+        helm_obj = self._make_helm()
+        host = self._mock_host()
+        cell = self._mock_cell(numa_node=0, platform_reserved_mib=1200,
+                               vswitch_hugepages_size_mib=2, vswitch_hugepages_nr=0)
+        helm_obj.memory_by_hostid = {host.id: [cell]}
+
+        default_config = {}
+        helm_obj._update_reserved_memory(host, default_config)
+
+        self.assertIn('reserved_huge_pages', default_config)
+        pages = default_config['reserved_huge_pages']['values']
+        self.assertEqual(len(pages), 1)
+        self.assertIn('size:4', pages[0])
+        self.assertEqual(default_config['reserved_host_memory_mb'], 1200)
+
+    def test_vswitch_entry_skipped_when_count_none(self):
+        """None vswitch count skips the vswitch entry; avoids TypeError."""
+        helm_obj = self._make_helm()
+        host = self._mock_host()
+        cell = self._mock_cell(numa_node=0, platform_reserved_mib=1200,
+                               vswitch_hugepages_size_mib=None, vswitch_hugepages_nr=None)
+        helm_obj.memory_by_hostid = {host.id: [cell]}
+
+        default_config = {}
+        helm_obj._update_reserved_memory(host, default_config)
+
+        self.assertIn('reserved_huge_pages', default_config)
+        pages = default_config['reserved_huge_pages']['values']
+        self.assertEqual(len(pages), 1)
+        self.assertIn('size:4', pages[0])
+        self.assertEqual(default_config['reserved_host_memory_mb'], 1200)
+
+    def test_multi_numa_nodes_with_mixed_vswitch_counts(self):
+        """Multi-NUMA with mixed vswitch counts: only non-zero nodes emit vswitch entries."""
+        helm_obj = self._make_helm()
+        host = self._mock_host()
+        cell0 = self._mock_cell(numa_node=0, platform_reserved_mib=1000,
+                                vswitch_hugepages_size_mib=2, vswitch_hugepages_nr=64)
+        cell1 = self._mock_cell(numa_node=1, platform_reserved_mib=1000,
+                                vswitch_hugepages_size_mib=2, vswitch_hugepages_nr=0)
+        helm_obj.memory_by_hostid = {host.id: [cell0, cell1]}
+
+        default_config = {}
+        helm_obj._update_reserved_memory(host, default_config)
+
+        self.assertIn('reserved_huge_pages', default_config)
+        pages = default_config['reserved_huge_pages']['values']
+        self.assertEqual(len(pages), 3)
+        self.assertIn('node:0,size:4', pages[0])
+        self.assertIn('node:0,size:2048,count:64', pages[1])
+        self.assertIn('node:1,size:4', pages[2])
+        self.assertEqual(default_config['reserved_host_memory_mb'], 2128)
+
+    def test_1g_vswitch_pages_emitted_correctly(self):
+        """1G vswitch pages (size_mib=1024) emit correct size in KiB."""
+        helm_obj = self._make_helm()
+        host = self._mock_host()
+        cell = self._mock_cell(numa_node=0, platform_reserved_mib=1200,
+                               vswitch_hugepages_size_mib=1024, vswitch_hugepages_nr=2)
+        helm_obj.memory_by_hostid = {host.id: [cell]}
+
+        default_config = {}
+        helm_obj._update_reserved_memory(host, default_config)
+
+        pages = default_config['reserved_huge_pages']['values']
+        self.assertEqual(len(pages), 2)
+        self.assertIn('size:1048576', pages[1])
+        self.assertIn('count:2', pages[1])
+        self.assertEqual(default_config['reserved_host_memory_mb'], 3248)
+
+    def test_reserved_host_memory_with_none_size_zero_count(self):
+        """Verify no TypeError when size_mib is None and count is zero.
+
+        This covers the edge case where vswitch_hugepages_size_mib is None
+        and vswitch_hugepages_nr is 0. Without the guard, size_mib * nr
+        would raise TypeError (None * 0). The guard skips this calculation.
+        """
+        helm_obj = self._make_helm()
+        host = self._mock_host()
+        platform_reserved = 1500
+
+        # size=None, nr=0: would raise TypeError without the guard
+        cell = self._mock_cell(numa_node=0, platform_reserved_mib=platform_reserved,
+                               vswitch_hugepages_size_mib=None, vswitch_hugepages_nr=0)
+        helm_obj.memory_by_hostid = {host.id: [cell]}
+
+        default_config = {}
+        helm_obj._update_reserved_memory(host, default_config)
+
+        self.assertEqual(default_config['reserved_host_memory_mb'], platform_reserved)

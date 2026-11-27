@@ -1529,18 +1529,12 @@ conf:
       enable_proxy_headers_parsing: true
     glance:
       num_retries: 3
-      api_servers: http://glance.openstack.svc.cluster.local:80/
-    ironic:
-      api_endpoint: http://ironic.openstack.svc.cluster.local:80/
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     neutron:
       metadata_proxy_shared_secret: "password"
       service_metadata_proxy: True
       auth_type: password
       auth_version: v3
       default_floating_pool: public
-      url: http://neutron.openstack.svc.cluster.local:80/
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     cinder:
       auth_type: password
       catalog_info: volumev3::internalURL
@@ -1571,8 +1565,6 @@ conf:
       memcache_security_strategy: ENCRYPT
       service_type: compute
       interface: internal
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     notifications:
       notify_on_state_change: vm_and_task_state
       # Without Watcher. NovaHelm sets "both" while Watcher is deployed.
@@ -1580,7 +1572,6 @@ conf:
     service_user:
       auth_type: password
       send_service_user_token: true
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     libvirt:
       connection_uri: "qemu+unix:///system?socket=/run/libvirt/libvirt-sock"
       images_type: qcow2
@@ -1611,7 +1602,6 @@ conf:
     placement:
       auth_type: password
       auth_version: v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     compute:
       max_concurrent_disk_ops: 2
     filter_scheduler:

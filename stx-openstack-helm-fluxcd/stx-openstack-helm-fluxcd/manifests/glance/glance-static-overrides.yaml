@@ -283,8 +283,6 @@ conf:
       auth_version: v3
       memcache_security_strategy: ENCRYPT
       service_type: image
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
     glance_store:
       # Since 2024.1 this section must contain the only key 'default_backend'.
       # Other keys should be defined in the corresponding per-backend sections.
@@ -463,10 +461,6 @@ conf:
       module: glance.wsgi.api:application
       stats: "[::]:1717"
       stats-http: true
-  glance_registry:
-    keystone_authtoken:
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
   cinder:
     cinder_uses_ceph: false
 network:

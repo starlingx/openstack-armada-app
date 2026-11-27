@@ -118,9 +118,6 @@ conf:
     cinder:
       auth_type: password
     glance:
-      glance_host: glance.openstack.svc.cluster.local
-      glance_port: 80
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       auth_type: password
       swift_temp_url_duration: 86400
       temp_url_endpoint_type: swift
@@ -128,18 +125,13 @@ conf:
       swift_api_version: v1
       auth_section: glance
     inspector:
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       auth_type: password
     keystone_authtoken:
-      auth_uri: http://keystone.openstack.svc.cluster.local:80/v3
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       service_token_roles: service
       service_token_roles_required: true
       auth_type: password
       auth_version: v3
     neutron:
-      url: http://neutron.openstack.svc.cluster.local:80/
-      auth_url: http://keystone.openstack.svc.cluster.local:80/v3
       auth_type: password
     pxe:
       pxe_append_params: "nofb nomodeset vga=normal console=ttyS0,115200n8"

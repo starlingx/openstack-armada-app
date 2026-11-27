@@ -698,6 +698,10 @@ conf:
       disable_ipmi_checks: true
       corosync_multicast_ports: 5405
       pacemaker_node_type: remote
+    kubernetes:
+      # Clear the maintenance flag Masakari leaves on a host it recovered,
+      # so the host's next failure is not rejected with 409.
+      restore_recovered_hosts: true
   masakari_sudoers: |
     Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/var/lib/openstack/bin"
     masakari-monitors ALL=(ALL:ALL) NOPASSWD: /var/lib/openstack/bin/privsep-helper

@@ -1,0 +1,461 @@
+From 300a4fcd8403656f6d235ebe62a5e640dc2843b1 Mon Sep 17 00:00:00 2001
+From: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+Date: Thu, 19 Nov 2026 23:47:27 -0500
+Subject: [PATCH] Clear maintenance on a host recovered by Masakari
+
+When Masakari starts recovering a failed host it sets the host's
+on_maintenance flag, and nothing ever clears it. The API then rejects
+every later notification from a host in maintenance with 409, so once
+a host has been recovered and is back in service it is no longer
+protected: its next failure is dropped.
+
+Have the Kubernetes host monitor clear the flag once the host is back.
+Each monitor keeps a set of hosts to check: every node when it starts,
+and any node that goes down. When such a host is Ready for the whole
+sample window, the monitor looks the hosts up in one segment listing per
+poll and checks the host's latest COMPUTE_HOST notification first, by
+creation time, since a new notification has no update time yet. While it
+is new, running or error the engine may still put the host in
+maintenance, so the monitor checks again on the next poll. The flag is
+cleared only when Masakari set it: the notification is finished or
+failed and the host was not updated after it. A flag set by an operator
+is left alone, including one behind an ignored notification. A 409 while
+another notification in the segment is processed, or an unreachable API,
+is retried on the next poll. A monitor never acts on its own host.
+
+A config option (restore_recovered_hosts, default False) turns this on.
+The nova-compute service is not touched here: the platform re-enables
+it once the host is back.
+
+Relates-to: https://review.opendev.org/c/openstack/masakari-monitors/+/1016324
+Signed-off-by: Sridhar Kumar Ettkepalli <SridharKumar.Ettkepalli@windriver.com>
+---
+ masakarimonitors/conf/kubernetes.py           |   9 ++
+ masakarimonitors/ha/masakari.py               |  73 +++++++++++
+ .../hostmonitor/kubernetes_check/manager.py   |  35 +++++-
+ .../tests/unit/ha/test_masakari.py            | 115 ++++++++++++++++++
+ .../kubernetes_check/test_manager.py          | 100 +++++++++++++++
+ 5 files changed, 331 insertions(+), 1 deletion(-)
+
+diff --git a/masakarimonitors/conf/kubernetes.py b/masakarimonitors/conf/kubernetes.py
+index 7fb72b12e..9b9359010 100644
+--- a/masakarimonitors/conf/kubernetes.py
++++ b/masakarimonitors/conf/kubernetes.py
+@@ -23,6 +23,15 @@ defined in this option are included in the monitor.
+ Example value:
+ 
+ monitoring_node_labels = "monitoring=true,compute-node=enabled,..."
++'''),
++    cfg.BoolOpt('restore_recovered_hosts',
++                default=False,
++                help='''
++Clear the Masakari on_maintenance flag of a host once it is back Ready after
++its failure was handled. Masakari sets the flag when it starts recovering a
++host and never clears it, and the API rejects later notifications for a host
++in maintenance with 409, so without this a host is recovered only once. A flag
++set by an operator is left alone.
+ '''),
+ ]
+ 
+diff --git a/masakarimonitors/ha/masakari.py b/masakarimonitors/ha/masakari.py
+index ea2d6c8b8..b38af4914 100644
+--- a/masakarimonitors/ha/masakari.py
++++ b/masakarimonitors/ha/masakari.py
+@@ -17,12 +17,18 @@ from keystoneauth1 import loading as ks_loading
+ from openstack import connection
+ from openstack import exceptions
+ from oslo_log import log as oslo_logging
++from oslo_utils import timeutils
+ 
+ import masakarimonitors.conf
+ 
+ LOG = oslo_logging.getLogger(__name__)
+ CONF = masakarimonitors.conf.CONF
+ 
++# A notification in these states no longer holds the host for recovery.
++_DONE_STATUSES = ('finished', 'failed')
++# Final, but Masakari did not put the host in maintenance for it.
++_IGNORED = 'ignored'
++
+ 
+ class SendNotification(object):
+ 
+@@ -88,3 +94,70 @@ class SendNotification(object):
+                     LOG.exception("Exception caught: %s", e)
+                     self._masakari_client = None
+                     return False
++
++    def clear_recovered_maintenance(self, hostnames):
++        """Clear on_maintenance that Masakari set while recovering hosts.
++
++        Returns the hosts that need no further attention; the caller retries
++        the rest on a later poll.
++        """
++        try:
++            members = {}
++            for segment in self.masakari_client.segments():
++                for host in self.masakari_client.hosts(segment.uuid):
++                    if host.name in hostnames:
++                        members[host.name] = (segment, host)
++        except Exception as e:
++            LOG.warning("Could not list Masakari hosts, will retry: %s", e)
++            if not isinstance(e, exceptions.HttpException):
++                self._masakari_client = None
++            return set()
++
++        done = set(hostnames) - set(members)
++        for name, (segment, host) in members.items():
++            if self._clear_one(name, segment, host):
++                done.add(name)
++        return done
++
++    def _clear_one(self, hostname, segment, host):
++        try:
++            last = next(iter(self.masakari_client.notifications(
++                source_host_uuid=host.uuid, type='COMPUTE_HOST',
++                sort_key='created_at', sort_dir='desc', limit=1)), None)
++            if (last is not None and last.status != _IGNORED and
++                    last.status not in _DONE_STATUSES):
++                # Still being processed; the engine may set the flag yet.
++                LOG.debug("Host %s: recovery %s is %s, checking again later.",
++                          hostname, last.notification_uuid, last.status)
++                return False
++            if not host.on_maintenance:
++                return True
++            if last is None or last.status == _IGNORED:
++                # No host recovery behind the flag: an operator set it.
++                return True
++            if (host.updated_at is None or
++                    timeutils.parse_isotime(host.updated_at) >
++                    timeutils.parse_isotime(last.updated_at)):
++                # Set when the host was added, or again after the recovery
++                # finished: leave it.
++                return True
++
++            self.masakari_client.update_host(
++                host.uuid, segment.uuid, on_maintenance=False)
++            LOG.info("Host %s is back in service after recovery %s (%s); "
++                     "cleared its maintenance flag.", hostname,
++                     last.notification_uuid, last.status)
++            return True
++        except exceptions.ConflictException as e:
++            # Expected while another notification in the segment runs.
++            LOG.debug("Host %s: segment is busy, clearing maintenance later: "
++                      "%s", hostname, e)
++            return False
++        except exceptions.NotFoundException:
++            LOG.info("Host %s is no longer in Masakari; nothing to clear.",
++                     hostname)
++            return True
++        except Exception as e:
++            LOG.warning("Could not clear maintenance on host %s, will retry: "
++                        "%s", hostname, e)
++            return False
+diff --git a/masakarimonitors/hostmonitor/kubernetes_check/manager.py b/masakarimonitors/hostmonitor/kubernetes_check/manager.py
+index 8ccd237dd..2198bf5c3 100644
+--- a/masakarimonitors/hostmonitor/kubernetes_check/manager.py
++++ b/masakarimonitors/hostmonitor/kubernetes_check/manager.py
+@@ -46,6 +46,9 @@ class KubernetesCheck(driver.DriverBase):
+         self.last_status = {}
+         # Hosts found down whose notification has not got through yet.
+         self.notify_pending = set()
++        # Hosts to check for a maintenance flag left by a past recovery:
++        # every node once at start, then each node after it goes down.
++        self.restore_pending = None
+         self.running = False
+ 
+         config.load_incluster_config()
+@@ -63,7 +66,12 @@ class KubernetesCheck(driver.DriverBase):
+             node: status for node, status in self.monitoring_data.items()
+             if node in [i.metadata.name for i in node_list]
+         }
+-        self.notify_pending &= {i.metadata.name for i in node_list}
++        current_nodes = {i.metadata.name for i in node_list}
++        self.notify_pending &= current_nodes
++        if self.restore_pending is None:
++            self.restore_pending = set(current_nodes)
++        else:
++            self.restore_pending &= current_nodes
+ 
+         for host in node_list:
+             hostname = host.metadata.name
+@@ -104,6 +112,7 @@ class KubernetesCheck(driver.DriverBase):
+ 
+     def poll_hosts(self):
+         """poll and check hosts health"""
++        recovered = []
+         for host, health_history in self.monitoring_data.items():
+             if not self.last_status:
+                 self.last_status[host] = self.monitoring_data[host][0]
+@@ -116,6 +125,16 @@ class KubernetesCheck(driver.DriverBase):
+ 
+             is_host_alive = "True" in health_history
+ 
++            if (not is_host_alive and self.restore_pending is not None and
++                    host not in self.restore_pending):
++                LOG.debug("Host %s is down; its maintenance flag is checked "
++                          "once it is back.", host)
++                self.restore_pending.add(host)
++            if self._is_restore_candidate(host, health_history):
++                LOG.debug("Host %s is Ready for the full window; "
++                          "checking its maintenance flag.", host)
++                recovered.append(host)
++
+             if is_host_alive:
+                 self.notify_pending.discard(host)
+             elif host in self.notify_pending:
+@@ -126,6 +145,20 @@ class KubernetesCheck(driver.DriverBase):
+ 
+             self.last_status[host] = is_host_alive
+ 
++        if recovered:
++            done = self.notifier.clear_recovered_maintenance(recovered)
++            LOG.debug("Maintenance check: tried %s, done %s.",
++                      sorted(recovered), sorted(done))
++            self.restore_pending -= done
++
++    def _is_restore_candidate(self, host, health_history):
++        """True for a pending host that is back Ready."""
++        if (not CONF.kubernetes.restore_recovered_hosts or
++                not self.restore_pending or
++                host not in self.restore_pending):
++            return False
++        return all(status == "True" for status in health_history)
++
+     def _notify(self, host, is_host_alive):
+         """Notify Masakari, keeping the host pending if the send fails."""
+         event = self._event(host, is_host_alive)
+diff --git a/masakarimonitors/tests/unit/ha/test_masakari.py b/masakarimonitors/tests/unit/ha/test_masakari.py
+index 6f38bb85f..3c3f8a1b6 100644
+--- a/masakarimonitors/tests/unit/ha/test_masakari.py
++++ b/masakarimonitors/tests/unit/ha/test_masakari.py
+@@ -140,3 +140,118 @@ class TestSendNotification(testtools.TestCase):
+             payload=self.event['notification']['payload'])
+         self.assertEqual(self.api_retry_max + 1,
+                          mock_conn.instance_ha.create_notification.call_count)
++
++
++class TestClearRecoveredMaintenance(testtools.TestCase):
++
++    def setUp(self):
++        super(TestClearRecoveredMaintenance, self).setUp()
++        self.client = mock.Mock()
++        self.notifier = masakari.SendNotification()
++        self.notifier._masakari_client = self.client
++        self.segment = mock.Mock(uuid='seg-1')
++        self.host = mock.Mock(uuid='host-1', on_maintenance=True,
++                              updated_at='2026-11-08T04:00:00.000000')
++        self.host.name = 'compute-0'
++        self.client.segments.return_value = [self.segment]
++        self.client.hosts.return_value = [self.host]
++
++    def _last(self, status, updated_at='2026-11-08T04:10:00.000000'):
++        self.client.notifications.return_value = iter([mock.Mock(
++            status=status, updated_at=updated_at, notification_uuid='n-1')])
++
++    def _clear(self, *names):
++        return self.notifier.clear_recovered_maintenance(list(names))
++
++    def test_clears_after_finished_recovery(self):
++        self._last('finished')
++        self.assertEqual({'compute-0'}, self._clear('compute-0'))
++        self.client.update_host.assert_called_once_with(
++            'host-1', 'seg-1', on_maintenance=False)
++        self.client.notifications.assert_called_once_with(
++            source_host_uuid='host-1', type='COMPUTE_HOST',
++            sort_key='created_at', sort_dir='desc', limit=1)
++
++    def test_clears_after_failed_recovery(self):
++        self._last('failed')
++        self.assertEqual({'compute-0'}, self._clear('compute-0'))
++        self.client.update_host.assert_called_once()
++
++    def test_waits_while_recovery_in_progress(self):
++        for status in ('new', 'running', 'error'):
++            self.client.reset_mock()
++            self.client.segments.return_value = [self.segment]
++            self.client.hosts.return_value = [self.host]
++            self._last(status)
++            self.assertEqual(set(), self._clear('compute-0'))
++            self.client.update_host.assert_not_called()
++
++    def test_leaves_operator_maintenance_without_recovery(self):
++        self.client.notifications.return_value = iter([])
++        self.assertEqual({'compute-0'}, self._clear('compute-0'))
++        self.client.update_host.assert_not_called()
++
++    def test_leaves_maintenance_set_after_recovery(self):
++        self._last('finished', updated_at='2026-11-08T03:00:00.000000')
++        self.assertEqual({'compute-0'}, self._clear('compute-0'))
++        self.client.update_host.assert_not_called()
++
++    def test_leaves_maintenance_set_when_host_was_added(self):
++        self.host.updated_at = None
++        self._last('finished')
++        self.assertEqual({'compute-0'}, self._clear('compute-0'))
++        self.client.update_host.assert_not_called()
++
++    def test_nothing_to_do_when_not_in_maintenance(self):
++        self.host.on_maintenance = False
++        self._last('finished')
++        self.assertEqual({'compute-0'}, self._clear('compute-0'))
++        self.client.update_host.assert_not_called()
++
++    def test_waits_for_recovery_not_started_yet(self):
++        # Not in maintenance yet, but the engine still has to pick up the
++        # notification and will set the flag.
++        self.host.on_maintenance = False
++        self._last('new')
++        self.assertEqual(set(), self._clear('compute-0'))
++        self.client.update_host.assert_not_called()
++
++    def test_leaves_operator_maintenance_after_ignored_notification(self):
++        self._last('ignored')
++        self.assertEqual({'compute-0'}, self._clear('compute-0'))
++        self.client.update_host.assert_not_called()
++
++    def test_non_member_is_done(self):
++        self.assertEqual({'compute-9'}, self._clear('compute-9'))
++        self.client.update_host.assert_not_called()
++
++    def test_lists_segments_once_for_many_hosts(self):
++        self._last('finished')
++        self.assertEqual({'compute-0', 'compute-9'},
++                         self._clear('compute-0', 'compute-9'))
++        self.client.segments.assert_called_once()
++        self.client.hosts.assert_called_once_with('seg-1')
++
++    def test_retries_on_conflict(self):
++        self._last('finished')
++        self.client.update_host.side_effect = exceptions.ConflictException(
++            response=FakeResponse(status_code=409))
++        self.assertEqual(set(), self._clear('compute-0'))
++        self.assertIs(self.client, self.notifier._masakari_client)
++
++    def test_host_gone_is_done(self):
++        self._last('finished')
++        self.client.update_host.side_effect = exceptions.NotFoundException(
++            response=FakeResponse(status_code=404))
++        self.assertEqual({'compute-0'}, self._clear('compute-0'))
++
++    def test_retries_on_other_http_error(self):
++        self._last('finished')
++        self.client.update_host.side_effect = exceptions.HttpException(
++            response=FakeResponse(status_code=403))
++        self.assertEqual(set(), self._clear('compute-0'))
++
++    def test_retries_and_rebuilds_client_on_transport_error(self):
++        self.client.segments.side_effect = ConnectionError("refused")
++        self.assertEqual(set(), self._clear('compute-0'))
++        self.assertIsNone(self.notifier._masakari_client)
+diff --git a/masakarimonitors/tests/unit/hostmonitor/kubernetes_check/test_manager.py b/masakarimonitors/tests/unit/hostmonitor/kubernetes_check/test_manager.py
+index 52d83b986..b4e17ce39 100644
+--- a/masakarimonitors/tests/unit/hostmonitor/kubernetes_check/test_manager.py
++++ b/masakarimonitors/tests/unit/hostmonitor/kubernetes_check/test_manager.py
+@@ -242,3 +242,103 @@ class TestKubernetesCheck(testtools.TestCase):
+                                return_value=nodes):
+             self.host_monitor.update_monitoring_data()
+         self.assertEqual({"node01"}, self.host_monitor.notify_pending)
++
++
++class TestRestoreRecoveredHosts(testtools.TestCase):
++
++    @mock.patch.object(config, 'load_incluster_config')
++    @mock.patch.object(client, 'CoreV1Api')
++    def setUp(self, mock_core_v1_api, mock_load_incluster_config):
++        super(TestRestoreRecoveredHosts, self).setUp()
++        self.CONF = self.useFixture(fixture_config.Config()).conf
++        self.CONF.set_override('restore_recovered_hosts', True, 'kubernetes')
++        self.host_monitor = manager.KubernetesCheck()
++        self.host_monitor.hostname = "node00"
++        self.host_monitor.monitoring_samples = 2
++        self.host_monitor.last_status = {"node01": True}
++        self.host_monitor.restore_pending = {"node01"}
++        self.host_monitor.monitoring_data = {
++            "node01": deque(['True', 'True'], maxlen=2)}
++
++    def _node(self, name):
++        return V1Node(metadata=V1ObjectMeta(name=name),
++                      status=V1NodeStatus(conditions=[
++                          V1NodeCondition(status="True", type="Ready")]))
++
++    @mock.patch.object(masakari.SendNotification,
++                       'clear_recovered_maintenance', return_value={"node01"})
++    def test_restores_ready_host(self, mock_clear):
++        self.host_monitor.poll_hosts()
++        mock_clear.assert_called_once_with(["node01"])
++        self.assertEqual(set(), self.host_monitor.restore_pending)
++
++    @mock.patch.object(masakari.SendNotification,
++                       'clear_recovered_maintenance', return_value=set())
++    def test_keeps_host_pending_when_restore_must_retry(self, mock_clear):
++        self.host_monitor.poll_hosts()
++        mock_clear.assert_called_once_with(["node01"])
++        self.assertEqual({"node01"}, self.host_monitor.restore_pending)
++
++    @mock.patch.object(masakari.SendNotification,
++                       'clear_recovered_maintenance')
++    def test_waits_for_full_ready_window(self, mock_clear):
++        self.host_monitor.monitoring_data = {
++            "node01": deque(['True', 'Unknown'], maxlen=2)}
++        self.host_monitor.poll_hosts()
++        mock_clear.assert_not_called()
++
++    @mock.patch.object(masakari.SendNotification,
++                       'clear_recovered_maintenance')
++    def test_skips_host_not_pending(self, mock_clear):
++        self.host_monitor.restore_pending = set()
++        self.host_monitor.poll_hosts()
++        mock_clear.assert_not_called()
++
++    @mock.patch.object(masakari.SendNotification,
++                       'clear_recovered_maintenance')
++    def test_turned_off(self, mock_clear):
++        self.CONF.set_override('restore_recovered_hosts', False, 'kubernetes')
++        self.host_monitor.poll_hosts()
++        mock_clear.assert_not_called()
++
++    @mock.patch.object(masakari.SendNotification,
++                       'clear_recovered_maintenance', return_value={"node01"})
++    def test_never_restores_itself(self, mock_clear):
++        self.host_monitor.hostname = "node01"
++        self.host_monitor.poll_hosts()
++        mock_clear.assert_not_called()
++
++    @mock.patch.object(masakari.SendNotification, 'send_notification')
++    @mock.patch.object(masakari.SendNotification,
++                       'clear_recovered_maintenance', return_value={"node01"})
++    def test_down_host_is_restored_after_it_returns(self, mock_clear,
++                                                    mock_send):
++        self.host_monitor.restore_pending = set()
++        self.host_monitor.monitoring_data = {
++            "node01": deque(['Unknown', 'Unknown'], maxlen=2)}
++        self.host_monitor.poll_hosts()
++        self.assertEqual({"node01"}, self.host_monitor.restore_pending)
++        mock_clear.assert_not_called()
++
++        self.host_monitor.monitoring_data = {
++            "node01": deque(['True', 'True'], maxlen=2)}
++        self.host_monitor.poll_hosts()
++        mock_clear.assert_called_once_with(["node01"])
++        self.assertEqual(set(), self.host_monitor.restore_pending)
++
++    def test_first_update_marks_every_node_pending(self):
++        nodes = V1NodeList(items=[self._node("node01"), self._node("node02")])
++        with mock.patch.object(self.host_monitor.kube_client, 'list_node',
++                               return_value=nodes):
++            self.host_monitor.restore_pending = None
++            self.host_monitor.update_monitoring_data()
++        self.assertEqual({"node01", "node02"},
++                         self.host_monitor.restore_pending)
++
++    def test_update_prunes_removed_nodes_from_pending(self):
++        self.host_monitor.restore_pending = {"node01", "node02"}
++        nodes = V1NodeList(items=[self._node("node01")])
++        with mock.patch.object(self.host_monitor.kube_client, 'list_node',
++                               return_value=nodes):
++            self.host_monitor.update_monitoring_data()
++        self.assertEqual({"node01"}, self.host_monitor.restore_pending)
+-- 
+2.34.1
+
